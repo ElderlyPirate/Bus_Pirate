@@ -84,10 +84,6 @@ extern int cmderror;
 unsigned int I2Cread(void) {
     unsigned char c = 0;
     if (ackPending) {
-        bpSP;
-        //bpWmessage(MSG_ACK);
-        BPMSG1060;
-        bpSP;
         if (i2cmode == SOFT) {
             bbI2Cack();
         }
@@ -96,6 +92,10 @@ unsigned int I2Cread(void) {
             hwi2csendack(0); //all other reads get an ACK
         }
 #endif
+	bpSP;
+        //bpWmessage(MSG_ACK);
+        BPMSG1060;
+        bpSP;
         ackPending = 0;
     }
 

@@ -256,7 +256,7 @@ void __attribute__((noinline)) WaitOutReady() {
 #endif /* __XC16_VERSION__ == 1026 */
 }
 
-void WaitInReady() {
+void __attribute__((noinline)) WaitInReady() {
 #if __XC16_VERSION__ == 1026
     
     /* 

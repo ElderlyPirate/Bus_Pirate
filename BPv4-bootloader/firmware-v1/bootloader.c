@@ -22,7 +22,7 @@ BYTE bldone = 0;
 extern BYTE cdc_In_buffer[64];
 extern BYTE cdc_Out_buffer[64];
 #define VER_H 0x04
-#define VER_L 0x06
+#define VER_L 0x0a
 
 unsigned int userversion  __attribute__((space(prog),address(BLENDADDR-9))) = ((VER_H<<8)|VER_L); 
 

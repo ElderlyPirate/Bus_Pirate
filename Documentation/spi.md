@@ -119,10 +119,9 @@ The Bus Pirate can read the traffic on an SPI bus.
 
 The SPI sniffer is implemented in hardware and should work up to 10MHz. It follows the configuration settings you entered for SPI mode. 
 
- ------ 
-**_Warning!_** Enter sniffer mode before connecting the target!!
-The Bus Pirate SPI CLOCK or DATA lines could be grounded and ruin the target device!
-Reset with the CS pin to clear garbage if needed.
+| _Warning!_ |
+| ---------- |
+| Enter sniffer mode before connecting the target!! The Bus Pirate SPI CLOCK or DATA lines could be grounded and ruin the target device! Reset with the CS pin to clear garbage if needed. |
 
 ---------
 
@@ -147,21 +146,17 @@ SPI CS pin transitions are represented by the normal Bus Pirate syntax. The byte
 
 The SPI sniffer can read all traffic, or filter by the state of the CS pin. The byte sniffed on the MOSI pin is displayed as a HEX formatted value, the byte sniffed on the MISO pin is inside the ().
 
- --------
-There may be an issue in the sniffer terminal mode from v5.2+.
-Try the [binary mode sniffer utility](Bus_Pirate_binary_SPI_sniffer_utility) for best results.
+| |
+| -------- |
+| There may be an issue in the sniffer terminal mode from v5.2+. Try the [binary mode sniffer utility](Bus_Pirate_binary_SPI_sniffer_utility) for best results. |
 
----------------
 
 #### Notes
 The sniffer uses a 4096byte output [ring buffer](http://en.wikipedia.org/wiki/Circular_buffer). Sniffer output goes into the ring buffer and gets pushed to the PC when the UART is free. This should eliminate problems with dropped bytes, regardless of UART speed or display mode. 
 
- ------ 
-**_Warning!_** Enter sniffer mode before connecting the target!!
-The Bus Pirate SPI CLOCK or DATA lines could be grounded and ruin the target device!
-Reset with the CS pin to clear garbage if needed.
-
-----------
+| _Warning!_ |
+| ---------- |
+| Enter sniffer mode before connecting the target!! The Bus Pirate SPI CLOCK or DATA lines could be grounded and ruin the target device! Reset with the CS pin to clear garbage if needed. |
 
 A long enough stream of data will eventually overtake the buffer, after which the MODE LED turns off (v5.2+). No data can be trusted if the MODE LED is off - this will be improved in a future firmware.
 

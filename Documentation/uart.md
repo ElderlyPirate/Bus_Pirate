@@ -91,7 +91,7 @@ Command Syntax
 	  * Close UART.
   * r
 	  * Check UART for byte, or fail if empty.
-      * Displays framing (-f) and parity (-p) errors, more(TODO:LINK). (r:1…255 for bulk reads)
+      * Displays framing (-f) and parity (-p) errors ([more](#r-read-a-byte)). (r:1…255 for bulk reads)
   * 0b
 	  * Write this binary value.
 	  * Format is 0b00000000 for a byte, but partial bytes are also fine: 0b1001.
@@ -144,7 +144,7 @@ Macros
 
   0 	Macro menu
   1 	Transparent UART bridge. Reset to exit.
-  2 	Live raw UART monitor. Any key exits. More(TODO:LINK)
+  2 	Live raw UART monitor. Any key exits.
   3 	Transparent UART bridge with flow control.
   
 ### Transparent UART bridge

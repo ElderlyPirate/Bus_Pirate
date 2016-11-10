@@ -77,9 +77,11 @@ Command Syntax
 Macros
 ------------------
 
-  0 	Macro menu
-  1 	7bit address search. Find all connected devices by brute force.
-  2 	I2C snooper. Listen for all i2c traffic
+| (#) | Description |
+|:---:| ----------- |
+| 0 | Macro menu |
+| 1 | 7bit address search. Find all connected devices by brute force. |
+| 2 | I2C snooper. Listen for all i2c traffic |
   
 ### I2C address search scanner macro
 

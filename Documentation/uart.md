@@ -140,10 +140,12 @@ Set the calculator with the Bus Pirate values: PIC24, 32MHz clock. Enter the des
 Macros
 ------------------
 
-  0 	Macro menu
-  1 	Transparent UART bridge. Reset to exit.
-  2 	Live raw UART monitor. Any key exits.
-  3 	Transparent UART bridge with flow control.
+| (#) | Description |
+|:---:| ----------- |
+| 0 | Macro menu |
+| 1 | Transparent UART bridge. Reset to exit. |
+| 2 | Live raw UART monitor. Any key exits. |
+| 3 | Transparent UART bridge with flow control. |
   
 ### Transparent UART bridge
 

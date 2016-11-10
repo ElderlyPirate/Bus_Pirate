@@ -67,7 +67,7 @@ Command Syntax
 	  * Any number not preceded by 0x or 0b is interpreted as a decimal value.
   * ,
 	  * Value delimiter.
-	  * Use a coma or space to separate numbers.
+	  * Use a comma or space to separate numbers.
 	  * Any combination is fine, no delimiter is required between non-number values: {0xa6,0, 0 16 5 0b111 0xaF}.
   * &
 	  * Delay 1uS. (&:1…255 for multiple delays)

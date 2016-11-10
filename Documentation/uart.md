@@ -2,8 +2,6 @@ UART Mode
 ===================
 UART is also known as the common PC serial port. A PC serial port operates at full RS232 voltage levels (-13volts to +13volts), which are not compatible with the Bus Pirate.
 
-[UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver/transmitter) 
-
   - **Bus:** [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver/transmitter), [MIDI](http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface)
   - **Connections:** two pins (RX/TX) and ground
   - **Output types:** 
@@ -129,11 +127,11 @@ The Bus Pirate hardware has a four-byte UART buffer that holds data until you re
 
 The Bus Pirate detects buffer errors, clears them, and alerts you of dropped bytes. The overrun bit is cleared any time you use the r, {, or [ commands. If you close the live UART display (]) and more than 5 bytes come in, the next read command (r) will clear the error and print the *bytes dropped* warning.
 
-Prevent buffer problems by reducing the amount of data the Bus Pirate transfers over USB for each byte of UART data. Raw display mode reduces the four byte hex value 0×00 to a single raw byte value. A better way is to use macro (1) or (2) to view unformatted UART output, this is a 1:1 transfer of bytes that should work at the highest possible speeds.
+Prevent buffer problems by reducing the amount of data the Bus Pirate transfers over USB for each byte of UART data. Raw display mode reduces the four byte hex value 0x00 to a single raw byte value. A better way is to use macro (1) or (2) to view unformatted UART output, this is a 1:1 transfer of bytes that should work at the highest possible speeds.
 
 ### Custom baud rate
 
-A custom baud rate is set with the BRG option in firmware v5.5+. Use a (PIC UART calculator)[http://www.micromagicsystems.com/#/pic-baud/4523812801] to find the correct value.
+A custom baud rate is set with the BRG option in firmware v5.5+. Use a [PIC UART calculator]("http://www.micromagicsystems.com/#/pic-baud/4523812801") to find the correct value.
 
 ![Baud Rate Calculator](images/BP-uart-custom-baud.png)
 
@@ -177,9 +175,9 @@ This macro is like the transparent UART **macro (1)** but without transmission a
 MIDI
 ------------------
 
-(MIDI)[http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface] is a command set used by electronic (music) instruments. It travels over a standard serial UART configured for 31250bps/8/n/1. Since firmware v2.7 MIDI is a speed option in the UART library.
+[MIDI](http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface) is a command set used by electronic (music) instruments. It travels over a standard serial UART configured for 31250bps/8/n/1. Since firmware v2.7 MIDI is a speed option in the UART library.
 
-MIDI is a ring network, each node has an input and output socket. Each node passes messages to the next in the ring. The input and outputs are opto-isolated. The signaling is at 5volts, 5ma (current-based signaling). An adapter is required: (example 1)[http://www.compuphase.com/electronics/midi_rs232.htm], (example 2)[http://www.midi.org/techspecs/electrispec.php].
+MIDI is a ring network, each node has an input and output socket. Each node passes messages to the next in the ring. The input and outputs are opto-isolated. The signaling is at 5volts, 5ma (current-based signaling). An adapter is required: [example 1](http://www.compuphase.com/electronics/midi_rs232.htm), [example 2](http://www.midi.org/techspecs/electrispec.php).
 
 Connections
 ------------------
@@ -190,4 +188,4 @@ Connect the Bus Pirate transmit pin (TX/MOSI) to the UART device receive pin (RX
 
 For macros and modes with flow control: CTS is on the CS pin (PIC input from external circuit is passed to FTDI USB->serial chip). RTS is on the CLOCK pin (PIC output mirrors output from FTDI chip). 
 
-Diagram by Uwe Bannow, released under the (GNU free documentation license)[http://en.wikipedia.org/wiki/Wikipedia:Text_of_the_GNU_Free_Documentation_License].
+Diagram by Uwe Bannow, released under the [GNU free documentation license](http://en.wikipedia.org/wiki/Wikipedia:Text_of_the_GNU_Free_Documentation_License).

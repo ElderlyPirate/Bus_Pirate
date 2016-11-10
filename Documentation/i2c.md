@@ -14,7 +14,7 @@ I2C is a common 2-wire bus for low speed interfaces.
 Bus Requirements
 ---------------------
 
-**Pull-up resistors**
+### Pull-up resistors
 
 I2C is an open-collector bus, it requires pull-up resistors to hold the clock and data lines high and create the data '1'. I2C parts don't output high, they only pull low, without pull-up resistors there can never be a '1'. This will cause common errors such as the I2C address scanner reporting a response at every address.
 
@@ -76,11 +76,12 @@ Command Syntax
 
 Macros
 ------------------
+
   0 	Macro menu
   1 	7bit address search. Find all connected devices by brute force.
   2 	I2C snooper. Listen for all i2c traffic
   
-**I2C address search scanner macro**
+### I2C address search scanner macro
 
 You can find the I2C address for most I2C-compatible chips in the datasheet. But what if you're working with an unknown chip, a dated chip with no datasheet, or you're just too lazy to look it up?
 
@@ -116,7 +117,7 @@ Details about the address scanner macro are at the end of this post and around h
 
 When the I2C chip responds to the read address, it outputs data and will miss a stop condition sent immediately after the read address (bus contention). If the I2C chip misses the stop condition, the address scanner will see ghost addresses until the read ends randomly. By reading a byte after any read address that ACKs, we have a chance to NACK the read and properly end the I2C transaction.
 
-**I2C Bus Sniffer macro**
+### I2C Bus Sniffer macro
 
 The I2C sniffer is implemented in software and seems to work up to 100kHz (firmware v5.3+).
 It’s not a substitute for a proper logic analyzer, but additional improvements are probably possible.
@@ -142,7 +143,7 @@ Pins that are normally output become inputs in sniffer node. MOSI and CLOCK are 
 
 The I2C sniffer was updated in firmware v5.3, and the maximum speed increased from around 70kHz to around 100kHz.
 
-**ACK/NACK management**
+### ACK/NACK management
 
 These examples read and write from the RAM of a DS1307 RTC chip.
 
@@ -184,9 +185,17 @@ Nothing changes for write commands because the slave ACKs to the Bus Pirate duri
 
 A consequence of the delayed ACK/NACK system is that partial transactions will leave read operations incomplete.
 
-Here, we setup a read operation ([0xd1) and read a byte (r). Since the Bus Pirate has no way of knowing if the next operation will be another read (r) or a stop condition (]), it leaves the ninth bit hanging. The warning “*(N)ACK PENDING” alerts you to this state.
+Here, we setup a read operation ([0xd1) and read a byte (r). Since the Bus Pirate has no way of knowing if the next operation will be another read (r) or a stop condition (]), it leaves the ninth bit hanging. The warning "*(N)ACK PENDING" alerts you to this state.
 
 Our next command is another read (r), so the Bus Pirate ACKs the previous read and gets another byte. Again, it leaves the (N)ACK bit pending until the next command.
 
 The final command is STOP (]). The Bus Pirate ends the read with a NACK and then sends the stop condition. 
 
+Connections
+------------------
+
+| Bus Pirate | Dir. | Circuit | Description   |
+| ----------:|:----:|:------- | ------------- |
+| MOSI       | ↔    | SDA     | Serial Data   |
+| CLK        | →    | SCL     | Serial Clock  |
+| GND        | ⏚    | GND     | Signal Ground |

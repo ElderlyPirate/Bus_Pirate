@@ -8,7 +8,7 @@ SPI Mode
     - [open collector](http://en.wikipedia.org/wiki/High_impedence) (high=Hi-Z, low=ground), [pull-up resistors](http://dangerousprototypes.com/docs/Practical_guide_to_Bus_Pirate_pull-up_resistors) required. Use open drain/open collector output types with pull-up resistors for multi-voltage interfacing.
   - **Pull-up resistors:** required for open collector output mode (2K – 10K)
   - **Maximum voltage:** 5.5volts (5volt safe)
-  - **Speed:** 30, 125, 250 kHz; 1, 2, 2.6, 4, 8 MHz
+  - **Speed:** 30, 50, 125, 250 kHz; 1, 1.3, 2, 2.6, 3.2, 4, 5.3, 8 MHz
   - **Clock polarity:** idle 1, idle 0
   - **Output clock edge:** idle to active, active to idle. Point at which data is changed on the SDO line, this does not include the MSB (first bit) which is ready immediately after CS becomes active.
   - **Input sample phase:** middle, end.
@@ -24,10 +24,18 @@ Starting SPI Mode
 
     (1)>5    <<<choose SPI mode
     Set speed:
-     1. 30KHz
-     2. 125KHz
-     3. 250KHz
-     4. 1MHz
+     1.  30 KHz
+     2. 125 KHz
+     3. 250 KHz
+     4.   1 MHz
+     5.  50 KHz
+     6. 1.3 MHz
+     7.   2 MHz
+     8. 2.6 MHz
+     9. 3.2 MHz
+    10.   4 MHz
+    11. 5.3 MHz
+    12.   8 MHz
 
     (1)>4    <<<choose SPI speed
     Clock polarity:

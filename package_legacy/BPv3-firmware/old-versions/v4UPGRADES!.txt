@@ -1,0 +1,5 @@
+STOP! If you are upgrading from v2 you must install the v4 bootloader first:
+http://dangerousprototypes.com/2010/01/18/how-to-bus-pirate-bootloader-v4-upgrade/
+v4 BOOTLOADER ONLY!!!
+DO NOT TRY TO LOAD THE BOOTLOADER FROM THIS ARCHIVE!!!! 
+DO NOT TRY TO LOAD THE V4 FIRMWARE WITH p24QP!!!

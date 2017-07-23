@@ -1,304 +1,603 @@
 #ifndef BP_MESSAGES_V4_H
 #define BP_MESSAGES_V4_H
 
-#define BPMSG1001 bp_message_write_line(0, 36)
-#define BPMSG1004 bp_message_write_line(36, 41)
-#define BPMSG1005 bp_message_write_buffer(77, 14)
-#define BPMSG1006 bp_message_write_line(91, 13)
-#define BPMSG1007 bp_message_write_line(104, 23)
-#define BPMSG1008 bp_message_write_buffer(127, 6)
-#define BPMSG1009 bp_message_write_line(133, 211)
-#define BPMSG1010 bp_message_write_line(344, 19)
-#define BPMSG1011 bp_message_write_line(363, 13)
-#define BPMSG1012 bp_message_write_line(376, 43)
-#define BPMSG1013 bp_message_write_buffer(419, 17)
-#define BPMSG1014 bp_message_write_line(436, 16)
-#define BPMSG1015 bp_message_write_line(452, 15)
-#define BPMSG1017 bp_message_write_buffer(467, 10)
-#define BPMSG1019 bp_message_write_buffer(477, 9)
-#define BPMSG1020 bp_message_write_buffer(486, 21)
-#define BPMSG1021 bp_message_write_buffer(507, 20)
-#define BPMSG1022 bp_message_write_buffer(527, 27)
-#define BPMSG1023 bp_message_write_buffer(554, 26)
-#define BPMSG1024 bp_message_write_buffer(580, 21)
-#define BPMSG1025 bp_message_write_buffer(601, 24)
-#define BPMSG1026 bp_message_write_buffer(625, 16)
-#define BPMSG1027 bp_message_write_buffer(641, 14)
-#define BPMSG1028 bp_message_write_line(655, 12)
-#define BPMSG1029 bp_message_write_line(667, 17)
-#define BPMSG1030 bp_message_write_buffer(684, 17)
-#define BPMSG1033 bp_message_write_buffer(701, 16)
-#define BPMSG1034 bp_message_write_line(717, 10)
-#define BPMSG1037 bp_message_write_line(727, 31)
-#define BPMSG1038 bp_message_write_buffer(758, 15)
-#define BPMSG1039 bp_message_write_buffer(773, 14)
-#define BPMSG1040 bp_message_write_line(787, 8)
-#define BPMSG1041 bp_message_write_line(795, 7)
-#define BPMSG1042 bp_message_write_line(802, 14)
-#define BPMSG1044 bp_message_write_buffer(816, 15)
-#define BPMSG1045 bp_message_write_buffer(831, 1)
-#define BPMSG1047 bp_message_write_buffer(832, 6)
-#define BPMSG1048 bp_message_write_buffer(838, 8)
-#define BPMSG1049 bp_message_write_buffer(846, 11)
-#define BPMSG1050 bp_message_write_line(857, 7)
-#define BPMSG1051 bp_message_write_line(864, 9)
-#define BPMSG1052 bp_message_write_line(873, 12)
-#define BPMSG1053 bp_message_write_line(885, 9)
-#define BPMSG1054 bp_message_write_buffer(894, 7)
-#define BPMSG1055 bp_message_write_line(901, 4)
-#define BPMSG1056 bp_message_write_buffer(905, 15)
-#define BPMSG1057 bp_message_write_line(920, 12)
-#define BPMSG1058 bp_message_write_buffer(932, 18)
-#define BPMSG1059 bp_message_write_line(950, 33)
-#define BPMSG1064 bp_message_write_line(983, 37)
-#define BPMSG1067 bp_message_write_buffer(1020, 44)
-#define BPMSG1068 bp_message_write_buffer(1064, 16)
-#define BPMSG1069 bp_message_write_buffer(1080, 123)
-#define BPMSG1070 bp_message_write_line(1203, 46)
-#define BPMSG1071 bp_message_write_line(1249, 7)
-#define BPMSG1072 bp_message_write_line(1256, 34)
-#define BPMSG1073 bp_message_write_line(1290, 6)
-#define BPMSG1074 bp_message_write_buffer(1296, 14)
-#define BPMSG1075 bp_message_write_buffer(1310, 3)
-#define BPMSG1076 bp_message_write_line(1313, 3)
-#define BPMSG1077 bp_message_write_line(1316, 7)
-#define BPMSG1078 bp_message_write_line(1323, 12)
-#define BPMSG1079 bp_message_write_line(1335, 13)
-#define BPMSG1080 bp_message_write_buffer(1348, 8)
-#define BPMSG1081 bp_message_write_buffer(1356, 7)
-#define BPMSG1082 bp_message_write_line(1363, 21)
-#define BPMSG1083 bp_message_write_line(1384, 32)
-#define BPMSG1084 bp_message_write_buffer(1416, 7)
-#define BPMSG1085 bp_message_write_line(1423, 5)
-#define BPMSG1086 bp_message_write_line(1428, 22)
-#define BPMSG1087 bp_message_write_line(1450, 21)
-#define BPMSG1088 bp_message_write_line(1471, 29)
-#define BPMSG1089 bp_message_write_buffer(1500, 21)
-#define BPMSG1091 bp_message_write_buffer(1521, 20)
-#define BPMSG1092 bp_message_write_line(1541, 26)
-#define BPMSG1093 bp_message_write_line(1567, 5)
-#define BPMSG1094 bp_message_write_line(1572, 10)
-#define BPMSG1095 bp_message_write_buffer(1582, 22)
-#define BPMSG1096 bp_message_write_buffer(1604, 17)
-#define BPMSG1097 bp_message_write_buffer(1621, 18)
-#define BPMSG1098 bp_message_write_buffer(1639, 12)
-#define BPMSG1099 bp_message_write_buffer(1651, 6)
-#define BPMSG1100 bp_message_write_line(1657, 2)
-#define BPMSG1101 bp_message_write_buffer(1659, 7)
-#define BPMSG1102 bp_message_write_buffer(1666, 6)
-#define BPMSG1103 bp_message_write_line(1672, 8)
-#define BPMSG1104 bp_message_write_line(1680, 8)
-#define BPMSG1105 bp_message_write_line(1688, 14)
-#define BPMSG1106 bp_message_write_line(1702, 14)
-#define BPMSG1107 bp_message_write_line(1716, 16)
-#define BPMSG1108 bp_message_write_buffer(1732, 13)
-#define BPMSG1109 bp_message_write_buffer(1745, 10)
-#define BPMSG1110 bp_message_write_buffer(1755, 21)
-#define BPMSG1111 bp_message_write_line(1776, 23)
-#define BPMSG1112 bp_message_write_line(1799, 14)
-#define BPMSG1114 bp_message_write_line(1813, 21)
-#define BPMSG1115 bp_message_write_line(1834, 7)
-#define BPMSG1117 bp_message_write_buffer(1841, 6)
-#define BPMSG1118 bp_message_write_line(1847, 30)
-#define BPMSG1119 bp_message_write_line(1877, 12)
-#define BPMSG1120 bp_message_write_line(1889, 34)
-#define BPMSG1121 bp_message_write_line(1923, 30)
-#define BPMSG1123 bp_message_write_buffer(1953, 27)
-#define BPMSG1124 bp_message_write_buffer(1980, 28)
-#define BPMSG1127 bp_message_write_line(2008, 34)
-#define BPMSG1128 bp_message_write_line(2042, 18)
-#define BPMSG1133 bp_message_write_line(2060, 190)
-#define BPMSG1134 bp_message_write_line(2250, 20)
-#define BPMSG1135 bp_message_write_buffer(2270, 14)
-#define BPMSG1136 bp_message_write_buffer(2284, 5)
-#define BPMSG1137 bp_message_write_buffer(2289, 6)
-#define BPMSG1163 bp_message_write_line(2295, 46)
-#define BPMSG1164 bp_message_write_line(2341, 4)
-#define BPMSG1165 bp_message_write_buffer(2345, 3)
-#define BPMSG1166 bp_message_write_buffer(2348, 8)
-#define BPMSG1167 bp_message_write_buffer(2356, 8)
-#define BPMSG1168 bp_message_write_buffer(2364, 8)
-#define BPMSG1169 bp_message_write_buffer(2372, 4)
-#define BPMSG1170 bp_message_write_line(2376, 14)
-#define BPMSG1171 bp_message_write_buffer(2390, 2)
-#define BPMSG1172 bp_message_write_buffer(2392, 3)
-#define BPMSG1173 bp_message_write_buffer(2395, 4)
-#define BPMSG1174 bp_message_write_buffer(2399, 3)
-#define BPMSG1175 bp_message_write_line(2402, 8)
-#define BPMSG1176 bp_message_write_line(2410, 10)
-#define BPMSG1177 bp_message_write_line(2420, 10)
-#define BPMSG1178 bp_message_write_line(2430, 38)
-#define BPMSG1179 bp_message_write_buffer(2468, 6)
-#define BPMSG1180 bp_message_write_line(2474, 8)
-#define BPMSG1181 bp_message_write_buffer(2482, 4)
-#define BPMSG1182 bp_message_write_buffer(2486, 3)
-#define BPMSG1183 bp_message_write_buffer(2489, 4)
-#define BPMSG1184 bp_message_write_buffer(2493, 2)
-#define BPMSG1185 bp_message_write_line(2495, 3)
-#define BPMSG1186 bp_message_write_line(2498, 5)
-#define BPMSG1187 bp_message_write_line(2503, 154)
-#define BPMSG1188 bp_message_write_line(2657, 53)
-#define BPMSG1189 bp_message_write_line(2710, 67)
-#define BPMSG1190 bp_message_write_line(2777, 49)
-#define BPMSG1191 bp_message_write_buffer(2826, 32)
-#define BPMSG1192 bp_message_write_line(2858, 52)
-#define BPMSG1194 bp_message_write_buffer(2910, 3)
-#define BPMSG1195 bp_message_write_buffer(2913, 3)
-#define BPMSG1196 bp_message_write_buffer(2916, 15)
-#define BPMSG1197 bp_message_write_buffer(2931, 15)
-#define BPMSG1199 bp_message_write_buffer(2946, 84)
-#define BPMSG1200 bp_message_write_buffer(3030, 33)
-#define BPMSG1201 bp_message_write_buffer(3063, 50)
-#define BPMSG1202 bp_message_write_buffer(3113, 32)
-#define BPMSG1203 bp_message_write_buffer(3145, 124)
-#define BPMSG1204 bp_message_write_line(3269, 11)
-#define BPMSG1206 bp_message_write_line(3280, 14)
-#define BPMSG1207 bp_message_write_line(3294, 28)
-#define BPMSG1208 bp_message_write_line(3322, 20)
-#define BPMSG1209 bp_message_write_line(3342, 34)
-#define BPMSG1210 bp_message_write_buffer(3376, 7)
-#define BPMSG1211 bp_message_write_line(3383, 27)
-#define BPMSG1212 bp_message_write_line(3410, 2)
-#define BPMSG1213 bp_message_write_line(3412, 20)
-#define BPMSG1214 bp_message_write_line(3432, 18)
-#define BPMSG1216 bp_message_write_line(3450, 29)
-#define BPMSG1219 bp_message_write_line(3479, 152)
-#define BPMSG1220 bp_message_write_line(3631, 36)
-#define BPMSG1221 bp_message_write_line(3667, 4)
-#define BPMSG1222 bp_message_write_line(3671, 5)
-#define BPMSG1223 bp_message_write_line(3676, 10)
-#define BPMSG1226 bp_message_write_line(3686, 10)
-#define BPMSG1228 bp_message_write_buffer(3696, 10)
-#define BPMSG1234 bp_message_write_buffer(3706, 4)
-#define BPMSG1237 bp_message_write_buffer(3710, 8)
-#define BPMSG1238 bp_message_write_line(3718, 38)
-#define BPMSG1239 bp_message_write_line(3756, 28)
-#define BPMSG1240 bp_message_write_line(3784, 16)
-#define BPMSG1241 bp_message_write_line(3800, 14)
-#define BPMSG1242 bp_message_write_line(3814, 15)
-#define BPMSG1243 bp_message_write_line(3829, 5)
-#define BPMSG1244 bp_message_write_line(3834, 14)
-#define BPMSG1245 bp_message_write_buffer(3848, 11)
-#define BPMSG1248 bp_message_write_line(3859, 25)
-#define BPMSG1250 bp_message_write_line(3884, 15)
-#define BPMSG1251 bp_message_write_line(3899, 17)
-#define BPMSG1252 bp_message_write_buffer(3916, 27)
-#define BPMSG1254 bp_message_write_line(3943, 19)
-#define BPMSG1255 bp_message_write_line(3962, 12)
-#define BPMSG1256 bp_message_write_line(3974, 86)
-#define BPMSG1257 bp_message_write_buffer(4060, 36)
-#define BPMSG1259 bp_message_write_line(4096, 9)
-#define BPMSG1262 bp_message_write_line(4105, 11)
-#define BPMSG1263 bp_message_write_line(4116, 23)
-#define BPMSG1264 bp_message_write_line(4139, 23)
-#define BPMSG1265 bp_message_write_line(4162, 6)
-#define BPMSG1266 bp_message_write_buffer(4168, 3)
-#define BPMSG1267 bp_message_write_buffer(4171, 3)
-#define BPMSG1268 bp_message_write_buffer(4174, 2)
-#define BPMSG1269 bp_message_write_buffer(4176, 10)
-#define BPMSG1270 bp_message_write_buffer(4186, 4)
-#define BPMSG1271 bp_message_write_line(4190, 87)
-#define BPMSG1272 bp_message_write_buffer(4277, 25)
-#define BPMSG1273 bp_message_write_line(4302, 7)
-#define BPMSG1274 bp_message_write_line(4309, 8)
-#define BPMSG1280 bp_message_write_line(4317, 19)
-#define BPMSG1281 bp_message_write_line(4336, 14)
-#define BPMSG1282 bp_message_write_line(4350, 56)
-#define BPMSG1283 bp_message_write_buffer(4406, 15)
-#define BPMSG1284 bp_message_write_buffer(4421, 15)
-#define BPMSG1285 bp_message_write_line(4436, 4)
-#define HLP1000 bp_message_write_line(4440, 32)
-#define HLP1001 bp_message_write_line(4472, 75)
-#define HLP1002 bp_message_write_line(4547, 37)
-#define HLP1003 bp_message_write_line(4584, 39)
-#define HLP1004 bp_message_write_line(4623, 20)
-#define HLP1005 bp_message_write_line(4643, 26)
-#define HLP1006 bp_message_write_line(4669, 39)
-#define HLP1007 bp_message_write_line(4708, 26)
-#define HLP1008 bp_message_write_line(4734, 45)
-#define HLP1009 bp_message_write_line(4779, 39)
-#define HLP1010 bp_message_write_line(4818, 57)
-#define HLP1011 bp_message_write_line(4875, 52)
-#define HLP1012 bp_message_write_line(4927, 27)
-#define HLP1013 bp_message_write_line(4954, 32)
-#define HLP1014 bp_message_write_line(4986, 27)
-#define HLP1015 bp_message_write_line(5013, 36)
-#define HLP1016 bp_message_write_line(5049, 32)
-#define HLP1017 bp_message_write_line(5081, 24)
-#define HLP1018 bp_message_write_line(5105, 31)
-#define HLP1019 bp_message_write_line(5136, 40)
-#define HLP1020 bp_message_write_line(5176, 36)
-#define HLP1021 bp_message_write_line(5212, 53)
-#define HLP1022 bp_message_write_line(5265, 61)
-#define MSG_1WIRE_MODE_IDENTIFIER bp_message_write_buffer(5326, 4)
-#define MSG_1WIRE_SPEED_PROMPT bp_message_write_line(5330, 62)
-#define MSG_ACK bp_message_write_buffer(5392, 3)
-#define MSG_BASE_CONVERTER_EQUAL_SIGN bp_message_write_buffer(5395, 3)
-#define MSG_BAUD_DETECTION_SELECTED bp_message_write_line(5398, 25)
-#define MSG_BBIO_MODE_IDENTIFIER bp_message_write_buffer(5423, 5)
-#define MSG_BINARY_NUMBER_PREFIX bp_message_write_buffer(5428, 2)
-#define MSG_CFG0_FIELD bp_message_write_buffer(5430, 6)
-#define MSG_CHIP_REVISION_A3 bp_message_write_buffer(5436, 2)
-#define MSG_CHIP_REVISION_A5 bp_message_write_buffer(5438, 2)
-#define MSG_CHIP_REVISION_ID_BEGIN bp_message_write_buffer(5440, 15)
-#define MSG_CHIP_REVISION_UNKNOWN bp_message_write_buffer(5455, 3)
-#define MSG_CLUTCH_DISENGAGED bp_message_write_line(5458, 20)
-#define MSG_CLUTCH_ENGAGED bp_message_write_line(5478, 17)
-#define MSG_FINISH_SETUP_PROMPT bp_message_write_line(5495, 61)
-#define MSG_HEXADECIMAL_NUMBER_PREFIX bp_message_write_buffer(5556, 2)
-#define MSG_I2C_MODE_IDENTIFIER bp_message_write_buffer(5558, 4)
-#define MSG_I2C_PINS_STATE bp_message_write_line(5562, 11)
-#define MSG_I2C_READ_ADDRESS_END bp_message_write_buffer(5573, 4)
-#define MSG_I2C_START_BIT bp_message_write_line(5577, 13)
-#define MSG_I2C_STOP_BIT bp_message_write_line(5590, 12)
-#define MSG_I2C_WRITE_ADDRESS_END bp_message_write_buffer(5602, 4)
-#define MSG_MODE_HEADER_END bp_message_write_line(5606, 2)
-#define MSG_NACK bp_message_write_buffer(5608, 4)
-#define MSG_NO_VOLTAGE_ON_PULLUP_PIN bp_message_write_line(5612, 34)
-#define MSG_ONBOARD_I2C_EEPROM_WRITE_PROTECT_DISABLED bp_message_write_line(5646, 38)
-#define MSG_PIC_MODE_IDENTIFIER bp_message_write_buffer(5684, 4)
-#define MSG_PIC_UNKNOWN_MODE bp_message_write_line(5688, 12)
-#define MSG_PIN_OUTPUT_TYPE_PROMPT bp_message_write_line(5700, 79)
-#define MSG_PWM_FREQUENCY_TOO_LOW bp_message_write_line(5779, 36)
-#define MSG_PWM_HZ_MARKER bp_message_write_line(5815, 3)
-#define MSG_RAW2WIRE_ATR_DATA_UNITS_HEADER bp_message_write_buffer(5818, 12)
-#define MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION bp_message_write_buffer(5830, 13)
-#define MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH bp_message_write_buffer(5843, 25)
-#define MSG_RAW2WIRE_ATR_PROTOCOL_2WIRE bp_message_write_buffer(5868, 6)
-#define MSG_RAW2WIRE_ATR_PROTOCOL_3WIRE bp_message_write_buffer(5874, 6)
-#define MSG_RAW2WIRE_ATR_PROTOCOL_HEADER bp_message_write_buffer(5880, 10)
-#define MSG_RAW2WIRE_ATR_PROTOCOL_SERIAL bp_message_write_buffer(5890, 6)
-#define MSG_RAW2WIRE_ATR_PROTOCOL_UNKNOWN bp_message_write_buffer(5896, 7)
-#define MSG_RAW2WIRE_ATR_READ_TYPE_HEADER bp_message_write_buffer(5903, 11)
-#define MSG_RAW2WIRE_ATR_READ_TYPE_TO_END bp_message_write_buffer(5914, 6)
-#define MSG_RAW2WIRE_ATR_READ_TYPE_VARIABLE_LENGTH bp_message_write_buffer(5920, 15)
-#define MSG_RAW2WIRE_ATR_REPLY_HEADER bp_message_write_buffer(5935, 45)
-#define MSG_RAW2WIRE_ATR_RFU bp_message_write_buffer(5980, 3)
-#define MSG_RAW2WIRE_ATR_TRIGGER_INFO bp_message_write_line(5983, 63)
-#define MSG_RAW2WIRE_I2C_START bp_message_write_buffer(6046, 8)
-#define MSG_RAW2WIRE_I2C_STOP bp_message_write_buffer(6054, 6)
-#define MSG_RAW2WIRE_MACRO_MENU bp_message_write_buffer(6060, 56)
-#define MSG_RAW2WIRE_MODE_HEADER bp_message_write_buffer(6116, 16)
-#define MSG_RAW3WIRE_MODE_HEADER bp_message_write_buffer(6132, 20)
-#define MSG_RAW_BRG_VALUE_INPUT bp_message_write_line(6152, 23)
-#define MSG_RAW_MODE_IDENTIFIER bp_message_write_buffer(6175, 4)
-#define MSG_RESET_MESSAGE bp_message_write_line(6179, 5)
-#define MSG_SOFTWARE_MODE_SPEED_PROMPT bp_message_write_line(6184, 59)
-#define MSG_SPI_COULD_NOT_KEEP_UP bp_message_write_line(6243, 16)
-#define MSG_SPI_CS_DISABLED bp_message_write_line(6259, 11)
-#define MSG_SPI_CS_ENABLED bp_message_write_line(6270, 10)
-#define MSG_SPI_CS_MODE_PROMPT bp_message_write_line(6280, 29)
-#define MSG_SPI_MODE_IDENTIFIER bp_message_write_buffer(6309, 4)
-#define MSG_SPI_PINS_STATE bp_message_write_line(6313, 16)
-#define MSG_UART_MODE_IDENTIFIER bp_message_write_buffer(6329, 4)
-#define MSG_UART_NORMAL_TO_EXIT bp_message_write_line(6333, 14)
-#define MSG_UART_PINS_STATE bp_message_write_line(6347, 11)
-#define MSG_UNKNOWN_MACRO_ERROR bp_message_write_line(6358, 36)
-#define MSG_USING_ONBOARD_I2C_EEPROM bp_message_write_line(6394, 39)
-#define MSG_VOLTAGE_VPULLUP_ALREADY_PRESENT bp_message_write_line(6433, 41)
-#define MSG_VPU_3V3_MARKER bp_message_write_buffer(6474, 9)
-#define MSG_VPU_5V_MARKER bp_message_write_buffer(6483, 8)
-#define MSG_VREG_TOO_LOW bp_message_write_line(6491, 31)
-#define MSG_XSV1_MODE_IDENTIFIER bp_message_write_buffer(6522, 4)
+void BPMSG1001_str(void);
+#define BPMSG1001 bp_message_write_line(BPMSG1001_str, 36)
+void BPMSG1004_str(void);
+#define BPMSG1004 bp_message_write_line(BPMSG1004_str, 41)
+void BPMSG1005_str(void);
+#define BPMSG1005 bp_message_write_buffer(BPMSG1005_str, 14)
+void BPMSG1006_str(void);
+#define BPMSG1006 bp_message_write_line(BPMSG1006_str, 13)
+void BPMSG1007_str(void);
+#define BPMSG1007 bp_message_write_line(BPMSG1007_str, 23)
+void BPMSG1008_str(void);
+#define BPMSG1008 bp_message_write_buffer(BPMSG1008_str, 6)
+void BPMSG1009_str(void);
+#define BPMSG1009 bp_message_write_line(BPMSG1009_str, 211)
+void BPMSG1010_str(void);
+#define BPMSG1010 bp_message_write_line(BPMSG1010_str, 19)
+void BPMSG1011_str(void);
+#define BPMSG1011 bp_message_write_line(BPMSG1011_str, 13)
+void BPMSG1012_str(void);
+#define BPMSG1012 bp_message_write_line(BPMSG1012_str, 43)
+void BPMSG1013_str(void);
+#define BPMSG1013 bp_message_write_buffer(BPMSG1013_str, 17)
+void BPMSG1014_str(void);
+#define BPMSG1014 bp_message_write_line(BPMSG1014_str, 16)
+void BPMSG1015_str(void);
+#define BPMSG1015 bp_message_write_line(BPMSG1015_str, 15)
+void BPMSG1017_str(void);
+#define BPMSG1017 bp_message_write_buffer(BPMSG1017_str, 10)
+void BPMSG1019_str(void);
+#define BPMSG1019 bp_message_write_buffer(BPMSG1019_str, 9)
+void BPMSG1020_str(void);
+#define BPMSG1020 bp_message_write_buffer(BPMSG1020_str, 21)
+void BPMSG1021_str(void);
+#define BPMSG1021 bp_message_write_buffer(BPMSG1021_str, 20)
+void BPMSG1022_str(void);
+#define BPMSG1022 bp_message_write_buffer(BPMSG1022_str, 27)
+void BPMSG1023_str(void);
+#define BPMSG1023 bp_message_write_buffer(BPMSG1023_str, 26)
+void BPMSG1024_str(void);
+#define BPMSG1024 bp_message_write_buffer(BPMSG1024_str, 21)
+void BPMSG1025_str(void);
+#define BPMSG1025 bp_message_write_buffer(BPMSG1025_str, 24)
+void BPMSG1026_str(void);
+#define BPMSG1026 bp_message_write_buffer(BPMSG1026_str, 16)
+void BPMSG1027_str(void);
+#define BPMSG1027 bp_message_write_buffer(BPMSG1027_str, 14)
+void BPMSG1028_str(void);
+#define BPMSG1028 bp_message_write_line(BPMSG1028_str, 12)
+void BPMSG1029_str(void);
+#define BPMSG1029 bp_message_write_line(BPMSG1029_str, 17)
+void BPMSG1030_str(void);
+#define BPMSG1030 bp_message_write_buffer(BPMSG1030_str, 17)
+void BPMSG1033_str(void);
+#define BPMSG1033 bp_message_write_buffer(BPMSG1033_str, 16)
+void BPMSG1034_str(void);
+#define BPMSG1034 bp_message_write_line(BPMSG1034_str, 10)
+void BPMSG1037_str(void);
+#define BPMSG1037 bp_message_write_line(BPMSG1037_str, 31)
+void BPMSG1038_str(void);
+#define BPMSG1038 bp_message_write_buffer(BPMSG1038_str, 15)
+void BPMSG1039_str(void);
+#define BPMSG1039 bp_message_write_buffer(BPMSG1039_str, 14)
+void BPMSG1040_str(void);
+#define BPMSG1040 bp_message_write_line(BPMSG1040_str, 8)
+void BPMSG1041_str(void);
+#define BPMSG1041 bp_message_write_line(BPMSG1041_str, 7)
+void BPMSG1042_str(void);
+#define BPMSG1042 bp_message_write_line(BPMSG1042_str, 14)
+void BPMSG1044_str(void);
+#define BPMSG1044 bp_message_write_buffer(BPMSG1044_str, 15)
+void BPMSG1045_str(void);
+#define BPMSG1045 bp_message_write_buffer(BPMSG1045_str, 1)
+void BPMSG1047_str(void);
+#define BPMSG1047 bp_message_write_buffer(BPMSG1047_str, 6)
+void BPMSG1048_str(void);
+#define BPMSG1048 bp_message_write_buffer(BPMSG1048_str, 8)
+void BPMSG1049_str(void);
+#define BPMSG1049 bp_message_write_buffer(BPMSG1049_str, 11)
+void BPMSG1050_str(void);
+#define BPMSG1050 bp_message_write_line(BPMSG1050_str, 7)
+void BPMSG1051_str(void);
+#define BPMSG1051 bp_message_write_line(BPMSG1051_str, 9)
+void BPMSG1052_str(void);
+#define BPMSG1052 bp_message_write_line(BPMSG1052_str, 12)
+void BPMSG1053_str(void);
+#define BPMSG1053 bp_message_write_line(BPMSG1053_str, 9)
+void BPMSG1054_str(void);
+#define BPMSG1054 bp_message_write_buffer(BPMSG1054_str, 7)
+void BPMSG1055_str(void);
+#define BPMSG1055 bp_message_write_line(BPMSG1055_str, 4)
+void BPMSG1056_str(void);
+#define BPMSG1056 bp_message_write_buffer(BPMSG1056_str, 15)
+void BPMSG1057_str(void);
+#define BPMSG1057 bp_message_write_line(BPMSG1057_str, 12)
+void BPMSG1058_str(void);
+#define BPMSG1058 bp_message_write_buffer(BPMSG1058_str, 18)
+void BPMSG1059_str(void);
+#define BPMSG1059 bp_message_write_line(BPMSG1059_str, 33)
+void BPMSG1064_str(void);
+#define BPMSG1064 bp_message_write_line(BPMSG1064_str, 37)
+void BPMSG1067_str(void);
+#define BPMSG1067 bp_message_write_buffer(BPMSG1067_str, 44)
+void BPMSG1068_str(void);
+#define BPMSG1068 bp_message_write_buffer(BPMSG1068_str, 16)
+void BPMSG1069_str(void);
+#define BPMSG1069 bp_message_write_buffer(BPMSG1069_str, 123)
+void BPMSG1070_str(void);
+#define BPMSG1070 bp_message_write_line(BPMSG1070_str, 46)
+void BPMSG1071_str(void);
+#define BPMSG1071 bp_message_write_line(BPMSG1071_str, 7)
+void BPMSG1072_str(void);
+#define BPMSG1072 bp_message_write_line(BPMSG1072_str, 34)
+void BPMSG1073_str(void);
+#define BPMSG1073 bp_message_write_line(BPMSG1073_str, 6)
+void BPMSG1074_str(void);
+#define BPMSG1074 bp_message_write_buffer(BPMSG1074_str, 14)
+void BPMSG1075_str(void);
+#define BPMSG1075 bp_message_write_buffer(BPMSG1075_str, 3)
+void BPMSG1076_str(void);
+#define BPMSG1076 bp_message_write_line(BPMSG1076_str, 3)
+void BPMSG1077_str(void);
+#define BPMSG1077 bp_message_write_line(BPMSG1077_str, 7)
+void BPMSG1078_str(void);
+#define BPMSG1078 bp_message_write_line(BPMSG1078_str, 12)
+void BPMSG1079_str(void);
+#define BPMSG1079 bp_message_write_line(BPMSG1079_str, 13)
+void BPMSG1080_str(void);
+#define BPMSG1080 bp_message_write_buffer(BPMSG1080_str, 8)
+void BPMSG1081_str(void);
+#define BPMSG1081 bp_message_write_buffer(BPMSG1081_str, 7)
+void BPMSG1082_str(void);
+#define BPMSG1082 bp_message_write_line(BPMSG1082_str, 21)
+void BPMSG1083_str(void);
+#define BPMSG1083 bp_message_write_line(BPMSG1083_str, 32)
+void BPMSG1084_str(void);
+#define BPMSG1084 bp_message_write_buffer(BPMSG1084_str, 7)
+void BPMSG1085_str(void);
+#define BPMSG1085 bp_message_write_line(BPMSG1085_str, 5)
+void BPMSG1086_str(void);
+#define BPMSG1086 bp_message_write_line(BPMSG1086_str, 22)
+void BPMSG1087_str(void);
+#define BPMSG1087 bp_message_write_line(BPMSG1087_str, 21)
+void BPMSG1088_str(void);
+#define BPMSG1088 bp_message_write_line(BPMSG1088_str, 29)
+void BPMSG1089_str(void);
+#define BPMSG1089 bp_message_write_buffer(BPMSG1089_str, 21)
+void BPMSG1091_str(void);
+#define BPMSG1091 bp_message_write_buffer(BPMSG1091_str, 20)
+void BPMSG1092_str(void);
+#define BPMSG1092 bp_message_write_line(BPMSG1092_str, 26)
+void BPMSG1093_str(void);
+#define BPMSG1093 bp_message_write_line(BPMSG1093_str, 5)
+void BPMSG1094_str(void);
+#define BPMSG1094 bp_message_write_line(BPMSG1094_str, 10)
+void BPMSG1095_str(void);
+#define BPMSG1095 bp_message_write_buffer(BPMSG1095_str, 22)
+void BPMSG1096_str(void);
+#define BPMSG1096 bp_message_write_buffer(BPMSG1096_str, 17)
+void BPMSG1097_str(void);
+#define BPMSG1097 bp_message_write_buffer(BPMSG1097_str, 18)
+void BPMSG1098_str(void);
+#define BPMSG1098 bp_message_write_buffer(BPMSG1098_str, 12)
+void BPMSG1099_str(void);
+#define BPMSG1099 bp_message_write_buffer(BPMSG1099_str, 6)
+void BPMSG1100_str(void);
+#define BPMSG1100 bp_message_write_line(BPMSG1100_str, 2)
+void BPMSG1101_str(void);
+#define BPMSG1101 bp_message_write_buffer(BPMSG1101_str, 7)
+void BPMSG1102_str(void);
+#define BPMSG1102 bp_message_write_buffer(BPMSG1102_str, 6)
+void BPMSG1103_str(void);
+#define BPMSG1103 bp_message_write_line(BPMSG1103_str, 8)
+void BPMSG1104_str(void);
+#define BPMSG1104 bp_message_write_line(BPMSG1104_str, 8)
+void BPMSG1105_str(void);
+#define BPMSG1105 bp_message_write_line(BPMSG1105_str, 14)
+void BPMSG1106_str(void);
+#define BPMSG1106 bp_message_write_line(BPMSG1106_str, 14)
+void BPMSG1107_str(void);
+#define BPMSG1107 bp_message_write_line(BPMSG1107_str, 16)
+void BPMSG1108_str(void);
+#define BPMSG1108 bp_message_write_buffer(BPMSG1108_str, 13)
+void BPMSG1109_str(void);
+#define BPMSG1109 bp_message_write_buffer(BPMSG1109_str, 10)
+void BPMSG1110_str(void);
+#define BPMSG1110 bp_message_write_buffer(BPMSG1110_str, 21)
+void BPMSG1111_str(void);
+#define BPMSG1111 bp_message_write_line(BPMSG1111_str, 23)
+void BPMSG1112_str(void);
+#define BPMSG1112 bp_message_write_line(BPMSG1112_str, 14)
+void BPMSG1114_str(void);
+#define BPMSG1114 bp_message_write_line(BPMSG1114_str, 21)
+void BPMSG1115_str(void);
+#define BPMSG1115 bp_message_write_line(BPMSG1115_str, 7)
+void BPMSG1117_str(void);
+#define BPMSG1117 bp_message_write_buffer(BPMSG1117_str, 6)
+void BPMSG1118_str(void);
+#define BPMSG1118 bp_message_write_line(BPMSG1118_str, 30)
+void BPMSG1119_str(void);
+#define BPMSG1119 bp_message_write_line(BPMSG1119_str, 12)
+void BPMSG1120_str(void);
+#define BPMSG1120 bp_message_write_line(BPMSG1120_str, 34)
+void BPMSG1121_str(void);
+#define BPMSG1121 bp_message_write_line(BPMSG1121_str, 30)
+void BPMSG1123_str(void);
+#define BPMSG1123 bp_message_write_buffer(BPMSG1123_str, 27)
+void BPMSG1124_str(void);
+#define BPMSG1124 bp_message_write_buffer(BPMSG1124_str, 28)
+void BPMSG1127_str(void);
+#define BPMSG1127 bp_message_write_line(BPMSG1127_str, 34)
+void BPMSG1128_str(void);
+#define BPMSG1128 bp_message_write_line(BPMSG1128_str, 18)
+void BPMSG1133_str(void);
+#define BPMSG1133 bp_message_write_line(BPMSG1133_str, 190)
+void BPMSG1134_str(void);
+#define BPMSG1134 bp_message_write_line(BPMSG1134_str, 20)
+void BPMSG1135_str(void);
+#define BPMSG1135 bp_message_write_buffer(BPMSG1135_str, 14)
+void BPMSG1136_str(void);
+#define BPMSG1136 bp_message_write_buffer(BPMSG1136_str, 5)
+void BPMSG1137_str(void);
+#define BPMSG1137 bp_message_write_buffer(BPMSG1137_str, 6)
+void BPMSG1163_str(void);
+#define BPMSG1163 bp_message_write_line(BPMSG1163_str, 46)
+void BPMSG1164_str(void);
+#define BPMSG1164 bp_message_write_line(BPMSG1164_str, 4)
+void BPMSG1165_str(void);
+#define BPMSG1165 bp_message_write_buffer(BPMSG1165_str, 3)
+void BPMSG1166_str(void);
+#define BPMSG1166 bp_message_write_buffer(BPMSG1166_str, 8)
+void BPMSG1167_str(void);
+#define BPMSG1167 bp_message_write_buffer(BPMSG1167_str, 8)
+void BPMSG1168_str(void);
+#define BPMSG1168 bp_message_write_buffer(BPMSG1168_str, 8)
+void BPMSG1169_str(void);
+#define BPMSG1169 bp_message_write_buffer(BPMSG1169_str, 4)
+void BPMSG1170_str(void);
+#define BPMSG1170 bp_message_write_line(BPMSG1170_str, 14)
+void BPMSG1171_str(void);
+#define BPMSG1171 bp_message_write_buffer(BPMSG1171_str, 2)
+void BPMSG1172_str(void);
+#define BPMSG1172 bp_message_write_buffer(BPMSG1172_str, 3)
+void BPMSG1173_str(void);
+#define BPMSG1173 bp_message_write_buffer(BPMSG1173_str, 4)
+void BPMSG1174_str(void);
+#define BPMSG1174 bp_message_write_buffer(BPMSG1174_str, 3)
+void BPMSG1175_str(void);
+#define BPMSG1175 bp_message_write_line(BPMSG1175_str, 8)
+void BPMSG1176_str(void);
+#define BPMSG1176 bp_message_write_line(BPMSG1176_str, 10)
+void BPMSG1177_str(void);
+#define BPMSG1177 bp_message_write_line(BPMSG1177_str, 10)
+void BPMSG1178_str(void);
+#define BPMSG1178 bp_message_write_line(BPMSG1178_str, 38)
+void BPMSG1179_str(void);
+#define BPMSG1179 bp_message_write_buffer(BPMSG1179_str, 6)
+void BPMSG1180_str(void);
+#define BPMSG1180 bp_message_write_line(BPMSG1180_str, 8)
+void BPMSG1181_str(void);
+#define BPMSG1181 bp_message_write_buffer(BPMSG1181_str, 4)
+void BPMSG1182_str(void);
+#define BPMSG1182 bp_message_write_buffer(BPMSG1182_str, 3)
+void BPMSG1183_str(void);
+#define BPMSG1183 bp_message_write_buffer(BPMSG1183_str, 4)
+void BPMSG1184_str(void);
+#define BPMSG1184 bp_message_write_buffer(BPMSG1184_str, 2)
+void BPMSG1185_str(void);
+#define BPMSG1185 bp_message_write_line(BPMSG1185_str, 3)
+void BPMSG1186_str(void);
+#define BPMSG1186 bp_message_write_line(BPMSG1186_str, 5)
+void BPMSG1187_str(void);
+#define BPMSG1187 bp_message_write_line(BPMSG1187_str, 154)
+void BPMSG1188_str(void);
+#define BPMSG1188 bp_message_write_line(BPMSG1188_str, 53)
+void BPMSG1189_str(void);
+#define BPMSG1189 bp_message_write_line(BPMSG1189_str, 67)
+void BPMSG1190_str(void);
+#define BPMSG1190 bp_message_write_line(BPMSG1190_str, 49)
+void BPMSG1191_str(void);
+#define BPMSG1191 bp_message_write_buffer(BPMSG1191_str, 32)
+void BPMSG1192_str(void);
+#define BPMSG1192 bp_message_write_line(BPMSG1192_str, 52)
+void BPMSG1194_str(void);
+#define BPMSG1194 bp_message_write_buffer(BPMSG1194_str, 3)
+void BPMSG1195_str(void);
+#define BPMSG1195 bp_message_write_buffer(BPMSG1195_str, 3)
+void BPMSG1196_str(void);
+#define BPMSG1196 bp_message_write_buffer(BPMSG1196_str, 15)
+void BPMSG1197_str(void);
+#define BPMSG1197 bp_message_write_buffer(BPMSG1197_str, 15)
+void BPMSG1199_str(void);
+#define BPMSG1199 bp_message_write_buffer(BPMSG1199_str, 84)
+void BPMSG1200_str(void);
+#define BPMSG1200 bp_message_write_buffer(BPMSG1200_str, 33)
+void BPMSG1201_str(void);
+#define BPMSG1201 bp_message_write_buffer(BPMSG1201_str, 50)
+void BPMSG1202_str(void);
+#define BPMSG1202 bp_message_write_buffer(BPMSG1202_str, 32)
+void BPMSG1203_str(void);
+#define BPMSG1203 bp_message_write_buffer(BPMSG1203_str, 124)
+void BPMSG1204_str(void);
+#define BPMSG1204 bp_message_write_line(BPMSG1204_str, 11)
+void BPMSG1206_str(void);
+#define BPMSG1206 bp_message_write_line(BPMSG1206_str, 14)
+void BPMSG1207_str(void);
+#define BPMSG1207 bp_message_write_line(BPMSG1207_str, 28)
+void BPMSG1208_str(void);
+#define BPMSG1208 bp_message_write_line(BPMSG1208_str, 20)
+void BPMSG1209_str(void);
+#define BPMSG1209 bp_message_write_line(BPMSG1209_str, 34)
+void BPMSG1210_str(void);
+#define BPMSG1210 bp_message_write_buffer(BPMSG1210_str, 7)
+void BPMSG1211_str(void);
+#define BPMSG1211 bp_message_write_line(BPMSG1211_str, 27)
+void BPMSG1212_str(void);
+#define BPMSG1212 bp_message_write_line(BPMSG1212_str, 2)
+void BPMSG1213_str(void);
+#define BPMSG1213 bp_message_write_line(BPMSG1213_str, 20)
+void BPMSG1214_str(void);
+#define BPMSG1214 bp_message_write_line(BPMSG1214_str, 18)
+void BPMSG1216_str(void);
+#define BPMSG1216 bp_message_write_line(BPMSG1216_str, 29)
+void BPMSG1219_str(void);
+#define BPMSG1219 bp_message_write_line(BPMSG1219_str, 152)
+void BPMSG1220_str(void);
+#define BPMSG1220 bp_message_write_line(BPMSG1220_str, 36)
+void BPMSG1221_str(void);
+#define BPMSG1221 bp_message_write_line(BPMSG1221_str, 4)
+void BPMSG1222_str(void);
+#define BPMSG1222 bp_message_write_line(BPMSG1222_str, 5)
+void BPMSG1223_str(void);
+#define BPMSG1223 bp_message_write_line(BPMSG1223_str, 10)
+void BPMSG1226_str(void);
+#define BPMSG1226 bp_message_write_line(BPMSG1226_str, 10)
+void BPMSG1228_str(void);
+#define BPMSG1228 bp_message_write_buffer(BPMSG1228_str, 10)
+void BPMSG1234_str(void);
+#define BPMSG1234 bp_message_write_buffer(BPMSG1234_str, 4)
+void BPMSG1237_str(void);
+#define BPMSG1237 bp_message_write_buffer(BPMSG1237_str, 8)
+void BPMSG1238_str(void);
+#define BPMSG1238 bp_message_write_line(BPMSG1238_str, 38)
+void BPMSG1239_str(void);
+#define BPMSG1239 bp_message_write_line(BPMSG1239_str, 28)
+void BPMSG1240_str(void);
+#define BPMSG1240 bp_message_write_line(BPMSG1240_str, 16)
+void BPMSG1241_str(void);
+#define BPMSG1241 bp_message_write_line(BPMSG1241_str, 14)
+void BPMSG1242_str(void);
+#define BPMSG1242 bp_message_write_line(BPMSG1242_str, 15)
+void BPMSG1243_str(void);
+#define BPMSG1243 bp_message_write_line(BPMSG1243_str, 5)
+void BPMSG1244_str(void);
+#define BPMSG1244 bp_message_write_line(BPMSG1244_str, 14)
+void BPMSG1245_str(void);
+#define BPMSG1245 bp_message_write_buffer(BPMSG1245_str, 11)
+void BPMSG1248_str(void);
+#define BPMSG1248 bp_message_write_line(BPMSG1248_str, 25)
+void BPMSG1250_str(void);
+#define BPMSG1250 bp_message_write_line(BPMSG1250_str, 15)
+void BPMSG1251_str(void);
+#define BPMSG1251 bp_message_write_line(BPMSG1251_str, 17)
+void BPMSG1252_str(void);
+#define BPMSG1252 bp_message_write_buffer(BPMSG1252_str, 27)
+void BPMSG1254_str(void);
+#define BPMSG1254 bp_message_write_line(BPMSG1254_str, 19)
+void BPMSG1255_str(void);
+#define BPMSG1255 bp_message_write_line(BPMSG1255_str, 12)
+void BPMSG1256_str(void);
+#define BPMSG1256 bp_message_write_line(BPMSG1256_str, 86)
+void BPMSG1257_str(void);
+#define BPMSG1257 bp_message_write_buffer(BPMSG1257_str, 36)
+void BPMSG1259_str(void);
+#define BPMSG1259 bp_message_write_line(BPMSG1259_str, 9)
+void BPMSG1262_str(void);
+#define BPMSG1262 bp_message_write_line(BPMSG1262_str, 11)
+void BPMSG1263_str(void);
+#define BPMSG1263 bp_message_write_line(BPMSG1263_str, 23)
+void BPMSG1264_str(void);
+#define BPMSG1264 bp_message_write_line(BPMSG1264_str, 23)
+void BPMSG1265_str(void);
+#define BPMSG1265 bp_message_write_line(BPMSG1265_str, 6)
+void BPMSG1266_str(void);
+#define BPMSG1266 bp_message_write_buffer(BPMSG1266_str, 3)
+void BPMSG1267_str(void);
+#define BPMSG1267 bp_message_write_buffer(BPMSG1267_str, 3)
+void BPMSG1268_str(void);
+#define BPMSG1268 bp_message_write_buffer(BPMSG1268_str, 2)
+void BPMSG1269_str(void);
+#define BPMSG1269 bp_message_write_buffer(BPMSG1269_str, 10)
+void BPMSG1270_str(void);
+#define BPMSG1270 bp_message_write_buffer(BPMSG1270_str, 4)
+void BPMSG1271_str(void);
+#define BPMSG1271 bp_message_write_line(BPMSG1271_str, 87)
+void BPMSG1272_str(void);
+#define BPMSG1272 bp_message_write_buffer(BPMSG1272_str, 25)
+void BPMSG1273_str(void);
+#define BPMSG1273 bp_message_write_line(BPMSG1273_str, 7)
+void BPMSG1274_str(void);
+#define BPMSG1274 bp_message_write_line(BPMSG1274_str, 8)
+void BPMSG1280_str(void);
+#define BPMSG1280 bp_message_write_line(BPMSG1280_str, 19)
+void BPMSG1281_str(void);
+#define BPMSG1281 bp_message_write_line(BPMSG1281_str, 14)
+void BPMSG1282_str(void);
+#define BPMSG1282 bp_message_write_line(BPMSG1282_str, 56)
+void BPMSG1283_str(void);
+#define BPMSG1283 bp_message_write_buffer(BPMSG1283_str, 15)
+void BPMSG1284_str(void);
+#define BPMSG1284 bp_message_write_buffer(BPMSG1284_str, 15)
+void BPMSG1285_str(void);
+#define BPMSG1285 bp_message_write_line(BPMSG1285_str, 4)
+void HLP1000_str(void);
+#define HLP1000 bp_message_write_line(HLP1000_str, 32)
+void HLP1001_str(void);
+#define HLP1001 bp_message_write_line(HLP1001_str, 75)
+void HLP1002_str(void);
+#define HLP1002 bp_message_write_line(HLP1002_str, 37)
+void HLP1003_str(void);
+#define HLP1003 bp_message_write_line(HLP1003_str, 39)
+void HLP1004_str(void);
+#define HLP1004 bp_message_write_line(HLP1004_str, 20)
+void HLP1005_str(void);
+#define HLP1005 bp_message_write_line(HLP1005_str, 26)
+void HLP1006_str(void);
+#define HLP1006 bp_message_write_line(HLP1006_str, 39)
+void HLP1007_str(void);
+#define HLP1007 bp_message_write_line(HLP1007_str, 26)
+void HLP1008_str(void);
+#define HLP1008 bp_message_write_line(HLP1008_str, 45)
+void HLP1009_str(void);
+#define HLP1009 bp_message_write_line(HLP1009_str, 39)
+void HLP1010_str(void);
+#define HLP1010 bp_message_write_line(HLP1010_str, 57)
+void HLP1011_str(void);
+#define HLP1011 bp_message_write_line(HLP1011_str, 52)
+void HLP1012_str(void);
+#define HLP1012 bp_message_write_line(HLP1012_str, 27)
+void HLP1013_str(void);
+#define HLP1013 bp_message_write_line(HLP1013_str, 32)
+void HLP1014_str(void);
+#define HLP1014 bp_message_write_line(HLP1014_str, 27)
+void HLP1015_str(void);
+#define HLP1015 bp_message_write_line(HLP1015_str, 36)
+void HLP1016_str(void);
+#define HLP1016 bp_message_write_line(HLP1016_str, 32)
+void HLP1017_str(void);
+#define HLP1017 bp_message_write_line(HLP1017_str, 24)
+void HLP1018_str(void);
+#define HLP1018 bp_message_write_line(HLP1018_str, 31)
+void HLP1019_str(void);
+#define HLP1019 bp_message_write_line(HLP1019_str, 40)
+void HLP1020_str(void);
+#define HLP1020 bp_message_write_line(HLP1020_str, 36)
+void HLP1021_str(void);
+#define HLP1021 bp_message_write_line(HLP1021_str, 53)
+void HLP1022_str(void);
+#define HLP1022 bp_message_write_line(HLP1022_str, 61)
+void MSG_1WIRE_MODE_IDENTIFIER_str(void);
+#define MSG_1WIRE_MODE_IDENTIFIER bp_message_write_buffer(MSG_1WIRE_MODE_IDENTIFIER_str, 4)
+void MSG_1WIRE_SPEED_PROMPT_str(void);
+#define MSG_1WIRE_SPEED_PROMPT bp_message_write_line(MSG_1WIRE_SPEED_PROMPT_str, 62)
+void MSG_ACK_str(void);
+#define MSG_ACK bp_message_write_buffer(MSG_ACK_str, 3)
+void MSG_BASE_CONVERTER_EQUAL_SIGN_str(void);
+#define MSG_BASE_CONVERTER_EQUAL_SIGN bp_message_write_buffer(MSG_BASE_CONVERTER_EQUAL_SIGN_str, 3)
+void MSG_BAUD_DETECTION_SELECTED_str(void);
+#define MSG_BAUD_DETECTION_SELECTED bp_message_write_line(MSG_BAUD_DETECTION_SELECTED_str, 25)
+void MSG_BBIO_MODE_IDENTIFIER_str(void);
+#define MSG_BBIO_MODE_IDENTIFIER bp_message_write_buffer(MSG_BBIO_MODE_IDENTIFIER_str, 5)
+void MSG_BINARY_NUMBER_PREFIX_str(void);
+#define MSG_BINARY_NUMBER_PREFIX bp_message_write_buffer(MSG_BINARY_NUMBER_PREFIX_str, 2)
+void MSG_CFG0_FIELD_str(void);
+#define MSG_CFG0_FIELD bp_message_write_buffer(MSG_CFG0_FIELD_str, 6)
+void MSG_CHIP_REVISION_A3_str(void);
+#define MSG_CHIP_REVISION_A3 bp_message_write_buffer(MSG_CHIP_REVISION_A3_str, 2)
+void MSG_CHIP_REVISION_A5_str(void);
+#define MSG_CHIP_REVISION_A5 bp_message_write_buffer(MSG_CHIP_REVISION_A5_str, 2)
+void MSG_CHIP_REVISION_ID_BEGIN_str(void);
+#define MSG_CHIP_REVISION_ID_BEGIN bp_message_write_buffer(MSG_CHIP_REVISION_ID_BEGIN_str, 15)
+void MSG_CHIP_REVISION_UNKNOWN_str(void);
+#define MSG_CHIP_REVISION_UNKNOWN bp_message_write_buffer(MSG_CHIP_REVISION_UNKNOWN_str, 3)
+void MSG_CLUTCH_DISENGAGED_str(void);
+#define MSG_CLUTCH_DISENGAGED bp_message_write_line(MSG_CLUTCH_DISENGAGED_str, 20)
+void MSG_CLUTCH_ENGAGED_str(void);
+#define MSG_CLUTCH_ENGAGED bp_message_write_line(MSG_CLUTCH_ENGAGED_str, 17)
+void MSG_FINISH_SETUP_PROMPT_str(void);
+#define MSG_FINISH_SETUP_PROMPT bp_message_write_line(MSG_FINISH_SETUP_PROMPT_str, 61)
+void MSG_HEXADECIMAL_NUMBER_PREFIX_str(void);
+#define MSG_HEXADECIMAL_NUMBER_PREFIX bp_message_write_buffer(MSG_HEXADECIMAL_NUMBER_PREFIX_str, 2)
+void MSG_I2C_MODE_IDENTIFIER_str(void);
+#define MSG_I2C_MODE_IDENTIFIER bp_message_write_buffer(MSG_I2C_MODE_IDENTIFIER_str, 4)
+void MSG_I2C_PINS_STATE_str(void);
+#define MSG_I2C_PINS_STATE bp_message_write_line(MSG_I2C_PINS_STATE_str, 11)
+void MSG_I2C_READ_ADDRESS_END_str(void);
+#define MSG_I2C_READ_ADDRESS_END bp_message_write_buffer(MSG_I2C_READ_ADDRESS_END_str, 4)
+void MSG_I2C_START_BIT_str(void);
+#define MSG_I2C_START_BIT bp_message_write_line(MSG_I2C_START_BIT_str, 13)
+void MSG_I2C_STOP_BIT_str(void);
+#define MSG_I2C_STOP_BIT bp_message_write_line(MSG_I2C_STOP_BIT_str, 12)
+void MSG_I2C_WRITE_ADDRESS_END_str(void);
+#define MSG_I2C_WRITE_ADDRESS_END bp_message_write_buffer(MSG_I2C_WRITE_ADDRESS_END_str, 4)
+void MSG_MODE_HEADER_END_str(void);
+#define MSG_MODE_HEADER_END bp_message_write_line(MSG_MODE_HEADER_END_str, 2)
+void MSG_NACK_str(void);
+#define MSG_NACK bp_message_write_buffer(MSG_NACK_str, 4)
+void MSG_NO_VOLTAGE_ON_PULLUP_PIN_str(void);
+#define MSG_NO_VOLTAGE_ON_PULLUP_PIN bp_message_write_line(MSG_NO_VOLTAGE_ON_PULLUP_PIN_str, 34)
+void MSG_ONBOARD_I2C_EEPROM_WRITE_PROTECT_DISABLED_str(void);
+#define MSG_ONBOARD_I2C_EEPROM_WRITE_PROTECT_DISABLED bp_message_write_line(MSG_ONBOARD_I2C_EEPROM_WRITE_PROTECT_DISABLED_str, 38)
+void MSG_PIC_MODE_IDENTIFIER_str(void);
+#define MSG_PIC_MODE_IDENTIFIER bp_message_write_buffer(MSG_PIC_MODE_IDENTIFIER_str, 4)
+void MSG_PIC_UNKNOWN_MODE_str(void);
+#define MSG_PIC_UNKNOWN_MODE bp_message_write_line(MSG_PIC_UNKNOWN_MODE_str, 12)
+void MSG_PIN_OUTPUT_TYPE_PROMPT_str(void);
+#define MSG_PIN_OUTPUT_TYPE_PROMPT bp_message_write_line(MSG_PIN_OUTPUT_TYPE_PROMPT_str, 79)
+void MSG_PWM_FREQUENCY_TOO_LOW_str(void);
+#define MSG_PWM_FREQUENCY_TOO_LOW bp_message_write_line(MSG_PWM_FREQUENCY_TOO_LOW_str, 36)
+void MSG_PWM_HZ_MARKER_str(void);
+#define MSG_PWM_HZ_MARKER bp_message_write_line(MSG_PWM_HZ_MARKER_str, 3)
+void MSG_RAW2WIRE_ATR_DATA_UNITS_HEADER_str(void);
+#define MSG_RAW2WIRE_ATR_DATA_UNITS_HEADER bp_message_write_buffer(MSG_RAW2WIRE_ATR_DATA_UNITS_HEADER_str, 12)
+void MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION_str(void);
+#define MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION bp_message_write_buffer(MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION_str, 13)
+void MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH_str(void);
+#define MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH bp_message_write_buffer(MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH_str, 25)
+void MSG_RAW2WIRE_ATR_PROTOCOL_2WIRE_str(void);
+#define MSG_RAW2WIRE_ATR_PROTOCOL_2WIRE bp_message_write_buffer(MSG_RAW2WIRE_ATR_PROTOCOL_2WIRE_str, 6)
+void MSG_RAW2WIRE_ATR_PROTOCOL_3WIRE_str(void);
+#define MSG_RAW2WIRE_ATR_PROTOCOL_3WIRE bp_message_write_buffer(MSG_RAW2WIRE_ATR_PROTOCOL_3WIRE_str, 6)
+void MSG_RAW2WIRE_ATR_PROTOCOL_HEADER_str(void);
+#define MSG_RAW2WIRE_ATR_PROTOCOL_HEADER bp_message_write_buffer(MSG_RAW2WIRE_ATR_PROTOCOL_HEADER_str, 10)
+void MSG_RAW2WIRE_ATR_PROTOCOL_SERIAL_str(void);
+#define MSG_RAW2WIRE_ATR_PROTOCOL_SERIAL bp_message_write_buffer(MSG_RAW2WIRE_ATR_PROTOCOL_SERIAL_str, 6)
+void MSG_RAW2WIRE_ATR_PROTOCOL_UNKNOWN_str(void);
+#define MSG_RAW2WIRE_ATR_PROTOCOL_UNKNOWN bp_message_write_buffer(MSG_RAW2WIRE_ATR_PROTOCOL_UNKNOWN_str, 7)
+void MSG_RAW2WIRE_ATR_READ_TYPE_HEADER_str(void);
+#define MSG_RAW2WIRE_ATR_READ_TYPE_HEADER bp_message_write_buffer(MSG_RAW2WIRE_ATR_READ_TYPE_HEADER_str, 11)
+void MSG_RAW2WIRE_ATR_READ_TYPE_TO_END_str(void);
+#define MSG_RAW2WIRE_ATR_READ_TYPE_TO_END bp_message_write_buffer(MSG_RAW2WIRE_ATR_READ_TYPE_TO_END_str, 6)
+void MSG_RAW2WIRE_ATR_READ_TYPE_VARIABLE_LENGTH_str(void);
+#define MSG_RAW2WIRE_ATR_READ_TYPE_VARIABLE_LENGTH bp_message_write_buffer(MSG_RAW2WIRE_ATR_READ_TYPE_VARIABLE_LENGTH_str, 15)
+void MSG_RAW2WIRE_ATR_REPLY_HEADER_str(void);
+#define MSG_RAW2WIRE_ATR_REPLY_HEADER bp_message_write_buffer(MSG_RAW2WIRE_ATR_REPLY_HEADER_str, 45)
+void MSG_RAW2WIRE_ATR_RFU_str(void);
+#define MSG_RAW2WIRE_ATR_RFU bp_message_write_buffer(MSG_RAW2WIRE_ATR_RFU_str, 3)
+void MSG_RAW2WIRE_ATR_TRIGGER_INFO_str(void);
+#define MSG_RAW2WIRE_ATR_TRIGGER_INFO bp_message_write_line(MSG_RAW2WIRE_ATR_TRIGGER_INFO_str, 63)
+void MSG_RAW2WIRE_I2C_START_str(void);
+#define MSG_RAW2WIRE_I2C_START bp_message_write_buffer(MSG_RAW2WIRE_I2C_START_str, 8)
+void MSG_RAW2WIRE_I2C_STOP_str(void);
+#define MSG_RAW2WIRE_I2C_STOP bp_message_write_buffer(MSG_RAW2WIRE_I2C_STOP_str, 6)
+void MSG_RAW2WIRE_MACRO_MENU_str(void);
+#define MSG_RAW2WIRE_MACRO_MENU bp_message_write_buffer(MSG_RAW2WIRE_MACRO_MENU_str, 56)
+void MSG_RAW2WIRE_MODE_HEADER_str(void);
+#define MSG_RAW2WIRE_MODE_HEADER bp_message_write_buffer(MSG_RAW2WIRE_MODE_HEADER_str, 16)
+void MSG_RAW3WIRE_MODE_HEADER_str(void);
+#define MSG_RAW3WIRE_MODE_HEADER bp_message_write_buffer(MSG_RAW3WIRE_MODE_HEADER_str, 20)
+void MSG_RAW_BRG_VALUE_INPUT_str(void);
+#define MSG_RAW_BRG_VALUE_INPUT bp_message_write_line(MSG_RAW_BRG_VALUE_INPUT_str, 23)
+void MSG_RAW_MODE_IDENTIFIER_str(void);
+#define MSG_RAW_MODE_IDENTIFIER bp_message_write_buffer(MSG_RAW_MODE_IDENTIFIER_str, 4)
+void MSG_RESET_MESSAGE_str(void);
+#define MSG_RESET_MESSAGE bp_message_write_line(MSG_RESET_MESSAGE_str, 5)
+void MSG_SOFTWARE_MODE_SPEED_PROMPT_str(void);
+#define MSG_SOFTWARE_MODE_SPEED_PROMPT bp_message_write_line(MSG_SOFTWARE_MODE_SPEED_PROMPT_str, 59)
+void MSG_SPI_COULD_NOT_KEEP_UP_str(void);
+#define MSG_SPI_COULD_NOT_KEEP_UP bp_message_write_line(MSG_SPI_COULD_NOT_KEEP_UP_str, 16)
+void MSG_SPI_CS_DISABLED_str(void);
+#define MSG_SPI_CS_DISABLED bp_message_write_line(MSG_SPI_CS_DISABLED_str, 11)
+void MSG_SPI_CS_ENABLED_str(void);
+#define MSG_SPI_CS_ENABLED bp_message_write_line(MSG_SPI_CS_ENABLED_str, 10)
+void MSG_SPI_CS_MODE_PROMPT_str(void);
+#define MSG_SPI_CS_MODE_PROMPT bp_message_write_line(MSG_SPI_CS_MODE_PROMPT_str, 29)
+void MSG_SPI_MODE_IDENTIFIER_str(void);
+#define MSG_SPI_MODE_IDENTIFIER bp_message_write_buffer(MSG_SPI_MODE_IDENTIFIER_str, 4)
+void MSG_SPI_PINS_STATE_str(void);
+#define MSG_SPI_PINS_STATE bp_message_write_line(MSG_SPI_PINS_STATE_str, 16)
+void MSG_UART_MODE_IDENTIFIER_str(void);
+#define MSG_UART_MODE_IDENTIFIER bp_message_write_buffer(MSG_UART_MODE_IDENTIFIER_str, 4)
+void MSG_UART_NORMAL_TO_EXIT_str(void);
+#define MSG_UART_NORMAL_TO_EXIT bp_message_write_line(MSG_UART_NORMAL_TO_EXIT_str, 14)
+void MSG_UART_PINS_STATE_str(void);
+#define MSG_UART_PINS_STATE bp_message_write_line(MSG_UART_PINS_STATE_str, 11)
+void MSG_UNKNOWN_MACRO_ERROR_str(void);
+#define MSG_UNKNOWN_MACRO_ERROR bp_message_write_line(MSG_UNKNOWN_MACRO_ERROR_str, 36)
+void MSG_USING_ONBOARD_I2C_EEPROM_str(void);
+#define MSG_USING_ONBOARD_I2C_EEPROM bp_message_write_line(MSG_USING_ONBOARD_I2C_EEPROM_str, 39)
+void MSG_VOLTAGE_VPULLUP_ALREADY_PRESENT_str(void);
+#define MSG_VOLTAGE_VPULLUP_ALREADY_PRESENT bp_message_write_line(MSG_VOLTAGE_VPULLUP_ALREADY_PRESENT_str, 41)
+void MSG_VPU_3V3_MARKER_str(void);
+#define MSG_VPU_3V3_MARKER bp_message_write_buffer(MSG_VPU_3V3_MARKER_str, 9)
+void MSG_VPU_5V_MARKER_str(void);
+#define MSG_VPU_5V_MARKER bp_message_write_buffer(MSG_VPU_5V_MARKER_str, 8)
+void MSG_VREG_TOO_LOW_str(void);
+#define MSG_VREG_TOO_LOW bp_message_write_line(MSG_VREG_TOO_LOW_str, 31)
+void MSG_XSV1_MODE_IDENTIFIER_str(void);
+#define MSG_XSV1_MODE_IDENTIFIER bp_message_write_buffer(MSG_XSV1_MODE_IDENTIFIER_str, 4)
 
 #endif /* BP_MESSAGES_V4_H */

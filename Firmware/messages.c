@@ -18,35 +18,25 @@
 
 #include "base.h"
 
-/**
- * The packed strings buffer.
- * 
- * Declared as a function rather than an array since it is being stored in the
- * code segment of the firmware, otherwise the compiler complains.
- * 
- * @todo Fiddle with the linker scripts to see if this can be set as an extern
- *       uint8_t pointer.
- */
-extern void bp_messages(void);
-
-void bp_message_write_buffer(size_t offset, size_t length) {
+void bp_message_write_buffer(void (*strptr)(void), size_t length) {
     size_t index;
+    size_t str = (size_t)strptr;
 
-    for (index = offset; index < (offset + length); index++) {
+    for (index = 0; index < length; index++) {
         switch (index % 3) {
             case 0:
-               UART1TX(__builtin_tblrdl((size_t) &bp_messages +
-                       ((index / 3) << 1)) & 0xFF); 
+               UART1TX(__builtin_tblrdl(str+((index/3)<< 1))
+                       & 0xFF);
                break;
 
             case 1:
-                UART1TX((__builtin_tblrdl((size_t) &bp_messages +
-                        ((index / 3) << 1)) >> 8) & 0xFF);
+                UART1TX((__builtin_tblrdl(str+((index/3)<< 1)) >> 8)
+                        & 0xFF);
                 break;
 
             case 2:
-                UART1TX(__builtin_tblrdh((size_t) &bp_messages +
-                        ((index / 3) << 1)) & 0xFF);
+                UART1TX(__builtin_tblrdh(str+((index/3)<< 1))
+                        & 0xFF);
                 break;
 
             default:
@@ -55,8 +45,8 @@ void bp_message_write_buffer(size_t offset, size_t length) {
     }
 }
 
-void bp_message_write_line(size_t offset, size_t length) {
-    bp_message_write_buffer(offset, length);
+void bp_message_write_line(void (*strptr)(void), size_t length) {
+    bp_message_write_buffer(strptr, length);
     bpBR;
 }
 

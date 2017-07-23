@@ -39,19 +39,19 @@ void print_help(void);
  * Prints a given byte array range from the packed string buffer to the serial
  * port.
  * 
- * @param[in] offset the starting offset in the packed string buffer.
+ * @param[in] str pointer to the string.
  * @param[in] length how many bytes to print to the serial port.
  */
-void bp_message_write_buffer(size_t offset, size_t length);
+void bp_message_write_buffer(void (*strptr)(void), size_t length);
 
 /**
  * Prints a given byte array range from the packed string buffer to the serial
  * port, appending a CRLF pair at the end.
  * 
- * @param[in] offset the starting offset in the packed string buffer.
+ * @param[in] str pointer to the string.
  * @param[in] length how many bytes to print to the serial port.
  */
-void bp_message_write_line(size_t offset, size_t length);
+void bp_message_write_line(void (*strptr)(void), size_t length);
 
 /**
  * Prompts the user to agree or not on a particular question.

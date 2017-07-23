@@ -56,11 +56,11 @@ args = parser.parse_args()
 lines = get_messages(args.source)
 
 with open(args.outbase + '.s', 'w') as assembly_output:
-    assembly_output.write('.global _bp_messages\n\n')
-    assembly_output.write('_bp_messages:\n\n')
-
     for row in sorted(lines):
         assembly_output.write('\t; %s\n' % row[0])
+        assembly_output.write('\t.section .text.%s, code\n' % row[0])
+        assembly_output.write('\t.global _%s_str\n' % row[0])
+        assembly_output.write('_%s_str:\n' % row[0])
         data = row[2].replace('\\', '\\\\').replace('\n', '\\n').replace(
             '\r', '\\r').replace('"', '\\"').replace('\t', '\\t')
         assembly_output.write('\t.pascii "%s"\n\n' % data)
@@ -75,8 +75,9 @@ with open(args.outbase + '.h', 'w') as header_output:
 
     for row in sorted(lines):
         call = BUFFER_WRITE_CALL if row[1] == '0' else LINE_WRITE_CALL
-        header_output.write('#define %s %s(%d, %d)\n' %
-                            (row[0], call, offset, len(row[2])))
+        header_output.write('void %s_str(void);\n' % row[0])
+        header_output.write('#define %s %s(%s_str, %d)\n' %
+                            (row[0], call, row[0], len(row[2])))
         offset += len(row[2])
 
     header_output.write('\n#endif /* BP_MESSAGES_%s_H */\n' %

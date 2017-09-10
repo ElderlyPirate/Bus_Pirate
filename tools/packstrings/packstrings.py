@@ -76,7 +76,7 @@ with open(args.outbase + '.h', 'w') as header_output:
     for row in sorted(lines):
         call = BUFFER_WRITE_CALL if row[1] == '0' else LINE_WRITE_CALL
         header_output.write('void %s_str(void);\n' % row[0])
-        header_output.write('#define %s %s(%s_str, %d)\n' %
+        header_output.write('#define %s %s(__builtin_tbladdress(%s_str), %d)\n' %
                             (row[0], call, row[0], len(row[2])))
         offset += len(row[2])
 

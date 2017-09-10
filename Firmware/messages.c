@@ -18,34 +18,35 @@
 
 #include "base.h"
 
-void bp_message_write_buffer(void (*strptr)(void), size_t length) {
+void bp_message_write_buffer(unsigned long strptr, size_t length) {
     size_t index;
-    size_t str = (size_t)strptr;
+    unsigned char tblpag_prev = TBLPAG;
 
     for (index = 0; index < length; index++) {
+        TBLPAG = (strptr >> 16) & 0xFF;
         switch (index % 3) {
             case 0:
-               UART1TX(__builtin_tblrdl(str+((index/3)<< 1))
-                       & 0xFF);
-               break;
+                UART1TX(__builtin_tblrdl(strptr) & 0xFF);
+                break;
 
             case 1:
-                UART1TX((__builtin_tblrdl(str+((index/3)<< 1)) >> 8)
-                        & 0xFF);
+                UART1TX((__builtin_tblrdl(strptr) >> 8) & 0xFF);
                 break;
 
             case 2:
-                UART1TX(__builtin_tblrdh(str+((index/3)<< 1))
-                        & 0xFF);
+                UART1TX(__builtin_tblrdh(strptr) & 0xFF);
+                strptr += 2;
                 break;
 
             default:
                 break;
         }
     }
+
+    TBLPAG = tblpag_prev;
 }
 
-void bp_message_write_line(void (*strptr)(void), size_t length) {
+void bp_message_write_line(unsigned long strptr, size_t length) {
     bp_message_write_buffer(strptr, length);
     bpBR;
 }

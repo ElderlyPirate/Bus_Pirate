@@ -42,7 +42,7 @@ void print_help(void);
  * @param[in] str pointer to the string.
  * @param[in] length how many bytes to print to the serial port.
  */
-void bp_message_write_buffer(void (*strptr)(void), size_t length);
+void bp_message_write_buffer(unsigned long strptr, size_t length);
 
 /**
  * Prints a given byte array range from the packed string buffer to the serial
@@ -51,7 +51,7 @@ void bp_message_write_buffer(void (*strptr)(void), size_t length);
  * @param[in] str pointer to the string.
  * @param[in] length how many bytes to print to the serial port.
  */
-void bp_message_write_line(void (*strptr)(void), size_t length);
+void bp_message_write_line(unsigned long strptr, size_t length);
 
 /**
  * Prompts the user to agree or not on a particular question.

@@ -63,7 +63,7 @@ with open(args.outbase + '.s', 'w') as assembly_output:
         assembly_output.write('_%s_str:\n' % row[0])
         data = row[2].replace('\\', '\\\\').replace('\n', '\\n').replace(
             '\r', '\\r').replace('"', '\\"').replace('\t', '\\t')
-        assembly_output.write('\t.pascii "%s"\n\n' % data)
+        assembly_output.write('\t.pasciz "%s"\n\n' % data)
 
 offset = 0
 BUFFER_WRITE_CALL = 'bp_message_write_buffer'
@@ -76,8 +76,8 @@ with open(args.outbase + '.h', 'w') as header_output:
     for row in sorted(lines):
         call = BUFFER_WRITE_CALL if row[1] == '0' else LINE_WRITE_CALL
         header_output.write('void %s_str(void);\n' % row[0])
-        header_output.write('#define %s %s(__builtin_tbladdress(%s_str), %d)\n' %
-                            (row[0], call, row[0], len(row[2])))
+        header_output.write('#define %s %s(__builtin_tbladdress(%s_str))\n' %
+                            (row[0], call, row[0]))
         offset += len(row[2])
 
     header_output.write('\n#endif /* BP_MESSAGES_%s_H */\n' %

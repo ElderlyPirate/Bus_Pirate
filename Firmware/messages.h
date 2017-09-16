@@ -39,8 +39,7 @@ void print_help(void);
  * Prints a given byte array range from the packed string buffer to the serial
  * port.
  * 
- * @param[in] str pointer to the string.
- * @param[in] length how many bytes to print to the serial port.
+ * @param[in] strptr pointer to the string.
  */
 void bp_message_write_buffer(unsigned long strptr);
 
@@ -48,8 +47,7 @@ void bp_message_write_buffer(unsigned long strptr);
  * Prints a given byte array range from the packed string buffer to the serial
  * port, appending a CRLF pair at the end.
  * 
- * @param[in] str pointer to the string.
- * @param[in] length how many bytes to print to the serial port.
+ * @param[in] strptr pointer to the string.
  */
 void bp_message_write_line(unsigned long strptr);
 

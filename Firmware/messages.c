@@ -19,11 +19,11 @@
 #include "base.h"
 
 void bp_message_write_buffer(unsigned long strptr) {
-    unsigned char tblpag_prev = TBLPAG;
-    unsigned char index = 0;
+    uint8_t tblpag_prev = TBLPAG;
+    uint8_t index = 0;
     char ch;
 
-    while (1) {
+    do {
         TBLPAG = (strptr >> 16) & 0xFF;
         switch (index) {
             case 0:
@@ -46,10 +46,7 @@ void bp_message_write_buffer(unsigned long strptr) {
         if (ch != '\0') {
             UART1TX(ch);
         }
-        else {
-            break;
-        }
-    }
+    } while(ch != '\0');
 
     TBLPAG = tblpag_prev;
 }

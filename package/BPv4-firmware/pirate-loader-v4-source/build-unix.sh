@@ -7,13 +7,13 @@ echo -n "Building for $OS..."
 case $OS in
 
  Darwin )
-	gcc -O2 -Wall -force_cpusubtype_ALL -arch i386 -arch ppc source/pirate-loader.c -DOS=$OS -o pirate-loader_mac || exit -1
+	gcc -O2 -Wall -force_cpusubtype_ALL -arch i386 -arch ppc pirate-loader.c -DOS=$OS -o pirate-loader_mac || exit -1
 	;;
  Linux )
-	gcc -O2 -Wall source/pirate-loader.c -DOS=$OS -o pirate-loader_lnx || exit -1
+	gcc -O2 -Wall pirate-loader.c -DOS=$OS -o pirate-loader_lnx || exit -1
 	;;
  FreeBSD )
-	gcc -O2 -Wall source/pirate-loader.c -DOS=$OS -o pirate-loader_fbsd || exit -1
+	gcc -O2 -Wall pirate-loader.c -DOS=$OS -o pirate-loader_fbsd || exit -1
  	;;
  *)
 	echo "ERROR"

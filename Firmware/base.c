@@ -446,14 +446,12 @@ void print_decimal(const uint32_t value, const uint32_t denominator,
     current = number / divisor;
     if (first || (current > 0)) {
       user_serial_transmit_character(current + '0');
-      number -= (number * divisor);
+      number -= (current * divisor);
       first = true;
     }
 
     divisor /= 10;
   }
-
-  user_serial_transmit_character(number + '0');
 }
 
 void bp_write_dec_dword(const uint32_t value) {

@@ -442,6 +442,11 @@ void print_decimal(const uint32_t value, const uint32_t denominator,
   number = value;
   divisor = denominator;
 
+  if (!value){
+      user_serial_transmit_character('0');
+      return;
+  }
+
   for (digit = 0; digit < digits; digit++) {
     current = number / divisor;
     if (first || (current > 0)) {

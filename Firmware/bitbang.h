@@ -200,6 +200,15 @@ bool bitbang_read_pin(const uint16_t pin_bit);
 bool bitbang_i2c_start(void);
 
 /**
+ * Sends the appropriate signals to indicate an I2C transmission repeated 
+ * start frame. This is used for consecutive atomic operations without releasing
+ * the I2C bus.
+ *
+ * @return true if an error occurred, false otherwise.
+ */
+bool bitbang_i2c_repeated_start(void);
+
+/**
  * Sends the appropriate signals to indicate an I2C transmission stop frame.
  */
 void bitbang_i2c_stop(void);

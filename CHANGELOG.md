@@ -1,3 +1,12 @@
+## Chhanges from forked version 7.1 to 7.1-a:
+
+### Bus Pirate v3 specific changes:
+
+### Bus Pirate v4 specific changes:
+
+### Changes applicable to both hardware versions:
+* Fixed I2C command 0x08 (write_then_read). Buspirate now puts a I2C repeated start condition between the write and read attempts. The same I2C address is resent on the I2C bus at the beginning of the I2C read operation (with the R/W bit set)
+
 ## Changes from 7.0 to 7.1:
 
 ### Bus Pirate v3 specific changes:

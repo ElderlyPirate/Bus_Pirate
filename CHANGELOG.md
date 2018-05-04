@@ -1,4 +1,4 @@
-## Chhanges from forked version 7.1 to 7.1-a:
+## Changes from forked version 7.1 to 7.1-a:
 
 ### Bus Pirate v3 specific changes:
 

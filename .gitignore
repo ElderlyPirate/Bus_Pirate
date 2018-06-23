@@ -27,8 +27,8 @@
 /Firmware/busPirate.X/build/default/
 /Firmware/busPirate.X/debug/
 /Firmware/busPirate.X/dist/
-/Firmware/busPirate.X/nbproject/Makefile-BusPirate_V3.mk
-/Firmware/busPirate.X/nbproject/Makefile-BusPirate_V4.mk
+/Firmware/busPirate.X/nbproject/Makefile-BusPirate_v3.mk
+/Firmware/busPirate.X/nbproject/Makefile-BusPirate_v4.mk
 /Firmware/busPirate.X/nbproject/Makefile-default.mk
 /Firmware/busPirate.X/nbproject/Makefile-genesis.properties
 /Firmware/busPirate.X/nbproject/Makefile-impl.mk

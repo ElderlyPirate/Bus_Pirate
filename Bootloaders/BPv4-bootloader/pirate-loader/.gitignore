@@ -1,0 +1,8 @@
+# CMake output
+/CMakeCache.txt
+/CMakeFiles/
+/Makefile
+/cmake_install.cmake
+
+# build output
+/pirate-loader

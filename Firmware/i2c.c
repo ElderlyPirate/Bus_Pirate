@@ -932,6 +932,7 @@ rawI2C mode:
 void binary_io_enter_i2c_mode(void) {
   static unsigned char inByte, rawCommand, i;
   unsigned int j, fw, fr;
+  unsigned char i2Caddress;
 
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;
@@ -999,9 +1000,7 @@ void binary_io_enter_i2c_mode(void) {
 
         // check length and report error
         if (fw > BP_TERMINAL_BUFFER_SIZE || fr > BP_TERMINAL_BUFFER_SIZE) {
-        I2C_write_read_error: // use this for the read error too
-          REPORT_IO_FAILURE();
-          break;
+           goto I2C_write_read_error;
         }
 
         // get bytes
@@ -1009,6 +1008,8 @@ void binary_io_enter_i2c_mode(void) {
           bus_pirate_configuration.terminal_input[j] = user_serial_read_byte();
         }
 
+        // Store i2C device address
+        i2Caddress = bus_pirate_configuration.terminal_input[0];
         // start
         bitbang_i2c_start();
 
@@ -1021,6 +1022,16 @@ void binary_io_enter_i2c_mode(void) {
             goto I2C_write_read_error;
         }
 
+        if(fr > 0){ // do we want to read ?
+           if(fw > 1) { //previous write was address and data ?
+              // Send restart
+              bitbang_i2c_repeated_start();
+              bitbang_write_value(i2Caddress | 0x01); // send address again
+              if (bitbang_read_bit() == 1)
+                 goto I2C_write_read_error;
+           }
+        }
+        
         fw = fr - 1;
         for (j = 0; j < fr; j++) { // read bulk bytes from SPI
           // send ack
@@ -1135,6 +1146,7 @@ void binary_io_enter_i2c_mode(void) {
 #endif /* BUSPIRATEV4 */
 
     default:
+    I2C_write_read_error: // use this for the read error too
       REPORT_IO_FAILURE();
       break;
     }

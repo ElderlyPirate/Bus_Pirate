@@ -111,6 +111,36 @@ bool bitbang_i2c_start(void) {
   return error;
 }
 
+bool bitbang_i2c_repeated_start(void) { // sends a restart condition on the line
+  bool error;
+
+  error = false;
+
+  /* Set both SDA and CLK low. */
+  bitbang_set_pins_low(MOSI + CLK, delay_profile->clock);
+
+  /* Set SDA high. */
+  bitbang_set_pins_high(MOSI, delay_profile->clock);
+
+  /* Set CLK high too. */
+  bitbang_set_pins_high(CLK, delay_profile->clock);
+
+  /* Check whether lines are still high. */
+  if ((BP_CLK == LOW) || (BP_MOSI == LOW)) {
+    error = true;
+  } else {
+    /* Bring SDA low. */
+    bitbang_set_pins_low(MOSI, delay_profile->clock);
+
+    /* Bring CLK low too. */
+    bitbang_set_pins_low(CLK, delay_profile->clock);
+
+    /* Bring SDA back high. */
+    bitbang_set_pins_high(MOSI, delay_profile->clock);
+  }
+  return error;
+}
+
 void bitbang_i2c_stop(void) {
   /* Set both SDA and CLK low. */
   bitbang_set_pins_low(MOSI + CLK, delay_profile->clock);

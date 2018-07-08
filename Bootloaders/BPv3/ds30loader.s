@@ -147,7 +147,7 @@
 ;		.equ	STARTADDR,	( FLASHSIZE - 2*(PAGESIZE * 2) ) 		/*place bootloader in 2nd last program page*/
 		.equ	STARTADDR,	( FLASHSIZE - (2* (PAGESIZE)) ) 		/*place bootloader in last program page*/
 		.equ	BLCHECKST,  ( STARTADDR - (ROWSIZE) )			/*precalculate the first row write position that would overwrite the bootloader*/
-		.equ	BLVERSION,	0x0405	;bootloader version for Bus Pirate firmware (located at last instruction before flash config words)
+		.equ	BLVERSION,	0x0406	;bootloader version for Bus Pirate firmware (located at last instruction before flash config words)
 ;------------------------------------------------------------------------------
 ; Validate user settings
 ;------------------------------------------------------------------------------

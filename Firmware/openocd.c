@@ -231,9 +231,9 @@ void binOpenOCD(void) {
 
         uint16_t tdi_data_out = user_serial_read_byte();
         uint16_t tms_data_out = user_serial_read_byte();
-        tms_data_out = tms_data_out |
-                       ((bit_sequences > 8) ? user_serial_read_byte() : 0) << 8;
         tdi_data_out = tdi_data_out |
+                       ((bit_sequences > 8) ? user_serial_read_byte() : 0) << 8;
+        tms_data_out = tms_data_out |
                        ((bit_sequences > 8) ? user_serial_read_byte() : 0) << 8;
 
         /* Clock TDI and TMS out, while reading TDO in. */
@@ -276,8 +276,10 @@ void binOpenOCD(void) {
         /* Report TDO. */
 
         tdo_data_in >>= 15 - (bits_to_process - 1);
-        user_serial_transmit_character((tdo_data_in >> 8) & 0xFF);
         user_serial_transmit_character(tdo_data_in & 0xFF);
+        if (bits_to_process > 8) {
+          user_serial_transmit_character((tdo_data_in >> 8) & 0xFF);
+        }
 
         bit_sequences -= 16;
       } while (bit_sequences >= 0);

@@ -138,28 +138,28 @@ void bitbang_advance_clock_ticks(const uint16_t ticks);
  *
  * @param[in] state the state to set.
  */
-inline void bitbang_set_mosi(const bool state);
+void bitbang_set_mosi(const bool state);
 
 /**
  * Sets the state of the CLK pin.
  *
  * @param[in] state the state to set.
  */
-inline void bitbang_set_clk(const bool state);
+void bitbang_set_clk(const bool state);
 
 /**
  * Sets the state of the CS pin.
  *
  * @param[in] state the state to set.
  */
-inline void bitbang_set_cs(const bool state);
+void bitbang_set_cs(const bool state);
 
 /**
  * Reads the state of the MISO pin.
  *
  * @return HIGH or LOW, depending on the state of the MISO pin.
  */
-inline bool bitbang_read_miso(void);
+bool bitbang_read_miso(void);
 
 /**
  * Sets the pins indicated by the given bitmask to HIGH state and OUTPUT

@@ -38,3 +38,4 @@
 * Hardware schematics have been migrated to their own repo at [https://github.com/BusPirate/hardware](https://github.com/BusPirate/hardware) (#14)
 * Documentation from Dangerous Prototypes' wiki has been converted into Markdown format and placed in the source repository. (#27)
 * Firmware will now build by default with Optimisation level 1, this allows to fit more protocols on v3 boards in the default configuration.
+* MPLAB-X 5.00 or a later version is now required to rebuild the firmware, along with XC16 version 1.35 or later.

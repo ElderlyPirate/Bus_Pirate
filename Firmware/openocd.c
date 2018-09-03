@@ -244,10 +244,10 @@ void binOpenOCD(void) {
 
         for (counter = 0; counter < bits_to_process; counter++) {
 #ifdef BP_JTAG_OPENOCD_DELAY
-          asm volatile("\t repeat %0 \n"
-                       "\t nop       \n"
-                       :
-                       : "r"(openocd_jtag_delay));
+          __asm volatile("\t repeat %0 \n"
+                         "\t nop       \n"
+                         :
+                         : "r"(openocd_jtag_delay));
 #endif /* BP_JTAG_OPENOCD_DELAY */
 
           /* Clear TCK. */
@@ -260,10 +260,10 @@ void binOpenOCD(void) {
           tms_data_out >>= 1;
 
 #ifdef BP_JTAG_OPENOCD_DELAY
-          asm volatile("\t repeat %0 \n"
-                       "\t nop       \n"
-                       :
-                       : "r"(openocd_jtag_delay));
+          __asm volatile("\t repeat %0 \n"
+                         "\t nop       \n"
+                         :
+                         : "r"(openocd_jtag_delay));
 #endif /* BP_JTAG_OPENOCD_DELAY */
 
           /* Set TCK. */

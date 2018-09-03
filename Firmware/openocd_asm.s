@@ -15,7 +15,7 @@
 ;
 
 .ifdef __PIC24FJ256GB106__
-	.error "Bus Pirate v4 is not yet supported!"
+	.error "This is only for Bus Pirate v3"
 .endif ; __PIC24FJ256GB106__
 
 .ifdef __PIC24FJ64GA002__
@@ -203,7 +203,7 @@ __loop_bit:					;   do {
 		;   loose register content -> no function call)
 		
 		; Referencing an .equiv symbol does not work anymore?
-; 		btst	IEC0, #U1TXIE
+; 		btst	IEC0, U1TXIE
 		btst	IEC0, #0x000C
 		bra	z, 1f
 
@@ -212,9 +212,9 @@ __loop_bit:					;   do {
 		bra	z, 1f
 
 ;		bclr	IFS0, U1TXIF
-		;bclr	IFS0, #0x000C
+		bclr	IFS0, #0x000C
 ;		bset	IEC0, U1TXIE
-		;bset	IEC0, #0x000C
+		bset	IEC0, #0x000C
 		add	_UART1TXBuf, wreg
 		mov	[w0], w0
 		mov	w0, U1TXREG

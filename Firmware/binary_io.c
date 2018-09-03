@@ -183,7 +183,7 @@ void binBB(void) {
         BP_LEDMODE = 0; // light MODE LED
         user_serial_wait_transmission_done();  // wait untill TX finishes
 #ifndef BUSPIRATEV4
-        asm("RESET");
+        __asm volatile ("RESET");
 #endif
 #ifdef BUSPIRATEV4 // cannot use ASM reset on BPv4
         binReset();

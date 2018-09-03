@@ -42,12 +42,12 @@ uint16_t uart_read(void);
  *
  * @return 0 as the function always succeeds.
  */
-inline uint16_t uart_write(const uint16_t value);
+uint16_t uart_write(const uint16_t value);
 
 /**
  * Cleans up the state of the UART module once its operations are done.
  */
-inline void uart_cleanup(void);
+void uart_cleanup(void);
 
 /**
  * Starts UART operations.
@@ -64,7 +64,7 @@ void uart_stop(void);
  *
  * @see bus_pirate_protocol_t.print_pins_state
  */
-inline void uart_pins_state(void);
+void uart_pins_state(void);
 
 /**
  * Runs the macro identified by the given marker.

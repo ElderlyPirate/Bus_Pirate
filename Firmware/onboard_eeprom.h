@@ -26,11 +26,8 @@
 
 /**
  * Initializes the I/O port for communication with the on-board EEPROM.
- *
- * This function is marked as inline since EEPROM port initialization is
- * supposed to happen exactly once at boot stage.
  */
-void inline eeprom_initialize(void);
+void eeprom_initialize(void);
 
 /**
  * Tests the on-board 8 kilobytes EEPROM.

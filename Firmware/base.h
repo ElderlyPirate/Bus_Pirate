@@ -201,7 +201,7 @@ uint16_t bp_reverse_integer(const uint16_t value, const uint8_t bits);
  *
  * @return the value with reversed bits.
  */
-inline uint8_t bp_reverse_byte(const uint8_t value);
+uint8_t bp_reverse_byte(const uint8_t value);
 
 /**
  * @brief Reverses the bits in the given word and returns it.
@@ -210,7 +210,7 @@ inline uint8_t bp_reverse_byte(const uint8_t value);
  *
  * @return the value with reversed bits.
  */
-inline uint16_t bp_reverse_word(const uint16_t value);
+uint16_t bp_reverse_word(const uint16_t value);
 
 /**
  * @brief Bring the board to a clean slate shortly before switching to a new
@@ -311,21 +311,21 @@ void bp_write_bin_byte(const uint8_t value);
  *
  * @param[in] value the value to write.
  */
-inline void bp_write_dec_byte(const uint8_t value);
+void bp_write_dec_byte(const uint8_t value);
 
 /**
  * @brief Writes the given 16-bits value to the serial port in decimal form.
  *
  * @param[in] value the value to write.
  */
-inline void bp_write_dec_word(const uint16_t value);
+void bp_write_dec_word(const uint16_t value);
 
 /**
  * @brief Writes the given 32-bits value to the serial port in decimal form.
  *
  * @param[in] value the value to write.
  */
-inline void bp_write_dec_dword(const uint32_t value);
+void bp_write_dec_dword(const uint32_t value);
 
 /**
  * @brief Writes the given 32-bits value to the serial port in decimal form,
@@ -404,26 +404,26 @@ void user_serial_initialise(void);
  *
  * @return YES if the transmission queue is empty, NO otherwise.
  */
-inline bool user_serial_transmit_done(void);
+bool user_serial_transmit_done(void);
 
 /**
  * @brief Checks whether the reception queue is full or not.
  *
  * @return YES if the reception queue is not full, NO otherwise.
  */
-inline bool user_serial_ready_to_read(void);
+bool user_serial_ready_to_read(void);
 
 /**
  * @brief Clears the user-facing serial port overflow error flag.
  */
-inline void user_serial_clear_overflow(void);
+void user_serial_clear_overflow(void);
 
 /**
  * @brief Returns the user-facing serial port overflow error flag.
  *
  * @return YES if an overflow error was detected, NO otherwise.
  */
-inline bool user_serial_check_overflow(void);
+bool user_serial_check_overflow(void);
 
 /**
  * @brief Set the baud rate for the user-facing serial port.
@@ -431,13 +431,13 @@ inline bool user_serial_check_overflow(void);
  * @param[in] rate the rate for the serial port, as a frequency counter for the
  * baud rate generator circuitry.
  */
-inline void user_serial_set_baud_rate(const uint16_t rate);
+void user_serial_set_baud_rate(const uint16_t rate);
 
 /**
  * @brief Blocks execution until the user-facing serial port transmission queue
  * is empty.
  */
-inline void user_serial_wait_transmission_done(void);
+void user_serial_wait_transmission_done(void);
 
 /**
  * @brief Blocks execution until a byte arrives on the user-facing serial port

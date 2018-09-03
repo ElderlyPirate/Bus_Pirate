@@ -143,7 +143,7 @@ void uart2_tx(const uint8_t character);
  *
  * @return true if there are characters to read, false otherwise.
  */
-inline bool uart2_rx_ready(void);
+bool uart2_rx_ready(void);
 
 /**
  * Reads a character from UART #2.

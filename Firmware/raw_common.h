@@ -25,13 +25,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-inline bool raw_read_bit(void);
-inline uint16_t raw_read_pin(void);
-inline void raw_set_clock_high(void);
-inline void raw_set_clock_low(void);
-inline void raw_set_data_low(void);
-inline void raw_set_data_high(void);
-inline void raw_advance_clock(void);
+bool raw_read_bit(void);
+uint16_t raw_read_pin(void);
+void raw_set_clock_high(void);
+void raw_set_clock_low(void);
+void raw_set_data_low(void);
+void raw_set_data_high(void);
+void raw_advance_clock(void);
 
 #endif /* BP_ENABLE_RAW_2WIRE_SUPPORT || BP_ENABLE_RAW_3WIRE_SUPPORT */
 

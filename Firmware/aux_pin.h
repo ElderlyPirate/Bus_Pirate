@@ -81,7 +81,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle);
  * @see PWM_MINIMUM_DUTY_CYCLE
  * @see PWM_MAXIMUM_DUTY_CYCLE
  */
-inline void bp_update_duty_cycle(const uint16_t duty_cycle);
+void bp_update_duty_cycle(const uint16_t duty_cycle);
 
 /**
  * @brief Sets the currently chosen AUX pin into INPUT/HiZ mode.

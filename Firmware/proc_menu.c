@@ -664,7 +664,7 @@ bpv4reset:
 #else
                     BPMSG1093;
                     user_serial_wait_transmission_done(); //wait until TX finishes
-                    asm volatile ("RESET");
+                    __asm volatile ("RESET");
 #endif /* BUSPIRATEV4 */
                     break;
                 case '$': 
@@ -675,7 +675,7 @@ bpv4reset:
                         bp_delay_ms(100);
                         bp_reset_board_state(); // turn off nasty things, cleanup first needed?
                         user_serial_wait_transmission_done(); //wait until TX finishes
-                        asm volatile ("RESET");
+                        __asm volatile ("RESET");
                     }
                     break;
                 case 'a':

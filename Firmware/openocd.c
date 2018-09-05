@@ -282,7 +282,7 @@ void binOpenOCD(void) {
         }
 
         bit_sequences -= 16;
-      } while (bit_sequences >= 0);
+      } while (bit_sequences > 0);
 
 #endif /* BUSPIRATEV4 */
 

@@ -1960,10 +1960,10 @@ void convert_value(const bool reversed) {
   if (reversed) {
     value = bp_reverse_integer(value, mode_configuration.numbits);
   }
-  bp_write_hex_byte(reversed);
+  bp_write_hex_byte(value);
   MSG_BASE_CONVERTER_EQUAL_SIGN;
-  bp_write_dec_byte(reversed);
+  bp_write_dec_byte(value);
   MSG_BASE_CONVERTER_EQUAL_SIGN;
-  bp_write_bin_byte(reversed);
+  bp_write_bin_byte(value);
   bpBR;
 }

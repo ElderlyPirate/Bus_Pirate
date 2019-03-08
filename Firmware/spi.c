@@ -1011,7 +1011,7 @@ void spi_read_write_io(const bool engage_cs) {
 
 #ifndef BP_SPI_ENABLE_STREAMING_READ
   /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
+  if (bytes_to_read > BP_TERMINAL_BUFFER_SIZE) {
     REPORT_IO_FAILURE();
     return;
   }

@@ -44,13 +44,13 @@ _BPMSG1028_str:
 	.section .text.BPMSG1029, code
 	.global _BPMSG1029_str
 _BPMSG1029_str:
-	.pasciz "1KHz-4,000KHz PWM"
+	.pasciz "1kHz-4,000kHz PWM"
 
 	; BPMSG1030
 	.section .text.BPMSG1030, code
 	.global _BPMSG1030_str
 _BPMSG1030_str:
-	.pasciz "Frequency in KHz "
+	.pasciz "Frequency in kHz "
 
 	; BPMSG1033
 	.section .text.BPMSG1033, code
@@ -146,7 +146,7 @@ _BPMSG1066_str:
 	.section .text.BPMSG1067, code
 	.global _BPMSG1067_str
 _BPMSG1067_str:
-	.pasciz "Set speed:\r\n 1. 100KHz\r\n 2. 400KHz\r\n 3. 1MHz"
+	.pasciz "Set speed:\r\n 1. 100kHz\r\n 2. 400kHz\r\n 3. 1MHz"
 
 	; BPMSG1068
 	.section .text.BPMSG1068, code
@@ -1454,7 +1454,7 @@ _MSG_SNIFFER_MESSAGE_str:
 	.section .text.MSG_SOFTWARE_MODE_SPEED_PROMPT, code
 	.global _MSG_SOFTWARE_MODE_SPEED_PROMPT_str
 _MSG_SOFTWARE_MODE_SPEED_PROMPT_str:
-	.pasciz "Set speed:\r\n 1. ~5KHz\r\n 2. ~50KHz\r\n 3. ~100KHz\r\n 4. ~400KHz"
+	.pasciz "Set speed:\r\n 1. ~5kHz\r\n 2. ~50kHz\r\n 3. ~100kHz\r\n 4. ~400kHz"
 
 	; MSG_SPI_COULD_NOT_KEEP_UP
 	.section .text.MSG_SPI_COULD_NOT_KEEP_UP, code
@@ -1526,7 +1526,7 @@ _MSG_SPI_SAMPLE_PROMPT_str:
 	.section .text.MSG_SPI_SPEED_PROMPT, code
 	.global _MSG_SPI_SPEED_PROMPT_str
 _MSG_SPI_SPEED_PROMPT_str:
-	.pasciz "Set speed:\r\n 1.  30KHz\r\n 2. 125KHz\r\n 3. 250KHz\r\n 4.   1MHz\r\n 5.  50KHz\r\n 6. 1.3MHz\r\n 7.   2MHz\r\n 8. 2.6MHz\r\n 9. 3.2MHz\r\n10.   4MHz\r\n11. 5.3MHz\r\n12.   8MHz"
+	.pasciz "Set speed:\r\n 1.  30kHz\r\n 2. 125kHz\r\n 3. 250kHz\r\n 4.   1MHz\r\n 5.  50kHz\r\n 6. 1.3MHz\r\n 7.   2MHz\r\n 8. 2.6MHz\r\n 9. 3.2MHz\r\n10.   4MHz\r\n11. 5.3MHz\r\n12.   8MHz"
 
 	; MSG_UART_BAUD_CALCULATED
 	.section .text.MSG_UART_BAUD_CALCULATED, code

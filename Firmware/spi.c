@@ -1036,6 +1036,8 @@ void spi_read_write_io(const bool engage_cs) {
 
   if (bytes_to_read > 0) {
     spi_read_to_uart(bytes_to_read);
+  } else {
+    REPORT_IO_SUCCESS();
   }
 
   /* Reset the CS line if needed. */

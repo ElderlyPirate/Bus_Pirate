@@ -1573,10 +1573,10 @@ void print_status_info(void) {
 #ifdef BUSPIRATEV4
   switch (mode_configuration.alternate_aux) {
   case 0:
-    BPMSG1087;
+    BPMSG1086;
     break;
   case 1:
-    BPMSG1086;
+    BPMSG1087;
     break;
   case 2:
     BPMSG1263;

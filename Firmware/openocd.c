@@ -212,7 +212,9 @@ void binOpenOCD(void) {
 
       j = (inByte << 8) | inByte2; // number of bit sequences
 
-      j = min(j, BP_JTAG_OPENOCD_BIT_SEQUENCES_LIMIT);
+      if (BP_JTAG_OPENOCD_BIT_SEQUENCES_LIMIT < j) {
+          j = BP_JTAG_OPENOCD_BIT_SEQUENCES_LIMIT;
+      }
       buf[0] = CMD_TAP_SHIFT;
       buf[1] = inByte;
       buf[2] = inByte2;
@@ -253,7 +255,7 @@ void binOpenOCD(void) {
 
         /* Clock TDI and TMS out, while reading TDO in. */
 
-        size_t bits_to_process = min(16, bit_sequences);
+        size_t bits_to_process = 16 < bit_sequences ? 16 : bit_sequences;
         size_t counter;
         uint16_t tdo_data_in = 0;
 

@@ -1844,7 +1844,7 @@ void remove_current_character_from_command_line(void) {
     cmdbuf[index] = cmdbuf[index + 1];
 
     /* Write the moved character. */
-    user_serial_transmit_character(cmdbuf[index] != NULL ? cmdbuf[index] : ' ');
+    user_serial_transmit_character(cmdbuf[index] ?: ' ');
 
     /* Update pointer. */
     characters_to_move++;

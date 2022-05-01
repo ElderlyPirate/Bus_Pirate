@@ -23,6 +23,16 @@
 #include "binary_io.h"
 #include "core.h"
 
+#define MAX(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+#define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
 extern mode_configuration_t mode_configuration;
 extern bus_pirate_configuration_t bus_pirate_configuration;
 
@@ -212,7 +222,7 @@ void binOpenOCD(void) {
 
       j = (inByte << 8) | inByte2; // number of bit sequences
 
-      j = min(j, BP_JTAG_OPENOCD_BIT_SEQUENCES_LIMIT);
+      j = MIN(j, BP_JTAG_OPENOCD_BIT_SEQUENCES_LIMIT);
       buf[0] = CMD_TAP_SHIFT;
       buf[1] = inByte;
       buf[2] = inByte2;
@@ -253,7 +263,7 @@ void binOpenOCD(void) {
 
         /* Clock TDI and TMS out, while reading TDO in. */
 
-        size_t bits_to_process = min(16, bit_sequences);
+        size_t bits_to_process = MIN(16, bit_sequences);
         size_t counter;
         uint16_t tdo_data_in = 0;
 

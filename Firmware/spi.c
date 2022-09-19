@@ -942,6 +942,10 @@ void spi_enter_binary_io(void) {
       REPORT_IO_FAILURE();
       break;
     }
+#ifdef BUSPIRATEV3
+    /* avoid the 16ms FTDI buffer send latency */
+    FTDI_CTS = !FTDI_CTS;
+#endif
   }
 }
 

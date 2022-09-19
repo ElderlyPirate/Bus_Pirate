@@ -708,6 +708,9 @@ void user_serial_initialise(void) {
   U1STA = 0x0400;
 
   IFS0bits.U1RXIF = NO;
+
+  /* FTDI CTS setup. */
+  FTDI_CTS_DIR = OUTPUT;
 }
 
 bool user_serial_transmit_done(void) { return U1STAbits.TRMT; }

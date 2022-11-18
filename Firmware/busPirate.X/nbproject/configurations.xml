@@ -314,7 +314,7 @@
         <property key="scalar-model" value="default"/>
         <property key="use-cci" value="true"/>
         <property key="use-iar" value="false"/>
-        <appendMe value="-save-temps -finline"/>
+        <appendMe value="-save-temps -finline -DVERSION=\&quot;$(VERSION)\&quot;"/>
       </C30>
       <C30-AR>
         <property key="additional-options-chop-files" value="false"/>

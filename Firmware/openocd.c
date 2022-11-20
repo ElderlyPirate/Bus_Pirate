@@ -51,11 +51,11 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 #endif /* BUSPIRATEV3 */
 
 // open-drain control
-#define OOCD_TDO_ODC BP_MISO
-#define OOCD_TMS_ODC BP_CS
-#define OOCD_CLK_ODC BP_CLK
-#define OOCD_TDI_ODC BP_MOSI
-#define OOCD_SRST_ODC BP_AUX0
+#define OOCD_TDO_ODC BP_MISO_ODC
+#define OOCD_TMS_ODC BP_CS_ODC
+#define OOCD_CLK_ODC BP_CLK_ODC
+#define OOCD_TDI_ODC BP_MOSI_ODC
+#define OOCD_SRST_ODC BP_AUX0_ODC
 #ifdef BUSPIRATEV3
 #define OOCD_TRST_ODC BP_PGD
 #else

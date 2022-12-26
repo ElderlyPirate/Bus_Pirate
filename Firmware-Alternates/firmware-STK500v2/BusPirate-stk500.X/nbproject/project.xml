@@ -4,14 +4,26 @@
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
             <name>BusPirate-stk500</name>
-            <creation-uuid>3f1e567d-a767-4aa0-8df5-de3c18652fd0</creation-uuid>
+            <creation-uuid>b171d81b-96b4-47ab-a7c9-5375dd4834a5</creation-uuid>
             <make-project-type>0</make-project-type>
             <c-extensions>c</c-extensions>
             <cpp-extensions/>
             <header-extensions>h</header-extensions>
             <asminc-extensions/>
-            <sourceEncoding>UTF-8</sourceEncoding>
+            <sourceEncoding>ISO-8859-1</sourceEncoding>
             <make-dep-projects/>
+            <sourceRootList>
+                <sourceRootElem>..</sourceRootElem>
+            </sourceRootList>
+            <confList>
+                <confElem>
+                    <name>default</name>
+                    <type>2</type>
+                </confElem>
+            </confList>
+            <formatting>
+                <project-formatting-style>false</project-formatting-style>
+            </formatting>
         </data>
     </configuration>
 </project>

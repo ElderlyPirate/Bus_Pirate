@@ -55,6 +55,7 @@ build: .build-post
 
 .build-pre:
 # Add your pre 'build' code here...
+VERSION:=${shell git rev-parse --short HEAD}
 
 .build-post: .build-impl
 # Add your post 'build' code here...

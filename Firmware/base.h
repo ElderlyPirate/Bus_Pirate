@@ -41,10 +41,12 @@
 #include "messages.h"
 #include "types.h"
 
+#include "bp-version.h"
+
 /**
  * @brief Firmware version string, used at startup and for the 'i' command.
  */
-#define BP_FIRMWARE_STRING "Community Firmware v7.1 - goo.gl/gCzQnW "
+#define BP_FIRMWARE_STRING "Community Firmware " BP_GIT_VERSION_STRING " - goo.gl/gCzQnW "
 
 /**
  * @brief Current mode configuration settings structure.

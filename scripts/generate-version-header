@@ -1,0 +1,32 @@
+#!/bin/sh -eu
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <output-filename>" >&2
+    exit 1
+fi
+
+
+output_file="$1"
+output_file_tmp="$(mktemp)"
+trap finish EXIT
+
+finish() {
+    rm -f "$output_file_tmp"
+}
+
+version="$(git describe --tags --always --dirty)"
+
+cat > "$output_file_tmp" <<HEREDOC
+/**
+ * @brief Version string generated using git describe, @see BP_FIRMWARE_STRING
+ */
+#define BP_GIT_VERSION_STRING "$version"
+
+HEREDOC
+
+# Only update file if it has changed (avoids unneccessary rebuilds)
+if ! cmp -s "$output_file" "$output_file_tmp"; then
+    mv -f "$output_file_tmp" "$output_file"
+    echo "Updated Git version string in $output_file: $version."
+else
+    echo "No update needed for Git version string in $output_file: $version"
+fi

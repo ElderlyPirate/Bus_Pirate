@@ -43,18 +43,38 @@
 # NOCDDL
 
 
-# Environment 
-MKDIR=mkdir
+# Environment
+ifeq ($(OS),Windows_NT)
+	MKDIR=gnumkdir
+else
+	MKDIR=mkdir
+endif
 CP=cp
 CCADMIN=CCadmin
 RANLIB=ranlib
 
+# This will automatically pick the .bat-file on Windows.
+GENERATE_VERSION_HEADER=../../scripts/generate-version-header
+# CND_BUILDDIR is not used at all, "build" is hardcoded in generated Makefiles.
+# Use our own variable BUILD_DIR instead.
+BUILD_DIR=build
+BP_VERSION_H=$(BUILD_DIR)/bp-version.h
+# BUILD_DIR is added to include path in MPLAB X project file.
 
 # build
 build: .build-post
 
-.build-pre:
-# Add your pre 'build' code here...
+
+ifeq ($(OS),Windows_NT)
+windows-workaround: clean
+	@echo Had to clean because of Windows-only bug: https://www.microchip.com/forums/m1061336.aspx
+else
+windows-workaround:
+endif
+
+.build-pre: windows-workaround
+	$(MKDIR) -p $(BUILD_DIR)
+	$(GENERATE_VERSION_HEADER) $(BP_VERSION_H)
 
 .build-post: .build-impl
 # Add your post 'build' code here...
@@ -65,6 +85,7 @@ clean: .clean-post
 
 .clean-pre:
 # Add your pre 'clean' code here...
+	rm -f $(BP_VERSION_H)
 
 .clean-post: .clean-impl
 # Add your post 'clean' code here...

@@ -928,7 +928,7 @@
         <property key="general-write-protect" value="no_write_protect"/>
         <property key="generate-cross-reference-file" value="true"/>
         <property key="heap-size" value=""/>
-        <property key="input-libraries" value="pic30-elf"/>
+        <property key="input-libraries" value="c99-pic30-elf"/>
         <property key="linker-stack" value="true"/>
         <property key="linker-symbols" value=""/>
         <property key="map-file" value="BusPirate_V4.map"/>

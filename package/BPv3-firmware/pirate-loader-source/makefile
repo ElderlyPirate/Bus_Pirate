@@ -1,5 +1,5 @@
 OS := $(shell uname)
-SOURCEPATH=.
+SOURCEPATH=./source
 CC=gcc
 CFLAGS=-O2 -Wall 
 OSFLAGS= -DOS=$OS
@@ -10,7 +10,8 @@ SUFFIX=lnx
 endif
 ifeq ($(OS),Darwin)
 SUFFIX=mac
-CFLAGS=$(CFLAGS) -force_cpusubtype_ALL -arch i386 -arch ppc 
+# CFLAGS=$(CFLAGS) -force_cpusubtype_ALL -arch i386 -arch ppc 
+CFLAGS+= -arch x86_64
 endif
 ifeq ($(OS),FreeBSD)
 SUFFIX=fbsd
@@ -19,7 +20,7 @@ endif
 all: pirate-loader
 
 pirate-loader: $(SOURCES)
-	$(CC) $(CFLAGS) $(<) $(OSFLAGS) -o $(@)_${SUFFIX}
+	$(CC) $(CFLAGS) $^ $(OSFLAGS) -o $(@)_${SUFFIX}
 
 .PHONY: clean
 

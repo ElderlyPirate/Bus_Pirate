@@ -42,6 +42,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Hardware 'NORMAL' button on BPv4 definitions
+#define BP_BUTTON_DIR TRISCbits.TRISC14
+#define BP_BUTTON PORTCbits.RC14
+#define BP_BUTTON_IF IFS1bits.CNIF
+#define BP_BUTTON_SETUP()                                                      \
+  BP_BUTTON_DIR = 1;                                                           \
+  CNPU1 |= 0b1;                                                                \
+  CNEN1 |= 0b1;                                                                \
+  IEC1bits.CNIE = 0;                                                           \
+  BP_BUTTON_IF = 0;
+#define BP_BUTTON_ISDOWN() (!BP_BUTTON) // 0=DOWN (PRESSED) / 1=UP (UNPRESSED)
+
 #define FIRMWARE_SIGNATURE 0x31415926
 
 bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
@@ -85,17 +97,27 @@ int main(void) {
   PGC_OUT = 0;
   PGC_TRIS = 0;
 
-  if ((firmware_signature != FIRMWARE_SIGNATURE) || !skip_pgc_pgd_check) {
+  LedSetup();
+
+  BP_BUTTON_SETUP();
+
+  if ((firmware_signature != FIRMWARE_SIGNATURE) || !skip_pgc_pgd_check || BP_BUTTON_ISDOWN()) {
     volatile int i;
 
     skip_pgc_pgd_check = false;
 
-    i = 5000;
-    while (i--)
-      ;
+    int j = 35;
+    while (j--) {
+        i = 65000;
+        while (i--);
+    }
+
+    vLedOn();
+    mLedOn();
+    uLedOn();
 
     for (i = 0; i < 20; i++) {
-      if ((PGD_IN == 1)) { // go to user space on first mis-match
+      if ((PGD_IN == 1 && !(BP_BUTTON_ISDOWN()))) { // go to user space on first mis-match
         // continue to bootloader, or exit
         asm(".equ BLJUMPADDRESS, 0x2000");
         asm volatile("mov #BLJUMPADDRESS, w1 \n" // bootloader location

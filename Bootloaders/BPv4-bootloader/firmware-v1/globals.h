@@ -23,8 +23,8 @@ typedef unsigned char BYTE;
 
 #define LedSetup() TRISBbits.TRISB8=0;TRISBbits.TRISB9=0;TRISBbits.TRISB10=0
 
-#define uLedOn() LATBbits.LATB10 = 0
-#define uLedOff() LATBbits.LATB10 = 1
+#define uLedOn() LATBbits.LATB10 = 1
+#define uLedOff() LATBbits.LATB10 = 0
 #define uLedToggle() LATBbits.LATB10 ^= LATBbits.LATB10
 
 #define mLedOn() LATBbits.LATB8 = 1

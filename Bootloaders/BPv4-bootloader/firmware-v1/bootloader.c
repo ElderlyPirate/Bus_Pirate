@@ -22,7 +22,7 @@ BYTE bldone = 0;
 extern BYTE cdc_In_buffer[64];
 extern BYTE cdc_Out_buffer[64];
 #define VER_H 0x04
-#define VER_L 0x0a
+#define VER_L 0x0c
 
 unsigned int userversion  __attribute__((space(prog),address(BLENDADDR-9))) = ((VER_H<<8)|VER_L); 
 
@@ -110,7 +110,6 @@ error:
 			if(crc!=0){
 				bootstruct.blreturn='N';//return checksum error
 				goto error;
-
 			}
 
 			//calculate flash address
@@ -130,9 +129,14 @@ error:
 	                WritePage();
 	                break;
 				case 0xff:
-					 U1CONbits.USBEN=0; //USB off
+	                bootstruct.blreturn = 'K';
+                    cdc_In_buffer[0] = bootstruct.blreturn; //answer OK
+                    putUnsignedCharArrayUsbUsart(cdc_In_buffer, 1);
+					i=0x7FFF;
+					while(i--);
+                    U1CONbits.USBEN=0; //USB off
 					//delay a while so computer sees us turn off USB
-					j=0xFFFF;
+					j=0x0010;
 					while(j--){
 						i=0xFFFF;
 						while(i--);

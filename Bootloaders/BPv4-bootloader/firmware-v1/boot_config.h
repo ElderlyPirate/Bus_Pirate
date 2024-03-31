@@ -45,11 +45,6 @@ Low power request macro
 #ifndef __BOOT_CONFIG_H__
 #define __BOOT_CONFIG_H__
 
-#define MODELED LATBbits.LATB8
-#define USBLED  LATBbits.LATB10 //Active LOW
-
-#define  USBLEDON()   USBLED = 0
-
 #define USB_VID (0x04d8)
 #define USB_PID (0xFAFF) //; DangerousPrototypes Bootloader VID/PID
 #define USB_DEV 0x0002

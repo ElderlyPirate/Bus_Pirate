@@ -257,14 +257,14 @@ static const uint8_t spi_bus_speed[] = {
     0b00011000, /* 125 kHz - Primary prescaler 64:1 / Secondary prescaler 2:1 */
     0b00011100, /* 250 kHz - Primary prescaler 64:1 / Secondary prescaler 1:1 */
     0b00011101, /*   1 MHz - Primary prescaler 16:1 / Secondary prescaler 1:1 */
-    0b00001100, /*  50 kHz - Primary prescaler 64:1 / Secondary prescaler 5:1 */
-    0b00010110, /* 1.3 MHz - Primary prescaler  4:1 / Secondary prescaler 3:1 */
     0b00011010, /*   2 MHz - Primary prescaler  4:1 / Secondary prescaler 2:1 */
     0b00001011, /* 2.6 MHz - Primary prescaler  1:1 / Secondary prescaler 6:1 */
-    0b00001111, /* 3.2 MHz - Primary prescaler  1:1 / Secondary prescaler 5:1 */
     0b00011110, /*   4 MHz - Primary prescaler  4:1 / Secondary prescaler 1:1 */
-    0b00010111, /* 5.3 MHz - Primary prescaler  1:1 / Secondary prescaler 3:1 */
-    0b00011011  /*   8 MHz - Primary prescaler  1:1 / Secondary prescaler 2:1 */
+    0b00011011, /*   8 MHz - Primary prescaler  1:1 / Secondary prescaler 2:1 */
+    0b00001100, /*  50 kHz - Primary prescaler 64:1 / Secondary prescaler 5:1 */
+    0b00010110, /* 1.3 MHz - Primary prescaler  4:1 / Secondary prescaler 3:1 */
+    0b00001111, /* 3.2 MHz - Primary prescaler  1:1 / Secondary prescaler 5:1 */
+    0b00010111  /* 5.3 MHz - Primary prescaler  1:1 / Secondary prescaler 3:1 */
 };
 
 void engage_spi_cs(bool write_with_read) {

@@ -1526,7 +1526,8 @@ _MSG_SPI_SAMPLE_PROMPT_str:
 	.section .text.MSG_SPI_SPEED_PROMPT, code
 	.global _MSG_SPI_SPEED_PROMPT_str
 _MSG_SPI_SPEED_PROMPT_str:
-	.pasciz "Set speed:\r\n 1.  30KHz\r\n 2. 125KHz\r\n 3. 250KHz\r\n 4.   1MHz\r\n 5.  50KHz\r\n 6. 1.3MHz\r\n 7.   2MHz\r\n 8. 2.6MHz\r\n 9. 3.2MHz\r\n10.   4MHz\r\n11. 5.3MHz\r\n12.   8MHz"
+	.pasciz "Set speed:\r\n 1.  30kHz\r\n 2. 125kHz\r\n 3. 250kHz\r\n 4.   1MHz\r\n 5.   2MHz\r\n 6. 2.6MHz\r\n 7.   4MHz\r\n 8.   8MHz\r\n 9.  50KHz\r\n10. 1.3MHz\r\n11. 3.2MHz\r\n12. 5.3MHz"
+
 
 	; MSG_UART_BAUD_CALCULATED
 	.section .text.MSG_UART_BAUD_CALCULATED, code

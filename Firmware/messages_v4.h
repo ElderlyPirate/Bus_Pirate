@@ -367,6 +367,8 @@ void MSG_CHIP_REVISION_A3_str(void);
 #define MSG_CHIP_REVISION_A3 bp_message_write_buffer(__builtin_tbladdress(MSG_CHIP_REVISION_A3_str))
 void MSG_CHIP_REVISION_A5_str(void);
 #define MSG_CHIP_REVISION_A5 bp_message_write_buffer(__builtin_tbladdress(MSG_CHIP_REVISION_A5_str))
+void MSG_CHIP_REVISION_A6_str(void);
+#define MSG_CHIP_REVISION_A6 bp_message_write_buffer(__builtin_tbladdress(MSG_CHIP_REVISION_A6_str))
 void MSG_CHIP_REVISION_ID_BEGIN_str(void);
 #define MSG_CHIP_REVISION_ID_BEGIN bp_message_write_buffer(__builtin_tbladdress(MSG_CHIP_REVISION_ID_BEGIN_str))
 void MSG_CHIP_REVISION_UNKNOWN_str(void);

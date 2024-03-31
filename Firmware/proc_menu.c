@@ -1452,6 +1452,10 @@ void print_version_info(void) {
     MSG_CHIP_REVISION_A5;
     break;
 
+  case PIC_REV_A6:
+    MSG_CHIP_REVISION_A6;
+    break;
+
   default:
     MSG_CHIP_REVISION_UNKNOWN;
     break;

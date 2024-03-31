@@ -176,6 +176,7 @@
 
 #define PIC_REV_A3 0x0001
 #define PIC_REV_A5 0x0003
+#define PIC_REV_A6 0x0004
 
 static inline void bp_enable_usb_led(void) {
   BP_LEDUSB_DIR = OUTPUT;

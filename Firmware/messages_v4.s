@@ -1096,6 +1096,12 @@ _MSG_CHIP_REVISION_A3_str:
 _MSG_CHIP_REVISION_A5_str:
 	.pasciz "A5"
 
+	; MSG_CHIP_REVISION_A6
+	.section .text.MSG_CHIP_REVISION_A6, code
+	.global _MSG_CHIP_REVISION_A6_str
+_MSG_CHIP_REVISION_A6_str:
+	.pasciz "A6"
+
 	; MSG_CHIP_REVISION_ID_BEGIN
 	.section .text.MSG_CHIP_REVISION_ID_BEGIN, code
 	.global _MSG_CHIP_REVISION_ID_BEGIN_str

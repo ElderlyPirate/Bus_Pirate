@@ -276,7 +276,7 @@ static inline void handle_clear_pwm(void);
 static inline void handle_read_adc_one_shot(void);
 static inline void handle_read_adc_continuously(void);
 static inline void handle_frequency_measurement(void);
-static inline void handle_bitbang_command(const bitbang_command command);
+static inline int handle_bitbang_command(const bitbang_command command);
 
 static void read_and_transmit_adc_measurement(void);
 
@@ -368,14 +368,15 @@ void enter_binary_bitbang_mode(void) {
     uint8_t input_byte = user_serial_read_byte();
 
     if ((input_byte & 0b10000000) == 0) {
-      handle_bitbang_command((bitbang_command)input_byte);
+      if (handle_bitbang_command((bitbang_command)input_byte))
+          break;
     } else {
       user_serial_transmit_character(bitbang_pin_state_set(input_byte));
     }
   }
 }
 
-void handle_bitbang_command(const bitbang_command command) {
+int handle_bitbang_command(const bitbang_command command) {
   switch (command) {
   case BITBANG_COMMAND_RESET:
     send_binary_io_mode_identifier();
@@ -448,7 +449,7 @@ void handle_bitbang_command(const bitbang_command command) {
     user_serial_wait_transmission_done();
 #if defined(BUSPIRATEV4)
     reset_state();
-    return;
+    return -1;
 #else
     __asm volatile("RESET");
 #endif /* BUSPIRATEV4 */
@@ -500,6 +501,7 @@ void handle_bitbang_command(const bitbang_command command) {
     }
     break;
   }
+  return 0;
 }
 
 void reset_state(void) {

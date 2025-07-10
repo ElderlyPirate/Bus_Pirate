@@ -24,6 +24,10 @@
 #include "core.h"
 #include "proc_menu.h"
 
+#ifdef BUSPIRATEV4
+#include "dp_usb/cdc.h"
+#endif
+
 /* Pin assignments. */
 
 #define SPIMOSI_TRIS BP_MOSI_DIR
@@ -153,23 +157,29 @@ static void engage_spi_cs(bool write_with_read);
  * @param[in] engage_cs flag indicating whether CS must be held down when
  * performing an SPI write operation.
  */
+static uint8_t spi_write_byte(const uint8_t value);
+static uint8_t spi_read_byte(void);
+#ifdef BUSPIRATEV4
+static void spi_read_bytes(uint8_t* data, uint16_t length);
+#endif
 static void spi_read_write_io(const bool engage_cs);
 
 /**
- * Writes to the SPI bus the data read from the user-facing serial port.
+ * Writes to the SPI bus the data read from the user-facing serial port
+ *  or usb interface.
  *
- * @param[in] bytes_to_write how many bytes should be read from the serial port
+ * @param[in] bytes_to_write how many bytes should be read from host
  * and written to the SPI bus.
  */
-static void spi_write_from_uart(const size_t bytes_to_write);
+static void spi_write_from_host(const size_t bytes_to_write);
 
 /**
- * Writes to the user-facing serial port the data read from the SPI bus.
+ * Writes to the host the data read from the SPI bus.
  *
  * @param[in] bytes_to_read how many bytes should be read from the SPI bus
- * and written to the user-facing serial port.
+ * and written to the user-facing serial port or usb interface.
  */
-static void spi_read_to_uart(const size_t bytes_to_read);
+static void spi_read_to_host(const size_t bytes_to_read);
 
 #ifdef BP_SPI_ENABLE_AVR_EXTENDED_COMMANDS
 
@@ -288,7 +298,7 @@ void spi_stop(void) {
   MSG_SPI_CS_DISABLED;
 }
 
-inline uint16_t spi_read(void) { return spi_write_byte(0xFF); }
+inline uint16_t spi_read(void) { return spi_read_byte(); }
 
 uint16_t spi_write(const uint16_t value) {
   uint8_t data = spi_write_byte(value);
@@ -494,14 +504,20 @@ void spi_setup(const uint8_t spi_speed) {
    * SPI1CON2 - SPI1 CONTROL REGISTER 2
    *
    * MSB
-   * 000-----------0-
-   * |||           |
+   * 000-----------01
+   * |||           ||
+   * |||           |+--- SPIBEN: Enhanced Buffer Enable bit
    * |||           +---- FRMDLY: Frame sync pulse precedes first bit clock.
    * ||+---------------- FRMPOL: Frame sync pulse is active low.
    * |+----------------- SPIFSD: Frame sync pulse output.
    * +------------------ FRMEN:  Framed SPI1 support disabled.
    */
-  SPI1CON2 = 0x0000;
+
+  // this clears the SPIROV bit
+  SPI1STAT = 0;
+
+  // enable enhanced mode
+  SPI1CON2 = 0x0001;
 
   /*
    * SPI1STAT - SPI1 STATUS REGISTER
@@ -518,7 +534,9 @@ void spi_setup(const uint8_t spi_speed) {
 
 void spi_disable_interface(void) {
 
-  /* Disable interface. */
+  bp_disable_usb_led();
+
+    /* Disable interface. */
   SPI1STATbits.SPIEN = OFF;
 
   /* Deassign pins. */
@@ -532,22 +550,138 @@ void spi_disable_interface(void) {
   SPICS_ODC = PUSH_PULL;
 }
 
-uint8_t spi_write_byte(const uint8_t value) {
-  /* Put the value on the bus. */
-  SPI1BUF = value;
+static uint8_t spi_write_byte(const uint8_t value)
+{
+    while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT));
 
-  /* Wait until a byte has been read. */
-  while (!IFS0bits.SPI1IF) {
-  }
+    /* Put the value on the bus. */
+    SPI1BUF = value;
 
-  /* Get the byte read from the bus. */
-  uint8_t result = SPI1BUF;
+    while (SPI1STATbits.SRXMPT);
 
-  /* Free the SPI interface. */
-  IFS0bits.SPI1IF = OFF;
+    /* Get the byte read from the bus. */
+    uint8_t result = SPI1BUF;
 
-  return result;
+    return result;
 }
+
+static inline uint8_t spi_read_byte(void)
+{
+    while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT));
+
+    /* Put the value on the bus. */
+    SPI1BUF = 0xff;
+
+    while (SPI1STATbits.SRXMPT);
+
+    /* Get the byte read from the bus. */
+    uint8_t result = SPI1BUF;
+
+    return result;
+}
+
+#ifdef BUSPIRATEV3
+static void spi_read_bytes_to_uart(uint16_t length)
+{
+#if 1
+    uint16_t sent = length;
+    uint16_t rec = length;
+
+    while(sent || rec)
+    {
+        // PIC24FJ64GA004 Family Errata suggests not to use SPITBF
+        if( (SPI1STATbits.SPIBEC < 7) && SPI1STATbits.SRXMPT && sent ) {
+            SPI1BUF = 0x00;
+            sent--;
+        }
+
+        if( (!SPI1STATbits.SRXMPT) && (!U1STAbits.UTXBF) && rec ) {
+            U1TXREG = SPI1BUF;
+            rec--;
+        }
+    }
+#else
+  /* Writes data to the serial port as soon as read from the SPI bus. */
+
+    while (length--)
+    {
+        while (SPI1STATbits.SPITBF);
+
+        /* Put the value on the bus. */
+        SPI1BUF = 0xff;
+
+        while (U1STAbits.UTXBF || SPI1STATbits.SRXMPT);
+
+        /* read from SPI BUS and write to UART */
+        U1TXREG = SPI1BUF;
+    }
+#endif
+}
+
+static void spi_write_bytes_from_uart(uint16_t length)
+{
+    uint16_t sent = length;
+    uint16_t rec = length;
+
+    while(sent || rec)
+    {
+        // PIC24FJ64GA004 Family Errata suggests not to use SPITBF
+        if( (SPI1STATbits.SPIBEC < 7) && U1STAbits.URXDA && sent ) {
+            SPI1BUF = LO8(U1RXREG);
+            sent--;
+        }
+
+        if( !SPI1STATbits.SRXMPT && rec ) {
+            SPI1BUF;
+            rec--;
+        }
+    }
+}
+#endif
+
+#ifdef BUSPIRATEV4
+
+static void spi_read_bytes(uint8_t* data, uint16_t length)
+{
+    uint16_t cnt = length;
+    uint16_t rec = 0;
+
+    while(cnt) {
+        if(!(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK|_SPI1STAT_SPIRBF_MASK)))
+            SPI1BUF = 0x00, cnt--;
+
+        if(!SPI1STATbits.SRXMPT)
+            data[rec++] = SPI1BUF;
+    }
+
+    while(rec != length)
+    {
+        if( (!SPI1STATbits.SRXMPT))
+            data[rec++] = SPI1BUF;
+    }
+}
+
+static void spi_write_bytes(uint8_t* data, uint16_t length)
+{
+    uint16_t cnt = length;
+    uint16_t sent = 0;
+
+    while(sent != length)
+    {
+        if(!(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK|_SPI1STAT_SPIRBF_MASK)))
+            SPI1BUF = data[sent++];
+
+        if(!SPI1STATbits.SRXMPT)
+            SPI1BUF, cnt--;
+    }
+
+    while(cnt)
+    {
+        if( !SPI1STATbits.SRXMPT)
+            SPI1BUF, cnt--;
+    }
+}
+#endif
 
 void spi_sniffer(bool trigger, bool terminal_mode) {
   bool last_cs_line_state;
@@ -883,7 +1017,7 @@ void spi_enter_binary_io(void) {
         break;
       }
 
-      break;
+    break;
 
     case SPI_COMMAND_READ_DATA: {
       uint8_t bytes_to_read = (input_byte & 0x0F) + 1;
@@ -942,59 +1076,68 @@ void spi_enter_binary_io(void) {
       REPORT_IO_FAILURE();
       break;
     }
+
 #ifdef BUSPIRATEV3
     /* avoid the 16ms FTDI buffer send latency */
-    FTDI_CTS = !FTDI_CTS;
+    user_serial_wait_transmission_done();
+    /* Wait for the bus to settle. */
+    bp_delay_us(50);
+    FTDI_RI = !FTDI_RI;
+#endif /* BUSPIRATEV3 */
+
+#ifdef BUSPIRATEV4
+    /* avoid the 4ms PIC USB send latency */
+    user_serial_ringbuffer_flush();
+#endif /* BUSPIRATEV4 */
+  }
+}
+
+static void spi_write_from_host(uint16_t bytes_to_write)
+{
+#ifdef BUSPIRATEV3
+    spi_write_bytes_from_uart(bytes_to_write);
+#else
+    while(bytes_to_write)
+    {
+        uint16_t len;
+        len = bytes_to_write;
+        BYTE* data = getoutbuf_cdc(&len);
+        spi_write_bytes(data, len);
+        bytes_to_write -= len;
+    }
+#endif /* BUSPIRATEV3 */
+}
+
+static void spi_read_to_host(uint16_t bytes_to_read)
+{
+  REPORT_IO_SUCCESS();
+#ifdef BUSPIRATEV3
+    spi_read_bytes_to_uart(bytes_to_read);
+#else
+  bp_toggle_usb_led();
+
+    setLock();
+
+    while(bytes_to_read)
+    {
+        uint16_t chunksize = 0;
+        BYTE* cdc_buf = getinbuf_cdc(&chunksize);
+
+        if (chunksize > bytes_to_read)
+            chunksize = bytes_to_read;
+
+        // read the SPI data into the USB buffer
+        spi_read_bytes(cdc_buf, chunksize);
+
+        // tell the USB stack to send out the data
+        write_cdc(chunksize);
+
+        bytes_to_read -= chunksize;
+    }
+
+    freeLock();
+
 #endif
-  }
-}
-
-void spi_write_from_uart(const size_t bytes_to_write) {
-#ifdef BP_SPI_ENABLE_STREAMING_WRITE
-  /* Writes data to the SPI bus as soon as read from the serial port. */
-  for (uint16_t counter = 0; counter < bytes_to_write; counter++) {
-    spi_write_byte(user_serial_read_byte());
-  }
-#else
-
-  /* Read data buffer from the serial port. */
-  for (uint16_t offset = 0; offset < bytes_to_write; offset++) {
-    bus_pirate_configuration.terminal_input[offset] = user_serial_read_byte();
-  }
-
-  /* Writes data to the SPI bus. */
-  for (uint16_t offset = 0; offset < bytes_to_write; offset++) {
-    spi_write_byte(bus_pirate_configuration.terminal_input[offset]);
-  }
-#endif /* BP_SPI_ENABLE_STREAMING_WRITE */
-}
-
-void spi_read_to_uart(const size_t bytes_to_read) {
-#ifdef BP_SPI_ENABLE_STREAMING_READ
-  /* Start streaming data. */
-  REPORT_IO_SUCCESS();
-
-  /* Writes data to the serial port as soon as read from the SPI bus. */
-  for (uint16_t counter = 0; counter < bytes_to_read; counter++) {
-    user_serial_transmit_character(spi_write_byte(0xFF));
-  }
-
-#else
-
-  /* Read data from the SPI bus. */
-  for (uint16_t offset = 0; offset < bytes_to_read; offset++) {
-    bus_pirate_configuration.terminal_input[offset] = spi_write_byte(0xFF);
-  }
-
-  /* Report success. */
-  REPORT_IO_SUCCESS();
-
-  /* Output read data to the serial port. */
-  for (uint16_t offset = 0; offset < bytes_to_read; offset++) {
-    user_serial_transmit_character(
-        bus_pirate_configuration.terminal_input[offset]);
-  }
-#endif /* BP_SPI_ENABLE_STREAMING_READ */
 }
 
 void spi_read_write_io(const bool engage_cs) {
@@ -1004,22 +1147,6 @@ void spi_read_write_io(const bool engage_cs) {
 
   /* How many bytes to read from the bus. */
   uint16_t bytes_to_read = user_serial_read_big_endian_word();
-
-#ifndef BP_SPI_ENABLE_STREAMING_WRITE
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
-    REPORT_IO_FAILURE();
-    return;
-  }
-#endif /* !BP_SPI_ENABLE_STREAMING_WRITE */
-
-#ifndef BP_SPI_ENABLE_STREAMING_READ
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_read > BP_TERMINAL_BUFFER_SIZE) {
-    REPORT_IO_FAILURE();
-    return;
-  }
-#endif /* !BP_SPI_ENABLE_STREAMING_READ */
 
   if ((bytes_to_write == 0) && (bytes_to_read == 0)) {
     REPORT_IO_FAILURE();
@@ -1032,17 +1159,19 @@ void spi_read_write_io(const bool engage_cs) {
   }
 
   if (bytes_to_write > 0) {
-    spi_write_from_uart(bytes_to_write);
+    spi_write_from_host(bytes_to_write);
 
     /* Wait for the bus to settle. */
     bp_delay_us(1);
   }
 
   if (bytes_to_read > 0) {
-    spi_read_to_uart(bytes_to_read);
+    spi_read_to_host(bytes_to_read);
+  } else {
+    REPORT_IO_SUCCESS();
   }
 
-  /* Reset the CS line if needed. */
+    /* Reset the CS line if needed. */
   if (engage_cs == true) {
     SPICS = HIGH;
   }

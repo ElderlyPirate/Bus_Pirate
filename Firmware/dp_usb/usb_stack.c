@@ -26,6 +26,7 @@ Influence and inspiration taken from http://pe.ece.olin.edu/ece/projects.html
 #error "USB_EP0_BUFFER_SIZE needs to be 8, 16, 32 or 64 bytes"
 #endif
 
+static void usb_send_rom(void);
 
 ROMPTR const BYTE *usb_device_descriptor;
 ROMPTR const BYTE *usb_config_descriptor;
@@ -574,7 +575,7 @@ void usb_set_address(void) {
     usb_unset_in_handler(0); // Unregister handler
 }
 
-void usb_send_rom(void) {
+static void usb_send_rom(void) {
 
     unsigned int i;
     size_t packet_len;

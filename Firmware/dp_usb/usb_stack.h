@@ -162,7 +162,6 @@ void usb_handle_StandardInterfaceRequest(BDentry*);
 void usb_handle_StandardEndpointRequest(BDentry*);
 void usb_RequestError(void);
 void usb_set_address(void);
-void usb_send_rom(void);
 void ClearUSBtoDefault(void);
 
 #define usb_unset_in_handler(ep) usb_set_in_handler(ep, (usb_handler_t) 0)

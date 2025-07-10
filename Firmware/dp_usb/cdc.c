@@ -61,7 +61,6 @@ BYTE ZLPpending = 0;
 BYTE lock = 0;
 
 BDentry *CDC_Outbdp, *CDC_Inbdp;
-BYTE CDCFunctionError;
 
 volatile BYTE cdc_trf_state; // JTR don't see that it is really volatile in current context may be in future.
 
@@ -223,38 +222,35 @@ void cdc_set_line_coding_data(void) { // JTR handling an OUT token In the CDC st
     EP0_Outbdp->BDSTAT = UOWN | DTSEN;
 }
 
-void cdc_set_line_coding_status(void) {
+inline void cdc_set_line_coding_status(void) {
     usb_unset_in_handler(0);
 }
 
-void cdc_set_control_line_state_status(void) {
+inline void cdc_set_control_line_state_status(void) {
     usb_unset_in_handler(0);
 }
 
-void WaitOutReady(void) {
+inline void WaitOutReady(void) {
     while (CDC_Outbdp->BDSTAT & UOWN) {};
 }
 
-void WaitInReady(void) {
+inline void WaitInReady(void) {
     while (CDC_Inbdp->BDSTAT & UOWN) {};
 }
 
 /******************************************************************************/
-BYTE getOutReady(void) {
+inline BYTE getOutReady(void) {
     return !(CDC_Outbdp->BDSTAT & UOWN); // Do we have a packet from host?
 }
 
 /******************************************************************************/
-BYTE getInReady(void) {
+inline BYTE getInReady(void) {
 
     return !(CDC_Inbdp->BDSTAT & UOWN); // Is the CDC In buffer ready?
 }
 
 /******************************************************************************/
 BYTE getda_cdc(void) {
-
-    CDCFunctionError = 0;
-
     WaitOutReady();
 
     if ((IsOutBufferA & 1)) {
@@ -274,11 +270,10 @@ BYTE getda_cdc(void) {
     return cdc_Out_len;
 }//end getCDC_Out_ArmNext
 
-BYTE putda_cdc(BYTE count) {
+static void putda_cdc(BYTE count) {
 
-    //    CDCFunctionError = 0;
-    //    WaitInReady();
-    while ((CDC_Inbdp->BDSTAT & UOWN));
+    WaitInReady();
+
     if (IsInBufferA) {
         CDC_Inbdp->BDADDR = cdc_In_bufferA;
         InPtr = cdc_In_bufferB;
@@ -286,23 +281,32 @@ BYTE putda_cdc(BYTE count) {
         CDC_Inbdp->BDADDR = cdc_In_bufferB;
         InPtr = cdc_In_bufferA;
     }
+
     CDC_Inbdp->BDCNT = count;
     CDC_Inbdp->BDSTAT = ((CDC_Inbdp->BDSTAT ^ DTS) & DTS) | UOWN | DTSEN;
     IsInBufferA ^= 0xFF;
 #ifndef USB_INTERRUPTS
     usb_handler();
 #endif
-    return 0; //CDCFunctionError;
 }
 
 void SendZLP(void) {
-    putda_cdc(0);
+    WaitInReady();
+
+    CDC_Inbdp->BDCNT = 0;
+    CDC_Inbdp->BDSTAT = ((CDC_Inbdp->BDSTAT ^ DTS) & DTS) | UOWN | DTSEN;
+
+#ifndef USB_INTERRUPTS
+    usb_handler();
+#endif
+    ZLPpending = 0;
+    cdc_timeout_count = 0;
 }
 
 /******************************************************************************/
 void CDC_Flush_In_Now(void) {
+    lock = 1;
     if (cdc_In_len > 0) {
-        while (!getInReady());
         putda_cdc(cdc_In_len);
         if (cdc_In_len == CDC_BUFFER_SIZE) {
             ZLPpending = 1;
@@ -312,6 +316,7 @@ void CDC_Flush_In_Now(void) {
         cdc_In_len = 0;
         cdc_timeout_count = 0;
     }
+    lock = 0;
 }
 
 /******************************************************************************/
@@ -331,22 +336,53 @@ void CDCFlushOnTimeout(void) {
                 cdc_timeout_count = 0;
             }
         } else if (ZLPpending) {
-            putda_cdc(0);
-            ZLPpending = 0;
-            cdc_timeout_count = 0;
+            SendZLP();
         }
     } else {
         cdc_timeout_count++;
     }
 }
 
+void setLock(void)
+{
+    lock = 1;
+}
+
+void freeLock(void)
+{
+    if (cdc_In_len == CDC_BUFFER_SIZE)
+        ZLPpending = 1;
+
+    lock = 0;
+}
+
+BYTE* getinbuf_cdc(uint16_t* bufsize)
+{
+    *bufsize = CDC_BUFFER_SIZE - cdc_In_len;
+    return InPtr;
+}
+
+void write_cdc(uint16_t count)
+{
+//    lock = 1;
+    if (count == CDC_BUFFER_SIZE || (cdc_In_len + count == CDC_BUFFER_SIZE)) {
+        putda_cdc(CDC_BUFFER_SIZE); // This will stall tranfers if both buffers are full then return when a buffer is available.
+        cdc_In_len = 0;
+    }
+    else
+    {
+        cdc_In_len += count;
+        InPtr += count;
+    }
+//    cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
+//    lock = 0;
+}
+
 /******************************************************************************/
 void putc_cdc(BYTE c) {
     lock = 1; // Stops CDCFlushOnTimeout() from sending per chance it is on interrupts.
-    *InPtr = c;
-    InPtr++;
+    *InPtr++ = c;
     cdc_In_len++;
-    ZLPpending = 0;
     if (cdc_In_len == CDC_BUFFER_SIZE) {
         putda_cdc(cdc_In_len); // This will stall tranfers if both buffers are full then return when a buffer is available.
         cdc_In_len = 0;
@@ -373,6 +409,41 @@ BYTE getc_cdc(void) { // Must be used only in double buffer mode.
     OutPtr++;
     cdc_Out_len--;
     return c;
+}
+
+BYTE* getoutbuf_cdc(uint16_t* bufsize)
+{
+    while (cdc_Out_len == 0)    // Skip any ZLP
+        cdc_Out_len = getda_cdc();
+
+    BYTE* ret = OutPtr;
+
+    if (*bufsize > cdc_Out_len)
+        *bufsize = cdc_Out_len;
+
+    cdc_Out_len -= *bufsize;
+    OutPtr += *bufsize;
+
+    return ret;
+}
+
+uint16_t read_cdc(BYTE* data, uint16_t len)    // Must be used only in double buffer mode.
+{
+    if(len)
+    {
+        while (cdc_Out_len == 0)    // Skip any ZLP
+            cdc_Out_len = getda_cdc();
+
+        if (len > cdc_Out_len)
+            len = cdc_Out_len;
+
+        cdc_Out_len -= len;
+
+        memcpy(data, OutPtr, len);
+        OutPtr += len;
+    }
+
+    return len;
 }
 
 /******************************************************************************/

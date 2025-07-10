@@ -36,7 +36,7 @@ void spi_enter_binary_io(void);
  *
  * @return the byte read from the bus after the data write.
  */
-uint8_t spi_write_byte(const uint8_t value);
+//uint8_t spi_write_byte(const uint8_t value);
 
 void spi_start(void);
 void spi_start_with_read(void);

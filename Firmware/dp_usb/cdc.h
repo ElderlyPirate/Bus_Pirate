@@ -26,7 +26,6 @@ void WaitOutReady(void);
 BYTE getInReady(void);
 BYTE getOutReady(void);
 BYTE getda_cdc(void);
-BYTE putda_cdc(BYTE count);
 void SendZLP(void);
 BYTE getc_cdc(void);
 void putc_cdc(BYTE c);
@@ -36,6 +35,12 @@ BYTE poll_getc_cdc(BYTE * c);
 BYTE peek_getc_cdc(BYTE * c);
 void initCDC(void);
 
+void setLock(void);
+void freeLock(void);
+void write_cdc(uint16_t);
+BYTE* getinbuf_cdc(uint16_t* bufsize);
+BYTE* getoutbuf_cdc(uint16_t* bufsize);
+uint16_t read_cdc(BYTE* data, uint16_t count);
 
 struct _cdc_ControlLineState {
     int DTR : 1;

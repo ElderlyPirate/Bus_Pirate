@@ -79,6 +79,8 @@ extern void binOpenOCDTapShiftFast(unsigned char *in_buf,
                                    unsigned char *out_buf, unsigned int bits,
                                    unsigned int delay);
 
+#define min(x,y) (x >= y ? x : y)
+
 enum {
   FEATURE_LED = 0x01,
   FEATURE_VREG = 0x02,

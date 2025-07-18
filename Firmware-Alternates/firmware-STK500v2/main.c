@@ -30,7 +30,6 @@
 #include "UART.h"
 #include "spi.h"
 #include "command.h"
-#include "redefines.h" /* Definitions to get the existing code working with the Bus Pirate */
 
 /* Orig. source defines */
 #define CONFIG_PARAM_BUILD_NUMBER_LOW   0

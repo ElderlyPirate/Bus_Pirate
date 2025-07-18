@@ -50,7 +50,7 @@ class I2Chigh(I2C):
 
 
     def command(self, i2caddr, cmd):
-        """ Writes one byte command to slave """
+        """ Writes one byte command to subordinate """
         self.send_start_bit();
         stat = self.bulk_trans(2, [i2caddr<<1, cmd]);
         self.send_stop_bit();

@@ -13,7 +13,7 @@
  ********************************************************************************/
 
 #include "base.h"
-#include "SUMP.h"
+#include "sump.h"
 
 //commandset
 //http://www.sump.org/projects/analyzer/protocol/

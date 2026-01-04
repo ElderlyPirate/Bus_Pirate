@@ -157,7 +157,6 @@ static void engage_spi_cs(bool write_with_read);
  * @param[in] engage_cs flag indicating whether CS must be held down when
  * performing an SPI write operation.
  */
-static uint8_t spi_write_byte(const uint8_t value);
 static uint8_t spi_read_byte(void);
 #ifdef BUSPIRATEV4
 static void spi_read_bytes(uint8_t* data, uint16_t length);
@@ -550,7 +549,7 @@ void spi_disable_interface(void) {
   SPICS_ODC = PUSH_PULL;
 }
 
-static uint8_t spi_write_byte(const uint8_t value)
+uint8_t spi_write_byte(const uint8_t value)
 {
     while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT));
 

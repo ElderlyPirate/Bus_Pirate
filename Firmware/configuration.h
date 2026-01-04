@@ -102,7 +102,8 @@
  *
  * This module allows interaction with a HD44780-based expansion board like this
  * one: http://dangerousprototypes.com/docs/Bus_Pirate_LCD_adapter_v2 or this
- * one: http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter .
+ * one: http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter or common
+ * I2C "backpacks" based on the PCF8574 I/O expander
  */
 
 /**
@@ -317,7 +318,7 @@
 #define BP_ENABLE_1WIRE_SUPPORT
 #define BP_ENABLE_BASIC_SUPPORT
 #define BP_ENABLE_DIO_SUPPORT
-#undef BP_ENABLE_HD44780_SUPPORT
+#define BP_ENABLE_HD44780_SUPPORT
 #define BP_ENABLE_I2C_SUPPORT
 #define BP_ENABLE_JTAG_SUPPORT
 #define BP_ENABLE_PIC_SUPPORT

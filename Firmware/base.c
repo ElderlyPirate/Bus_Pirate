@@ -37,8 +37,8 @@ static const unsigned char HEX_ASCII_TABLE[] = {'0', '1', '2', '3', '4', '5',
                                                 'C', 'D', 'E', 'F'};
 
 #if defined(BUSPIRATEV4)
-extern BYTE cdc_In_len;
-extern BYTE cdc_Out_len;
+extern volatile BYTE cdc_In_len;
+extern volatile BYTE cdc_Out_len;
 #endif /* BUSPIRATEV4 */
 
 extern bus_pirate_configuration_t bus_pirate_configuration;
@@ -619,7 +619,15 @@ void delay_short(uint16_t microseconds) {
   } while (ticks_delta < ticks);
 }
 
-void bp_delay_ms(uint16_t milliseconds) { delay_long(milliseconds * 1000); }
+void bp_delay_ms(uint16_t milliseconds) {
+  /*
+   * The cast is required: on this target an int is 16 bits wide, so without
+   * it the multiplication below is performed modulo 65536 and any delay
+   * longer than 65 ms is silently truncated.  Converting to uint32_t first
+   * makes the whole expression 32-bit.
+   */
+  delay_long((uint32_t)milliseconds * 1000UL);
+}
 
 void bp_delay_us(uint16_t microseconds) {
   if (microseconds < 0x3FFF) {

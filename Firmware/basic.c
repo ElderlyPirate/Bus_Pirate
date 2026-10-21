@@ -98,9 +98,17 @@
 #define TOK_MACRO 0xA0
 #define TOK_END 0xA1
 
+/*
+ * `RESTORE` resets the DATA read pointer so a program can read the same DATA
+ * sequence again. 0xA2 was free: statement tokens run from 0x80 to 0xA1 and the
+ * statement length marker starts at 0xE0, so programs already stored are
+ * unaffected.
+ */
+#define TOK_RESTORE 0xA2
+
 #define TOK_LEN 0xE0
 
-#define NUMTOKEN (TOK_END - TOKENS) + 1
+#define NUMTOKEN (TOK_RESTORE - TOKENS) + 1
 
 #define STAT_LET "LET"
 #define STAT_IF "IF"
@@ -118,6 +126,7 @@
 #define STAT_END "END"
 #define STAT_READ "READ"
 #define STAT_DATA "DATA"
+#define STAT_RESTORE "RESTORE"
 #define STAT_START "START"
 #define STAT_STARTR "STARTR"
 #define STAT_STOP "STOP"
@@ -191,7 +200,12 @@ typedef enum {
   /**
    * One or more invalid `DATA` statements were found.
    */
-  STATUS_CODE_DATA_ERROR
+  STATUS_CODE_DATA_ERROR,
+
+  /**
+   * The running program was stopped from the terminal with Ctrl-C.
+   */
+  STATUS_CODE_INTERRUPTED
 } __attribute__((packed)) basic_status_code_t;
 
 /**
@@ -263,6 +277,7 @@ static char *tokens[NUMTOKEN + 1] = {
 
     STAT_MACRO, // 0xA0
     STAT_END,   // 0xA1
+    STAT_RESTORE, // 0xa2
 };
 
 /**
@@ -605,6 +620,18 @@ void interpreter(void) {
   memset((void *)&basic_variables, 0, sizeof(basic_variables));
 
   while (status == STATUS_CODE_UNKNOWN) {
+/*
+     * A running program used to ignore the terminal until it ended, so a script
+     * stuck in an endless loop could only be stopped by unplugging the board.
+     * Ctrl-C now breaks out between statements.
+     */
+    if (user_serial_ready_to_read()) {
+      if (user_serial_read_byte() == 0x03) {
+        status = STATUS_CODE_INTERRUPTED;
+        break;
+      }
+    }
+
     /* The header read and the statement token (pc + 3) must both be inside
        the program area; refuse to read past its end on corrupted data. */
     if ((basic_program_counter + 3) >= BP_BASIC_PROGRAM_SPACE) {
@@ -864,6 +891,16 @@ void interpreter(void) {
         }
       }
       handle_else_statement();
+      break;
+
+    case TOK_RESTORE:
+      /*
+       * Reading starts again from the first `DATA` statement: clearing the
+       * pointer makes the next `READ` rescan for it. The program counter is
+       * deliberately not updated, so the generic advance below skips the
+       * whole statement.
+       */
+      basic_data_read_pointer = 0;
       break;
 
     case TOK_READ:
@@ -1135,7 +1172,7 @@ void list(void) {
       basic_program_counter += 2;
       bp_write_dec_word(lineno);
       bpSP;
-    } else if (c <= TOK_END) {
+    } else if (c <= TOK_RESTORE) {
       bpSP;
       bp_write_string(tokens[c - TOKENS]);
       bpSP;

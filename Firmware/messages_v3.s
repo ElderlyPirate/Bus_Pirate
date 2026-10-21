@@ -1454,7 +1454,7 @@ _MSG_SNIFFER_MESSAGE_str:
 	.section .text.MSG_SOFTWARE_MODE_SPEED_PROMPT, code
 	.global _MSG_SOFTWARE_MODE_SPEED_PROMPT_str
 _MSG_SOFTWARE_MODE_SPEED_PROMPT_str:
-	.pasciz "Set speed:\r\n 1. ~5kHz\r\n 2. ~50kHz\r\n 3. ~100kHz\r\n 4. Maximum speed"
+	.pasciz "Set speed:\r\n 1. ~3.7kHz\r\n 2. ~29kHz\r\n 3. ~48kHz\r\n 4. Maximum speed"
 
 	; MSG_SPI_COULD_NOT_KEEP_UP
 	.section .text.MSG_SPI_COULD_NOT_KEEP_UP, code

@@ -219,7 +219,7 @@ unsigned int i2c_write(unsigned int c) {
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
     bitbang_write_value(c);
-    c = bitbang_read_bit();
+    c = bitbang_read_bit(true);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     hardware_i2c_write(c);
@@ -430,7 +430,7 @@ void i2c_macro(unsigned int c) {
       if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
         bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT); // send start
         bitbang_write_value(i);                        // send address
-        c = bitbang_read_bit();                        // look for ack
+        c = bitbang_read_bit(true);                        // look for ack
       } else {
 #ifdef BP_I2C_USE_HW_BUS
         hardware_i2c_start();
@@ -1075,7 +1075,7 @@ void binary_io_enter_i2c_mode(void) {
         bitbang_write_value(
             user_serial_read_byte()); // JTR usb port //send byte
         user_serial_transmit_character(
-            bitbang_read_bit()); // return ACK0 or NACK1
+            bitbang_read_bit(true)); // return ACK0 or NACK1
       }
 
       break;
@@ -1145,7 +1145,7 @@ bool i2c_write_then_read(void) {
   for (size_t counter = 1; counter < bytes_to_write; counter++) {
     bitbang_write_value(user_serial_read_byte());
 
-    if (bitbang_read_bit() == HIGH) {
+    if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
       return false;
     }
@@ -1168,7 +1168,7 @@ bool i2c_write_then_read(void) {
   for (size_t index = 0; index < bytes_to_write; index++) {
     bitbang_write_value(bus_pirate_configuration.terminal_input[index]);
 
-    if (bitbang_read_bit() == HIGH) {
+    if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
       return false;
     }
@@ -1183,7 +1183,7 @@ bool i2c_write_then_read(void) {
     /* Send the I2C address. */
     bitbang_write_value(i2c_address | 0x01);
 
-    if (bitbang_read_bit() == HIGH) {
+    if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
       return false;
     }

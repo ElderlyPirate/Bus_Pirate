@@ -2,9 +2,13 @@
 
  Pirate-Loader for Bootloader v4
 
- Version  : 1.0.5
+ Version  : 1.0.6
 
  Changelog:
+
+  + 2026-10-21 - Accept the Sandbox Electric BPv3.b clone: its bootloader answers
+                 0x13 instead of 'K' and reports device ID 0x02, so both the
+                 handshake and the flash size detection failed on it.
 
   + 2025-08-15 - Add back support for BPv3, detected from smaller PIC devices
 
@@ -71,7 +75,7 @@
  */
 typedef intptr_t bp_handle_t;
 
-#define PIRATE_LOADER_VERSION "1.0.5"
+#define PIRATE_LOADER_VERSION "1.0.6"
 
 #define STR_EXPAND(tok) #tok
 #define OS_NAME(tok) STR_EXPAND(tok)
@@ -271,6 +275,10 @@ typedef unsigned long  uint32;
 #define BOOTLOADER_PROT 'P'
 #define BOOTLOADER_CHECKSUM 'N'
 #define BOOTLOADER_PLACEMENT 1
+
+/* The Sandbox Electric BPv3.b clone answers with this status byte instead of
+   the original bootloader's 'K'. */
+#define BOOTLOADER_OK_CLONE 0x13
 
 #define PIC_WORD_SIZE  (3)
 #define PIC_NUM_ROWS_IN_PAGE  8
@@ -565,6 +573,15 @@ uint8 makeCrc(uint8* buf, uint32 len)
     return crc;
 }
 
+/*
+ * The bootloader answers BOOTLOADER_OK to a command it accepted; a clone
+ * answers BOOTLOADER_OK_CLONE to the same commands, so accept both.
+ */
+uint8 bootloaderOk(uint8 status)
+{
+    return status == BOOTLOADER_OK || status == BOOTLOADER_OK_CLONE;
+}
+
 int sendCommandAndWaitForResponse(bp_handle_t fd, uint8 *command)
 {
     uint8  response[4] = {0};
@@ -588,6 +605,7 @@ int sendCommandAndWaitForResponse(bp_handle_t fd, uint8 *command)
     switch (response[0])
     {
         case BOOTLOADER_OK:
+        case BOOTLOADER_OK_CLONE:
             return 0;
             break;
 
@@ -939,10 +957,17 @@ int main (int argc, const char** argv)
 
     res = readWithTimeout(dev_fd, buffer, 4, 3);
 
-    if( res != 4 || buffer[3] != BOOTLOADER_OK )
+    if( res != 4 || !bootloaderOk(buffer[3]) )
     {
         puts("ERROR");
-        fprintf(stderr, "No reply from the bootloader, or invalid reply received: %d\n", res);
+        if( res == 4 )
+        {
+            fprintf(stderr, "The bootloader answered with an unexpected status: 0x%02x\n", buffer[3]);
+        }
+        else
+        {
+            fprintf(stderr, "No reply from the bootloader, or invalid reply received: %d\n", res);
+        }
         fprintf(stderr, "Please make sure that PGND and PGC are connected, reconnect\n");
         fprintf(stderr, "the device and try again\n");
         goto Error;
@@ -1255,6 +1280,16 @@ int main (int argc, const char** argv)
 
     case	213:
         printf("PIC24FJ64GA004\n");
+        flashsize = 	0xAC00;
+
+        break;
+
+    /* The Sandbox Electric BPv3.b clone carries a PIC24FJ64GA004, but its
+       bootloader reports device ID 0x02 instead of the usual DEVID byte.
+       Without this case the part keeps the BPv4 default flash size (0x2AC00),
+       which also skips the BPv3 jump fix below. */
+    case	0x02:
+        printf("PIC24FJ64GA004 (BPv3 clone)\n");
         flashsize = 	0xAC00;
 
         break;

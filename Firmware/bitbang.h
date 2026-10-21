@@ -114,9 +114,13 @@ uint16_t bitbang_read_value(void);
 /**
  * Reads a single bit from the MISO pin.
  *
+ * @param[in] wait_for_clock_release whether to wait for a slave to release the
+ *            clock line before sampling, which I2C devices may do to stretch
+ *            it; protocols that do not share the clock line pass false.
+ *
  * @return true if the MISO pin is HIGH, false otherwise.
  */
-bool bitbang_read_bit(void);
+bool bitbang_read_bit(const bool wait_for_clock_release);
 
 /**
  * Writes the given bit to the bus via the MOSI pin.

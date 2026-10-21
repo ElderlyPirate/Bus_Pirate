@@ -192,15 +192,37 @@ uint16_t bitbang_read_value(void) {
 
   return value;
 }
+/**
+ * Time limit, in microseconds, for a slave to release the I2C clock line it is
+ * stretching. A bus that stays stuck longer than this is abandoned so that a
+ * faulty device cannot hang the Bus Pirate.
+ */
+#define BB_CLK_STRETCH_TIMEOUT 10000
 
-bool bitbang_read_bit(void) {
+bool bitbang_read_bit(const bool wait_for_clock_release) {
   bool bit_value;
+  uint32_t waited;
 
   /* Set the MISO pin as input. */
   bitbang_read_pin(miso_pin);
 
-  /* Set CLK high. */
+  /* Set CLK high. With an open collector output this releases the line. */
   bitbang_set_pins_high(CLK, delay_profile->clock);
+
+  /*
+   * Wait for the slave to release the clock line, if the protocol allows it to
+   * be stretched. In open collector mode the pin is released when driven high,
+   * so a slave holding it low keeps it reading low here.
+   */
+  if (wait_for_clock_release) {
+    for (waited = 0; (IOPOR & CLK) == 0; waited++) {
+      if (waited >= BB_CLK_STRETCH_TIMEOUT) {
+        break;
+      }
+
+      bp_delay_us(1);
+    }
+  }
 
   /* Read value. */
   bit_value = bitbang_read_pin(miso_pin);

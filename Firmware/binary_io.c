@@ -868,7 +868,7 @@ bool handle_wire_generic_command(const wire_generic_command command) {
   }
 
   case IO_COMMAND_BITBANG_READ_BIT:
-    user_serial_transmit_character(bitbang_read_bit());
+    user_serial_transmit_character(bitbang_read_bit(false));
     break;
 
   case IO_COMMAND_PEEK_INPUT_BIT:

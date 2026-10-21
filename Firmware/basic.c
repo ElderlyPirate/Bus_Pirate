@@ -397,11 +397,34 @@ bool search_line_number(const uint16_t line, uint16_t *result) {
 uint16_t handle_special_token(const uint8_t token) {
   switch (token) {
 
-  case TOK_RECEIVE:
-    return bp_current_protocol()->read();
+  case TOK_RECEIVE: {
+    uint16_t received = bp_current_protocol()->read();
 
-  case TOK_SEND:
-    return bp_current_protocol()->send(assign());
+    /*
+     * Honour the LSb/MSb setting, exactly as the interactive 'r' command
+     * does in proc_menu.c.  Without this the byte order is silently ignored
+     * in script mode (issue #129).
+     */
+    if (mode_configuration.little_endian == YES) {
+      received = bp_reverse_integer(received, mode_configuration.numbits);
+    }
+
+    return received;
+  }
+
+  case TOK_SEND: {
+    uint16_t value = (uint16_t)assign();
+
+    /*
+     * Honour the LSb/MSb setting, exactly as the interactive '8' command
+     * does in proc_menu.c (issue #129).
+     */
+    if (mode_configuration.little_endian == YES) {
+      value = bp_reverse_integer(value, mode_configuration.numbits);
+    }
+
+    return bp_current_protocol()->send(value);
+  }
 
   case TOK_AUX:
     return bp_aux_pin_read();

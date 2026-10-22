@@ -914,28 +914,39 @@ int main (int argc, const char** argv)
 
     if( dev_fd < 0 )
     {
+        /*
+         * Report what actually went wrong. These are the errors a serial port
+         * really produces, and the everyday one is "in use" - a terminal window
+         * or another copy of the loader still holding the port. The old text
+         * said "unknown failure" for all of these and then claimed "file read
+         * failed", which is meaningless when the hex file has already parsed.
+         */
         switch( errno )
         {
-            case EACCES: // permission issues
-                printf("permission issue\n");
+            case EACCES:
+            case EBUSY:
+                printf("in use, or permission denied");
                 break;
 
-            case EEXIST: // file already exists and you used O_CREAT and O_EXCL
-                printf("already exists issue\n");
+            case ENOENT:
+            case ENODEV:
+                printf("no such device");
                 break;
 
-            case EFAULT: // bad path
-                printf("bad path issue\n");
+            case EIO:
+                printf("device did not respond");
                 break;
 
             default:
-                printf("unknown failure\n");
+                printf("%s", strerror(errno));
                 break;
         }
 
-        printf("file read failed\n");
+        puts("");
         puts("ERROR");
-        fprintf(stderr, "Could not open %s\n", g_device_path);
+        fprintf(stderr, "Could not open %s.\n", g_device_path);
+        fprintf(stderr, "Check the device name, and make sure nothing else has it open -\n");
+        fprintf(stderr, "a serial terminal still connected is the usual culprit.\n");
         goto Error;
     }
     puts("OK");

@@ -1444,8 +1444,26 @@ int main (int argc, const char** argv)
         command[LENGTH_OFFSET ] = 0x01; // 1 byte, CRC
         command[PAYLOAD_OFFSET] = makeCrc(command, 5);
 
-        // send byebye (cmd: 0xff)
-        int ret = sendCommandAndWaitForResponse(dev_fd, command);
+        /*
+         * Ask the bootloader to restart. Fire and forget on purpose: some
+         * bootloaders acknowledge this, and some - the one on this desk
+         * included - simply act on it silently. Waiting for a reply therefore
+         * reported "ERROR, timeout" immediately after a successful flash, which
+         * reads as if the flash had failed. Say what actually happened instead.
+         */
+        if( serial_write(dev_fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]) > 0 )
+        {
+            serial_sleep(1);
+            printf("Asked the bootloader to restart.\n");
+            printf("If the Bus Pirate does not come back as a serial device, power-cycle it\n");
+            printf("(remove any bootloader jumper first).\n");
+        }
+        else
+        {
+            fprintf(stderr, "Note: could not ask the bootloader to restart.\n");
+            fprintf(stderr, "Power-cycle the Bus Pirate to run the new firmware; the flash itself\n");
+            fprintf(stderr, "completed as reported above.\n");
+        }
     }
 
 Finished:

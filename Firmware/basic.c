@@ -359,7 +359,10 @@ void handle_else_statement(void) {
   }
 
   basic_program_counter++;
-  while (basic_program_area[basic_program_counter] <= TOK_LEN) {
+  /* Skip the rest of the line, bounded by the program area so corrupted
+     data cannot walk past it. */
+  while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+         (basic_program_area[basic_program_counter] <= TOK_LEN)) {
     basic_program_counter++;
   }
 }
@@ -370,6 +373,12 @@ bool search_line_number(const uint16_t line, uint16_t *result) {
   uint16_t current_line_number;
 
   for (;;) {
+    /* A line header needs index, index + 1 and index + 2: stop at the end of
+       the area instead of reading past it on corrupted data. */
+    if ((index + 2) >= BP_BASIC_PROGRAM_SPACE) {
+      return LINE_NUMBER_NOT_FOUND;
+    }
+
     if (basic_program_area[index] <= TOK_LEN) {
       return LINE_NUMBER_NOT_FOUND;
     }
@@ -457,20 +466,39 @@ int16_t get_multiplication_division_bitwise_ops(void) {
   int16_t temp = get_number_or_variable();
 
   for (;;) {
-    switch (basic_program_area[basic_program_counter++]) {
+    /* Inspect the byte, and advance only when it really is an operator: the
+       caller relies on the counter still pointing at the terminator (a
+       comparison in `IF`, the `TO` of `FOR`, and so on). */
+    switch (basic_program_area[basic_program_counter]) {
     case '*':
+      basic_program_counter++;
       temp *= get_number_or_variable();
       break;
 
-    case '/':
-      temp /= get_number_or_variable();
+    case '/': {
+      basic_program_counter++;
+
+      int16_t divisor = get_number_or_variable();
+
+      /* The instruction set manual: "A math error exception occurs if den is
+         zero", and an unhandled math error trap resets the board. Do not let
+         a script divide by zero to reset the Bus Pirate; INT16_MIN / -1
+         overflows the same way. */
+      if ((divisor == 0) || ((temp == (-32767 - 1)) && (divisor == -1))) {
+        temp = 0;
+      } else {
+        temp /= divisor;
+      }
       break;
+    }
 
     case '&':
+      basic_program_counter++;
       temp &= get_number_or_variable();
       break;
 
     case '|':
+      basic_program_counter++;
       temp |= get_number_or_variable();
       break;
 
@@ -484,37 +512,46 @@ int16_t assign(void) {
   int16_t temp = get_multiplication_division_bitwise_ops();
 
   for (;;) {
-    switch (basic_program_area[basic_program_counter++]) {
+    /* As above: advance past the byte only once it is known to be part of
+       the expression. The `>=`, `<=` and `<>` checks look at the byte the
+       counter now points at - the old code tested `basic_program_counter + 1`
+       and never matched. */
+    switch (basic_program_area[basic_program_counter]) {
     case '-':
+      basic_program_counter++;
       temp -= get_multiplication_division_bitwise_ops();
       break;
 
     case '+':
+      basic_program_counter++;
       temp += get_multiplication_division_bitwise_ops();
       break;
 
     case '>':
-      if (basic_program_area[basic_program_counter + 1] == '=') {
-        temp = (temp >= get_multiplication_division_bitwise_ops());
+      basic_program_counter++;
+      if (basic_program_area[basic_program_counter] == '=') {
         basic_program_counter++;
+        temp = (temp >= get_multiplication_division_bitwise_ops());
       } else {
         temp = (temp > get_multiplication_division_bitwise_ops());
       }
       break;
 
     case '<':
-      if (basic_program_area[basic_program_counter + 1] == '>') {
+      basic_program_counter++;
+      if (basic_program_area[basic_program_counter] == '>') {
+        basic_program_counter++;
         temp = (temp != get_multiplication_division_bitwise_ops());
+      } else if (basic_program_area[basic_program_counter] == '=') {
         basic_program_counter++;
-      } else if (basic_program_area[basic_program_counter + 1] == '=') {
         temp = (temp <= get_multiplication_division_bitwise_ops());
-        basic_program_counter++;
       } else {
         temp = (temp < get_multiplication_division_bitwise_ops());
       }
       break;
 
     case '=':
+      basic_program_counter++;
       temp = (temp == get_multiplication_division_bitwise_ops());
       break;
 
@@ -556,6 +593,13 @@ void interpreter(void) {
     }
 
     ifstat = 0;
+
+    /* The statement token lives at pc + 3 and a line header needs pc, pc + 1
+       and pc + 2: refuse to read past the end of the program area. */
+    if ((basic_program_counter + 3) >= BP_BASIC_PROGRAM_SPACE) {
+      status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
+      break;
+    }
 
     switch (basic_program_area[basic_program_counter + 3]) {
     case TOK_LET:
@@ -642,27 +686,40 @@ void interpreter(void) {
     case TOK_PRINT:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      while ((basic_program_area[basic_program_counter] < TOK_LEN) &&
+      while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+             (basic_program_area[basic_program_counter] < TOK_LEN) &&
              (basic_program_area[basic_program_counter] != TOK_ELSE)) {
         if (basic_program_area[basic_program_counter] == '\"') {
           basic_program_counter++;
-          while (basic_program_area[basic_program_counter] != '\"') {
+          /* Stop at the end of the line when the closing quote is missing:
+             the old form scanned past the program area until it found one. */
+          while ((basic_program_area[basic_program_counter] != '\"') &&
+                 (basic_program_area[basic_program_counter] < TOK_LEN)) {
             bus_pirate_configuration.quiet = 0;
             user_serial_transmit_character(
                 basic_program_area[basic_program_counter++]);
             bus_pirate_configuration.quiet = 1;
           }
+          if (basic_program_area[basic_program_counter] == '\"') {
+            basic_program_counter++;
+          }
+        } else if (basic_program_area[basic_program_counter] == ';') {
           basic_program_counter++;
-        } else if (((basic_program_area[basic_program_counter] >= 'A') &&
-                    (basic_program_area[basic_program_counter] <= 'Z')) ||
-                   ((basic_program_area[basic_program_counter] >= TOKENS) &&
-                    (basic_program_area[basic_program_counter] < TOK_LEN))) {
+        } else {
+          /* Anything else is an expression: a literal number, a parenthesised
+             value or a unary sign. The old form only handled letters and
+             tokens, so "PRINT 42" never advanced and spun forever. */
+          uint16_t before = basic_program_counter;
+
           temp = assign();
+          if (basic_program_counter == before) {
+            /* Unparsable byte: step over it instead of looping in place. */
+            basic_program_counter++;
+          }
+
           bus_pirate_configuration.quiet = 0;
           bp_write_dec_word(temp);
           bus_pirate_configuration.quiet = 1;
-        } else if (basic_program_area[basic_program_counter] == ';') {
-          basic_program_counter++;
         }
       }
       if (basic_program_area[basic_program_counter - 1] != ';') {
@@ -705,7 +762,9 @@ void interpreter(void) {
       if (basic_current_nested_for_index < BP_BASIC_NESTED_FOR_LOOP_COUNT) {
         basic_current_nested_for_index++;
       } else {
+        /* The loop array is full: stop before indexing past its end. */
         status = STATUS_CODE_FOR_ERROR;
+        break;
       }
       basic_nested_for_loops[basic_current_nested_for_index].var =
           (basic_program_area[basic_program_counter++] - 'A') + 1;
@@ -744,7 +803,8 @@ void interpreter(void) {
           if (basic_variables[temp - 1] < basic_nested_for_loops[i].to) {
             basic_variables[temp - 1]++;
             basic_program_counter = basic_nested_for_loops[i].from;
-          } else {
+          } else if (basic_current_nested_for_index > 0) {
+            /* Pop the loop; never let the index underflow. */
             basic_current_nested_for_index--;
           }
           status = STATUS_CODE_UNKNOWN;
@@ -759,12 +819,15 @@ void interpreter(void) {
 
       if (basic_data_read_pointer == 0) {
         i = 0;
-        while ((basic_program_area[i + 3] != TOK_DATA) &&
+        while ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
+               (basic_program_area[i + 3] != TOK_DATA) &&
                (basic_program_area[i] != 0x00)) {
           i += (basic_program_area[i] - TOK_LEN) + 3;
         }
 
-        if (basic_program_area[i]) {
+        if ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
+            (basic_program_area[i] != 0x00) &&
+            (basic_program_area[i + 3] == TOK_DATA)) {
           basic_data_read_pointer = i + 4;
         } else {
           status = STATUS_CODE_DATA_ERROR;
@@ -999,7 +1062,8 @@ void list(void) {
 
   basic_program_counter = 0;
 
-  while (basic_program_area[basic_program_counter]) {
+  while ((basic_program_counter + 2 < BP_BASIC_PROGRAM_SPACE) &&
+         (basic_program_area[basic_program_counter])) {
     c = basic_program_area[basic_program_counter];
     if (c < TOK_LET) {
       user_serial_transmit_character(c);
@@ -1010,7 +1074,7 @@ void list(void) {
       basic_program_counter += 2;
       bp_write_dec_word(lineno);
       bpSP;
-    } else {
+    } else if (c <= TOK_END) {
       bpSP;
       bp_write_string(tokens[c - TOKENS]);
       bpSP;
@@ -1084,17 +1148,26 @@ void bp_basic_enter_interactive_interpreter(void) {
 
     if (search_line_number(temp, &pos)) {
       len = (basic_program_area[pos] - TOK_LEN) + 3;
-      /* @TODO: replace this with a memmove. */
-      for (i = pos; i < BP_BASIC_PROGRAM_SPACE - len; i++) {
-        basic_program_area[i] = basic_program_area[i + len];
-      }
-      memset(&basic_program_area[i], 0x00, BP_BASIC_PROGRAM_SPACE - i);
+
+      /* The line is being replaced: close the gap it leaves, then clear the
+         tail so no stale bytes are left for a walk to find. */
+      memmove(&basic_program_area[pos], &basic_program_area[pos + len],
+              BP_BASIC_PROGRAM_SPACE - pos - len);
+      memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - len], 0x00, len);
     }
 
     i = 3;
 
     consumewhitechars();
     while (cmdstart != cmdend) {
+/* Guard before the write: line[] is sizeof(line) bytes and the item
+         about to be stored claims line[i]. The old check ran after the loop
+         instead, one byte too late. */
+      if (i >= (int)sizeof(line)) {
+        BPMSG1051;
+        return;
+      }
+
       if (!string_found) {
         consumewhitechars();
       }
@@ -1114,25 +1187,41 @@ void bp_basic_enter_interactive_interpreter(void) {
         cmdstart = (cmdstart + 1) & CMDLENMSK;
       }
       i++;
-      if (i > 35) {
-        BPMSG1051;
-        return;
-      }
     }
 
-    /* No need to insert an empty line. */
-    if ((i == 3) || (i == 4)) {
+    /* An i of 4 means the only item the tokenizer found was the NUL byte that
+       handle_enter_key() leaves at the end of the line buffer: the line has a
+       number but no statement, so there is nothing to store. */
+    if (i <= 4) {
       return;
     }
 
+/* The length marker counts statement bytes only. i is 3 header bytes plus
+       one per stored item, and the items include the trailing NUL that
+       handle_enter_key() appends - so the payload length is i - 4. */
     line[0] = TOK_LEN + (i - 4);
 
     i = 0;
     end = 0;
     pos = 0;
 
+    /* Find where the line belongs: pos ends up after the last stored line
+       whose number is lower, end at the first byte past the program. The walk
+       is bounded, because a corrupted header used to send it off the end of
+       the array, where the read hits unimplemented memory - an address error
+       trap, and the default trap handler resets the board (issue #130). */
     while (!end) {
+      if (i >= BP_BASIC_PROGRAM_SPACE) {
+        BPMSG1051;
+        return;
+      }
+
       if (basic_program_area[i] > TOK_LEN) {
+        if ((i + 2) >= BP_BASIC_PROGRAM_SPACE) {
+          BPMSG1051;
+          return;
+        }
+
         len = basic_program_area[i] - TOK_LEN;
         lineno1 = (basic_program_area[i + 1] << 8) + basic_program_area[i + 2];
         lineno2 = (line[1] << 8) + line[2];
@@ -1143,17 +1232,24 @@ void bp_basic_enter_interactive_interpreter(void) {
       } else {
         end = i; // we found the end! YaY!
       }
-
-      temp = (basic_program_area[i + 1] << 8) + basic_program_area[i + 2];
     }
 
     temp = (line[0] - TOK_LEN) + 3;
 
-    /* @TODO: Replace this with memmove. */
-    for (i = end; i >= pos; i--) {
-      basic_program_area[i + temp] = basic_program_area[i];
+    /* Refuse to store when the program area has no room for the line, rather
+       than writing past the end of the array. */
+    if ((pos > end) || ((end + temp) >= BP_BASIC_PROGRAM_SPACE)) {
+      BPMSG1051;
+      return;
     }
-    memcpy(&basic_program_area[pos + i], &line[i], temp);
+/* Open a gap and copy the line in. The old code did this with loops; a
+       cleanup rewrote the copy as memcpy(&basic_program_area[pos + i],
+       &line[i], temp) while i was still pos - 1 from the shift loop, so the
+       first line of a program wrote one byte before the array and every other
+       line landed at the wrong offset. */
+    memmove(&basic_program_area[pos + temp], &basic_program_area[pos],
+            end - pos + 1);
+    memcpy(&basic_program_area[pos], line, temp);
   } else {
     if (compare("RUN")) {
       interpreter();

@@ -581,6 +581,13 @@ void interpreter(void) {
   memset((void *)&basic_variables, 0, sizeof(basic_variables));
 
   while (status == STATUS_CODE_UNKNOWN) {
+    /* The header read and the statement token (pc + 3) must both be inside
+       the program area; refuse to read past its end on corrupted data. */
+    if ((basic_program_counter + 3) >= BP_BASIC_PROGRAM_SPACE) {
+      status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
+      break;
+    }
+
     if (!ifstat) {
       if (basic_program_area[basic_program_counter] < TOK_LEN) {
         status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
@@ -594,17 +601,18 @@ void interpreter(void) {
 
     ifstat = 0;
 
-    /* The statement token lives at pc + 3 and a line header needs pc, pc + 1
-       and pc + 2: refuse to read past the end of the program area. */
-    if ((basic_program_counter + 3) >= BP_BASIC_PROGRAM_SPACE) {
-      status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
-      break;
-    }
-
     switch (basic_program_area[basic_program_counter + 3]) {
     case TOK_LET:
       program_counter_updated = YES;
       basic_program_counter += 6;
+
+      /* The assignment target must exist; a stray byte must not be used as
+         an array index (it would write outside basic_variables). */
+      if ((basic_program_area[basic_program_counter - 2] < 'A') ||
+          (basic_program_area[basic_program_counter - 2] > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       basic_variables[basic_program_area[basic_program_counter - 2] - 0x41] =
           assign();
@@ -621,7 +629,8 @@ void interpreter(void) {
           basic_program_counter -= 3; // simplest way (for now)
         }
       } else {
-        while ((basic_program_area[basic_program_counter] != TOK_ELSE) &&
+        while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+               (basic_program_area[basic_program_counter] != TOK_ELSE) &&
                (basic_program_area[basic_program_counter] <= TOK_LEN)) {
           basic_program_counter++;
         }
@@ -737,16 +746,28 @@ void interpreter(void) {
 
       if (basic_program_area[basic_program_counter] == '\"') {
         basic_program_counter++;
-        while (basic_program_area[basic_program_counter] != '\"') {
+        /* Stop at the end of the line if the closing quote is missing. */
+        while ((basic_program_area[basic_program_counter] != '\"') &&
+               (basic_program_area[basic_program_counter] < TOK_LEN)) {
           user_serial_transmit_character(
               basic_program_area[basic_program_counter++]);
         }
-        basic_program_counter++;
+        if (basic_program_area[basic_program_counter] == '\"') {
+          basic_program_counter++;
+        }
       }
       if (basic_program_area[basic_program_counter] == ',') {
         basic_program_counter++;
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
+      }
+
+      /* The receiving variable must exist before it is indexed. */
+      if ((basic_program_area[basic_program_counter] < 'A') ||
+          (basic_program_area[basic_program_counter] > 'Z')) {
+        bus_pirate_configuration.quiet = YES;
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
       }
 
       basic_variables[basic_program_area[basic_program_counter] - 'A'] =
@@ -766,6 +787,14 @@ void interpreter(void) {
         status = STATUS_CODE_FOR_ERROR;
         break;
       }
+
+      /* The loop variable must exist before it is indexed. */
+      if ((basic_program_area[basic_program_counter] < 'A') ||
+          (basic_program_area[basic_program_counter] > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
       basic_nested_for_loops[basic_current_nested_for_index].var =
           (basic_program_area[basic_program_counter++] - 'A') + 1;
 
@@ -834,6 +863,14 @@ void interpreter(void) {
         }
       }
       temp = basic_program_counter;
+
+      /* The receiving variable must exist before it is indexed. */
+      if ((basic_program_area[temp] < 'A') ||
+          (basic_program_area[temp] > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
       basic_program_counter = basic_data_read_pointer;
       basic_variables[basic_program_area[temp] - 'A'] =
           get_number_or_variable();
@@ -1090,6 +1127,13 @@ bool compare(char *pointer) {
   int oldstart = cmdstart;
 
   while (*pointer) {
+    /* Never match past the end of the current command line: the buffer
+       still holds the previous line beyond cmdend. */
+    if (cmdstart == cmdend) {
+      cmdstart = oldstart;
+      return NO;
+    }
+
     if (*pointer != cmdbuf[cmdstart]) {
       cmdstart = oldstart;
       return NO;
@@ -1138,9 +1182,8 @@ void bp_basic_enter_interactive_interpreter(void) {
   if ((cmdbuf[cmdstart] >= '0') &&
       (cmdbuf[cmdstart] <= '9')) { // bpWline("new line");
 
-    for (i = 0; i < 35; i++) {
-      line[i] = 0;
-    }
+    /* No need to clear line[]: every byte copied into the program area below
+       is written first (the header here, the payload by the tokenizer). */
 
     temp = getint();
     line[1] = temp >> 8;

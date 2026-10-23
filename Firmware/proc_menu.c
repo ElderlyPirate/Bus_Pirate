@@ -477,6 +477,15 @@ void serviceuser(void) {
         print_pins_information();
         break;
 
+      case 't':
+        bp_timer_print();
+        bpBR;
+        break;
+
+      case 'T':
+        bp_timer_reset();
+        break;
+
       case 'f':
         bp_frequency_counter_setup();
         break;

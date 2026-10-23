@@ -128,6 +128,57 @@ uint8_t bp_reverse_byte(const uint8_t value);
  */
 uint16_t bp_reverse_word(const uint16_t value);
 
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+
+/**
+ * @brief Pauses execution for the given amount of microseconds, polling the
+ * hardware delay timer directly.
+ *
+ * Unlike bp_delay_us(), these two helpers do not pick between a short and a
+ * long path; callers that already know the delay size (e.g. the bit-bang
+ * clock generation, whose delays come from the speed profiles) can use them
+ * to skip that branch.
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+void delay_short(uint16_t microseconds);
+
+/**
+ * @brief The body of delay_short(), exposed as an inlined helper for hot
+ * loops (e.g. the bit-bang clock generation).
+ *
+ * Semantics are identical to delay_short(): wait the given number of
+ * microseconds (1..16384) by polling the hardware delay timer.  The
+ * compiler can inline the whole poll loop, so callers in tight loops skip
+ * the call and range-check overhead.
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+static inline void delay_short_inline(uint16_t microseconds) {
+  uint16_t ticks;
+  uint16_t start;
+
+  if (microseconds == 0) {
+    return;
+  }
+
+  ticks = (uint16_t)((microseconds << 1) - 1);
+  start = TMR1;
+
+  while ((uint16_t)(TMR1 - start) < ticks) {
+  }
+}
+
+/**
+ * @brief Pauses execution for the given amount of microseconds, for delays
+ * that may exceed the range of delay_short().
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+void delay_long(uint32_t microseconds);
+
+#endif /* BP_USE_HARDWARE_DELAY_TIMER */
+
 /**
  * @brief Bring the board to a clean slate shortly before switching to a new
  * operational mode.

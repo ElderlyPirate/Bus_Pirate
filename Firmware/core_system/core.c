@@ -19,6 +19,7 @@
 
 #include "base.h"
 #include "core.h"
+#include "bitbang.h"
 
 #ifdef BP_ENABLE_1WIRE_SUPPORT
 #include "1wire.h"
@@ -286,6 +287,7 @@ static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .data_low = raw_set_data_low,
      .data_state = raw_read_pin,
      .clock_pulse = raw_advance_clock,
+     .clock_pulses = bitbang_advance_clock_ticks,
      .read_bit = raw_read_bit,
      .periodic_update = null_bit_read_callback,
      .run_macro = raw2wire_run_macro,
@@ -311,6 +313,7 @@ static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .data_low = raw_set_data_low,
      .data_state = raw_read_pin,
      .clock_pulse = raw_advance_clock,
+     .clock_pulses = bitbang_advance_clock_ticks,
      .read_bit = raw_read_bit,
      .periodic_update = null_bit_read_callback,
      .run_macro = null_macro_callback,

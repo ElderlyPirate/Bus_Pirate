@@ -116,6 +116,9 @@ typedef struct {
    */
   void (*clock_pulse)(void);
 
+  /* Accepted optional batched-clock callback; NULL uses single ticks. */
+  void (*clock_pulses)(uint16_t ticks);
+
   /**
    * Read a bit from the bus.
    *

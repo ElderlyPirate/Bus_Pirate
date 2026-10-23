@@ -1030,6 +1030,18 @@ _MSG_1WIRE_SKIP_ROM_MACRO_NAME_str:
 _MSG_1WIRE_SPEED_PROMPT_str:
 	.pasciz "Set speed:\r\n 1. Standard (~16.3kbps) \r\n 2. Overdrive (~160kps)"
 
+	; MSG_1WIRE_SPEED_STANDARD
+	.section .text.MSG_1WIRE_SPEED_STANDARD, code
+	.global _MSG_1WIRE_SPEED_STANDARD_str
+_MSG_1WIRE_SPEED_STANDARD_str:
+	.pasciz "1-WIRE speed: standard"
+
+	; MSG_1WIRE_SPEED_OVERDRIVE
+	.section .text.MSG_1WIRE_SPEED_OVERDRIVE, code
+	.global _MSG_1WIRE_SPEED_OVERDRIVE_str
+_MSG_1WIRE_SPEED_OVERDRIVE_str:
+	.pasciz "1-WIRE speed: overdrive"
+
 	; MSG_ACK
 	.section .text.MSG_ACK, code
 	.global _MSG_ACK_str

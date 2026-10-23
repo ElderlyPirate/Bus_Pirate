@@ -106,6 +106,19 @@ void bp_aux_pin_set_low(void);
 bool bp_aux_pin_read(void);
 
 /**
+ * @brief Enables or disables change notification on the currently chosen AUX
+ * pin.
+ *
+ * This arms the change notification hardware on the pin bp_aux_pin_read()
+ * selects, so that a voltage change on it latches into the shared change
+ * notification flag even while the firmware is busy elsewhere.
+ *
+ * @param[in] state `ON` to enable change notification on the pin, `OFF` to
+ * disable it.
+ */
+void bp_aux_pin_set_change_notification(const bool state);
+
+/**
  * @brief Starts the setup process for driving a servomotor.
  */
 void bp_servo_setup(void);

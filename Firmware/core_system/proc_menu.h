@@ -38,6 +38,7 @@ int getnumbits(void);
 
 void consumewhitechars(void);
 void changemode(void);
+int bp_change_mode(int mode);
 #ifdef BP_ENABLE_COMMAND_HISTORY
 int cmdhistory(void);
 #endif /* BP_ENABLE_COMMAND_HISTORY */

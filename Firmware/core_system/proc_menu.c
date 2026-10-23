@@ -97,6 +97,7 @@
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
 extern command_t last_command;
+static bool setup_defaults_mode = NO;
 
 #ifdef BUSPIRATEV4
 static bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
@@ -1012,6 +1013,7 @@ void serviceuser(void) {
 }
 
 int getint(void) {
+  if (setup_defaults_mode) return 0;
   uint16_t number = 0, i = 0, digits = 0;
   uint8_t radix = 10;
   uint16_t limit = 6553;
@@ -1095,6 +1097,7 @@ uint8_t change_read_display(void) {
 }
 
 void consumewhitechars(void) {
+  if (setup_defaults_mode) return;
   while (cmdbuf[cmdstart] == 0x20) {
     cmdstart = (cmdstart + 1) & CMDLENMSK;
   }
@@ -1235,6 +1238,7 @@ int cmdhistory(void) {
 int getnumber(int def, int min, int max,
               int x) // default, minimum, maximum, show exit option
 {
+  if (setup_defaults_mode) return def;
   char c;
   char buf[6]; // five digits cover the positive int16 range
   int i, j, stop, temp, neg;
@@ -2287,4 +2291,34 @@ void switch_psu_off(void) {
   bp_disable_voltage_regulator();
   MSG_POWER_SUPPLIES_OFF;
   bpBR;
+}
+
+
+int bp_change_mode(int mode) {
+  if ((mode < 1) || (mode > ENABLED_PROTOCOLS_COUNT)) {
+    return -1;
+  }
+
+  bp_current_protocol()->cleanup();
+  bp_reset_board_state();
+  bus_pirate_configuration.bus_mode = mode - 1;
+
+  /*
+   * Run the new mode's setup phase with every prompt answering its default,
+   * so the same settings are applied that pressing ENTER through the
+   * interactive prompts would choose - without printing or blocking.
+   */
+  setup_defaults_mode = ON;
+  bp_current_protocol()->setup_prepare();
+  setup_defaults_mode = OFF;
+
+  mode_configuration.command_error = NO;
+
+  if (bus_pirate_configuration.bus_mode != BP_HIZ) {
+    bp_enable_mode_led();
+  }
+
+  bp_current_protocol()->setup_execute();
+
+  return 0;
 }

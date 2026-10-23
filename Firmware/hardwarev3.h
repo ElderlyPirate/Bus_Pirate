@@ -83,6 +83,14 @@
 #define BP_MOSI_CN CNEN2bits.CN21IE
 #define BP_CLK_CN CNEN2bits.CN22IE
 
+/*
+ * Change notice assignments for the pins bp_aux_pin_read() can select. The
+ * device pin table maps RB10 to CN16 and RB6 to CN24, and RB9/RB8 to
+ * CN21/CN22 as used above.
+ */
+#define BP_AUX0_CN CNEN2bits.CN16IE
+#define BP_CS_CN CNEN2bits.CN24IE
+
 // ADC assignment
 #define BP_ADC_PROBE 12
 #define BP_ADC_3V3 10

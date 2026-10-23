@@ -78,6 +78,7 @@ typedef enum {
   IO_COMMAND_GROUP_CONFIGURE_PERIPHERALS = 0b0100,
   IO_COMMAND_GROUP_SET_PULLUP = 0b0101,
   IO_COMMAND_GROUP_SET_SPEED = 0b0110,
+  IO_COMMAND_GROUP_WAIT = 0b0111,
   IO_COMMAND_GROUP_CONFIGURATION = 0b1000,
   IO_COMMAND_GROUP_PIC = 0b1010,
   IO_COMMAND_GROUP_SMPS = 0b1111
@@ -99,6 +100,14 @@ typedef enum {
   IO_COMMAND_DATA_LOW,
   IO_COMMAND_DATA_HIGH
 } wire_generic_command;
+
+/**
+ * Commands in the wait command group. Sub-commands 0x1 through 0xF are
+ * reserved for future use.
+ */
+typedef enum {
+  IO_WAIT_COMMAND_FOR_EDGE = 0
+} io_wait_command;
 
 typedef enum {
   PIC_MODE_INVALID = 0,
@@ -143,7 +152,13 @@ typedef enum {
   BITBANG_COMMAND_ADC_ONE_SHOT,
   BITBANG_COMMAND_ADC_CONTINUOUS,
   BITBANG_COMMAND_FREQUENCY_COUNT,
-  BITBANG_COMMAND_JTAG_XSVF = 0x18
+  BITBANG_COMMAND_JTAG_XSVF = 0x18,
+
+  /*
+   * Wait for an edge on the AUX pin. Shares its payload and reply format
+   * with the wait command group that the protocol modes accept.
+   */
+  BITBANG_COMMAND_WAIT_FOR_EDGE = 0x70
 } bitbang_command;
 
 /**
@@ -483,6 +498,10 @@ int handle_bitbang_command(const bitbang_command command) {
     handle_frequency_measurement();
     break;
 
+  case BITBANG_COMMAND_WAIT_FOR_EDGE:
+    handle_wait_command(command);
+    break;
+
   case BITBANG_COMMAND_JTAG_XSVF:
 #ifdef BUSPIRATEV4
     bp_enable_voltage_regulator();
@@ -713,6 +732,10 @@ void binary_io_raw_wire_mode_handler(void) {
       handle_set_speed(input_byte);
       break;
 
+    case IO_COMMAND_GROUP_WAIT:
+      handle_wait_command(input_byte);
+      break;
+
     case IO_COMMAND_GROUP_CONFIGURATION:
       handle_configuration(input_byte);
       break;
@@ -906,6 +929,82 @@ bool handle_wire_generic_command(const wire_generic_command command) {
   }
 
   return true;
+}
+
+/**
+ * Poll interval for handle_wait_command(), in microseconds.
+ *
+ * The change notification flag latches an edge in between polls, so this
+ * only bounds how late the reply can be; an edge is never missed.
+ */
+#define BP_WAIT_POLL_INTERVAL_US 50
+
+void handle_wait_command(const uint8_t command) {
+  const uint8_t subcommand = command & 0b1111;
+
+  if (subcommand != IO_WAIT_COMMAND_FOR_EDGE) {
+    REPORT_IO_FAILURE();
+    return;
+  }
+
+  const uint8_t edges = user_serial_read_byte();
+  const uint16_t timeout_ms = user_serial_read_big_endian_word();
+
+  if ((edges < BP_BINARY_IO_EDGE_RISING) ||
+      (edges > BP_BINARY_IO_EDGE_EITHER)) {
+    REPORT_IO_FAILURE();
+    return;
+  }
+
+  /*
+   * Arm the change notification hardware on the pin: it latches an edge in
+   * the shared interrupt flag, so a change cannot slip through while this
+   * loop is looking elsewhere. Clearing the flag after arming discards
+   * anything that happened earlier - the NORMAL button shares the flag.
+   */
+  bp_aux_pin_set_change_notification(ON);
+  IFS1bits.CNIF = OFF;
+
+  bool level = bp_aux_pin_read();
+  bool edge_seen = NO;
+  uint32_t waited_us = 0;
+  const uint32_t timeout_us = (uint32_t)timeout_ms * 1000;
+
+  for (;;) {
+    if (IFS1bits.CNIF) {
+      IFS1bits.CNIF = OFF;
+
+      const bool next_level = bp_aux_pin_read();
+
+      if (next_level != level) {
+        const bool rising_edge = next_level;
+
+        if (((edges & BP_BINARY_IO_EDGE_RISING) && rising_edge) ||
+            ((edges & BP_BINARY_IO_EDGE_FALLING) && !rising_edge)) {
+          level = next_level;
+          edge_seen = YES;
+          break;
+        }
+
+        level = next_level;
+      }
+    }
+
+    if (waited_us >= timeout_us) {
+      level = bp_aux_pin_read();
+      break;
+    }
+
+    bp_delay_us(BP_WAIT_POLL_INTERVAL_US);
+    waited_us += BP_WAIT_POLL_INTERVAL_US;
+  }
+
+  bp_aux_pin_set_change_notification(OFF);
+
+  /* Report the event, or the timeout, along with the pin's level. */
+  user_serial_transmit_character(edge_seen ? BP_BINARY_IO_RESULT_SUCCESS
+                                           : BP_BINARY_IO_RESULT_FAILURE);
+  user_serial_transmit_character(level ? 1 : 0);
 }
 
 void handle_bulk_byte_transfer(const uint8_t command) {

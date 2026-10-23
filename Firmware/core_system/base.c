@@ -583,6 +583,10 @@ uint16_t bp_read_from_flash(const uint16_t page, const uint16_t address) {
   return word;
 }
 
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+static volatile uint32_t timer_overflows;
+#endif
+
 void bp_initialise_delay_timer(void) {
 #ifdef BP_USE_HARDWARE_DELAY_TIMER
 
@@ -601,6 +605,12 @@ void bp_initialise_delay_timer(void) {
 
   /* Start Timer #1. */
   T1CONbits.TON = ON;
+
+  /* Count overflows so full 32-bit microsecond timestamps can be built. */
+  timer_overflows = 0;
+  IFS0bits.T1IF = OFF;
+  IPC0bits.T1IP = 1; /* Give the overflow interrupt a priority level. */
+  IEC0bits.T1IE = ON;
 
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */
 }
@@ -656,6 +666,42 @@ void bp_delay_us(uint16_t microseconds) {
   }
 
   delay_long(microseconds);
+}
+
+#pragma interrupt _T1Interrupt
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt() {
+  IFS0bits.T1IF = OFF;
+  timer_overflows++;
+}
+
+uint32_t bp_timer_microseconds(void) {
+  uint32_t overflows;
+  uint16_t ticks;
+
+  /*
+   * Take a consistent snapshot: if the counter changed between the two
+   * reads, an overflow happened in between - repeat the read.
+   */
+  do {
+    overflows = timer_overflows;
+    ticks = TMR1;
+  } while (overflows != timer_overflows);
+
+  return ((overflows << 16) | ticks) >> 1;
+}
+
+void bp_timer_print(void) {
+  /* Ten digits cover the full 32-bit microsecond range. */
+  print_decimal(bp_timer_microseconds(), 1000000000L, 10);
+}
+
+void bp_timer_reset(void) {
+  /* Keep the reset atomic with respect to the overflow interrupt. */
+  IEC0bits.T1IE = OFF;
+  timer_overflows = 0;
+  TMR1 = 0x0000;
+  IFS0bits.T1IF = OFF;
+  IEC0bits.T1IE = ON;
 }
 
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */

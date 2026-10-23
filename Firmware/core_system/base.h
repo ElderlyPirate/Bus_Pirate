@@ -303,6 +303,11 @@ void bp_write_hex_byte_to_ringbuffer(const uint8_t value);
  */
 void bp_initialise_delay_timer(void);
 
+/* Accepted #216 Timer1 timestamp API; wraps after about 35 minutes. */
+uint32_t bp_timer_microseconds(void);
+void bp_timer_print(void);
+void bp_timer_reset(void);
+
 /**
  * @brief Shortcut for writing an empty line to the user-facing serial port.
  */

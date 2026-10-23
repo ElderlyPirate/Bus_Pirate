@@ -107,9 +107,16 @@
  */
 #define TOK_RESTORE 0xA2
 
+/*
+ * `MODE` switches the bus mode from within a running program, or reports the
+ * mode that is currently active. 0xA3 is the next free statement token: the
+ * statement length marker starts at 0xE0.
+ */
+#define TOK_MODE 0xA3
+
 #define TOK_LEN 0xE0
 
-#define NUMTOKEN (TOK_RESTORE - TOKENS) + 1
+#define NUMTOKEN (TOK_MODE - TOKENS) + 1
 
 #define STAT_LET "LET"
 #define STAT_IF "IF"
@@ -128,6 +135,7 @@
 #define STAT_READ "READ"
 #define STAT_DATA "DATA"
 #define STAT_RESTORE "RESTORE"
+#define STAT_MODE "MODE"
 #define STAT_START "START"
 #define STAT_STARTR "STARTR"
 #define STAT_STOP "STOP"
@@ -277,6 +285,7 @@ static char *tokens[NUMTOKEN + 1] = {
     STAT_MACRO, // 0xA0
     STAT_END,   // 0xA1
     STAT_RESTORE, // 0xa2
+    STAT_MODE,    // 0xa3
 };
 
 /**
@@ -306,7 +315,7 @@ static bool search_line_number(const uint16_t line, uint16_t *result);
  * the interface with the board hardware.
  *
  * Said tokens are `RECEIVE`, `SEND`, `AUX`, `DAT`, `BITREAD`, `PSU`,
- * `PULLUP`, and `ADC`.
+ * `PULLUP`, `ADC`, and `MODE`.
  *
  * @param[in] token the token identifier to handle.
  *
@@ -321,6 +330,7 @@ static bool search_line_number(const uint16_t line, uint16_t *result);
  * @see TOK_PSU
  * @see TOK_PULLUP
  * @see TOK_ADC
+ * @see TOK_MODE
  */
 static uint16_t handle_special_token(const uint8_t token);
 
@@ -455,6 +465,13 @@ uint16_t handle_special_token(const uint8_t token) {
 
   case TOK_PULLUP:
     return ~BP_PULLUP;
+
+  case TOK_MODE:
+    /*
+     * In an expression, `MODE` reports the bus mode that is currently active,
+     * one-based, exactly as the mode menu numbers it.
+     */
+    return bus_pirate_configuration.bus_mode + 1;
 
   case TOK_ADC: {
     bp_enable_adc();
@@ -596,6 +613,18 @@ int16_t assign(void) {
       return temp;
     }
   }
+}
+
+/**
+ * @brief Prints the active mode's name on behalf of a `MODE` statement.
+ *
+ * The interpreter runs with the board quiet, so the name is forced out the
+ * same way the `PRINT` statement does it.
+ */
+static void write_mode_name(void) {
+  bus_pirate_configuration.quiet = OFF;
+  bp_write_line(enabled_protocols[bus_pirate_configuration.bus_mode].name);
+  bus_pirate_configuration.quiet = ON;
 }
 
 void interpreter(void) {
@@ -1115,6 +1144,37 @@ void interpreter(void) {
       bp_delay_ms(temp);
       handle_else_statement();
       break;
+
+    case TOK_MODE: {
+      /*
+       * A bare `MODE` statement reports the active mode. `MODE n` switches to
+       * the mode that the (one-based) mode menu lists as `n`, using the same
+       * default settings that pressing ENTER through the interactive setup
+       * prompts would choose.
+       *
+       * After a bare statement the next byte is either the NUL that ends the
+       * stored line or the length marker of the following line; anything
+       * else is the start of an argument.
+       */
+      if (((basic_program_counter + 4) >= BP_BASIC_PROGRAM_SPACE) ||
+          (basic_program_area[basic_program_counter + 4] == 0x00) ||
+          (basic_program_area[basic_program_counter + 4] >= TOK_LEN)) {
+        write_mode_name();
+        break;
+      }
+
+      program_counter_updated = YES;
+      basic_program_counter += 4;
+
+      if (bp_change_mode(assign())) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
+      write_mode_name();
+      handle_else_statement();
+      break;
+    }
 
     case TOK_MACRO:
       program_counter_updated = YES;

@@ -670,7 +670,6 @@ void serviceuser(void) {
         repeat = (uint16_t)getrepeat() + 1u;
         while (--repeat) {
           bp_adc_probe();
-          MSG_VOLTAGE_UNIT;
           bpBR;
         }
         break;

@@ -297,9 +297,11 @@ void bitbang_set_pins_high(const uint16_t pins, const uint16_t delay) {
     IODIR |= pins;
   }
 
-  /* Wait. */
+  /* Wait.  Every caller passes a profile-sized delay (at most a few tens
+     of microseconds), so the short-delay helper is used directly and the
+     bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    bp_delay_us(delay);
+    delay_short(delay);
   }
 }
 
@@ -310,9 +312,11 @@ void bitbang_set_pins_low(const uint16_t pins, const uint16_t delay) {
   /* Mark pins' direction as OUTPUT. */
   IODIR &= ~pins;
 
-  /* Wait. */
+  /* Wait.  Every caller passes a profile-sized delay (at most a few tens
+     of microseconds), so the short-delay helper is used directly and the
+     bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    bp_delay_us(delay);
+    delay_short(delay);
   }
 }
 
@@ -330,9 +334,11 @@ void bitbang_set_pins(const bool state, const uint16_t pins_mask,
     }
   }
 
-  /* Wait. */
+  /* Wait.  Every caller passes a profile-sized delay (at most a few tens
+     of microseconds), so the short-delay helper is used directly and the
+     bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    bp_delay_us(delay);
+    delay_short(delay);
   }
 }
 

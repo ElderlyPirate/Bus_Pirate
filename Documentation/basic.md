@@ -8,7 +8,8 @@ cycle.
 Enter the interpreter with `s` from the normal prompt. The prompt changes to
 `... (BASIC)>` (for example `HiZ(BASIC)>`) and terminal input goes to the
 interpreter. The current mode (HiZ, I2C, SPI, ...) is the one that was
-active when `s` was typed, so select the mode first and then enter BASIC.
+active when `s` was typed, so select the mode first and then enter BASIC; a
+program can also switch modes on its own with `MODE`.
 
 Type `EXIT` to return to the normal prompt, or reset the board.
 
@@ -94,6 +95,7 @@ Commands at the BASIC prompt (not stored as program lines):
 | `FREQ hz duty` | configure the PWM output |
 | `DUTY duty` | change the PWM duty cycle |
 | `MACRO n` | run a mode macro |
+| `MODE [n]` | switch to the mode the menu numbers `n` (with that mode's default settings), or report the active mode's name |
 
 ## Expressions
 
@@ -103,7 +105,8 @@ Values in an expression are:
   stored programs),
 * variables `A`..`Z` (signed 16-bit),
 * the special tokens `RECEIVE`, `AUX`, `DAT`, `BITREAD`, `PSU`, `PULLUP` and
-  `ADC`, which read from the hardware as described above,
+  `ADC`, which read from the hardware as described above, and `MODE`, which
+  yields the active mode's number,
 * parenthesised expressions.
 
 Operators, in binding order:
@@ -227,6 +230,31 @@ Division by zero:
 30 END
 ```
 prints `0`; it is not an error, and the Bus Pirate is not disturbed by it.
+
+Switching modes from within the program:
+
+```
+HiZ(BASIC)> 10 MODE 5
+Ready
+HiZ(BASIC)> 20 PRINT MODE;
+Ready
+HiZ(BASIC)> RUN
+SPI
+5
+Ready
+SPI(BASIC)>
+```
+
+`MODE 5` switches to the mode the mode menu numbers `5` (SPI on a v4),
+applying the defaults that pressing ENTER through the setup prompts would
+choose, and prints the new mode's name. `PRINT MODE;` prints the mode number
+from inside an expression, so a script can check where it is. A bare `MODE`
+statement prints the name alone. The argument is an expression, so
+`MODE M` after `LET M=4` works as well; a number outside the menu's range
+stops the program with error 3 and leaves the current mode alone. The switch
+also runs the new mode's setup callback (the step the interactive flow
+performs on power-on), so the statements that follow can use the bus right
+away.
 
 ## Notes for maintainers: the stored program format
 

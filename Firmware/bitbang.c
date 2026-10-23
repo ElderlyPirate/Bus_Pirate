@@ -342,14 +342,14 @@ void bitbang_advance_clock_ticks(const uint16_t ticks) {
       IOLAT |= CLK;
       IODIR &= ~CLK;
       if (delay > 0) {
-        delay_short(delay);
+        delay_short_inline(delay);
       }
 
       /* Clock low. */
       IOLAT &= ~CLK;
       IODIR &= ~CLK;
       if (delay > 0) {
-        delay_short(delay);
+        delay_short_inline(delay);
       }
     }
   } else {
@@ -357,14 +357,14 @@ void bitbang_advance_clock_ticks(const uint16_t ticks) {
       /* Clock high (open collector: released to the pull-up). */
       IODIR |= CLK;
       if (delay > 0) {
-        delay_short(delay);
+        delay_short_inline(delay);
       }
 
       /* Clock low. */
       IOLAT &= ~CLK;
       IODIR &= ~CLK;
       if (delay > 0) {
-        delay_short(delay);
+        delay_short_inline(delay);
       }
     }
   }
@@ -400,7 +400,7 @@ void bitbang_set_pins_high(const uint16_t pins, const uint16_t delay) {
      of microseconds), so the short-delay helper is used directly and the
      bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    delay_short(delay);
+    delay_short_inline(delay);
   }
 }
 
@@ -415,7 +415,7 @@ void bitbang_set_pins_low(const uint16_t pins, const uint16_t delay) {
      of microseconds), so the short-delay helper is used directly and the
      bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    delay_short(delay);
+    delay_short_inline(delay);
   }
 }
 
@@ -437,7 +437,7 @@ void bitbang_set_pins(const bool state, const uint16_t pins_mask,
      of microseconds), so the short-delay helper is used directly and the
      bp_delay_us() range branch is skipped. */
   if (delay > 0) {
-    delay_short(delay);
+    delay_short_inline(delay);
   }
 }
 

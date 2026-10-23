@@ -20,7 +20,7 @@ long fulladdress;
 extern BYTE cdc_In_buffer[64];
 extern BYTE cdc_Out_buffer[64];
 #define VER_H 0x04
-#define VER_L 0x0d
+#define VER_L 0x0e
 
 unsigned int userversion  __attribute__((space(prog),address(BLENDADDR-9))) = ((VER_H<<8)|VER_L);
 

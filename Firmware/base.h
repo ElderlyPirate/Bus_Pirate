@@ -144,6 +144,32 @@ uint16_t bp_reverse_word(const uint16_t value);
 void delay_short(uint16_t microseconds);
 
 /**
+ * @brief The body of delay_short(), exposed as an inlined helper for hot
+ * loops (e.g. the bit-bang clock generation).
+ *
+ * Semantics are identical to delay_short(): wait the given number of
+ * microseconds (1..16384) by polling the hardware delay timer.  The
+ * compiler can inline the whole poll loop, so callers in tight loops skip
+ * the call and range-check overhead.
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+static inline void delay_short_inline(uint16_t microseconds) {
+  uint16_t ticks;
+  uint16_t start;
+
+  if (microseconds == 0) {
+    return;
+  }
+
+  ticks = (uint16_t)((microseconds << 1) - 1);
+  start = TMR1;
+
+  while ((uint16_t)(TMR1 - start) < ticks) {
+  }
+}
+
+/**
  * @brief Pauses execution for the given amount of microseconds, for delays
  * that may exceed the range of delay_short().
  *

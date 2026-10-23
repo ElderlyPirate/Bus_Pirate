@@ -892,8 +892,15 @@ void serviceuser(void) {
         BPMSG1108;
         bp_write_formatted_integer(repeat);
         repeat++;
-        while (--repeat) {
-          enabled_protocols[bus_pirate_configuration.bus_mode].clock_pulse();
+        if (enabled_protocols[bus_pirate_configuration.bus_mode].clock_pulses !=
+            NULL) {
+          /* The protocol can advance all the ticks in one call. */
+          enabled_protocols[bus_pirate_configuration.bus_mode].clock_pulses(
+              (uint16_t)(repeat - 1));
+        } else {
+          while (--repeat) {
+            enabled_protocols[bus_pirate_configuration.bus_mode].clock_pulse();
+          }
         }
         bpBR;
         break;

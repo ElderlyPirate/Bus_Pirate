@@ -611,17 +611,8 @@ void delay_long(uint32_t microseconds) {
 }
 
 void delay_short(uint16_t microseconds) {
-  if (microseconds == 0) {
-    return;
-  }
-
-  uint16_t ticks_delta;
-  uint16_t ticks = (microseconds << 1) - 1;
-  uint16_t timer_start = TMR1;
-
-  do {
-    ticks_delta = TMR1 - timer_start;
-  } while (ticks_delta < ticks);
+  /* Single implementation, shared with the inlined hot-path variant. */
+  delay_short_inline(microseconds);
 }
 
 void bp_delay_ms(uint16_t milliseconds) { delay_long(milliseconds * 1000); }

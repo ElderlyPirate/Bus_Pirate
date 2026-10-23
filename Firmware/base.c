@@ -253,10 +253,18 @@ void bp_adc_probe(void) {
   bp_enable_adc();
 
   /* Perform the measurement. */
-  bp_write_voltage(bp_read_adc(BP_ADC_PROBE));
+  uint16_t measurement = bp_read_adc(BP_ADC_PROBE);
+  bp_write_voltage(measurement);
+  MSG_VOLTAGE_UNIT;
 
   /* Turn the ADC off. */
   bp_disable_adc();
+
+  /* Report the raw ADC value alongside the conversion, as asked for in
+     issue #148. */
+  bp_write_string(" (raw ");
+  bp_write_dec_word(measurement);
+  bp_write_string(")");
 }
 
 void bp_adc_continuous_probe(void) {

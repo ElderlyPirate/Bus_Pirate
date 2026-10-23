@@ -146,7 +146,8 @@ void bp_reset_board_state(void);
 uint16_t bp_read_adc(const uint16_t channel);
 
 /**
- * @brief Takes one single ADC measurement and prints it to the serial port.
+ * @brief Takes one single ADC measurement and prints it to the serial port,
+ * as a voltage followed by the raw ADC value in parentheses.
  */
 void bp_adc_probe(void);
 

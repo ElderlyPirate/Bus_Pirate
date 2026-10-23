@@ -128,6 +128,31 @@ uint8_t bp_reverse_byte(const uint8_t value);
  */
 uint16_t bp_reverse_word(const uint16_t value);
 
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+
+/**
+ * @brief Pauses execution for the given amount of microseconds, polling the
+ * hardware delay timer directly.
+ *
+ * Unlike bp_delay_us(), these two helpers do not pick between a short and a
+ * long path; callers that already know the delay size (e.g. the bit-bang
+ * clock generation, whose delays come from the speed profiles) can use them
+ * to skip that branch.
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+void delay_short(uint16_t microseconds);
+
+/**
+ * @brief Pauses execution for the given amount of microseconds, for delays
+ * that may exceed the range of delay_short().
+ *
+ * @param[in] microseconds the amount of microseconds to wait.
+ */
+void delay_long(uint32_t microseconds);
+
+#endif /* BP_USE_HARDWARE_DELAY_TIMER */
+
 /**
  * @brief Bring the board to a clean slate shortly before switching to a new
  * operational mode.

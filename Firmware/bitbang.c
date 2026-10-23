@@ -222,10 +222,52 @@ void bitbang_write_bit(const bool state) {
 
 void bitbang_advance_clock_ticks(const uint16_t ticks) {
   size_t tick;
+  const uint16_t delay = delay_profile->clock;
 
-  for (tick = 0; tick < ticks; tick++) {
-    bitbang_set_pins_high(CLK, delay_profile->clock);
-    bitbang_set_pins_low(CLK, delay_profile->clock);
+  /*
+   * This is the hot path for the `^` clock command and for the software
+   * clock rates in general, so the per-tick operations are written out
+   * directly:
+   *
+   * - the high-impedance branch is hoisted (it cannot change mid-burst),
+   * - the pin writes compile to single-cycle BSET/BCLR on LATD/TRISD,
+   * - delay_short() is called directly instead of through bp_delay_us(),
+   *   saving one call and one branch per clock phase.
+   *
+   * The delays themselves, and therefore the selected speed profile, are
+   * unchanged.
+   */
+  if (mode_configuration.high_impedance == OFF) {
+    for (tick = 0; tick < ticks; tick++) {
+      /* Clock high (driven). */
+      IOLAT |= CLK;
+      IODIR &= ~CLK;
+      if (delay > 0) {
+        delay_short(delay);
+      }
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (delay > 0) {
+        delay_short(delay);
+      }
+    }
+  } else {
+    for (tick = 0; tick < ticks; tick++) {
+      /* Clock high (open collector: released to the pull-up). */
+      IODIR |= CLK;
+      if (delay > 0) {
+        delay_short(delay);
+      }
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (delay > 0) {
+        delay_short(delay);
+      }
+    }
   }
 }
 

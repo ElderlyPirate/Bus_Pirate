@@ -138,7 +138,7 @@ static void print_decimal(const uint32_t value, const uint32_t denominator,
  *
  * @see delay_short
  */
-static void delay_long(uint32_t microseconds);
+void delay_long(uint32_t microseconds);
 
 /**
  * @brief Pauses execution for the given amount of microseconds.
@@ -146,11 +146,16 @@ static void delay_long(uint32_t microseconds);
  * This function can delay execution up to 16384 microseconds.  For longer
  * delays, use delay_long.
  *
+ * This is an internal helper of the software delay layer; callers that
+ * already know a delay is short (e.g. the bit-bang speed profiles, all of
+ * which are a few tens of microseconds) use it directly to skip the
+ * bp_delay_us() range check.
+ *
  * @param[in] microseconds the amount of microseconds to wait.
  *
  * @see delay_long
  */
-static inline void delay_short(uint16_t microseconds);
+void delay_short(uint16_t microseconds);
 
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */
 

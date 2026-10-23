@@ -70,13 +70,11 @@ For a release, the following components need built as production artifacts (Clea
 
 # Flashing via pirate-loader
 
-*Warning: This section is bound to change really soon*
-
 To flash the firmware onto a Bus Pirate, there is a tool called Pirate-Loader. This tool is included in the Bus Pirate Github repository, so there's nothing extra to download. 
 
 Simply navigate to `Bus_Pirate/package/BPv3-firmware` if you have a Bus Pirate v3 hardware board. Here you will find pirate-loader_lnx, pirate-loader_mac and pirate-loader.exe, for the respective platforms. When you see `pirate-loader` in a command in this section replace it with either `./pirate-loader_lnx` `./pirate-loader_mac` or `pirate-loader.exe`, depending on your platform. You may wish to copy pirate-loader to another location or add it to your PATH environment variable. 
 
-Before we can flash the firmware, we need to trigger the Bus Pirate bootloader. There are two ways to do this. On a Bus Pirate with bootloader v4+, you can simply type `$` at the Bus Pirate TTY prompt and press enter, then close the TTY to free up the connection. If this doesn't work for you, you can use the second method, which is to connect the PGC and PGD pins with a jumper cable. When you are in the bootloader, the MODE LED of the Bus Pirate will stay on.
+Before we can flash the firmware, we need to trigger the Bus Pirate bootloader. There are two ways to do this. On a Bus Pirate with bootloader v4.12 or newer, type `$` at the Bus Pirate TTY prompt and press enter, then answer `y` to the confirmation; the device resets itself into the bootloader, where it stays. Quit the terminal application at this point - with `screen`, for example, type `Ctrl+a Ctrl+k` - otherwise the loader will not be able to connect. After a flash finishes, the bootloader also restarts the application on its own. On older bootloaders the `$` entry does not persist (verified with v4.06: the bootloader falls back to the application after about a second), so use the second method instead: connect the PGC and PGD pins with a jumper cable and power-cycle the board. When you are in the bootloader, the MODE LED of the Bus Pirate will stay on.
 
 Now we are ready to use pirate-loader. The usage is as follows: 
 

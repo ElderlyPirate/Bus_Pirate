@@ -724,11 +724,14 @@ restart:
    * Capture CS transitions in hardware: the change notification
    * interrupt latches every edge, so even the ~1 us CS pulses between
    * back-to-back SPI transactions produce their [ ] markers (#141).
+   * Highest interrupt priority: the ISR is a handful of instructions,
+   * and the smallest possible latency keeps two edges only ~1 us apart
+   * from merging into a single interrupt (which would lose one).
    */
   cs_edge_head = 0;
   cs_edge_tail = 0;
   _CNIF = 0;
-  _CNIP = 1;
+  _CNIP = 7;
   CNEN1bits.CN13IE = 1;
   _CNIE = 1;
 #endif /* BUSPIRATEV4 */
@@ -744,7 +747,15 @@ restart:
   for (;;) {
 
 #ifdef BUSPIRATEV4
-    /* Report the CS transitions the CN interrupt captured, in order. */
+    /*
+     * Report the CS transitions the CN interrupt captured, in order.
+     * Markers drain before the pending byte pair: the marker sequence
+     * stays strictly alternating and a pair can never print before the
+     * opening marker of its own transaction.  (The exact split between
+     * a boundary and the adjacent pair is limited by the loop's serial
+     * pass granularity - the same property the polled printer always
+     * had - but no event is ever lost.)
+     */
     while (cs_edge_tail != cs_edge_head) {
       user_serial_ringbuffer_append(cs_edge_ring[cs_edge_tail & 0x07]);
       cs_edge_tail++;

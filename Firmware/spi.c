@@ -683,16 +683,55 @@ static void spi_write_bytes(uint8_t* data, uint16_t length)
 }
 #endif
 
+#ifdef BUSPIRATEV4
+
+/*
+ * CS transition events captured by the change notification interrupt on
+ * RD4 (CN13): '[' for a falling edge, ']' for a rising one.  A polled
+ * check cannot see a CS pulse only a microsecond wide (issue #141); the
+ * CN hardware latches every edge, and the sniffer loop drains the ring
+ * in order.
+ */
+static volatile uint8_t cs_edge_ring[8];
+static volatile uint8_t cs_edge_head;
+static volatile uint8_t cs_edge_tail;
+
+void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void) {
+  _CNIF = 0;
+  cs_edge_ring[cs_edge_head & 0x07] = (SPICS == HIGH) ? ']' : '[';
+  cs_edge_head++;
+}
+
+#endif /* BUSPIRATEV4 */
+
 void spi_sniffer(bool trigger, bool terminal_mode) {
+#ifndef BUSPIRATEV4
   bool last_cs_line_state;
+#endif
 
 restart:
 
+#ifndef BUSPIRATEV4
   last_cs_line_state = HIGH;
+#endif
 
   user_serial_ringbuffer_setup();
   spi_disable_interface();
   spi_slave_enable();
+
+#ifdef BUSPIRATEV4
+  /*
+   * Capture CS transitions in hardware: the change notification
+   * interrupt latches every edge, so even the ~1 us CS pulses between
+   * back-to-back SPI transactions produce their [ ] markers (#141).
+   */
+  cs_edge_head = 0;
+  cs_edge_tail = 0;
+  _CNIF = 0;
+  _CNIP = 1;
+  CNEN1bits.CN13IE = 1;
+  _CNIE = 1;
+#endif /* BUSPIRATEV4 */
 
   if (trigger == SPI_SNIFF_ON_CS_LOW) {
     SPI1CON1bits.SSEN = ON;
@@ -704,11 +743,19 @@ restart:
 
   for (;;) {
 
+#ifdef BUSPIRATEV4
+    /* Report the CS transitions the CN interrupt captured, in order. */
+    while (cs_edge_tail != cs_edge_head) {
+      user_serial_ringbuffer_append(cs_edge_ring[cs_edge_tail & 0x07]);
+      cs_edge_tail++;
+    }
+#else
     /* Detect a CS line state change. */
     if ((last_cs_line_state == LOW) && (SPICS == HIGH)) {
       user_serial_ringbuffer_append(']');
       last_cs_line_state = HIGH;
     }
+#endif /* BUSPIRATEV4 */
 
     /* Is there any data to read? */
     if ((SPI1STATbits.SRXMPT == NO) && (SPI2STATbits.SRXMPT == NO)) {
@@ -716,10 +763,12 @@ restart:
 
       data = SPI1BUF;
 
+#ifndef BUSPIRATEV4
       if (last_cs_line_state == HIGH) {
         user_serial_ringbuffer_append('[');
         last_cs_line_state = LOW;
       }
+#endif /* BUSPIRATEV4 */
 
       if (terminal_mode) {
         bp_write_hex_byte_to_ringbuffer(data);
@@ -792,6 +841,11 @@ restart:
       break;
     }
   }
+
+  #ifdef BUSPIRATEV4
+  _CNIE = 0;
+  CNEN1bits.CN13IE = 0;
+#endif /* BUSPIRATEV4 */
 
   spi_slave_disable();
 

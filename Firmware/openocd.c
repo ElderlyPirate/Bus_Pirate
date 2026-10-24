@@ -57,10 +57,10 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 #define OOCD_TDI_ODC BP_MOSI_ODC
 #ifdef BUSPIRATEV3
 #define OOCD_SRST_ODC BP_AUX0_ODC
-#define OOCD_TRST_ODC BP_PGD
+#define OOCD_TRST_ODC BP_PGD_ODC
 #else
 #define OOCD_SRST_ODC BP_AUX_ODC
-#define OOCD_TRST_ODC BP_AUX1
+#define OOCD_TRST_ODC BP_AUX1_ODC
 #endif /* BUSPIRATEV3 */
 
 #define CMD_UNKNOWN 0x00

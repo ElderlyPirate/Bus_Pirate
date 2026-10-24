@@ -943,8 +943,8 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
 
   ONEWIRE_DATA_DIRECTION = INPUT;
   if (mode_configuration.speed == 1) {
-    /* AN126: Parameter G */
-    bp_delay_us(1);
+    /* AN126: Parameter G (2.5 us minimum in overdrive). */
+    bp_delay_us(3);
   }
   ONEWIRE_DATA_LINE = LOW;
   ONEWIRE_DATA_DIRECTION = OUTPUT;
@@ -962,11 +962,11 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
 
   /* Release the bus. */
   ONEWIRE_DATA_DIRECTION = INPUT;
-  /* AN126: Parameter I */
+  /* AN126: Parameter I (7.2 us minimum in overdrive). */
   if (mode_configuration.speed == 0) {
     bp_delay_us(65);
   } else {
-    bp_delay_us(6);
+    bp_delay_us(8);
   }
 
   /* Read the data line. */
@@ -975,11 +975,11 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
     result = ONEWIRE_BUS_RESET_NO_DEVICE;
   }
 
-  /* AN126: Parameter J */
+  /* AN126: Parameter J (39.5 us minimum in overdrive). */
   if (mode_configuration.speed == 0) {
     bp_delay_us(500);
   } else {
-    bp_delay_us(32);
+    bp_delay_us(40);
   }
 
   /* Read the data line. */
@@ -1310,16 +1310,24 @@ bool onewire_internal_bit_io(bool bit_value) {
 
   /* AN126: Parameter A */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(4);
+    bp_delay_us(5);
   } else {
+    /*
+     * Measured overdrive low settles around 2.4 us here (AN126 recommends
+     * 1..1.85 us).  Removing this delay instead produced ~0.4 us, which is
+     * worse than the small overshoot - a 1-bit that releases too early can
+     * be sampled as 0 by an overdrive slave.
+     */
     bp_delay_us(1);
   }
   if (bit_value) {
     ONEWIRE_DATA_DIRECTION = INPUT;
   }
-  /* AN126: Parameter E */
+  /* AN126: Parameter E (5..12 us from release to sample).  Together with
+   * parameter A this keeps the read-sample point at the 15 us device
+   * limit, as before this change. */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(8);
+    bp_delay_us(7);
   }
 
   /*
@@ -1333,18 +1341,18 @@ bool onewire_internal_bit_io(bool bit_value) {
 
   if (bit_value) {
     bit_value = ONEWIRE_DATA_LINE;
-    /* AN126: Parameter F */
+    /* AN126: Parameter F (50 us minimum in standard mode). */
     if (mode_configuration.speed == 0) {
-      bp_delay_us(32);
+      bp_delay_us(50);
     } else {
-      bp_delay_us(6);
+      bp_delay_us(7);
     }
   } else {
-    /* AN126: Parameter C */
+    /* AN126: Parameter C (60 us minimum in standard mode). */
     if (mode_configuration.speed == 0) {
-      bp_delay_us(25);
+      bp_delay_us(48);
     } else {
-      bp_delay_us(4);
+      bp_delay_us(6);
     }
     ONEWIRE_DATA_DIRECTION = INPUT;
     /* AN126: Parameter D */

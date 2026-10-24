@@ -78,6 +78,7 @@
 #define BP_MISO_ODC ODCBbits.ODB7
 #define BP_CS_ODC ODCBbits.ODB6
 #define BP_AUX0_ODC ODCBbits.ODB10
+#define BP_PGD_ODC ODCBbits.ODB0
 
 // Change notice assignment
 #define BP_MOSI_CN CNEN2bits.CN21IE

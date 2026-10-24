@@ -107,6 +107,14 @@ void raw2wire_setup_prepare(void) {
     mode_configuration.high_impedance = (output - 1) == 0;
     raw2wire_print_settings();
   }
+
+  /*
+   * Apply the timing profile here as well: the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with the previous mode's profile.
+   * The pins themselves are still configured by setup_execute().
+   */
+  bitbang_setup(2, mode_configuration.speed);
 }
 
 void raw2wire_setup_execute(void) {

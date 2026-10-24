@@ -392,6 +392,18 @@ void i2c_setup_prepare(void) {
 
   mode_configuration.high_impedance = ON;
   bitbang_i2c_clear_error();
+
+  /*
+   * Software I2C takes its clock timing from the bit-bang delay profile;
+   * apply it here as well because the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with a stale profile.  The pins
+   * are still configured by setup_execute() (hardware mode does its own
+   * setup there).
+   */
+  if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
+    bitbang_setup(2, mode_configuration.speed);
+  }
 }
 
 void i2c_setup_execute(void) {
@@ -967,17 +979,17 @@ void handle_pending_ack(const bool bus_bit) {
 /*
 rawI2C mode:
 # 00000000//reset to BBIO
-# 00000001 ÃƒÂ¯Ã‚Â¿Ã‚Â½ mode version string (I2C1)
-# 00000010 ÃƒÂ¯Ã‚Â¿Ã‚Â½ I2C start bit
-# 00000011 ÃƒÂ¯Ã‚Â¿Ã‚Â½ I2C stop bit
+# 00000001 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ mode version string (I2C1)
+# 00000010 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ I2C start bit
+# 00000011 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ I2C stop bit
 # 00000100 - I2C read byte
 # 00000110 - ACK bit
 # 00000111 - NACK bit
-# 0001xxxx ÃƒÂ¯Ã‚Â¿Ã‚Â½ Bulk transfer, send 1-16 bytes (0=1byte!)
+# 0001xxxx ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ Bulk transfer, send 1-16 bytes (0=1byte!)
 # (0110)000x - Set I2C speed, 3 = 400khz 2=100khz 1=50khz 0=5khz
 # (0111)000x - Read speed, (planned)
-# (0100)wxyz ÃƒÂ¯Ã‚Â¿Ã‚Â½ Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
-# (0101)wxyz ÃƒÂ¯Ã‚Â¿Ã‚Â½ read peripherals (planned, not implemented)
+# (0100)wxyz ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
+# (0101)wxyz ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ read peripherals (planned, not implemented)
  */
 
 void binary_io_enter_i2c_mode(void) {

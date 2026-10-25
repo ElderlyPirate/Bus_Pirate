@@ -776,8 +776,8 @@ void binUART(void) {
         for (;;) {
 
 #ifdef BUSPIRATEV4
-          if (U2STAbits.URXDA == ON) {
-            user_serial_transmit_character(U2RXREG);
+          if (uart2_rx_ready()) {
+            user_serial_transmit_character(uart2_rx());
           }
 #else
           if ((U2STAbits.URXDA == 1) && (U1STAbits.UTXBF == 0)) {

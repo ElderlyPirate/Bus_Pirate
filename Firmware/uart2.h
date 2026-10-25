@@ -171,6 +171,18 @@ bool uart2_rx_ready(void);
  */
 uint8_t uart2_rx(void);
 
+#if defined(BUSPIRATEV4)
+
+/**
+ * Returns the number of receiver overruns observed since the port was last
+ * enabled (a hardware overrun or a full receive ring).
+ *
+ * @return the overrun count.
+ */
+uint16_t uart2_rx_overrun_count(void);
+
+#endif /* BUSPIRATEV4 */
+
 #endif /* BP_ENABLE_UART_SUPPORT */
 
 #endif /* !BP_UART2_H */

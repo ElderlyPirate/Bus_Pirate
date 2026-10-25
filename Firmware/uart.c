@@ -87,26 +87,26 @@ static uint32_t uart_get_baud_rate(const bool quiet);
 uint16_t uart_read(void) {
   if (uart2_rx_ready()) {
     uint16_t character;
+    uint8_t flags;
 
-    /* Parity error? */
-    if (U2STAbits.PERR) {
+    character = uart2_rx();
+    flags = uart2_rx_flags();
+
+    /* Parity error on this character? */
+    if (flags & UART2_RX_FLAG_PARITY) {
       MSG_UART_PARITY_ERROR;
     }
 
-    /* Framing error? */
-    if (U2STAbits.FERR) {
+    /* Framing error on this character? */
+    if (flags & UART2_RX_FLAG_FRAMING) {
       MSG_UART_FRAMING_ERROR;
     }
 
-    character = uart2_rx();
-
-    /* Overrun error? */
-    if (U2STAbits.OERR) {
-      MSG_UART_OVERRUN_ERROR;
-
-      /* Clear overrun flag. */
-      U2STAbits.OERR = OFF;
-    }
+    /*
+     * Overruns are detected and cleared by the receive interrupt (fast
+     * enough that the old here-and-now OERR check no longer applies);
+     * the cumulative count is available via uart2_rx_overrun_count().
+     */
 
     return character;
   }
@@ -344,12 +344,12 @@ void uart_run_macro(const uint16_t macro) {
         break;
       }
 
-      if (U2STAbits.URXDA == ON) {
-        user_serial_transmit_character(U2RXREG);
+      if (uart2_rx_ready()) {
+        user_serial_transmit_character(uart2_rx());
       }
 #else
-      if ((U2STAbits.URXDA == ON) && (U1STAbits.UTXBF == OFF)) {
-        U1TXREG = U2RXREG;
+      if (uart2_rx_ready() && (U1STAbits.UTXBF == OFF)) {
+        U1TXREG = uart2_rx();
       }
 #endif /* BUSPIRATEV4 */
 
@@ -395,8 +395,8 @@ void uart_run_macro(const uint16_t macro) {
         user_serial_transmit_character(uart2_rx());
       }
 #else
-      if ((U2STAbits.URXDA == ON) && (U1STAbits.UTXBF == OFF)) {
-        U1TXREG = U2RXREG;
+      if (uart2_rx_ready() && (U1STAbits.UTXBF == OFF)) {
+        U1TXREG = uart2_rx();
       }
 #endif /* BUSPIRATEV4 */
 
@@ -454,6 +454,8 @@ bool uart_periodic_callback(void) {
 
   handled = false;
   while (uart2_rx_ready()) {
+    uint8_t flags;
+
     handled = true;
 
     if (!uart_settings.echo_uart) {
@@ -465,25 +467,17 @@ bool uart_periodic_callback(void) {
     bpBR;
     MSG_READ_HEADER;
 
-    /* Parity error? */
-    if (U2STAbits.PERR) {
+    bp_write_formatted_integer(uart2_rx());
+    flags = uart2_rx_flags();
+
+    /* Parity error on this character? */
+    if (flags & UART2_RX_FLAG_PARITY) {
       MSG_UART_PARITY_ERROR;
     }
 
-    /* Framing error? */
-    if (U2STAbits.FERR) {
+    /* Framing error on this character? */
+    if (flags & UART2_RX_FLAG_FRAMING) {
       MSG_UART_FRAMING_ERROR;
-    }
-
-    bp_write_formatted_integer(uart2_rx());
-
-    /* Overrun error? */
-    if (U2STAbits.OERR) {
-
-      /* Clear overrun flag. */
-      U2STAbits.OERR = OFF;
-
-      MSG_UART_OVERRUN_ERROR;
     }
 
     bpBR;
@@ -776,12 +770,22 @@ void binUART(void) {
         for (;;) {
 
 #ifdef BUSPIRATEV4
+          /*
+           * Escape hatch, like the other bridge loops: the button leaves
+           * the bridge so the port can be recovered without a power cycle
+           * (this loop would otherwise forward every host byte to the UART
+           * forever, with no way out).
+           */
+          if (BP_BUTTON_ISDOWN()) {
+            break;
+          }
+
           if (uart2_rx_ready()) {
             user_serial_transmit_character(uart2_rx());
           }
 #else
-          if ((U2STAbits.URXDA == 1) && (U1STAbits.UTXBF == 0)) {
-            U1TXREG = U2RXREG;
+          if (uart2_rx_ready() && (U1STAbits.UTXBF == 0)) {
+            U1TXREG = uart2_rx();
           }
 #endif /* BUSPIRATEV4 */
           

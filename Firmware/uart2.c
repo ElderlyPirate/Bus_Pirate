@@ -27,22 +27,27 @@
 #define UARTTX_PIN BP_MOSI_RPOUT
 #define UARTTX_ODC BP_MOSI_ODC
 
-#if defined(BUSPIRATEV4)
-
 /*
- * UART2 receive buffer (v4).
+ * UART2 receive buffer (both variants; the U2RX interrupt is available on
+ * the v3 and v4 chips alike).
  *
- * The receive side must never depend on what the main loop is doing: host
- * (USB) writes can block for milliseconds under backpressure, and this
- * UART has no hardware FIFO - an unread byte is simply replaced by the
- * next one, so a stalled loop silently drops received data.  The RX
- * interrupt drains the hardware into this ring instead, and the rest of
- * the firmware reads from the ring.
+ * The receive side must never depend on what the main loop is doing: the
+ * host writes can block for a long time (USB CDC backpressure on the v4,
+ * the UART1 transmitter on the v3), and this UART has no hardware FIFO -
+ * an unread byte is simply replaced by the next one, so a stalled loop
+ * silently drops received data.  The RX interrupt drains the hardware into
+ * this ring instead, and the rest of the firmware reads from the ring.
+ * The parity/framing status of each character is captured per byte as
+ * well: PERR/FERR are read-only status bits for the character at the top
+ * of the FIFO, and the interrupt consumes the characters the old code
+ * used to inspect.
  */
 #define UART2_RX_BUFFER_SIZE 128 /* power of two */
 static volatile uint8_t uart2_rx_buffer[UART2_RX_BUFFER_SIZE];
+static volatile uint8_t uart2_rx_flag_buffer[UART2_RX_BUFFER_SIZE];
 static volatile uint8_t uart2_rx_head = 0;
 static volatile uint8_t uart2_rx_tail = 0;
+static volatile uint8_t uart2_rx_last_flags = 0;
 static volatile uint16_t uart2_rx_overruns = 0;
 
 void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
@@ -53,8 +58,8 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
 
   /*
    * A hardware overrun means the previous byte was replaced before the
-   * interrupt could read it; clear the error so reception resumes and
-   * count it for diagnostics.
+   * interrupt could read it; clearing OERR resets the receiver FIFO and
+   * the shift register (per the family datasheet), so only count it.
    */
   if (U2STAbits.OERR) {
     U2STAbits.OERR = OFF;
@@ -62,9 +67,13 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
   }
 
   if (U2STAbits.URXDA) {
+    uint8_t flags = (uint8_t)((U2STAbits.PERR ? UART2_RX_FLAG_PARITY : 0) |
+                              (U2STAbits.FERR ? UART2_RX_FLAG_FRAMING : 0));
+
     next = (uint8_t)((uart2_rx_head + 1) & (UART2_RX_BUFFER_SIZE - 1));
 
     if (next != uart2_rx_tail) {
+      uart2_rx_flag_buffer[uart2_rx_head] = flags;
       uart2_rx_buffer[uart2_rx_head] = (uint8_t)(U2RXREG & 0xFF);
       uart2_rx_head = next;
     } else {
@@ -74,8 +83,6 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
     }
   }
 }
-
-#endif /* BUSPIRATEV4 */
 
 void uart2_setup(const uint16_t baud_rate_generator_prescaler,
                  const bool open_drain_output, const bool invert_polarity,
@@ -139,18 +146,15 @@ void uart2_enable(void) {
   /* Enable data transmission. */
   U2STAbits.UTXEN = ON;
 
-#if defined(BUSPIRATEV4)
-  /* Reset the receive ring and enable the RX interrupt. */
+/* Reset the receive ring and enable the RX interrupt. */
   uart2_rx_head = 0;
   uart2_rx_tail = 0;
+  uart2_rx_last_flags = 0;
   uart2_rx_overruns = 0;
-#endif /* BUSPIRATEV4 */
 
-  /* Clear UART2 interrupt flag. */
+  /* Clear UART2 interrupt flag and enable the RX interrupt. */
   IFS1bits.U2RXIF = OFF;
-#if defined(BUSPIRATEV4)
   IEC1bits.U2RXIE = ON;
-#endif /* BUSPIRATEV4 */
 
   /*
    * Tristate bits are ignored by the PPS peripheral, and are set here only to
@@ -160,10 +164,8 @@ void uart2_enable(void) {
 }
 
 void uart2_disable(void) {
-#if defined(BUSPIRATEV4)
   /* Disable the RX interrupt before touching the port. */
   IEC1bits.U2RXIE = OFF;
-#endif /* BUSPIRATEV4 */
 
   /* Disable UART port. */
   U2MODEbits.UARTEN = OFF;
@@ -193,8 +195,6 @@ void uart2_tx(const uint8_t character) {
   U2TXREG = character;
 }
 
-#if defined(BUSPIRATEV4)
-
 uint8_t uart2_rx(void) {
   uint8_t character;
 
@@ -203,26 +203,15 @@ uint8_t uart2_rx(void) {
   }
 
   character = uart2_rx_buffer[uart2_rx_tail];
+  uart2_rx_last_flags = uart2_rx_flag_buffer[uart2_rx_tail];
   uart2_rx_tail = (uint8_t)((uart2_rx_tail + 1) & (UART2_RX_BUFFER_SIZE - 1));
   return character;
 }
 
 inline bool uart2_rx_ready(void) { return uart2_rx_head != uart2_rx_tail; }
 
+uint8_t uart2_rx_flags(void) { return uart2_rx_last_flags; }
+
 uint16_t uart2_rx_overrun_count(void) { return uart2_rx_overruns; }
-
-#else
-
-uint8_t uart2_rx(void) {
-  /* Wait until the RX buffer is full. */
-  while (U2STAbits.URXDA == OFF) {
-  }
-
-  return (uint8_t)(U2RXREG & 0xFF);
-}
-
-inline bool uart2_rx_ready(void) { return U2STAbits.URXDA; }
-
-#endif /* BUSPIRATEV4 */
 
 #endif /* BP_ENABLE_UART_SUPPORT */

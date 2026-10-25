@@ -171,7 +171,31 @@ bool uart2_rx_ready(void);
  */
 uint8_t uart2_rx(void);
 
-#if defined(BUSPIRATEV4)
+/**
+ * @def UART2_RX_FLAG_PARITY
+ *
+ * uart2_rx_flags() bit: the character returned by the last uart2_rx() had
+ * a parity error.
+ */
+#define UART2_RX_FLAG_PARITY 0x01
+
+/**
+ * @def UART2_RX_FLAG_FRAMING
+ *
+ * uart2_rx_flags() bit: the character returned by the last uart2_rx() had
+ * a framing error.
+ */
+#define UART2_RX_FLAG_FRAMING 0x02
+
+/**
+ * Returns the parity/framing flags of the character returned by the most
+ * recent uart2_rx() call.  The receiver is drained by its interrupt, so
+ * the PERR/FERR status registers themselves no longer describe the
+ * characters the caller reads.
+ *
+ * @return UART2_RX_FLAG_PARITY and/or UART2_RX_FLAG_FRAMING, or zero.
+ */
+uint8_t uart2_rx_flags(void);
 
 /**
  * Returns the number of receiver overruns observed since the port was last
@@ -180,8 +204,6 @@ uint8_t uart2_rx(void);
  * @return the overrun count.
  */
 uint16_t uart2_rx_overrun_count(void);
-
-#endif /* BUSPIRATEV4 */
 
 #endif /* BP_ENABLE_UART_SUPPORT */
 

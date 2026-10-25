@@ -844,11 +844,21 @@ restart:
     user_serial_ringbuffer_process();
 
     if (user_serial_ready_to_read()) {
-      user_serial_read_byte();
-
       if (terminal_mode) {
+        /* Interactive sniffer: consume the key and start a fresh line
+           for the terminal prompt that follows. */
+        user_serial_read_byte();
         bpBR;
       }
+      /*
+       * Binary-mode sniffer: leave the pending byte for the command
+       * loop that follows.  Consuming it here swallows one host
+       * command - typically the 0x00 exit or a 0x0F reset - so a host
+       * that did not expect the sniffer needs a second command byte to
+       * recover, and a session that accidentally entered the sniffer
+       * looks wedged until it does.  Treating the stopping byte as the
+       * next command removes that desynchronization entirely.
+       */
       break;
     }
   }

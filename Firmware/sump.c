@@ -825,16 +825,17 @@ bool sump_handle_command_byte(unsigned char input_byte) {
       uint32_t period;
 
       /*
-       * Read the 24-bits period value and rescale from SUMP's
-       * own 100MHz frequency range to the internal 16MIPs
-       * range.
+       * Read the 24-bit divider value (x): SUMP asks for a rate of
+       * 100MHz / (x + 1), and the timer flag fires every PR + 1 ticks at
+       * 16 MIPs, so PR = (x + 1) * 16 / 100 - 1.  The reference
+       * enhancement uses x * 4 / 25 for this, which is the same value
+       * (the -1 is folded into its truncation); keep it exact like that,
+       * so e.g. 1MHz comes out as PR = 15 -> 16MHz / 16 = 1.000 MHz.
        */
-      period = (((((uint32_t)command_buffer.bytes[3] << 16) +
-                  ((uint32_t)command_buffer.bytes[2] << 8) +
-                  (uint32_t)command_buffer.bytes[1]) +
-                 1) *
-                4) /
-               25;
+      period = (((uint32_t)command_buffer.bytes[3] << 16) +
+                ((uint32_t)command_buffer.bytes[2] << 8) +
+                (uint32_t)command_buffer.bytes[1]) *
+               4 / 25;
 
       /*
        * Rates above 1MHz cannot be kept by a timer-polled loop, so they
@@ -851,13 +852,6 @@ bool sump_handle_command_byte(unsigned char input_byte) {
         sump_go_fast = 1; /* 2MHz */
       } else {
         sump_go_fast = 0; /* 1MHz and below: timer-driven */
-
-        /* Round down to absorb the polling loop's own overhead. */
-        if (period > 0x10) {
-          period -= 0x10;
-        } else {
-          period = 1;
-        }
 
         /* Set timer period. */
         PR5 = HI16(period);
@@ -1118,21 +1112,26 @@ static void sump_transmit_fast(unsigned int samples, unsigned int requested,
  *
  * @param samples how many real samples the window holds.
  * @param requested how many sample bytes the host asked for.
- * @param written total number of samples taken; the window is the last
- *        `samples` of them.
+ * @param end_index one past the newest sample of the window.  The capture
+ *        may have overshot it by up to one storage word (bookkeeping runs
+ *        per word), so only samples before it are sent.
+ * @param written total number of samples taken; it bounds what the ring
+ *        can still hold.
  * @param per_word samples packed into each 16-bit word.
  * @param shift bit shift between consecutive samples in a word.
  * @param mask channel bits recorded in each sample.
  */
 static void sump_transmit_packed(unsigned int samples, unsigned int requested,
-                                 uint32_t written, unsigned int per_word,
-                                 unsigned char shift, uint8_t mask) {
+                                 uint32_t end_index, uint32_t written,
+                                 unsigned int per_word, unsigned char shift,
+                                 uint8_t mask) {
   const uint16_t *buffer =
       (const uint16_t *)bus_pirate_configuration.terminal_input;
   uint32_t words = (written + per_word - 1) / per_word;
   uint32_t floor = (words > 2048u) ? (words - 2048u) * per_word : 0u;
-  unsigned int slot = (unsigned int)((words - 1u) % 2048u);
-  unsigned int sub = (unsigned int)((written - 1u) % per_word);
+  uint32_t last = end_index - 1u; /* the newest sample of the window */
+  unsigned int slot = (unsigned int)((last / per_word) % 2048u);
+  unsigned int sub = (unsigned int)(last % per_word);
   uint16_t packed = buffer[slot];
   uint8_t pattern = 0x55;
   unsigned int index;
@@ -1143,7 +1142,7 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
   }
 
   for (index = 0; index < samples; index++) {
-    uint32_t absolute = written - 1u - index;
+    uint32_t absolute = last - index;
 
     if (absolute < floor) {
       /* The oldest part of the window was overwritten in the ring. */
@@ -1242,6 +1241,8 @@ bool sump_acquire_samples(void) {
     unsigned int pre_trigger;
     uint32_t written = 0;    /* samples taken so far */
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
+    uint32_t end_index = 0;  /* one past the newest sample of the window */
+    unsigned int quiet_words = 0; /* words since the last host check */
     unsigned int slot = 0;   /* next ring slot to store a word in */
     unsigned int fill = 0;   /* samples packed into the working word */
     uint16_t working = 0;
@@ -1265,13 +1266,6 @@ bool sump_acquire_samples(void) {
     for (;;) {
       uint16_t probe;
 
-      /* Finished when the window's last sample has been taken. */
-      if (trigger_armed
-              ? (triggered && written >= trigger_at + delay)
-              : (written >= samples)) {
-        break;
-      }
-
       /* Take one sample and pack it into the working word. */
       probe = BP_SUMP_READ_PROBE();
       working =
@@ -1280,50 +1274,65 @@ bool sump_acquire_samples(void) {
 
       if (++fill == per_word) {
         buffer[slot] = working;
-        slot++;
-        if (slot == 2048) {
+        if (++slot == 2048) {
           slot = 0;
         }
         fill = 0;
         working = 0;
 
-        /* Any host byte during a capture aborts it; the byte stays in
-           place for the command loop to handle. */
-        if (user_serial_ready_to_read()) {
-          T4CON = OFF;
-          sump_reset();
-          return true;
+        /* Trigger bookkeeping, once per stored word: buffer the
+           pre-trigger part first, then arm on a clean state (a trigger
+           before that point is ignored, as the window cannot hold what
+           came before it).  The trigger lands within one word of true. */
+        if (trigger_armed) {
+          if (!armed) {
+            if (written >= pre_trigger) {
+              armed = true;
+              IFS1bits.CNIF = OFF;
+            }
+          } else if (!triggered && IFS1bits.CNIF) {
+            triggered = true;
+            trigger_at = written;
+            IFS1bits.CNIF = OFF;
+          }
+        }
+
+        /* Stop once the requested window is covered; the readout trims
+           any overshoot of the last word. */
+        if (trigger_armed) {
+          if (triggered && written >= trigger_at + delay) {
+            end_index = trigger_at + delay;
+            break;
+          }
+        } else if (written >= samples) {
+          end_index = samples;
+          break;
+        }
+
+        /* Host escape, checked every few words so the hot loop stays
+           fast.  Any host byte aborts the capture; it stays in place for
+           the command loop to handle. */
+        if (++quiet_words >= 8) {
+          quiet_words = 0;
+          if (user_serial_ready_to_read()) {
+            T4CON = OFF;
+            sump_reset();
+            return true;
+          }
         }
       }
 
       /* Wait for the next sampling tick. */
       SUMP_WAIT_FOR_TIMER(sump_la_sample);
-
-      /* Trigger bookkeeping.  Buffer the pre-trigger part first, then
-         arm on a clean state; a trigger before that point is ignored,
-         as the window cannot hold what came before it. */
-      if (trigger_armed && !triggered) {
-        if (!armed) {
-          if (written >= pre_trigger) {
-            armed = true;
-            IFS1bits.CNIF = OFF;
-          }
-        } else if (IFS1bits.CNIF) {
-          triggered = true;
-          trigger_at = written;
-          IFS1bits.CNIF = OFF;
-        }
-      }
     }
 
-    /* Stop sampling, then store the final partial word so the whole
-       window is in the ring before it is read back. */
+    /* Stop sampling.  The capture always stops on a word boundary, and
+       up to one word of samples past the window end is simply not read
+       back (the readout walks to the exact end index). */
     T4CON = OFF;
-    if (fill) {
-      buffer[slot] = working;
-    }
 
-    sump_transmit_packed(samples, requested, written, per_word, shift, mask);
+    sump_transmit_packed(samples, requested, end_index, written, per_word,
+                         shift, mask);
   }
 
   /* Reset the analyzer state. */

@@ -4,5 +4,10 @@
 /Makefile
 /cmake_install.cmake
 
+# Out-of-source build directory, as used by the documented
+#   cmake -S . -B build
+# invocation.
+/build/
+
 # build output
 /pirate-loader

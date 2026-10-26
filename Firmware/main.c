@@ -39,9 +39,12 @@ static void initialize_board(void);
 
 /**
  * Internal terminal buffer area.
+ *
+ * Also used as the SUMP sample buffer, which stores samples as 16-bit
+ * packed words: keep it word-aligned.
  */
 static uint8_t bp_buffer[BP_TERMINAL_BUFFER_SIZE]
-    __attribute__((section(".bss.end")));
+    __attribute__((section(".bss.end"), aligned(2)));
 
 /**
  * Global configuration data holder.

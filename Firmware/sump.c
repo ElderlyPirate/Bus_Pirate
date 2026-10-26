@@ -34,10 +34,14 @@
  *
  * @TODO: Add commands 0x0F, 0x9E, 0x9F from the extended SUMP protocol?
  * @TODO: Add "Set trigger configuration" command (0xC2, 0xC6, 0xCA, 0xCE).
- * @TODO: Check why samples are sent out backwards.
  * @TODO: Implement continuous sampling.
  * @TODO: Remove sump_command_t.left and turn the structure into two separate
  *        fields.
+ *
+ * Samples are sent newest-first ("backwards").  That is not a bug: the
+ * Bus Pirate profiles for the Openbench Logic Sniffer client say
+ * device.samples.reverseOrder = false ("last sample first"), so the host
+ * expects the most recent sample right after the capture starts streaming.
  */
 
 /**
@@ -273,13 +277,47 @@
 
 /**
  * The highest sample rate for the Bus Pirate to sample data at, in Hz.
+ *
+ * The timer-driven sampler covers 1MHz and below; above that the capture
+ * switches to cycle-counted polling loops (2, 4, 8 and 16MHz), where the
+ * 16MHz rate is one sample per instruction cycle of the 16MIPs core.
  */
-#define BP_SUMP_MAXIMUM_SAMPLE_RATE 1000000
+#define BP_SUMP_MAXIMUM_SAMPLE_RATE 16000000
 
 /**
  * How many probes the Bus Pirate can use.
  */
 #define BP_SUMP_PROBES_COUNT NUM_OF_SUMP_CHANNELS
+
+/**
+ * How a raw port read turns into one sample byte, and the channels that
+ * are actually recorded in it.
+ *
+ * Both variants record every channel the JTR SUMP wiring exposes, mapped
+ * to the least significant bits of the byte sent to the host:
+ *
+ *  - v3: CS, MISO, CLK, MOSI, AUX live on PORTB<10:6>.
+ *  - v4: AUX2, MOSI, CLK, MISO, CS and AUX0 live on PORTD<5:0>; AUX1 is
+ *    on PORTD<8> and is soft-wired into bit 7 of the byte.  Bit 6 has no
+ *    pin behind it, so it is not recorded (the host sees the alternating
+ *    pattern there).
+ *
+ * BP_SUMP_PORT_ADDRESS is the SFR address the fast sampling loops read;
+ * the values come from the device .gld files shipped with this firmware
+ * (p24FJ64GA002.gld and p24FJ256GB106.gld, part support 1.26.A).
+ */
+#ifdef BUSPIRATEV4
+#define BP_SUMP_SAMPLE_MASK 0xBFu
+#define BP_SUMP_SAMPLE_TRANSFORM(port)                                         \
+  ((uint8_t)(((port)&0x3Fu) | (((port)&0x100u) >> 1)))
+#define BP_SUMP_READ_PROBE() PORTD
+#define BP_SUMP_PORT_ADDRESS 0x02DAu /* PORTD */
+#else
+#define BP_SUMP_SAMPLE_MASK 0x1Fu
+#define BP_SUMP_SAMPLE_TRANSFORM(port) ((uint8_t)(((port) >> 6) & 0x1Fu))
+#define BP_SUMP_READ_PROBE() PORTB
+#define BP_SUMP_PORT_ADDRESS 0x02CAu /* PORTB */
+#endif
 
 /**
  * SUMP protocol version the Bus Pirate supports.
@@ -309,7 +347,7 @@ static const uint8_t SUMP_METADATA[] = {
     (uint8_t)(((uint32_t)BP_SUMP_SAMPLE_MEMORY_SIZE >> 8) & 0xFF),
     (uint8_t)((uint32_t)BP_SUMP_SAMPLE_MEMORY_SIZE & 0xFF),
 
-    /* Sample rate (1MHz). */
+    /* Sample rate (16MHz). */
 
     SUMP_METADATA_MAXIMUM_SAMPLE_RATE,
     (uint8_t)((uint32_t)BP_SUMP_MAXIMUM_SAMPLE_RATE >> 24),
@@ -317,7 +355,13 @@ static const uint8_t SUMP_METADATA[] = {
     (uint8_t)(((uint32_t)BP_SUMP_MAXIMUM_SAMPLE_RATE >> 8) & 0xFF),
     (uint8_t)((uint32_t)BP_SUMP_MAXIMUM_SAMPLE_RATE & 0xFF),
 
-    /* Number of probes (5). */
+    /* Ancillary version: "enh" is the community marker for the enlarged
+       sample buffers and rates, so the enhanced client profiles can be
+       matched against it. */
+
+    SUMP_METADATA_ANCILLARY_VERSION, 'e', 'n', 'h', '\0',
+
+    /* Number of probes. */
 
     SUMP_METADATA_USABLE_PROBES_SHORT_NUMBER, BP_SUMP_PROBES_COUNT,
 
@@ -396,23 +440,71 @@ static sump_sampler_state_t sampler_state = SAMPLER_IDLE;
 static sump_analyzer_command_state_t command_processor_state = RX_COMMAND_IDLE;
 
 /**
- * How many bytes should be acquired in the next sampling operation, in bytes.
+ * How many samples should be acquired in the next sampling operation.
+ *
+ * This is the target for the capture: after the channel-count negotiation
+ * in SUMP_CNT and the rate-based limits applied when the capture starts,
+ * a capture always provides this many samples.  The host is always sent
+ * samples_requested samples; when the configured sample rate or buffer
+ * cannot supply them all, the shortfall is padded with the alternating
+ * 0x55/0xAA pattern (see the transmit helpers).
  */
 static unsigned int samples_to_acquire;
+
+/**
+ * How many samples the host requested in the last SUMP_CNT command.  The
+ * host reads exactly this many sample bytes back.
+ */
+static unsigned int samples_requested;
+
+/**
+ * How many samples after the trigger must fall inside the captured window
+ * (the SUMP delay count).  Everything else in the window was captured
+ * before the trigger.  At the fast rates (2MHz upwards) the trigger is
+ * always at the start of the window and this value is ignored.
+ */
+static unsigned int trigger_delay_samples;
+
+/**
+ * Samples per 16-bit storage word for the timer-driven sampler, and the
+ * matching pack/unpack shift: 16 samples per word for one channel, 8 for
+ * two, 4 for four and 2 when every channel is recorded.
+ */
+static unsigned char sump_samples_per_word;
+static unsigned char sump_pack_shift;
+
+/**
+ * Channel mask for the current capture.  Only these port bits are
+ * recorded; the remaining bits of every byte are filled with the
+ * alternating pattern to tell the host they were not recorded.
+ */
+static uint8_t sump_channel_mask;
+
+/**
+ * Non-zero when the capture uses one of the cycle-counted fast sampling
+ * loops instead of the timer: 1 = 2MHz, 2 = 4MHz, 3 = 8MHz and
+ * 4 = 16MHz; 0 selects the timer-driven sampler.
+ */
+static unsigned char sump_go_fast;
 
 // whether trigger is armed
 static bool trigger_armed;
 
 /**
- * Acquires data from the probes and sends it out to the controlling software.
+ * Runs one acquisition and sends the captured window to the host.
  *
- * This function will acquire up to BP_SUMP_SAMPLE_MEMORY_SIZE, by using the
- * value read from the samples_to_acquire variable.  Calling this function
- * where the sampler is not armed will not trigger any action.
+ * Once the sampler is armed (SUMP_RUN), this captures a full window in
+ * one go.  For the timer-driven rates it keeps a rolling pre-trigger ring
+ * until the requested number of post-trigger samples has been recorded
+ * (the trigger can sit anywhere in the window); the fast rates cannot
+ * buffer ahead, so there the trigger marks the start of the window.  A
+ * byte arriving from the host aborts the capture; it stays in place for
+ * the command loop.  Calling this function when the sampler is not armed
+ * does nothing.
  *
  * To avoid rewriting interrupt vectors with the bootloader, this firmware
- * currently uses polling to read the trigger and timer.  A final version
- * should use interrupts after lots of testing.
+ * polls the trigger and timer from the sampling loops, rather than using
+ * interrupts.
  *
  * @return true if data acquisition was performed, false otherwise.
  */
@@ -475,7 +567,10 @@ void sump_reset(void) {
 #ifdef BUSPIRATEV4 
   CNPU1 &= 0b1001111111111111; //turn off pullups on used pins
   CNPU4 &= 0b1111111111000001;
-  CNEN1 &= 0b1001111111111111; //turn off used pins change notice
+  /* Also leave the board button's change notice (CNEN1 bit 0) out of the
+     way: CNIF is the SUMP trigger flag, so a button press must not be
+     able to fake one.  Its pull-up stays on, for the pin reads elsewhere. */
+  CNEN1 &= 0b1001111111111110; //turn off used pins change notice
 #ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
   CNEN4 &= 0b1111111111000001;
 #else 
@@ -502,8 +597,16 @@ void sump_reset(void) {
   PR5 = HI16(BP_DEFAULT_TIMER_PERIOD);
   PR4 = LO16(BP_DEFAULT_TIMER_PERIOD);
 
-  /* Default to acquire a full buffer. */
+  /* Default to acquire a full buffer with every channel recorded, and
+     with the trigger marking the start of the captured window (every
+     sample taken after it - the historical Bus Pirate behaviour). */
+  samples_requested = BP_SUMP_SAMPLE_MEMORY_SIZE;
   samples_to_acquire = BP_SUMP_SAMPLE_MEMORY_SIZE;
+  trigger_delay_samples = BP_SUMP_SAMPLE_MEMORY_SIZE;
+  sump_samples_per_word = 2;
+  sump_pack_shift = 8;
+  sump_channel_mask = BP_SUMP_SAMPLE_MASK;
+  sump_go_fast = 0;
 
   /* Initialize the sampler. */
   sampler_state = SAMPLER_IDLE;
@@ -661,16 +764,62 @@ bool sump_handle_command_byte(unsigned char input_byte) {
       /* @TODO: Fill this? */
       break;
 
-    /* Read requested samples buffer size. */
-    case SUMP_CNT:
-      samples_to_acquire =
-          (((command_buffer.bytes[2] << 8) + command_buffer.bytes[1]) + 1) * 4;
+    /* Read the requested sample count and trigger position. */
+    case SUMP_CNT: {
+      uint32_t read_count;
+      uint32_t delay_count;
 
-      /* Clamp sample counter if more bytes are requested. */
-      if (samples_to_acquire > BP_SUMP_SAMPLE_MEMORY_SIZE) {
-        samples_to_acquire = BP_SUMP_SAMPLE_MEMORY_SIZE;
+      read_count = ((((uint32_t)command_buffer.bytes[2] << 8) +
+                     command_buffer.bytes[1]) +
+                    1) *
+                   4;
+      delay_count = ((((uint32_t)command_buffer.bytes[4] << 8) +
+                      command_buffer.bytes[3]) +
+                     1) *
+                    4;
+
+      samples_requested = (unsigned int)read_count;
+
+      /*
+       * Pick the storage format for the requested capture size: the
+       * sample buffer holds 4096 bytes (2048 packed words), so larger
+       * captures drop channels to fit - 8k samples keep four channels,
+       * 16k keep two and a full 32k capture keeps one.  This mirrors the
+       * enhanced logic analyzer's capture sizes (2k/4k/8k/16k/32k).
+       */
+      if (read_count >= 16ul * 2048ul) {
+        samples_to_acquire = 32768;
+        sump_samples_per_word = 16;
+        sump_pack_shift = 1;
+        sump_channel_mask = 0x01;
+      } else if (read_count >= 8ul * 2048ul) {
+        samples_to_acquire = 16384;
+        sump_samples_per_word = 8;
+        sump_pack_shift = 2;
+        sump_channel_mask = 0x03;
+      } else if (read_count >= 4ul * 2048ul) {
+        samples_to_acquire = 8192;
+        sump_samples_per_word = 4;
+        sump_pack_shift = 4;
+        sump_channel_mask = 0x0F;
+      } else if (read_count >= 2048ul * 2ul) {
+        samples_to_acquire = 4096;
+        sump_samples_per_word = 2;
+        sump_pack_shift = 8;
+        sump_channel_mask = BP_SUMP_SAMPLE_MASK;
+      } else {
+        samples_to_acquire = (unsigned int)read_count;
+        sump_samples_per_word = 2;
+        sump_pack_shift = 8;
+        sump_channel_mask = BP_SUMP_SAMPLE_MASK;
       }
+
+      /* The trigger position cannot sit past the end of the window. */
+      trigger_delay_samples = (delay_count > samples_to_acquire)
+                                  ? samples_to_acquire
+                                  : (unsigned int)delay_count;
       break;
+    }
 
     case SUMP_DIV: {
       uint32_t period;
@@ -682,18 +831,38 @@ bool sump_handle_command_byte(unsigned char input_byte) {
        */
       period = (((((uint32_t)command_buffer.bytes[3] << 16) +
                   ((uint32_t)command_buffer.bytes[2] << 8) +
-                  (uint32_t)command_buffer.bytes[1]) + 1) * 4) / 25;
+                  (uint32_t)command_buffer.bytes[1]) +
+                 1) *
+                4) /
+               25;
 
-      /* Round down if needed. */
-      if (period > 0x10) {
-        period -= 0x10;
+      /*
+       * Rates above 1MHz cannot be kept by a timer-polled loop, so they
+       * switch to the cycle-counted sampling loops.  The nominal timer
+       * periods here: 16MHz = 1 cycle, 8MHz = 2, 4MHz = 4, 2MHz = 8.
+       */
+      if (period < 1) {
+        sump_go_fast = 4; /* 16MHz */
+      } else if (period < 3) {
+        sump_go_fast = 3; /* 8MHz */
+      } else if (period < 7) {
+        sump_go_fast = 2; /* 4MHz */
+      } else if (period < 15) {
+        sump_go_fast = 1; /* 2MHz */
       } else {
-        period = 1;
-      }
+        sump_go_fast = 0; /* 1MHz and below: timer-driven */
 
-      /* Set timer period. */
-      PR5 = HI16(period);
-      PR4 = LO16(period);
+        /* Round down to absorb the polling loop's own overhead. */
+        if (period > 0x10) {
+          period -= 0x10;
+        } else {
+          period = 1;
+        }
+
+        /* Set timer period. */
+        PR5 = HI16(period);
+        PR4 = LO16(period);
+      }
 
       break;
     }
@@ -706,88 +875,462 @@ bool sump_handle_command_byte(unsigned char input_byte) {
   return false;
 }
 
+/*
+ * Enhanced capture engine.
+ *
+ * The plain SUMP mode sampled one byte per timer tick, capped at 1MHz and
+ * 4096 samples, and treated the trigger as a start gate.  The enhanced
+ * logic analyzer (issue #32) adds three things, implemented here:
+ *
+ *  - Sample rates up to 16MHz.  Above 1MHz the timer-polled loop gets too
+ *    slow, so the capture switches to the cycle-counted polling loops
+ *    below, running at one sample per 1, 2, 4 and 8 instruction cycles of
+ *    the 16MIPs core.
+ *  - Larger captures on fewer channels: the 4096-byte buffer holds 4k
+ *    samples with every channel, 8k with four channels, 16k with two and
+ *    32k with one, by packing several samples into every 16-bit word.
+ *    Channel bits that are not recorded are filled with an alternating
+ *    0x55/0xAA pattern so the host can tell them apart.
+ *  - A trigger position anywhere in the buffer.  The timer sampler keeps
+ *    a rolling pre-trigger ring and stops once the requested number of
+ *    post-trigger samples has been recorded; the sample count / ring
+ *    bookkeeping is sample-exact.  The fast loops cannot afford that
+ *    bookkeeping, so from 2MHz up the trigger marks the start of the
+ *    captured window (the same limitation as the original enhancement).
+ */
+
+/**
+ * Waits for the next tick of the sampling timer (T5IF).
+ *
+ * The flag is polled in assembly so the wait costs a fixed two cycles per
+ * loop and the sample period calibration stays predictable.  IFS1 lives
+ * at 0x0086; T5IF is bit 12, which is bit 4 of its high byte at 0x0087
+ * (identical on both supported parts).
+ */
+#define SUMP_WAIT_FOR_TIMER(label)                                             \
+  asm(#label ":");                                                             \
+  asm("BTST 0x87, #4");                                                        \
+  asm("BRA Z, " #label);                                                       \
+  IFS1bits.T5IF = OFF
+
+/*
+ * The fast sampling loops.  Each samples the port and stores a raw 16-bit
+ * word per sample; the timer sampler and the read-out convert those words
+ * into host bytes.  The loops unroll in groups of four samples and use DEC
+ * + BRA NZ for termination (Z is unambiguous and MOV/NOP do not touch it);
+ * SUMP exchanges sample counts in groups of four, so the counts are
+ * always a multiple of four.  Cycle counts are noted per instruction.
+ */
+
+static void sump_fast_capture_16mhz(uint16_t *buffer, unsigned int samples) {
+  /* 16MHz: one sample per instruction cycle. */
+  asm("MOV %0, W8" : : "g"(buffer) : "w4", "w8", "w9");
+  asm("MOV %0, W9" : : "g"(samples));
+#ifdef BUSPIRATEV4
+  asm("MOV #0x02DA, W4"); /* PORTD, see BP_SUMP_PORT_ADDRESS */
+#else
+  asm("MOV #0x02CA, W4"); /* PORTB, see BP_SUMP_PORT_ADDRESS */
+#endif
+  asm("DEC W9, W9"); /* REPEAT executes one extra time */
+  asm("REPEAT W9");
+  asm("MOV [W4], [W8++]");
+}
+
+static void sump_fast_capture_8mhz(uint16_t *buffer, unsigned int samples) {
+  /* 8MHz: two cycles per sample.  Four samples per pass, taken at cycles
+     0, 1, 3 and 5 (the documented one-cycle jitter, exact long term). */
+  asm("MOV %0, W8" : : "g"(buffer) : "w5", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(samples));
+#ifdef BUSPIRATEV4
+  asm("MOV #0x02DA, W5");
+#else
+  asm("MOV #0x02CA, W5");
+#endif
+  asm("LSR W7, W7");
+  asm("LSR W7, W7"); /* samples / 4 */
+  asm("sump_la_8mhz_loop:");
+  asm("MOV [W5], [W8++]");          /* cycle 0: sample */
+  asm("MOV [W5], [W8++]");          /* cycle 1: sample */
+  asm("NOP");                       /* cycle 2 */
+  asm("MOV [W5], [W8++]");          /* cycle 3: sample */
+  asm("DEC W7, W7");                /* cycle 4: sets Z */
+  asm("MOV [W5], [W8++]");          /* cycle 5: sample */
+  asm("BRA NZ, sump_la_8mhz_loop"); /* cycles 6-7 */
+}
+
+#ifdef BUSPIRATEV4
+
+static void sump_fast_capture_4mhz(uint16_t *buffer, unsigned int samples) {
+  /* 4MHz: four cycles per sample.  Four samples per pass, taken at cycles
+     0, 4, 8 and 11 (one cycle of jitter per pass, exact long term). */
+  asm("MOV %0, W8" : : "g"(buffer) : "w5", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(samples));
+  asm("MOV #0x02DA, W5");
+  asm("LSR W7, W7");
+  asm("LSR W7, W7"); /* samples / 4 */
+  asm("sump_la_4mhz_loop:");
+  asm("MOV [W5], [W8++]");          /* cycle 0: sample */
+  asm("NOP");
+  asm("NOP");
+  asm("NOP");
+  asm("MOV [W5], [W8++]");          /* cycle 4: sample */
+  asm("NOP");
+  asm("NOP");
+  asm("NOP");
+  asm("MOV [W5], [W8++]");          /* cycle 8: sample */
+  asm("NOP");
+  asm("NOP");
+  asm("MOV [W5], [W8++]");          /* cycle 11: sample */
+  asm("NOP");
+  asm("DEC W7, W7");                /* cycle 13: sets Z */
+  asm("BRA NZ, sump_la_4mhz_loop"); /* cycles 14-15 */
+}
+
+static void sump_fast_capture_2mhz(uint16_t *buffer, unsigned int samples) {
+  /* 2MHz: eight cycles per sample, one sample per pass. */
+  asm("MOV %0, W8" : : "g"(buffer) : "w5", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(samples));
+  asm("MOV #0x02DA, W5");
+  asm("sump_la_2mhz_loop:");
+  asm("MOV [W5], [W8++]");          /* cycle 0: sample */
+  asm("NOP");
+  asm("NOP");
+  asm("NOP");
+  asm("DEC W7, W7");                /* cycle 4: sets Z */
+  asm("NOP");
+  asm("BRA NZ, sump_la_2mhz_loop"); /* cycles 6-7 */
+}
+
+#else
+
+static void sump_fast_capture_4mhz(uint8_t *buffer, unsigned int samples) {
+  /* 4MHz: four cycles per sample, one byte per sample, pre-shifted into
+     its five channel bits.  Four samples per pass, taken at cycles 0, 3,
+     7 and 10 (the documented one-cycle jitter, exact long term). */
+  asm("MOV %0, W8" : : "g"(buffer) : "w4", "w5", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(samples));
+  asm("MOV #0x02CA, W5");
+  asm("LSR W7, W7");
+  asm("LSR W7, W7"); /* samples / 4 */
+  asm("sump_la_4mhz_loop:");
+  asm("MOV [W5], W4");              /* cycle 0: sample */
+  asm("LSR W4, #6, W4");            /* cycle 1 */
+  asm("MOV.B W4, [W8++]");          /* cycle 2 */
+  asm("MOV [W5], W4");              /* cycle 3: sample */
+  asm("LSR W4, #6, W4");            /* cycle 4 */
+  asm("MOV.B W4, [W8++]");          /* cycle 5 */
+  asm("NOP");                       /* cycle 6 */
+  asm("MOV [W5], W4");              /* cycle 7: sample */
+  asm("LSR W4, #6, W4");            /* cycle 8 */
+  asm("MOV.B W4, [W8++]");          /* cycle 9 */
+  asm("MOV [W5], W4");              /* cycle 10: sample */
+  asm("LSR W4, #6, W4");            /* cycle 11 */
+  asm("MOV.B W4, [W8++]");          /* cycle 12 */
+  asm("DEC W7, W7");                /* cycle 13: sets Z */
+  asm("BRA NZ, sump_la_4mhz_loop"); /* cycles 14-15 */
+}
+
+static void sump_fast_capture_2mhz(uint8_t *buffer, unsigned int samples) {
+  /* 2MHz: eight cycles per sample, one sample per pass. */
+  asm("MOV %0, W8" : : "g"(buffer) : "w4", "w5", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(samples));
+  asm("MOV #0x02CA, W5");
+  asm("sump_la_2mhz_loop:");
+  asm("MOV [W5], W4");              /* cycle 0: sample */
+  asm("LSR W4, #6, W4");            /* cycle 1 */
+  asm("MOV.B W4, [W8++]");          /* cycle 2 */
+  asm("NOP");                       /* cycle 3 */
+  asm("NOP");                       /* cycle 4 */
+  asm("DEC W7, W7");                /* cycle 5: sets Z */
+  asm("BRA NZ, sump_la_2mhz_loop"); /* cycles 6-7 */
+}
+
+#endif /* BUSPIRATEV4 */
+
+/**
+ * Waits for the change-notification trigger at the fast rates.
+ *
+ * The fast loops cannot buffer ahead of the trigger, so the window always
+ * starts at the trigger event.  A byte arriving from the host during the
+ * wait aborts the capture; it is left in place for the command loop.
+ *
+ * @return true when the trigger fired, false when the host aborted.
+ */
+static bool sump_wait_for_fast_trigger(void) {
+  unsigned int poll = 0;
+
+  IFS1bits.CNIF = OFF;
+
+  while (!IFS1bits.CNIF) {
+    /* Do not poll the host on every pass: that would spin the wait. */
+    if ((++poll & 0x0FFF) == 0 && user_serial_ready_to_read()) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Sends the captured window to the host, newest sample first.
+ *
+ * The host is sent exactly `requested` sample bytes.  Samples the rate or
+ * the buffer could not supply are padding, sent first because the stream
+ * runs backwards in time; the padding alternates 0x55/0xAA.  Samples that
+ * the rolling ring has already overwritten (it can happen right at the
+ * oldest edge of a full-size window) carry no data bits, only the
+ * alternating pattern in the unrecorded channels.
+ */
+static void sump_transmit_fast(unsigned int samples, unsigned int requested,
+                               uint8_t mask, bool word_samples) {
+  uint8_t pattern = 0x55;
+  unsigned int index;
+
+  for (index = samples; index < requested; index++) {
+    user_serial_transmit_character(pattern);
+    pattern ^= 0xFF;
+  }
+
+  if (word_samples) {
+    const uint16_t *buffer =
+        (const uint16_t *)bus_pirate_configuration.terminal_input;
+
+    for (index = samples; index > 0; index--) {
+      uint8_t value = BP_SUMP_SAMPLE_TRANSFORM(buffer[index - 1]) & mask;
+
+      user_serial_transmit_character((pattern & ~mask) | value);
+      pattern ^= 0xFF;
+    }
+  } else {
+    const uint8_t *buffer = bus_pirate_configuration.terminal_input;
+
+    for (index = samples; index > 0; index--) {
+      user_serial_transmit_character((pattern & ~mask) |
+                                     (buffer[index - 1] & mask));
+      pattern ^= 0xFF;
+    }
+  }
+}
+
+/**
+ * Sends the packed window captured by the timer-driven sampler, newest
+ * sample first.  See sump_transmit_fast() for the padding rules.
+ *
+ * @param samples how many real samples the window holds.
+ * @param requested how many sample bytes the host asked for.
+ * @param written total number of samples taken; the window is the last
+ *        `samples` of them.
+ * @param per_word samples packed into each 16-bit word.
+ * @param shift bit shift between consecutive samples in a word.
+ * @param mask channel bits recorded in each sample.
+ */
+static void sump_transmit_packed(unsigned int samples, unsigned int requested,
+                                 uint32_t written, unsigned int per_word,
+                                 unsigned char shift, uint8_t mask) {
+  const uint16_t *buffer =
+      (const uint16_t *)bus_pirate_configuration.terminal_input;
+  uint32_t words = (written + per_word - 1) / per_word;
+  uint32_t floor = (words > 2048u) ? (words - 2048u) * per_word : 0u;
+  unsigned int slot = (unsigned int)((words - 1u) % 2048u);
+  unsigned int sub = (unsigned int)((written - 1u) % per_word);
+  uint16_t packed = buffer[slot];
+  uint8_t pattern = 0x55;
+  unsigned int index;
+
+  for (index = samples; index < requested; index++) {
+    user_serial_transmit_character(pattern);
+    pattern ^= 0xFF;
+  }
+
+  for (index = 0; index < samples; index++) {
+    uint32_t absolute = written - 1u - index;
+
+    if (absolute < floor) {
+      /* The oldest part of the window was overwritten in the ring. */
+      user_serial_transmit_character(pattern & ~mask);
+    } else {
+      user_serial_transmit_character((pattern & ~mask) |
+                                     ((packed >> (sub * shift)) & mask));
+    }
+
+    pattern ^= 0xFF;
+
+    /* Step one sample back through the ring. */
+    if (sub == 0) {
+      sub = per_word - 1;
+      slot = (slot == 0) ? 2047 : slot - 1;
+      packed = buffer[slot];
+    } else {
+      sub--;
+    }
+  }
+}
+
 bool sump_acquire_samples(void) {
-  switch (sampler_state) {
+  if (sampler_state != SAMPLER_ARMED) {
+    /* Nothing to do. */
+    return false;
+  }
 
-  /* Can start sampling. */
-  case SAMPLER_ARMED: {
-    size_t offset;
+  /* Configuration for this capture.  Fast rates sample the full channel
+     set straight off the port; slower rates pack samples into 16-bit
+     words and may record fewer channels to stretch the buffer. */
+  unsigned int samples = samples_to_acquire;
+  unsigned int requested = samples_requested;
+  uint8_t mask = sump_channel_mask;
 
-    /* Skip if no interrupt and no trigger set. */
-    if (!IFS1bits.CNIF && trigger_armed) {
+  if (sump_go_fast) {
+    uint16_t *words = (uint16_t *)bus_pirate_configuration.terminal_input;
+    unsigned int capacity;
+
+#ifdef BUSPIRATEV4
+    capacity = 2048; /* one 16-bit word per sample */
+#else
+    /* 2/4MHz store one byte per sample; 8/16MHz one word. */
+    capacity = (sump_go_fast >= 3) ? 2048 : 4096;
+#endif
+    if (samples > capacity) {
+      samples = capacity;
+    }
+
+    /* Wait for the trigger, if one is configured; the fast rates cannot
+       record anything before it. */
+    if (trigger_armed && !sump_wait_for_fast_trigger()) {
+      /* The host aborted; reset and let the command loop handle it. */
+      sump_reset();
+      return true;
+    }
+
+    mask = BP_SUMP_SAMPLE_MASK;
+
+    switch (sump_go_fast) {
+    case 4:
+      sump_fast_capture_16mhz(words, samples);
+      break;
+    case 3:
+      sump_fast_capture_8mhz(words, samples);
+      break;
+    case 2:
+#ifdef BUSPIRATEV4
+      sump_fast_capture_4mhz(words, samples);
+#else
+      sump_fast_capture_4mhz((uint8_t *)words, samples);
+#endif
+      break;
+    default:
+#ifdef BUSPIRATEV4
+      sump_fast_capture_2mhz(words, samples);
+#else
+      sump_fast_capture_2mhz((uint8_t *)words, samples);
+#endif
       break;
     }
 
-    /* Take samples. */
+#ifdef BUSPIRATEV4
+    sump_transmit_fast(samples, requested, mask, true);
+#else
+    sump_transmit_fast(samples, requested, mask, sump_go_fast >= 3);
+#endif
+  } else {
+    /* Timer-driven capture, 1MHz and below.  The buffer doubles as a
+       rolling ring so the window can hold samples from before the
+       trigger; the read-out walks it backwards from the newest sample. */
+    uint16_t *buffer = (uint16_t *)bus_pirate_configuration.terminal_input;
+    unsigned int per_word = sump_samples_per_word;
+    unsigned char shift = sump_pack_shift;
+    unsigned int delay = trigger_delay_samples;
+    unsigned int pre_trigger;
+    uint32_t written = 0;    /* samples taken so far */
+    uint32_t trigger_at = 0; /* sample count when the trigger fired */
+    unsigned int slot = 0;   /* next ring slot to store a word in */
+    unsigned int fill = 0;   /* samples packed into the working word */
+    uint16_t working = 0;
+    bool armed = false;
+    bool triggered = false;
 
-    /* Start timer #4. */
+    /* The capture window must fit in the ring; SUMP_CNT sizes the
+       channel count for the requested samples, so this is a safety net. */
+    if (samples > per_word * 2048u) {
+      samples = per_word * 2048u;
+    }
+    if (delay > samples) {
+      delay = samples;
+    }
+    pre_trigger = samples - delay;
+
+    /* Start the sampling timer. */
     T4CONbits.TON = ON;
-
-    /* Clear timer #4 interrupt flag. */
     IFS1bits.T5IF = OFF;
 
-    /* Capture samples into the terminal buffer. */
-    for (offset = 0; offset < samples_to_acquire; offset++) {
-#ifndef BUSPIRATEV4
-      bus_pirate_configuration.terminal_input[offset] = PORTB >> 6;
-#else
+    for (;;) {
+      uint16_t probe;
 
-#ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
-      unsigned int sump_port = (PORTD & 0x13f);
-      if (sump_port & 0x100)
-          sump_port |= 0x80;
-      
-      bus_pirate_configuration.terminal_input[offset] = sump_port;
-#else
-      bus_pirate_configuration.terminal_input[offset] = (BYTE)(PORTD & 0xff);
-#endif
-
-#endif  
-      /* Wait for timer4 interrupt to trigger. */
-      while (IFS1bits.T5IF == OFF) {
+      /* Finished when the window's last sample has been taken. */
+      if (trigger_armed
+              ? (triggered && written >= trigger_at + delay)
+              : (written >= samples)) {
+        break;
       }
 
-      /* Clear timer #4 interrupt flag. */
-      IFS1bits.T5IF = OFF;
+      /* Take one sample and pack it into the working word. */
+      probe = BP_SUMP_READ_PROBE();
+      working =
+          (uint16_t)((working << shift) | (BP_SUMP_SAMPLE_TRANSFORM(probe) & mask));
+      written++;
+
+      if (++fill == per_word) {
+        buffer[slot] = working;
+        slot++;
+        if (slot == 2048) {
+          slot = 0;
+        }
+        fill = 0;
+        working = 0;
+
+        /* Any host byte during a capture aborts it; the byte stays in
+           place for the command loop to handle. */
+        if (user_serial_ready_to_read()) {
+          T4CON = OFF;
+          sump_reset();
+          return true;
+        }
+      }
+
+      /* Wait for the next sampling tick. */
+      SUMP_WAIT_FOR_TIMER(sump_la_sample);
+
+      /* Trigger bookkeeping.  Buffer the pre-trigger part first, then
+         arm on a clean state; a trigger before that point is ignored,
+         as the window cannot hold what came before it. */
+      if (trigger_armed && !triggered) {
+        if (!armed) {
+          if (written >= pre_trigger) {
+            armed = true;
+            IFS1bits.CNIF = OFF;
+          }
+        } else if (IFS1bits.CNIF) {
+          triggered = true;
+          trigger_at = written;
+          IFS1bits.CNIF = OFF;
+        }
+      }
     }
 
-#ifdef BUSPIRATEV4
-    //turn off used pins change notice
-    CNEN1 &= 0b1001111111111111;
-#ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
-    CNEN4 &= 0b1111111111000001;
-#else 
-    CNEN4 &= 0b1111111111100001;
-    CNEN2 &= 0b1111111111111110;
-#endif
-#else
-    /* Disable change notification for pins 16 to 31. */
-    CNEN2 = 0;
-#endif
-
-    /* Stop timer #4. */
+    /* Stop sampling, then store the final partial word so the whole
+       window is in the ring before it is read back. */
     T4CON = OFF;
-
-    /* Write captured samples out. */
-    for (offset = samples_to_acquire; offset > 0; offset--) {
-      user_serial_transmit_character(bus_pirate_configuration.terminal_input[offset - 1]);
+    if (fill) {
+      buffer[slot] = working;
     }
 
-    /* Reset the analyzer state. */
-    sump_reset();
-
-    /* Acquisition complete. */
-    return true;
+    sump_transmit_packed(samples, requested, written, per_word, shift, mask);
   }
 
-  case SAMPLER_IDLE:
-  default:
-    /* Nothing to do. */
-    break;
-  }
+  /* Reset the analyzer state. */
+  sump_reset();
 
-  /* Acquisition was not performed. */
-  return false;
+  /* Acquisition complete. */
+  return true;
 }
 
 #endif /* BP_ENABLE_SUMP_SUPPORT */

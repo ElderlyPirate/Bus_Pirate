@@ -1409,7 +1409,10 @@ bool sump_acquire_samples(void) {
     IFS1bits.T5IF = OFF;
 
     for (;;) {
-      unsigned int chunk = 16;
+      /* Fragment size: bigger fragments amortise the per-fragment
+         bookkeeping; at slow rates they stay small so host aborts stay
+         responsive (slow rates check after every fragment). */
+      unsigned int chunk = (sump_host_check_mask == 0) ? 16u : 64u;
 
       /* Decide how many samples this fragment may take: bounded by the
          requested window, rounded up to whole words where samples are

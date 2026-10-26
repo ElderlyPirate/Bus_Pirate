@@ -94,11 +94,16 @@ uint16_t bitbang_read_with_write(const uint16_t value);
  * Writes a value to the bus, used by 2-wire protocols.
  *
  * @warning The amount of bits to write is set in the numbits field in the mode
-configuration structure (up to 16).
+ * configuration structure (up to 16).
  *
  * @param[in] value the value to write on the bus.
+ * @param[in] wait_for_clock_release whether to wait for a slave to release the
+ *            clock line before ending each clock pulse, which I2C devices may
+ *            do to stretch it; protocols that do not share the clock line pass
+ *            false.
  */
-void bitbang_write_value(const uint16_t value);
+void bitbang_write_value(const uint16_t value,
+                         const bool wait_for_clock_release);
 
 /**
  * Reads a value from the bus, used by 2-wire protocols.
@@ -107,9 +112,14 @@ void bitbang_write_value(const uint16_t value);
  * configuration structure, with said number being the amount of bits to read
  * from the bus (up to 16 at a time).
  *
+ * @param[in] wait_for_clock_release whether to wait for a slave to release the
+ *            clock line before sampling each bit, which I2C devices may do to
+ *            stretch it; protocols that do not share the clock line pass
+ *            false.
+ *
  * @return the value read from the bus.
  */
-uint16_t bitbang_read_value(void);
+uint16_t bitbang_read_value(const bool wait_for_clock_release);
 
 /**
  * Reads a single bit from the MISO pin.
@@ -121,6 +131,14 @@ uint16_t bitbang_read_value(void);
  * @return true if the MISO pin is HIGH, false otherwise.
  */
 bool bitbang_read_bit(const bool wait_for_clock_release);
+
+/**
+ * Number of clock-stretch waits that have timed out since reset.  A
+ * non-zero count means some operation gave up waiting for a slave to
+ * release the clock line, so its result may be invalid; the count lets
+ * callers and diagnostics distinguish that from a valid transfer.
+ */
+uint16_t bitbang_clock_stretch_timeouts(void);
 
 /**
  * Writes the given bit to the bus via the MOSI pin.

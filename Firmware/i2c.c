@@ -197,7 +197,7 @@ uint16_t i2c_read(void) {
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    value = bitbang_read_value();
+    value = bitbang_read_value(true);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     value = hardware_i2c_read();
@@ -218,7 +218,7 @@ unsigned int i2c_write(unsigned int c) {
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    bitbang_write_value(c);
+    bitbang_write_value(c, true);
     c = bitbang_read_bit(true);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
@@ -429,7 +429,7 @@ void i2c_macro(unsigned int c) {
     for (i = 0; i < 0x100; i++) {
       if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
         bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT); // send start
-        bitbang_write_value(i);                        // send address
+        bitbang_write_value(i, true);                        // send address
         c = bitbang_read_bit(true);                        // look for ack
       } else {
 #ifdef BP_I2C_USE_HW_BUS
@@ -448,7 +448,7 @@ void i2c_macro(unsigned int c) {
           MSG_I2C_WRITE_ADDRESS_END;
         } else {
           if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-            bitbang_read_value();
+            bitbang_read_value(true);
             bitbang_write_bit(HIGH);
           } else {
 #ifdef BP_I2C_USE_HW_BUS
@@ -928,17 +928,17 @@ void handle_pending_ack(const bool bus_bit) {
 /*
 rawI2C mode:
 # 00000000//reset to BBIO
-# 00000001 ï¿½ mode version string (I2C1)
-# 00000010 ï¿½ I2C start bit
-# 00000011 ï¿½ I2C stop bit
+# 00000001 ÃƒÂ¯Ã‚Â¿Ã‚Â½ mode version string (I2C1)
+# 00000010 ÃƒÂ¯Ã‚Â¿Ã‚Â½ I2C start bit
+# 00000011 ÃƒÂ¯Ã‚Â¿Ã‚Â½ I2C stop bit
 # 00000100 - I2C read byte
 # 00000110 - ACK bit
 # 00000111 - NACK bit
-# 0001xxxx ï¿½ Bulk transfer, send 1-16 bytes (0=1byte!)
+# 0001xxxx ÃƒÂ¯Ã‚Â¿Ã‚Â½ Bulk transfer, send 1-16 bytes (0=1byte!)
 # (0110)000x - Set I2C speed, 3 = 400khz 2=100khz 1=50khz 0=5khz
 # (0111)000x - Read speed, (planned)
-# (0100)wxyz ï¿½ Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
-# (0101)wxyz ï¿½ read peripherals (planned, not implemented)
+# (0100)wxyz ÃƒÂ¯Ã‚Â¿Ã‚Â½ Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
+# (0101)wxyz ÃƒÂ¯Ã‚Â¿Ã‚Â½ read peripherals (planned, not implemented)
  */
 
 void binary_io_enter_i2c_mode(void) {
@@ -985,7 +985,7 @@ void binary_io_enter_i2c_mode(void) {
         break;
 
       case 4: // I2C read byte
-        user_serial_transmit_character(bitbang_read_value());
+        user_serial_transmit_character(bitbang_read_value(true));
         break;
 
       case 6: // I2C send ACK
@@ -1073,7 +1073,7 @@ void binary_io_enter_i2c_mode(void) {
 
       for (i = 0; i < inByte; i++) {
         bitbang_write_value(
-            user_serial_read_byte()); // JTR usb port //send byte
+            user_serial_read_byte(), true); // JTR usb port //send byte
         user_serial_transmit_character(
             bitbang_read_bit(true)); // return ACK0 or NACK1
       }
@@ -1140,10 +1140,10 @@ bool i2c_write_then_read(void) {
   bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
 
   /* Stream data from the serial port. */
-  bitbang_write_value(i2c_address);
+  bitbang_write_value(i2c_address, true);
 
   for (size_t counter = 1; counter < bytes_to_write; counter++) {
-    bitbang_write_value(user_serial_read_byte());
+    bitbang_write_value(user_serial_read_byte(), true);
 
     if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
@@ -1166,7 +1166,7 @@ bool i2c_write_then_read(void) {
 
   /* Write the payload to the I2C bus. */
   for (size_t index = 0; index < bytes_to_write; index++) {
-    bitbang_write_value(bus_pirate_configuration.terminal_input[index]);
+    bitbang_write_value(bus_pirate_configuration.terminal_input[index], true);
 
     if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
@@ -1181,7 +1181,7 @@ bool i2c_write_then_read(void) {
     bitbang_i2c_start(BITBANG_I2C_RESTART);
 
     /* Send the I2C address. */
-    bitbang_write_value(i2c_address | 0x01);
+    bitbang_write_value(i2c_address | 0x01, true);
 
     if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
@@ -1199,7 +1199,7 @@ bool i2c_write_then_read(void) {
 
   for (size_t counter = 0; counter < bytes_to_read; counter++) {
     /* Read byte from the I2C bus. */
-    user_serial_transmit_character(bitbang_read_value());
+    user_serial_transmit_character(bitbang_read_value(true));
     
     /* Acknowledge read operation. */
     bitbang_write_bit(counter >= bytes_to_write ? HIGH : LOW);
@@ -1212,7 +1212,7 @@ bool i2c_write_then_read(void) {
 
   for (size_t index = 0; index < bytes_to_read; index++) {
     /* Read the byte from the I2C bus. */
-    bus_pirate_configuration.terminal_input[index] = bitbang_read_value();
+    bus_pirate_configuration.terminal_input[index] = bitbang_read_value(true);
 
     /* Report ACK or NACK depending on the length. */
     bitbang_write_bit(index >= bytes_to_write ? HIGH : LOW);

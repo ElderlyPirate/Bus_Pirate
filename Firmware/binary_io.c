@@ -740,8 +740,8 @@ void send_bits(const uint8_t value, const size_t count) {
 void pic614_read(const uint8_t value) {
   send_bits(value, 6);
 
-  user_serial_transmit_character(bitbang_read_value());
-  user_serial_transmit_character(bitbang_read_value());
+  user_serial_transmit_character(bitbang_read_value(false));
+  user_serial_transmit_character(bitbang_read_value(false));
 }
 
 void pic614_write(const uint8_t command, const uint8_t data_low,
@@ -749,16 +749,16 @@ void pic614_write(const uint8_t command, const uint8_t data_low,
   send_bits(command, 6);
 
   if ((command & 0x80) == 0x00) {
-    bitbang_write_value(data_low);
-    bitbang_write_value(data_high);
+    bitbang_write_value(data_low, false);
+    bitbang_write_value(data_high, false);
   }
 }
 
 void pic416_read(const uint8_t value) {
   send_bits(value, 4);
 
-  bitbang_read_value();
-  user_serial_transmit_character(bitbang_read_value());
+  bitbang_read_value(false);
+  user_serial_transmit_character(bitbang_read_value(false));
 }
 
 void pic416_write(const uint8_t command, const uint8_t data_low,
@@ -778,8 +778,8 @@ void pic416_write(const uint8_t command, const uint8_t data_low,
     id >>= 1;
   }
 
-  bitbang_write_value(data_low);
-  bitbang_write_value(data_high);
+  bitbang_write_value(data_low, false);
+  bitbang_write_value(data_high, false);
 }
 
 void pic24_send_six_payload(const uint8_t *payload) {
@@ -790,9 +790,9 @@ void pic24_send_six_payload(const uint8_t *payload) {
   bitbang_write_bit(LOW);
 
   /* Send payload. */
-  bitbang_write_value(*payload++);
-  bitbang_write_value(*payload++);
-  bitbang_write_value(*payload++);
+  bitbang_write_value(*payload++, false);
+  bitbang_write_value(*payload++, false);
+  bitbang_write_value(*payload++, false);
 }
 
 void pic24_send_nop_opcode(void) {
@@ -815,10 +815,10 @@ void pic424_read(void) {
   bitbang_write_bit(LOW);
   bitbang_write_bit(LOW);
 
-  bitbang_write_value(0x00);
+  bitbang_write_value(0x00, false);
 
-  uint8_t value = bitbang_read_value();
-  user_serial_transmit_character(bitbang_read_value());
+  uint8_t value = bitbang_read_value(false);
+  user_serial_transmit_character(bitbang_read_value(false));
   user_serial_transmit_character(value);
 
   /* Send two NOPs after a read. */
@@ -858,7 +858,7 @@ bool handle_wire_generic_command(const wire_generic_command command) {
 
   case IO_COMMAND_BITBANG_READ_BYTE: {
     uint16_t value = (io_state.wires == BINARY_IO_2_WIRES)
-                         ? bitbang_read_value()
+                         ? bitbang_read_value(false)
                          : bitbang_read_with_write(0xFF);
     if (mode_configuration.little_endian == YES) {
       value = bp_reverse_integer(value, mode_configuration.numbits);
@@ -919,14 +919,14 @@ void handle_bulk_byte_transfer(const uint8_t command) {
     }
 
     if (io_state.wires == BINARY_IO_2_WIRES) {
-      bitbang_write_value(value & 0xFF);
+      bitbang_write_value(value & 0xFF, false);
       REPORT_IO_SUCCESS();
     } else {
       value = bitbang_read_with_write(value & 0xFF);
       if (mode_configuration.little_endian == YES) {
         value = bp_reverse_integer(value, mode_configuration.numbits);
       }
-      bitbang_write_value(value & 0xFF);
+      bitbang_write_value(value & 0xFF, false);
     }
   }
 }
@@ -1061,8 +1061,8 @@ void handle_pic_command_write_and_read_bits(void) {
     for (size_t counter = 0; counter < commands_count; counter++) {
       send_bits(command, 4);
 
-      bitbang_read_value();
-      user_serial_transmit_character(bitbang_read_value());
+      bitbang_read_value(false);
+      user_serial_transmit_character(bitbang_read_value(false));
     }
 
     return;

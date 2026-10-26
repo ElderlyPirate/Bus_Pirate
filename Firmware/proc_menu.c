@@ -99,6 +99,17 @@ extern mode_configuration_t mode_configuration;
 extern command_t last_command;
 extern bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT];
 
+/**
+ * @brief Set while a scripted bus mode switch runs a protocol's setup phase.
+ *
+ * When set, the setup helpers answer their defaults instead of printing
+ * prompts and waiting for user input, so a program can change modes on its
+ * own without taking over the terminal.
+ *
+ * @see bp_change_mode
+ */
+static bool setup_defaults_mode = NO;
+
 #ifdef BUSPIRATEV4
 static bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
 #else
@@ -951,6 +962,15 @@ int getint(void) // get int from user (accept decimal, hex (0x) or binairy (0b)
   int i;
   int number;
 
+  if (setup_defaults_mode) {
+    /*
+     * A scripted mode switch must not parse whatever the command buffer
+     * happens to hold; report "no value given" so the setup code falls back
+     * to its prompts, which take their defaults.
+     */
+    return 0;
+  }
+
   i = 0;
   number = 0;
 
@@ -1062,6 +1082,11 @@ uint8_t change_read_display(void) {
 }
 
 void consumewhitechars(void) {
+  if (setup_defaults_mode) {
+    /* The command buffer may belong to a running program. */
+    return;
+  }
+
   while (cmdbuf[cmdstart] == 0x20) {
     cmdstart = (cmdstart + 1) & CMDLENMSK;
   }
@@ -1121,6 +1146,49 @@ void changemode(void) {
     }
   }
   cmdstart = (cmdend - 1) & CMDLENMSK;
+}
+
+/**
+ * @brief Switches to the given bus mode, applying each protocol's default
+ * settings, without any user interaction.
+ *
+ * This is what a BASIC program needs to configure the bus on its own: it runs
+ * the same setup callbacks that an interactive mode change uses, but the
+ * setup prompts answer their defaults instead of waiting for input. The pins
+ * of the new mode are configured right away, because a script never issues
+ * the power-on request that engages the bus in the interactive flow.
+ *
+ * @param[in] mode the mode to switch to, one-based as the mode menu lists it.
+ *
+ * @return 0 if the switch succeeded, -1 if the mode does not exist.
+ */
+int bp_change_mode(int mode) {
+  if ((mode < 1) || (mode > ENABLED_PROTOCOLS_COUNT)) {
+    return -1;
+  }
+
+  enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
+  bp_reset_board_state();
+  bus_pirate_configuration.bus_mode = mode - 1;
+
+  /*
+   * Run the new mode's setup phase with every prompt answering its default,
+   * so the same settings are applied that pressing ENTER through the
+   * interactive prompts would choose - without printing or blocking.
+   */
+  setup_defaults_mode = ON;
+  enabled_protocols[bus_pirate_configuration.bus_mode].setup_prepare();
+  setup_defaults_mode = OFF;
+
+  mode_configuration.command_error = NO;
+
+  if (bus_pirate_configuration.bus_mode != BP_HIZ) {
+    bp_enable_mode_led();
+  }
+
+  enabled_protocols[bus_pirate_configuration.bus_mode].setup_execute();
+
+  return 0;
 }
 
 #ifdef BP_ENABLE_COMMAND_HISTORY
@@ -1195,6 +1263,11 @@ int getnumber(int def, int min, int max,
   char c;
   char buf[6]; // max 4 digits;
   int i, j, stop, temp, neg;
+
+  if (setup_defaults_mode) {
+    /* Scripted setup: take the default without printing or waiting. */
+    return def;
+  }
 
 again: // need to do it proper with whiles and ifs..
 

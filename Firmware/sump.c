@@ -1318,6 +1318,9 @@ bool sump_acquire_samples(void) {
   if (sump_go_fast) {
     uint16_t *words = (uint16_t *)bus_pirate_configuration.terminal_input;
     unsigned int capacity;
+#ifdef BUSPIRATEV4
+    unsigned char usb_irq;
+#endif
 
 #ifdef BUSPIRATEV4
     capacity = 2048; /* one 16-bit word per sample */
@@ -1338,6 +1341,15 @@ bool sump_acquire_samples(void) {
     }
 
     mask = BP_SUMP_SAMPLE_MASK;
+
+#ifdef BUSPIRATEV4
+    /* Keep the USB interrupt out of the capture: one entry costs up to
+       several samples at these rates (measured), and the window is at
+       most about a millisecond.  The trigger wait above stays
+       interruptible, so host aborts still work. */
+    usb_irq = IEC5bits.USB1IE;
+    IEC5bits.USB1IE = 0;
+#endif
 
     switch (sump_go_fast) {
     case 4:
@@ -1363,6 +1375,8 @@ bool sump_acquire_samples(void) {
     }
 
 #ifdef BUSPIRATEV4
+    IEC5bits.USB1IE = usb_irq;
+
     sump_transmit_fast(samples, requested, mask, true);
 #else
     sump_transmit_fast(samples, requested, mask, sump_go_fast >= 3);

@@ -917,8 +917,9 @@ bool sump_handle_command_byte(unsigned char input_byte) {
  * has to fit in the tick).  The caller keeps all bookkeeping per
  * fragment, where its cost is amortised over 16 samples.
  *
- * IFS1 lives at 0x0086: CNIF is bit 8 (bit 0 of 0x87), T5IF is bit 12
- * (bit 4 of 0x87), identical on both supported parts.
+ * IFS1 lives at 0x0086: CNIF is bit 3 (bit 3 of that low byte at
+ * 0x0086), T5IF is bit 12 (bit 4 of the high byte at 0x0087); both are
+ * identical on the two supported parts.
  */
 
 static unsigned int sump_sample_bytes(uint8_t *dst, unsigned int count) {
@@ -948,9 +949,9 @@ static unsigned int sump_sample_bytes(uint8_t *dst, unsigned int count) {
   asm("BTST 0x87, #4"); /* wait for the sampling tick */
   asm("BRA Z, sump_1mhz_byte_tick");
   asm("BCLR 0x87, #4");
-  asm("BTSC 0x87, #0"); /* a trigger edge? */
+  asm("DEC W7, W7");    /* count this sample before deciding */
+  asm("BTSC 0x86, #3"); /* IFS1.CNIF: a trigger edge? */
   asm("BRA sump_1mhz_byte_out");
-  asm("DEC W7, W7");
   asm("BRA NZ, sump_1mhz_byte_loop");
   asm("sump_1mhz_byte_out:");
   asm("SUB W6, W7, W0"); /* taken = count - remaining */
@@ -997,9 +998,9 @@ static unsigned int sump_sample_words(uint16_t *dst, unsigned int words,
   asm("MOV W0, [W8++]"); /* store the completed word */
   asm("MOV W2, W11");    /* reload the per-word countdown */
   asm("CLR W0");
-  asm("BTSC 0x87, #0"); /* a trigger edge? (word granularity) */
+  asm("DEC W7, W7");     /* count the word before deciding */
+  asm("BTSC 0x86, #3");  /* IFS1.CNIF: a trigger edge? */
   asm("BRA sump_1mhz_word_out");
-  asm("DEC W7, W7");
   asm("BRA NZ, sump_1mhz_word_loop");
   asm("sump_1mhz_word_out:");
   asm("SUB W10, W7, %0" : "=r"(done)); /* words done */

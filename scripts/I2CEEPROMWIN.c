@@ -21,8 +21,9 @@ int main(int argc, char **argv){
 	FILE *inoutpfile;
     DCB my_dcb;
 	HANDLE hComm;
-    int bytes_written, bytes_received, retval, memaddr = 0, failcount, datalen = 0;
-    unsigned char receive_buf[10], write_buf[9], curcode[5], curbincode, chipaddr, flags = 0, cmdlen, addrtype = 'D';
+    DWORD bytes_written, bytes_received;
+    int memaddr = 0, failcount, datalen = 0;
+    unsigned char receive_buf[12], write_buf[9], curcode[5], curbincode, chipaddr, cmdlen, addrtype = 'D';
 
     if(argc < 4 || argc > 7){
 	    printf("i2ceepromwin [com?] [chip addr 0-7] [R/W/Rs/Ws] [file] (read len) (mem addr)\n");
@@ -91,16 +92,21 @@ int main(int argc, char **argv){
 	}
 
 	// Enter bitbang mode, then I2C mode.
+	// BPv4: apply the on-board 3.3 V pull-up feed (0x51, reply accounted
+	// for below) BEFORE the pull-ups engage - with the VPU jumper removed
+	// the pull-ups have no reference; harmless on v3 / with the jumper
+	// (reply 0x00).
 	// Enable power supplies and pullup resistors
 	// Check for correct version string
-	WriteFile(hComm, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x02\x4C", 22, &bytes_written, 0);
-	ReadFile(hComm, receive_buf, 10, &bytes_received, 0);
+	WriteFile(hComm, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x02\x51\x4C", 23, &bytes_written, 0);
+	ReadFile(hComm, receive_buf, 11, &bytes_received, 0);
 	receive_buf[9] = 0;
 	if(memcmp(receive_buf, "BBIO1I2C1", 9)){
 		printf("Error setting up RAW I2C mode: %s\n", receive_buf);
 		return 5;
 	}
-	sleep(500);
+	Sleep(500); /* Was sleep(500): 500 SECONDS under MinGW sleep() - an 8m20s
+	 * stall (issue #189).  The Windows sleep here is milliseconds. */
 
 	// Read data
 	if(argv[3][0] == 'R'){
@@ -185,10 +191,12 @@ int main(int argc, char **argv){
 		write_buf[cmdlen-1] = '\x03';
 
 		while(fscanf(inoutpfile, "%4s", curcode) == 1){
-			if(!sscanf(curcode, "%X", &curbincode)){
+			unsigned int code_value;
+			if(!sscanf((char *)curcode, "%X", &code_value)){
 				printf("Error processing code in file: %s", curcode);
 				return 6;
 			}
+			curbincode = (unsigned char)code_value;
 
 			// Update the address and data
 			if(cmdlen == 7){

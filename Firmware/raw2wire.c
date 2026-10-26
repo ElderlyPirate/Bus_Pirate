@@ -59,10 +59,10 @@ static void read_atr_header(void);
  */
 static void trigger_atr(void);
 
-uint16_t raw2wire_read(void) { return bitbang_read_value(); }
+uint16_t raw2wire_read(void) { return bitbang_read_value(false); }
 
 uint16_t raw2wire_write(const uint16_t value) {
-  bitbang_write_value(value);
+  bitbang_write_value(value, false);
   return 0x100;
 }
 
@@ -154,7 +154,7 @@ void read_atr_header(void) {
 
   MSG_RAW2WIRE_ATR_REPLY_HEADER;
   for (size_t index = 0; index < ATR_HEADER_LENGTH; index++) {
-    buffer[index] = bitbang_read_value();
+    buffer[index] = bitbang_read_value(false);
     if (mode_configuration.little_endian == YES) {
       buffer[index] = bp_reverse_byte(buffer[index]);
     }

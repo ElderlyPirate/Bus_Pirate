@@ -93,6 +93,21 @@ static uint16_t miso_pin;
  */
 static const bitbang_delays_t *delay_profile;
 
+/**
+ * How many clock waits have timed out since reset.  A timed-out wait means
+ * the bus was held low longer than BB_CLK_STRETCH_TIMEOUT: whatever the
+ * operation that waited returned is not trustworthy, and the count lets
+ * callers and diagnostics tell a real acknowledge from a guessed one (the
+ * timeout used to be silent).  Saturating.
+ */
+static uint16_t bitbang_clk_stretch_timeouts = 0;
+
+uint16_t bitbang_clock_stretch_timeouts(void) {
+  return bitbang_clk_stretch_timeouts;
+}
+
+static bool bitbang_wait_for_clock_release(void);
+
 void bitbang_setup(unsigned char bitbang_pins, const bp_bitbang_speed_t speed) {
   miso_pin = (bitbang_pins == 3) ? MISO : MOSI;
   delay_profile = &BITBANG_DELAYS[speed > DELAY_PROFILES_MAX_INDEX
@@ -161,24 +176,38 @@ uint16_t bitbang_read_with_write(const uint16_t value) {
   return input;
 }
 
-void bitbang_write_value(const uint16_t value) {
+void bitbang_write_value(const uint16_t value,
+                         const bool wait_for_clock_release) {
   uint16_t temporary;
   uint16_t bit_index;
   size_t count;
+  bool wait = wait_for_clock_release;
 
   bit_index = 1 << (mode_configuration.numbits - 1);
   temporary = value;
   for (count = 0; count < mode_configuration.numbits; count++) {
     bitbang_set_pins(temporary & bit_index, MOSI, delay_profile->settle);
     bitbang_set_pins_high(CLK, delay_profile->clock);
+
+    /*
+     * I2C: hold the bit until the slave is ready for the edge - a slave
+     * may stretch the clock within a written byte, not only at the
+     * acknowledge.  After a timeout the rest of this byte stops waiting
+     * (the bus is known to be stuck; the event is counted once).
+     */
+    if (wait) {
+      wait = bitbang_wait_for_clock_release();
+    }
+
     bitbang_set_pins_low(CLK, delay_profile->clock);
     temporary <<= 1;
   }
 }
 
-uint16_t bitbang_read_value(void) {
+uint16_t bitbang_read_value(const bool wait_for_clock_release) {
   size_t count;
   uint16_t value;
+  bool wait = wait_for_clock_release;
 
   /* Setup for input. */
   bitbang_read_pin(MOSI);
@@ -186,6 +215,16 @@ uint16_t bitbang_read_value(void) {
 
   for (count = 0; count < mode_configuration.numbits; count++) {
     bitbang_set_pins_high(CLK, delay_profile->clock);
+
+    /*
+     * I2C: sample only once the slave has released the clock - it may
+     * stretch within a read byte, not only at the acknowledge.  After a
+     * timeout the rest of this byte stops waiting (counted once).
+     */
+    if (wait) {
+      wait = bitbang_wait_for_clock_release();
+    }
+
     value = (value << 1) | bitbang_read_pin(MOSI);
     bitbang_set_pins_low(CLK, delay_profile->clock);
   }
@@ -193,15 +232,48 @@ uint16_t bitbang_read_value(void) {
   return value;
 }
 /**
- * Time limit, in microseconds, for a slave to release the I2C clock line it is
- * stretching. A bus that stays stuck longer than this is abandoned so that a
- * faulty device cannot hang the Bus Pirate.
+ * Time limit, in wait-loop iterations (about one microsecond each), for a
+ * slave to release the I2C clock line it is stretching.  A bus that stays
+ * stuck longer than this is abandoned so that a faulty device cannot hang
+ * the Bus Pirate; the event is counted (bitbang_clock_stretch_timeouts()).
+ *
+ * 25 ms covers the SMBus bus timeout minimum, which bounds
+ * SMBus-compatible devices (e.g. the SHT3x family, whose maximum
+ * measurement stretch is 15 ms), while staying strictly bounded.
  */
-#define BB_CLK_STRETCH_TIMEOUT 10000
+#define BB_CLK_STRETCH_TIMEOUT 25000
+
+/**
+ * Wait, bounded, until the clock line is actually released (reads high).
+ *
+ * Open-drain I2C slaves may hold SCL low (clock stretching) on any bit;
+ * after this Bus Pirate has released the line, a line that still reads low
+ * means the slave is not ready for the next edge.  The line is sampled
+ * with the same settling as bitbang_read_pin() so the first sample cannot
+ * be an artefact of the previous pin state.  After BB_CLK_STRETCH_TIMEOUT
+ * the bus is abandoned for this bit, the event is counted (see
+ * bitbang_clock_stretch_timeouts()) and false is returned.
+ */
+static bool bitbang_wait_for_clock_release(void) {
+  uint32_t waited;
+
+  for (waited = 0; !bitbang_read_pin(CLK); waited++) {
+    if (waited >= BB_CLK_STRETCH_TIMEOUT) {
+      if (bitbang_clk_stretch_timeouts != 0xFFFF) {
+        bitbang_clk_stretch_timeouts++;
+      }
+
+      return false;
+    }
+
+    bp_delay_us(1);
+  }
+
+  return true;
+}
 
 bool bitbang_read_bit(const bool wait_for_clock_release) {
   bool bit_value;
-  uint32_t waited;
 
   /* Set the MISO pin as input. */
   bitbang_read_pin(miso_pin);
@@ -209,19 +281,16 @@ bool bitbang_read_bit(const bool wait_for_clock_release) {
   /* Set CLK high. With an open collector output this releases the line. */
   bitbang_set_pins_high(CLK, delay_profile->clock);
 
-  /*
-   * Wait for the slave to release the clock line, if the protocol allows it to
-   * be stretched. In open collector mode the pin is released when driven high,
-   * so a slave holding it low keeps it reading low here.
-   */
-  if (wait_for_clock_release) {
-    for (waited = 0; (IOPOR & CLK) == 0; waited++) {
-      if (waited >= BB_CLK_STRETCH_TIMEOUT) {
-        break;
-      }
+  if (wait_for_clock_release && !bitbang_wait_for_clock_release()) {
+    /*
+     * The slave never released the clock, so the acknowledge is unknown:
+     * report "not acknowledged" (high) instead of sampling a stuck bus,
+     * so callers cannot mistake a timeout for a valid ACK.  The timeout
+     * itself is counted (bitbang_clock_stretch_timeouts()).
+     */
+    bitbang_set_pins_low(CLK, delay_profile->clock);
 
-      bp_delay_us(1);
-    }
+    return true;
   }
 
   /* Read value. */

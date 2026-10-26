@@ -1131,7 +1131,9 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
   uint32_t floor = (words > 2048u) ? (words - 2048u) * per_word : 0u;
   uint32_t last = end_index - 1u; /* the newest sample of the window */
   unsigned int slot = (unsigned int)((last / per_word) % 2048u);
-  unsigned int sub = (unsigned int)(last % per_word);
+  /* The newest sample of a word is the one packed last, i.e. at the low
+     bits; up to a word of overshoot may sit below it. */
+  unsigned int bitpos = (per_word - 1u - (unsigned int)(last % per_word)) * shift;
   uint16_t packed = buffer[slot];
   uint8_t pattern = 0x55;
   unsigned int index;
@@ -1149,18 +1151,18 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
       user_serial_transmit_character(pattern & ~mask);
     } else {
       user_serial_transmit_character((pattern & ~mask) |
-                                     ((packed >> (sub * shift)) & mask));
+                                     ((packed >> bitpos) & mask));
     }
 
     pattern ^= 0xFF;
 
-    /* Step one sample back through the ring. */
-    if (sub == 0) {
-      sub = per_word - 1;
+    /* Step one sample back in time: within a word the older sample sits
+       `shift` bits higher, then the previous word. */
+    bitpos += shift;
+    if (bitpos >= per_word * shift) {
+      bitpos = 0;
       slot = (slot == 0) ? 2047 : slot - 1;
       packed = buffer[slot];
-    } else {
-      sub--;
     }
   }
 }

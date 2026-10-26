@@ -487,6 +487,14 @@ static uint8_t sump_channel_mask;
  */
 static unsigned char sump_go_fast;
 
+/**
+ * How often the timer-driven capture checks for a host byte: the check
+ * runs whenever `quiet_samples & sump_host_check_mask` is zero.  Slow
+ * rates check after every fragment, to stay responsive; fast rates
+ * amortise the call over several fragments.
+ */
+static unsigned int sump_host_check_mask;
+
 // whether trigger is armed
 static bool trigger_armed;
 
@@ -603,10 +611,11 @@ void sump_reset(void) {
   samples_requested = BP_SUMP_SAMPLE_MEMORY_SIZE;
   samples_to_acquire = BP_SUMP_SAMPLE_MEMORY_SIZE;
   trigger_delay_samples = BP_SUMP_SAMPLE_MEMORY_SIZE;
-  sump_samples_per_word = 2;
+  sump_samples_per_word = 1; /* one sample per stored byte */
   sump_pack_shift = 8;
   sump_channel_mask = BP_SUMP_SAMPLE_MASK;
   sump_go_fast = 0;
+  sump_host_check_mask = 15;
 
   /* Initialize the sampler. */
   sampler_state = SAMPLER_IDLE;
@@ -804,12 +813,12 @@ bool sump_handle_command_byte(unsigned char input_byte) {
         sump_channel_mask = 0x0F;
       } else if (read_count >= 2048ul * 2ul) {
         samples_to_acquire = 4096;
-        sump_samples_per_word = 2;
+        sump_samples_per_word = 1; /* one sample per stored byte */
         sump_pack_shift = 8;
         sump_channel_mask = BP_SUMP_SAMPLE_MASK;
       } else {
         samples_to_acquire = (unsigned int)read_count;
-        sump_samples_per_word = 2;
+        sump_samples_per_word = 1; /* one sample per stored byte */
         sump_pack_shift = 8;
         sump_channel_mask = BP_SUMP_SAMPLE_MASK;
       }
@@ -836,6 +845,12 @@ bool sump_handle_command_byte(unsigned char input_byte) {
                 ((uint32_t)command_buffer.bytes[2] << 8) +
                 (uint32_t)command_buffer.bytes[1]) *
                4 / 25;
+
+      /*
+       * Below 10kHz (1600 ticks) the abort check runs after every
+       * fragment; faster rates amortise it over several fragments.
+       */
+      sump_host_check_mask = (period >= 1600u) ? 0u : 15u;
 
       /*
        * Rates above 1MHz cannot be kept by a timer-polled loop, so they
@@ -893,19 +908,109 @@ bool sump_handle_command_byte(unsigned char input_byte) {
  *    captured window (the same limitation as the original enhancement).
  */
 
-/**
- * Waits for the next tick of the sampling timer (T5IF).
+/*
+ * Timer-paced sampling fragments.
  *
- * The flag is polled in assembly so the wait costs a fixed two cycles per
- * loop and the sample period calibration stays predictable.  IFS1 lives
- * at 0x0086; T5IF is bit 12, which is bit 4 of its high byte at 0x0087
- * (identical on both supported parts).
+ * At 1MHz one sample must fit in 16 cycles, which a C loop cannot hold:
+ * each sample only needs a port read, a shape into the sample byte, a
+ * store and a wait for the next tick, but everything else - ring
+ * bookkeeping, trigger logic, host escape - costs far more than that.
+ * So the sampling runs in small assembly fragments (16 samples per call):
+ * they only sample, shape and store, wait for each tick, and exit early
+ * with the number of samples actually taken as soon as the change
+ * notification flag shows a trigger edge (checked per sample in byte
+ * mode, per stored word in the packed modes - the total overhead is what
+ * has to fit in the tick).  The caller keeps all bookkeeping per
+ * fragment, where its cost is amortised over 16 samples.
+ *
+ * IFS1 lives at 0x0086: CNIF is bit 8 (bit 0 of 0x87), T5IF is bit 12
+ * (bit 4 of 0x87), identical on both supported parts.
  */
-#define SUMP_WAIT_FOR_TIMER(label)                                             \
-  asm(#label ":");                                                             \
-  asm("BTST 0x87, #4");                                                        \
-  asm("BRA Z, " #label);                                                       \
-  IFS1bits.T5IF = OFF
+
+static unsigned int sump_sample_bytes(uint8_t *dst, unsigned int count) {
+  unsigned int taken;
+
+  asm("MOV %0, W8" : : "g"(dst) : "w4", "w5", "w6", "w7", "w8");
+  asm("MOV %0, W7" : : "g"(count) : "w6", "w7");
+  asm("MOV %0, W6" : : "g"(count) : "w6");
+#ifdef BUSPIRATEV4
+  asm("MOV #0x02DA, W5"); /* PORTD, see BP_SUMP_PORT_ADDRESS */
+#else
+  asm("MOV #0x02CA, W5"); /* PORTB, see BP_SUMP_PORT_ADDRESS */
+#endif
+  asm("sump_1mhz_byte_loop:");
+#ifdef BUSPIRATEV4
+  asm("MOV.B [W5], W4"); /* RD0..RD7                      */
+  asm("AND #0x3F, W4");  /* channels 0-5                  */
+  asm("BTSC PORTD, #8"); /* AUX1 is on RD8                */
+  asm("BSET W4, #7");    /* ...soft-wired into bit 7      */
+#else
+  asm("MOV [W5], W4");
+  asm("LSR W4, #6, W4");
+  asm("AND #0x1F, W4");
+#endif
+  asm("MOV.B W4, [W8++]");
+  asm("sump_1mhz_byte_tick:");
+  asm("BTST 0x87, #4"); /* wait for the sampling tick */
+  asm("BRA Z, sump_1mhz_byte_tick");
+  asm("BCLR 0x87, #4");
+  asm("BTSC 0x87, #0"); /* a trigger edge? */
+  asm("BRA sump_1mhz_byte_out");
+  asm("DEC W7, W7");
+  asm("BRA NZ, sump_1mhz_byte_loop");
+  asm("sump_1mhz_byte_out:");
+  asm("SUB W6, W7, W0"); /* taken = count - remaining */
+  asm("MOV W0, %0" : "=r"(taken));
+  return taken;
+}
+
+static unsigned int sump_sample_words(uint16_t *dst, unsigned int words,
+                                      unsigned int per_word,
+                                      unsigned int shift, uint8_t mask) {
+  unsigned int done;
+
+  asm("MOV %0, W8" : : "g"(dst) : "w0", "w2", "w4", "w5", "w6", "w7",
+      "w8", "w9", "w10", "w11", "w12");
+  asm("MOV %0, W7" : : "g"(words) : "w7");
+  asm("MOV %0, W10" : : "g"(words) : "w10", "w2");
+  asm("MOV %0, W12" : : "g"(per_word) : "w12");
+  asm("MOV %0, W6" : : "g"(shift) : "w6");
+  asm("MOV %0, W9" : : "g"(mask) : "w9");
+  asm("MOV W12, W11"); /* samples per word countdown */
+  asm("MOV W12, W2");  /* ...and its reload copy */
+  asm("CLR W0");
+#ifdef BUSPIRATEV4
+  asm("MOV #0x02DA, W5"); /* PORTD, see BP_SUMP_PORT_ADDRESS */
+#else
+  asm("MOV #0x02CA, W5"); /* PORTB, see BP_SUMP_PORT_ADDRESS */
+#endif
+  asm("sump_1mhz_word_loop:");
+#ifdef BUSPIRATEV4
+  asm("MOV [W5], W4");
+#else
+  asm("MOV [W5], W4");
+  asm("LSR W4, #6, W4");
+#endif
+  asm("AND W4, W9, W4");
+  asm("SL W0, W6, W0");
+  asm("IOR W4, W0, W0");
+  asm("sump_1mhz_word_tick:");
+  asm("BTST 0x87, #4"); /* wait for the tick */
+  asm("BRA Z, sump_1mhz_word_tick");
+  asm("BCLR 0x87, #4");
+  asm("DEC W11, W11");
+  asm("BRA NZ, sump_1mhz_word_loop");
+  asm("MOV W0, [W8++]"); /* store the completed word */
+  asm("MOV W2, W11");    /* reload the per-word countdown */
+  asm("CLR W0");
+  asm("BTSC 0x87, #0"); /* a trigger edge? (word granularity) */
+  asm("BRA sump_1mhz_word_out");
+  asm("DEC W7, W7");
+  asm("BRA NZ, sump_1mhz_word_loop");
+  asm("sump_1mhz_word_out:");
+  asm("SUB W10, W7, %0" : "=r"(done)); /* words done */
+  return done;
+}
 
 /*
  * The fast sampling loops.  Each samples the port and stores a raw 16-bit
@@ -1107,6 +1212,42 @@ static void sump_transmit_fast(unsigned int samples, unsigned int requested,
 }
 
 /**
+ * Sends a byte-mode window captured by the timer-driven sampler (one
+ * stored byte per sample), newest sample first.  See
+ * sump_transmit_fast() for the padding rules.
+ */
+static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
+                                uint32_t end_index, uint32_t written,
+                                uint8_t mask) {
+  const uint8_t *buffer = bus_pirate_configuration.terminal_input;
+  uint32_t floor = (written > 4096u) ? (written - 4096u) : 0u;
+  uint32_t last = end_index - 1u; /* the newest sample of the window */
+  unsigned int slot = (unsigned int)(last % 4096u);
+  uint8_t pattern = 0x55;
+  unsigned int index;
+
+  for (index = samples; index < requested; index++) {
+    user_serial_transmit_character(pattern);
+    pattern ^= 0xFF;
+  }
+
+  for (index = 0; index < samples; index++) {
+    uint32_t absolute = last - index;
+
+    if (absolute < floor) {
+      /* The oldest part of the window was overwritten in the ring. */
+      user_serial_transmit_character(pattern & ~mask);
+    } else {
+      user_serial_transmit_character((pattern & ~mask) |
+                                     (buffer[slot] & mask));
+    }
+
+    pattern ^= 0xFF;
+    slot = (slot == 0) ? 4095 : slot - 1;
+  }
+}
+
+/**
  * Sends the packed window captured by the timer-driven sampler, newest
  * sample first.  See sump_transmit_fast() for the padding rules.
  *
@@ -1233,28 +1374,30 @@ bool sump_acquire_samples(void) {
     sump_transmit_fast(samples, requested, mask, sump_go_fast >= 3);
 #endif
   } else {
-    /* Timer-driven capture, 1MHz and below.  The buffer doubles as a
-       rolling ring so the window can hold samples from before the
-       trigger; the read-out walks it backwards from the newest sample. */
+    /* Timer-driven capture, 1MHz and below.  Base captures store one byte
+       per sample; larger captures (fewer channels) pack several samples
+       into every 16-bit word.  The buffer doubles as a rolling ring so
+       the window can hold samples from before the trigger; the read-out
+       walks it backwards from the newest sample. */
+    uint8_t *bytes = bus_pirate_configuration.terminal_input;
     uint16_t *buffer = (uint16_t *)bus_pirate_configuration.terminal_input;
-    unsigned int per_word = sump_samples_per_word;
+    unsigned int per_word = sump_samples_per_word; /* 1 = one byte per sample */
     unsigned char shift = sump_pack_shift;
     unsigned int delay = trigger_delay_samples;
     unsigned int pre_trigger;
+    unsigned int capacity = (per_word == 1) ? 4096u : 2048u;
     uint32_t written = 0;    /* samples taken so far */
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
     uint32_t end_index = 0;  /* one past the newest sample of the window */
-    unsigned int quiet_words = 0; /* words since the last host check */
-    unsigned int slot = 0;   /* next ring slot to store a word in */
-    unsigned int fill = 0;   /* samples packed into the working word */
-    uint16_t working = 0;
+    unsigned int quiet_samples = 0; /* samples since the last host check */
+    unsigned int slot = 0;   /* next ring position: byte or word */
     bool armed = false;
     bool triggered = false;
 
     /* The capture window must fit in the ring; SUMP_CNT sizes the
        channel count for the requested samples, so this is a safety net. */
-    if (samples > per_word * 2048u) {
-      samples = per_word * 2048u;
+    if (samples > capacity * per_word) {
+      samples = capacity * per_word;
     }
     if (delay > samples) {
       delay = samples;
@@ -1266,75 +1409,106 @@ bool sump_acquire_samples(void) {
     IFS1bits.T5IF = OFF;
 
     for (;;) {
-      uint16_t probe;
+      unsigned int chunk = 16;
 
-      /* Take one sample and pack it into the working word. */
-      probe = BP_SUMP_READ_PROBE();
-      working =
-          (uint16_t)((working << shift) | (BP_SUMP_SAMPLE_TRANSFORM(probe) & mask));
-      written++;
-
-      if (++fill == per_word) {
-        buffer[slot] = working;
-        if (++slot == 2048) {
-          slot = 0;
+      /* Decide how many samples this fragment may take: bounded by the
+         requested window, rounded up to whole words where samples are
+         packed (the readout trims the overshoot), and clamped to the
+         ring.  While waiting for a trigger there is no bound. */
+      if (!trigger_armed) {
+        if (chunk > samples - written) {
+          chunk = (unsigned int)(samples - written);
         }
-        fill = 0;
-        working = 0;
-
-        /* Trigger bookkeeping, once per stored word: buffer the
-           pre-trigger part first, then arm on a clean state (a trigger
-           before that point is ignored, as the window cannot hold what
-           came before it).  The trigger lands within one word of true. */
-        if (trigger_armed) {
-          if (!armed) {
-            if (written >= pre_trigger) {
-              armed = true;
-              IFS1bits.CNIF = OFF;
-            }
-          } else if (!triggered && IFS1bits.CNIF) {
-            triggered = true;
-            trigger_at = written;
-            IFS1bits.CNIF = OFF;
-          }
-        }
-
-        /* Stop once the requested window is covered; the readout trims
-           any overshoot of the last word. */
-        if (trigger_armed) {
-          if (triggered && written >= trigger_at + delay) {
-            end_index = trigger_at + delay;
-            break;
-          }
-        } else if (written >= samples) {
-          end_index = samples;
-          break;
-        }
-
-        /* Host escape, checked every few words so the hot loop stays
-           fast.  Any host byte aborts the capture; it stays in place for
-           the command loop to handle. */
-        if (++quiet_words >= 8) {
-          quiet_words = 0;
-          if (user_serial_ready_to_read()) {
-            T4CON = OFF;
-            sump_reset();
-            return true;
-          }
+      } else if (triggered) {
+        if (chunk > trigger_at + delay - written) {
+          chunk = (unsigned int)(trigger_at + delay - written);
         }
       }
 
-      /* Wait for the next sampling tick. */
-      SUMP_WAIT_FOR_TIMER(sump_la_sample);
+      if (per_word == 1) {
+        if (chunk > capacity - slot) {
+          chunk = capacity - slot;
+        }
+        if (chunk) {
+          unsigned int taken = sump_sample_bytes(bytes + slot, chunk);
+
+          slot += taken;
+          if (slot >= capacity) {
+            slot = 0;
+          }
+          written += taken;
+        }
+      } else {
+        chunk = ((chunk + per_word - 1) / per_word) * per_word;
+        if (chunk > (capacity - slot) * per_word) {
+          chunk = (capacity - slot) * per_word;
+        }
+        if (chunk) {
+          unsigned int words_done = sump_sample_words(
+              buffer + slot, chunk / per_word, per_word, shift, mask);
+
+          slot += words_done;
+          if (slot >= capacity) {
+            slot = 0;
+          }
+          written += words_done * per_word;
+        }
+      }
+
+      /* Trigger bookkeeping: buffer the pre-trigger part first, then arm
+         on a clean state; a trigger before that point is ignored, as the
+         window cannot hold what came before it. */
+      if (trigger_armed) {
+        if (!armed) {
+          if (written >= pre_trigger) {
+            armed = true;
+            IFS1bits.CNIF = OFF;
+          } else if (IFS1bits.CNIF) {
+            /* The fragment stopped for an early edge; discard it. */
+            IFS1bits.CNIF = OFF;
+          }
+        } else if (!triggered && IFS1bits.CNIF) {
+          triggered = true;
+          trigger_at = written;
+          IFS1bits.CNIF = OFF;
+        }
+      }
+
+      /* Stop once the requested window is covered; the readout trims up
+         to one fragment of overshoot. */
+      if (trigger_armed) {
+        if (triggered && written >= trigger_at + delay) {
+          end_index = trigger_at + delay;
+          break;
+        }
+      } else if (written >= samples) {
+        end_index = samples;
+        break;
+      }
+
+      /* Host escape, checked at rate-dependent intervals so the fast end
+         stays fast and the slow end stays responsive.  Any host byte
+         aborts the capture; it stays in place for the command loop. */
+      quiet_samples += chunk;
+      if ((quiet_samples & sump_host_check_mask) == 0 &&
+          user_serial_ready_to_read()) {
+        T4CON = OFF;
+        sump_reset();
+        return true;
+      }
     }
 
-    /* Stop sampling.  The capture always stops on a word boundary, and
-       up to one word of samples past the window end is simply not read
-       back (the readout walks to the exact end index). */
+    /* Stop sampling.  The readout walks to the exact end index, so up to
+       one fragment of samples past the window end is simply not read
+       back. */
     T4CON = OFF;
 
-    sump_transmit_packed(samples, requested, end_index, written, per_word,
-                         shift, mask);
+    if (per_word == 1) {
+      sump_transmit_bytes(samples, requested, end_index, written, mask);
+    } else {
+      sump_transmit_packed(samples, requested, end_index, written, per_word,
+                           shift, mask);
+    }
   }
 
   /* Reset the analyzer state. */

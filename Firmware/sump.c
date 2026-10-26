@@ -498,6 +498,14 @@ static unsigned int sump_timer_ticks;
 static bool trigger_armed;
 
 /**
+ * The trigger mask from the last SUMP_TRIG command: which channels the
+ * change notification watches.  Applied to the CN inputs only while the
+ * sampler is actually waiting for the trigger (see sump_apply_trigger()
+ * and sump_disable_trigger()).
+ */
+static uint8_t sump_trigger_mask;
+
+/**
  * Runs one acquisition and sends the captured window to the host.
  *
  * Once the sampler is armed (SUMP_RUN), this captures a full window in
@@ -619,6 +627,74 @@ void sump_reset(void) {
   /* Initialize the sampler. */
   sampler_state = SAMPLER_IDLE;
   trigger_armed = false;
+  sump_trigger_mask = 0;
+}
+
+/**
+ * Applies the change-notification inputs for the current trigger mask.
+ *
+ * Called when SUMP_TRIG configures a capture, and again when the timer
+ * sampler arms, because the warm-up phase disables them (see
+ * sump_disable_trigger()) so a busy input cannot disturb its pacing.
+ */
+static void sump_apply_trigger(void) {
+#ifdef BUSPIRATEV4
+#ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
+  //AUX1 on PORTD:8 will be moved in firmware to B7 of SUMP byte
+  if (sump_trigger_mask & 0b10000000)
+    CNEN4 |= 0b0000000000100000;
+#else // possible GREEN WIRE mode PORTD8 to PORTD7
+  if (sump_trigger_mask & 0b10000000)
+    CNEN2 |= 0b0000000000000001; //AUX1 on PORTD:7
+#endif
+  if (sump_trigger_mask & 0b00100000)
+    CNEN1 |= 0b0100000000000000; // AUX0
+  if (sump_trigger_mask & 0b00010000)
+    CNEN1 |= 0b0010000000000000; // CS
+  if (sump_trigger_mask & 0b00001000)
+    CNEN4 |= 0b0000000000010000; // MISO
+  if (sump_trigger_mask & 0b00000100)
+    CNEN4 |= 0b0000000000001000; // CLK
+  if (sump_trigger_mask & 0b00000010)
+    CNEN4 |= 0b0000000000000100; // MOSI
+  if (sump_trigger_mask & 0b00000001)
+    CNEN4 |= 0b0000000000000010; //AUX2
+#else
+  if (sump_trigger_mask & 0b00010000)
+    CNEN2 |= 0b0000000000000001; // AUX
+  if (sump_trigger_mask & 0b00001000)
+    CNEN2 |= 0b0000000000100000; // MOSI
+  if (sump_trigger_mask & 0b00000100)
+    CNEN2 |= 0b0000000001000000; // CLK
+  if (sump_trigger_mask & 0b00000010)
+    CNEN2 |= 0b0000000010000000; // MISO
+  if (sump_trigger_mask & 0b00000001)
+    CNEN2 |= 0b0000000100000000; // CS
+#endif
+}
+
+/**
+ * Disables the change-notification inputs and clears the flag.
+ *
+ * The trigger inputs are only wanted while the sampler waits for the
+ * trigger: during the warm-up they would disturb the pacing, and after
+ * the trigger has fired later edges would keep cutting fragments short,
+ * which slows the post-trigger sampling down.
+ */
+static void sump_disable_trigger(void) {
+  IFS1bits.CNIF = OFF;
+
+#ifdef BUSPIRATEV4
+  CNEN1 &= 0b1001111111111110;
+#ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
+  CNEN4 &= 0b1111111111000001;
+#else
+  CNEN4 &= 0b1111111111100001;
+  CNEN2 &= 0b1111111111111110;
+#endif
+#else
+  CNEN2 = 0;
+#endif
 }
 
 bool sump_handle_command_byte(unsigned char input_byte) {
@@ -726,45 +802,17 @@ bool sump_handle_command_byte(unsigned char input_byte) {
     /* Set triggers. */
     case SUMP_TRIG:
       trigger_armed = false;
+      sump_trigger_mask = command_buffer.bytes[1];
+      sump_apply_trigger();
 
-#ifdef BUSPIRATEV4                    
-#ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
-      //AUX1 on PORTD:8 will be moved in firmware to B7 of SUMP byte
-      if (command_buffer.bytes[1] & 0b10000000)
-        CNEN4 |= 0b0000000000100000;
-#else // possible GREEN WIRE mode PORTD8 to PORTD7
-      if (command_buffer.bytes[1] & 0b10000000)
-        CNEN2 |= 0b0000000000000001; //AUX1 on PORTD:7
-#endif
-      if (command_buffer.bytes[1] & 0b00100000)
-        CNEN1 |= 0b0100000000000000; // AUX0
-      if (command_buffer.bytes[1] & 0b00010000)
-        CNEN1 |= 0b0010000000000000; // CS
-      if (command_buffer.bytes[1] & 0b00001000)
-        CNEN4 |= 0b0000000000010000; // MISO
-      if (command_buffer.bytes[1] & 0b00000100)
-        CNEN4 |= 0b0000000000001000; // CLK
-      if (command_buffer.bytes[1] & 0b00000010)
-        CNEN4 |= 0b0000000000000100; // MOSI
-      if (command_buffer.bytes[1] & 0b00000001)
-        CNEN4 |= 0b0000000000000010; //AUX2
-
-      if (command_buffer.bytes[1] & 0b10111111)
+#ifdef BUSPIRATEV4
+      if (sump_trigger_mask & 0b10111111) {
         trigger_armed = true;
-#else 
-      if (command_buffer.bytes[1] & 0b00010000)
-        CNEN2 |= 0b0000000000000001; // AUX
-      if (command_buffer.bytes[1] & 0b00001000)
-        CNEN2 |= 0b0000000000100000; // MOSI
-      if (command_buffer.bytes[1] & 0b00000100)
-        CNEN2 |= 0b0000000001000000; // CLK
-      if (command_buffer.bytes[1] & 0b00000010)
-        CNEN2 |= 0b0000000010000000; // MISO
-      if (command_buffer.bytes[1] & 0b00000001)
-        CNEN2 |= 0b0000000100000000; // CS
-
-      if (command_buffer.bytes[1] & 0b00011111)
+      }
+#else
+      if (sump_trigger_mask & 0b00011111) {
         trigger_armed = true;
+      }
 #endif
       break;
 
@@ -1416,6 +1464,12 @@ bool sump_acquire_samples(void) {
     T4CONbits.TON = ON;
     IFS1bits.T5IF = OFF;
 
+    /* The trigger inputs are only wanted while waiting for the trigger,
+       so the warm-up samples at full pace. */
+    if (trigger_armed) {
+      sump_disable_trigger();
+    }
+
     for (;;) {
       /* Fragment size.  Sampling inside a fragment is tick-exact; the
          per-fragment bookkeeping is not, so it is amortised over about
@@ -1473,21 +1527,19 @@ bool sump_acquire_samples(void) {
       }
 
       /* Trigger bookkeeping: buffer the pre-trigger part first, then arm
-         on a clean state; a trigger before that point is ignored, as the
-         window cannot hold what came before it. */
+         the inputs on a clean state; a trigger before that point is
+         ignored, as the window cannot hold what came before it. */
       if (trigger_armed) {
         if (!armed) {
           if (written >= pre_trigger) {
             armed = true;
-            IFS1bits.CNIF = OFF;
-          } else if (IFS1bits.CNIF) {
-            /* The fragment stopped for an early edge; discard it. */
+            sump_apply_trigger();
             IFS1bits.CNIF = OFF;
           }
         } else if (!triggered && IFS1bits.CNIF) {
           triggered = true;
           trigger_at = written;
-          IFS1bits.CNIF = OFF;
+          sump_disable_trigger();
         }
       }
 

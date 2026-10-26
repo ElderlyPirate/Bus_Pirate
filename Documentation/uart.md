@@ -42,7 +42,8 @@ Starting UART Mode
      7. 38400
      8. 57600
      9. 115200
-    10. BRG raw value
+    10. BRG raw value     <<<BPv4: "Input Custom BAUD", plus
+                          <<<"11. Auto-Baud Detection (Activity Required)"
     
     (1)>5    <<<choose UART speed
     Data bits and parity:
@@ -81,10 +82,8 @@ Command Syntax
   * W/w (v1+ hardware only)
 	  * Capital ‘W' enables the on-board power supplies.
 	  * Small ‘w' disables them.
-  * [
-      * Open UART, discard received bytes.
-  * {
-	  * Open UART, display data as it arrives asynchronously. 
+  * [ or {
+	  * Open UART, display received bytes as they arrive (live display).
   * ] or }
 	  * Close UART.
   * r
@@ -143,7 +142,7 @@ Macros
 | (#) | Description |
 |:---:| ----------- |
 | 0 | Macro menu |
-| 1 | Transparent UART bridge. Reset to exit. |
+| 1 | Transparent UART bridge. Reset (or the NORMAL button on BPv4) to exit. |
 | 2 | Live raw UART monitor. Any key exits. |
 | 3 | Transparent UART bridge with flow control. |
   
@@ -151,10 +150,10 @@ Macros
 
     UART>(1)    <<<macro 1, transparent UART bridge
     UART bridge
-    Reset to exit
-    Are you sure?  <<<Space continues, anything else exits.
+    Reset to exit    <<<BPv4 firmware prints "Normal to exit"
+    Are you sure?  <<<y continues, anything else exits.
 
-The transparent UART mode **macro (1)** creates a simple serial->USB bridge. The only way to exit this mode is to reset the Bus Pirate hardware.
+The transparent UART mode **macro (1)** creates a simple serial->USB bridge. The only way to exit this mode is to reset the Bus Pirate; on BPv4 the NORMAL button also exits the bridge.
 
 Buffer overrun errors that occur during bridge mode are automatically cleared so that data continues as normal (firmware v3.0+). The MODE LED will turn off to alert you of the buffer overrun error.
 

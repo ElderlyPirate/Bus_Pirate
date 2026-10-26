@@ -1410,9 +1410,10 @@ bool sump_acquire_samples(void) {
 
     for (;;) {
       /* Fragment size: bigger fragments amortise the per-fragment
-         bookkeeping; at slow rates they stay small so host aborts stay
-         responsive (slow rates check after every fragment). */
-      unsigned int chunk = (sump_host_check_mask == 0) ? 16u : 64u;
+         bookkeeping (which is what keeps the top lane inside its tick);
+         at slow rates they stay small so host aborts stay responsive
+         (slow rates check after every fragment). */
+      unsigned int chunk = (sump_host_check_mask == 0) ? 16u : 256u;
 
       /* Decide how many samples this fragment may take: bounded by the
          requested window, rounded up to whole words where samples are

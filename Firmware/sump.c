@@ -488,12 +488,11 @@ static uint8_t sump_channel_mask;
 static unsigned char sump_go_fast;
 
 /**
- * How often the timer-driven capture checks for a host byte: the check
- * runs whenever `quiet_samples & sump_host_check_mask` is zero.  Slow
- * rates check after every fragment, to stay responsive; fast rates
- * amortise the call over several fragments.
+ * The timer-driven sampler's period in ticks (PR + 1), or 0 before any
+ * divider command.  The capture uses it to size its sampling fragments
+ * to a few milliseconds' worth of samples.
  */
-static unsigned int sump_host_check_mask;
+static unsigned int sump_timer_ticks;
 
 // whether trigger is armed
 static bool trigger_armed;
@@ -615,7 +614,7 @@ void sump_reset(void) {
   sump_pack_shift = 8;
   sump_channel_mask = BP_SUMP_SAMPLE_MASK;
   sump_go_fast = 0;
-  sump_host_check_mask = 15;
+  sump_timer_ticks = BP_DEFAULT_TIMER_PERIOD + 1;
 
   /* Initialize the sampler. */
   sampler_state = SAMPLER_IDLE;
@@ -847,12 +846,6 @@ bool sump_handle_command_byte(unsigned char input_byte) {
                4 / 25;
 
       /*
-       * Below 10kHz (1600 ticks) the abort check runs after every
-       * fragment; faster rates amortise it over several fragments.
-       */
-      sump_host_check_mask = (period >= 1600u) ? 0u : 15u;
-
-      /*
        * Rates above 1MHz cannot be kept by a timer-polled loop, so they
        * switch to the cycle-counted sampling loops.  The nominal timer
        * periods here: 16MHz = 1 cycle, 8MHz = 2, 4MHz = 4, 2MHz = 8.
@@ -871,6 +864,7 @@ bool sump_handle_command_byte(unsigned char input_byte) {
         /* Set timer period. */
         PR5 = HI16(period);
         PR4 = LO16(period);
+        sump_timer_ticks = (unsigned int)period + 1;
       }
 
       break;
@@ -1389,7 +1383,6 @@ bool sump_acquire_samples(void) {
     uint32_t written = 0;    /* samples taken so far */
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
     uint32_t end_index = 0;  /* one past the newest sample of the window */
-    unsigned int quiet_samples = 0; /* samples since the last host check */
     unsigned int slot = 0;   /* next ring position: byte or word */
     bool armed = false;
     bool triggered = false;
@@ -1409,22 +1402,27 @@ bool sump_acquire_samples(void) {
     IFS1bits.T5IF = OFF;
 
     for (;;) {
-      /* Fragment size: bigger fragments amortise the per-fragment
-         bookkeeping (which is what keeps the top lane inside its tick);
-         at slow rates they stay small so host aborts stay responsive
-         (slow rates check after every fragment). */
-      unsigned int chunk = (sump_host_check_mask == 0) ? 16u : 256u;
+      /* Fragment size.  Sampling inside a fragment is tick-exact; the
+         per-fragment bookkeeping is not, so it is amortised over about
+         4ms worth of samples (fewer than one burst per capture in most
+         cases, keeping the whole window effectively tick-exact).  While
+         waiting for a trigger the fragment also runs in bursts, and a
+         trigger edge ends it early (checked per sample inside). */
+      unsigned int chunk;
 
-      /* Decide how many samples this fragment may take: bounded by the
-         requested window, rounded up to whole words where samples are
-         packed (the readout trims the overshoot), and clamped to the
-         ring.  While waiting for a trigger there is no bound. */
+      chunk = (sump_timer_ticks == 0) ? 16u : (64000u / sump_timer_ticks);
+      if (chunk < 16u) {
+        chunk = 16u;
+      }
+
+      /* A bounded capture takes its last (or only) burst in one go, if
+         what is left is close enough. */
       if (!trigger_armed) {
-        if (chunk > samples - written) {
+        if (samples - written <= chunk + chunk / 8u) {
           chunk = (unsigned int)(samples - written);
         }
       } else if (triggered) {
-        if (chunk > trigger_at + delay - written) {
+        if (trigger_at + delay - written <= chunk + chunk / 8u) {
           chunk = (unsigned int)(trigger_at + delay - written);
         }
       }
@@ -1490,12 +1488,10 @@ bool sump_acquire_samples(void) {
         break;
       }
 
-      /* Host escape, checked at rate-dependent intervals so the fast end
-         stays fast and the slow end stays responsive.  Any host byte
-         aborts the capture; it stays in place for the command loop. */
-      quiet_samples += chunk;
-      if ((quiet_samples & sump_host_check_mask) == 0 &&
-          user_serial_ready_to_read()) {
+      /* Host escape: any host byte aborts the capture; it stays in place
+         for the command loop to handle.  Fragments are at most a few
+         milliseconds' worth of samples, so one check each is responsive. */
+      if (user_serial_ready_to_read()) {
         T4CON = OFF;
         sump_reset();
         return true;

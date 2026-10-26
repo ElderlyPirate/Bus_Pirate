@@ -564,8 +564,15 @@ typedef struct {
 
   /**
    * Device roster slots.
+   *
+   * Indexed as [roster slot][ROM byte]: each slot holds one full ROM
+   * identifier, and there are BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS slots.  The
+   * dimensions must be in this order - the roster is filled with a
+   * ROM_BYTES_SIZE memcpy per slot (see onewire_run_macro), so declaring it
+   * the other way around reads and writes past the end of the array once
+   * more than ROM_BYTES_SIZE devices are found (issue #116).
    */
-  uint8_t roster_entries[ROM_BYTES_SIZE][BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS];
+  uint8_t roster_entries[BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS][ROM_BYTES_SIZE];
 
   /**
    * The command byte to send on the bus.

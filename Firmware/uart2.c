@@ -33,14 +33,15 @@
  *
  * The receive side must never depend on what the main loop is doing: the
  * host writes can block for a long time (USB CDC backpressure on the v4,
- * the UART1 transmitter on the v3), and this UART has no hardware FIFO -
- * an unread byte is simply replaced by the next one, so a stalled loop
- * silently drops received data.  The RX interrupt drains the hardware into
- * this ring instead, and the rest of the firmware reads from the ring.
- * The parity/framing status of each character is captured per byte as
- * well: PERR/FERR are read-only status bits for the character at the top
- * of the FIFO, and the interrupt consumes the characters the old code
- * used to inspect.
+ * the UART1 transmitter on the v3), and the hardware FIFO (four deep, per
+ * the UART chapter of the family datasheet) simply overruns when a
+ * stalled loop leaves it full - the newly arriving characters are lost.
+ * The RX interrupt drains everything the FIFO holds into this ring (up
+ * to four characters per interrupt, see below), and the rest of the
+ * firmware reads from the ring.  The parity/framing status of each
+ * character is captured per byte as well: PERR/FERR are read-only status
+ * bits for the character at the top of the FIFO, and the interrupt
+ * consumes the characters the old code used to inspect.
  */
 #define UART2_RX_BUFFER_SIZE 128 /* power of two */
 static volatile uint8_t uart2_rx_buffer[UART2_RX_BUFFER_SIZE];
@@ -66,7 +67,15 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
     uart2_rx_overruns++;
   }
 
-  if (U2STAbits.URXDA) {
+  /*
+   * The receive FIFO is four deep.  "URXDA = 1" only guarantees that at
+   * least one more character can be read, so drain it one character at a
+   * time; doing that for every character the FIFO holds keeps the number
+   * of interrupt entries at one per four received bytes at best, instead
+   * of one per byte (URXISEL is set to interrupt on every character, so a
+   * non-empty FIFO re-asserts the flag anyway).
+   */
+  while (U2STAbits.URXDA) {
     uint8_t flags = (uint8_t)((U2STAbits.PERR ? UART2_RX_FLAG_PARITY : 0) |
                               (U2STAbits.FERR ? UART2_RX_FLAG_FRAMING : 0));
 

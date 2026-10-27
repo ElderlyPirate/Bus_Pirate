@@ -932,12 +932,14 @@ bool handle_wire_generic_command(const wire_generic_command command) {
 }
 
 /**
- * Poll interval for handle_wait_command(), in microseconds.
+ * Poll tick for handle_wait_command(), in microseconds.
  *
- * The change notification flag latches an edge in between polls, so this
- * only bounds how late the reply can be; an edge is never missed.
+ * The change notification flag latches an edge in between polls, so the
+ * tick only bounds how late the reply can be; an edge is never missed.
+ * One microsecond keeps a caught edge's reply within a few microseconds
+ * instead of up to the old 50 us interval.
  */
-#define BP_WAIT_POLL_INTERVAL_US 50
+#define BP_WAIT_POLL_TICK_US 1
 
 void handle_wait_command(const uint8_t command) {
   const uint8_t subcommand = command & 0b1111;
@@ -967,8 +969,17 @@ void handle_wait_command(const uint8_t command) {
 
   bool level = bp_aux_pin_read();
   bool edge_seen = NO;
-  uint32_t waited_us = 0;
-  const uint32_t timeout_us = (uint32_t)timeout_ms * 1000;
+
+  /*
+   * Timeout accounting on TMR1 directly (0.5 us ticks, 16 bits, so it
+   * wraps every 32.8 ms): deltas are accumulated so any timeout up to the
+   * protocol maximum stays exact.  This branch has no inlined short-delay
+   * helper yet, so the one-microsecond tick is the direct bp_delay_us()
+   * call (no cross-PR dependency; same cadence).
+   */
+  const uint32_t timeout_ticks = (uint32_t)timeout_ms * 2000;
+  uint16_t last_ticks = TMR1;
+  uint32_t elapsed_ticks = 0;
 
   for (;;) {
     if (IFS1bits.CNIF) {
@@ -990,13 +1001,16 @@ void handle_wait_command(const uint8_t command) {
       }
     }
 
-    if (waited_us >= timeout_us) {
+    const uint16_t now_ticks = TMR1;
+    elapsed_ticks += (uint16_t)(now_ticks - last_ticks);
+    last_ticks = now_ticks;
+
+    if (elapsed_ticks >= timeout_ticks) {
       level = bp_aux_pin_read();
       break;
     }
 
-    bp_delay_us(BP_WAIT_POLL_INTERVAL_US);
-    waited_us += BP_WAIT_POLL_INTERVAL_US;
+    bp_delay_us(BP_WAIT_POLL_TICK_US);
   }
 
   bp_aux_pin_set_change_notification(OFF);

@@ -27,6 +27,72 @@
 #define UARTTX_PIN BP_MOSI_RPOUT
 #define UARTTX_ODC BP_MOSI_ODC
 
+/*
+ * UART2 receive buffer (both variants; the U2RX interrupt is available on
+ * the v3 and v4 chips alike).
+ *
+ * The receive side must never depend on what the main loop is doing: the
+ * host writes can block for a long time (USB CDC backpressure on the v4,
+ * the UART1 transmitter on the v3), and the hardware FIFO (four deep, per
+ * the UART chapter of the family datasheet) simply overruns when a
+ * stalled loop leaves it full - the newly arriving characters are lost.
+ * The RX interrupt drains everything the FIFO holds into this ring (up
+ * to four characters per interrupt, see below), and the rest of the
+ * firmware reads from the ring.  The parity/framing status of each
+ * character is captured per byte as well: PERR/FERR are read-only status
+ * bits for the character at the top of the FIFO, and the interrupt
+ * consumes the characters the old code used to inspect.
+ */
+#define UART2_RX_BUFFER_SIZE 128 /* power of two */
+static volatile uint8_t uart2_rx_buffer[UART2_RX_BUFFER_SIZE];
+static volatile uint8_t uart2_rx_flag_buffer[UART2_RX_BUFFER_SIZE];
+static volatile uint8_t uart2_rx_head = 0;
+static volatile uint8_t uart2_rx_tail = 0;
+static volatile uint8_t uart2_rx_last_flags = 0;
+static volatile uint16_t uart2_rx_overruns = 0;
+
+void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
+  uint8_t next;
+
+  /* Clear the interrupt flag. */
+  IFS1bits.U2RXIF = OFF;
+
+  /*
+   * A hardware overrun means the previous byte was replaced before the
+   * interrupt could read it; clearing OERR resets the receiver FIFO and
+   * the shift register (per the family datasheet), so only count it.
+   */
+  if (U2STAbits.OERR) {
+    U2STAbits.OERR = OFF;
+    uart2_rx_overruns++;
+  }
+
+  /*
+   * The receive FIFO is four deep.  "URXDA = 1" only guarantees that at
+   * least one more character can be read, so drain it one character at a
+   * time; doing that for every character the FIFO holds keeps the number
+   * of interrupt entries at one per four received bytes at best, instead
+   * of one per byte (URXISEL is set to interrupt on every character, so a
+   * non-empty FIFO re-asserts the flag anyway).
+   */
+  while (U2STAbits.URXDA) {
+    uint8_t flags = (uint8_t)((U2STAbits.PERR ? UART2_RX_FLAG_PARITY : 0) |
+                              (U2STAbits.FERR ? UART2_RX_FLAG_FRAMING : 0));
+
+    next = (uint8_t)((uart2_rx_head + 1) & (UART2_RX_BUFFER_SIZE - 1));
+
+    if (next != uart2_rx_tail) {
+      uart2_rx_flag_buffer[uart2_rx_head] = flags;
+      uart2_rx_buffer[uart2_rx_head] = (uint8_t)(U2RXREG & 0xFF);
+      uart2_rx_head = next;
+    } else {
+      /* Ring full: the byte is read and dropped. */
+      (void)U2RXREG;
+      uart2_rx_overruns++;
+    }
+  }
+}
+
 void uart2_setup(const uint16_t baud_rate_generator_prescaler,
                  const bool open_drain_output, const bool invert_polarity,
                  const uint8_t databits_and_parity, const bool stop_bits) {
@@ -89,8 +155,15 @@ void uart2_enable(void) {
   /* Enable data transmission. */
   U2STAbits.UTXEN = ON;
 
-  /* Clear UART2 interrupt flag. */
+/* Reset the receive ring and enable the RX interrupt. */
+  uart2_rx_head = 0;
+  uart2_rx_tail = 0;
+  uart2_rx_last_flags = 0;
+  uart2_rx_overruns = 0;
+
+  /* Clear UART2 interrupt flag and enable the RX interrupt. */
   IFS1bits.U2RXIF = OFF;
+  IEC1bits.U2RXIE = ON;
 
   /*
    * Tristate bits are ignored by the PPS peripheral, and are set here only to
@@ -100,6 +173,9 @@ void uart2_enable(void) {
 }
 
 void uart2_disable(void) {
+  /* Disable the RX interrupt before touching the port. */
+  IEC1bits.U2RXIE = OFF;
+
   /* Disable UART port. */
   U2MODEbits.UARTEN = OFF;
 
@@ -129,13 +205,22 @@ void uart2_tx(const uint8_t character) {
 }
 
 uint8_t uart2_rx(void) {
-  /* Wait until the RX buffer is full. */
-  while (U2STAbits.URXDA == OFF) {
+  uint8_t character;
+
+  /* Wait until a character is available in the ring. */
+  while (uart2_rx_head == uart2_rx_tail) {
   }
 
-  return (uint8_t)(U2RXREG & 0xFF);
+  character = uart2_rx_buffer[uart2_rx_tail];
+  uart2_rx_last_flags = uart2_rx_flag_buffer[uart2_rx_tail];
+  uart2_rx_tail = (uint8_t)((uart2_rx_tail + 1) & (UART2_RX_BUFFER_SIZE - 1));
+  return character;
 }
 
-inline bool uart2_rx_ready(void) { return U2STAbits.URXDA; }
+inline bool uart2_rx_ready(void) { return uart2_rx_head != uart2_rx_tail; }
+
+uint8_t uart2_rx_flags(void) { return uart2_rx_last_flags; }
+
+uint16_t uart2_rx_overrun_count(void) { return uart2_rx_overruns; }
 
 #endif /* BP_ENABLE_UART_SUPPORT */

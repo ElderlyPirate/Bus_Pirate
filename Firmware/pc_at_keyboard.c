@@ -292,7 +292,7 @@ keyboard_write_byte_result_t write_byte(const uint8_t value) {
   }
 
   for (bit_index = 0; bit_index < 8; bit_index++) {
-    if ((value & (1 << bit_index)) == HIGH) {
+    if ((value & (1 << bit_index)) != 0) {
       if (write_bit(HIGH) != KEYBOARD_WRITE_SUCCESS) {
         return KEYBOARD_WRITE_BYTE_TIMEOUT;
       }
@@ -306,7 +306,7 @@ keyboard_write_byte_result_t write_byte(const uint8_t value) {
 
   parity ^= 1;
 
-  if (write_bit(MASKBOTTOM8(parity, 1) != KEYBOARD_WRITE_SUCCESS)) {
+  if (write_bit(MASKBOTTOM8(parity, 1)) != KEYBOARD_WRITE_SUCCESS) {
     return KEYBOARD_WRITE_BYTE_TIMEOUT;
   }
 

@@ -183,7 +183,7 @@ uint16_t read_bits(const uint8_t bits) {
   for (size_t index = 0; index < bits; index++) {
     bitbang_set_pins_high(CLK, PIC_PIN_DELAY / 2);
     data = (data >> 1) |
-           ((bitbang_read_pin(MOSI) == HIGH ? 1 : 0) << (1 << (bits - 1)));
+           ((bitbang_read_pin(MOSI) == HIGH ? 1 : 0) << (bits - 1));
     bitbang_set_pins_low(CLK, PIC_PIN_DELAY / 2);
   }
 
@@ -218,7 +218,7 @@ unsigned int pic_read(void) {
 }
 
 void write_bits(const uint16_t data, const uint8_t bits) {
-  uint8_t mask = 1;
+  uint16_t mask = 1;
 
   for (size_t index = 0; index < bits; index++) {
     bitbang_set_pins_high(CLK, PIC_PIN_DELAY / 4);

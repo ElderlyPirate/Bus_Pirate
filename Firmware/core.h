@@ -116,6 +116,15 @@ typedef struct {
   void (*clock_pulse)(void);
 
   /**
+   * Advance the clock by the given number of ticks, when the protocol can
+   * do it in a single call.
+   *
+   * Optional: NULL when the clock can only be pulsed one tick at a time
+   * through clock_pulse().  The `^` command uses this to batch its ticks.
+   */
+  void (*clock_pulses)(uint16_t ticks);
+
+  /**
    * Read a bit from the bus.
    *
    * @return the bit read from the bus.

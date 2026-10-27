@@ -787,16 +787,27 @@ void serviceuser(void) {
       case '7':
       case '8':
       case '9':
-        BPMSG1101;
         sendw = getint();
         cmdstart--;
         cmdstart &= CMDLENMSK;
         repeat = getrepeat() + 1;
         numbits = getnumbits();
+        if (numbits > 16) {
+          /*
+           * Reject widths above 16: the write mask starts from
+           * 1 << (numbits - 1), and the SL shift this compiles to yields
+           * 0 for counts above 15 (DS70000157G), so every bit would
+           * silently be written as 0.  (0 = not given; 1..16 = valid
+           * width.)
+           */
+          mode_configuration.command_error = YES;
+          break;
+        }
         if (numbits) {
           mode_configuration.numbits = numbits;
           mode_configuration.int16 = numbits > 8 ? YES : NO;
         }
+        BPMSG1101;
         while (--repeat) {
           bp_write_formatted_integer(sendw);
           if (((mode_configuration.int16 == NO) &&
@@ -826,14 +837,25 @@ void serviceuser(void) {
         break;
 
       case 'r':
-        MSG_READ_HEADER;
         newDmode = change_read_display();
         repeat = getrepeat() + 1;
         numbits = getnumbits();
+        if (numbits > 16) {
+          /*
+           * Reject widths above 16: the write mask starts from
+           * 1 << (numbits - 1), and the SL shift this compiles to yields
+           * 0 for counts above 15 (DS70000157G), so every bit would
+           * silently be written as 0.  (0 = not given; 1..16 = valid
+           * width.)
+           */
+          mode_configuration.command_error = YES;
+          break;
+        }
         if (numbits) {
           mode_configuration.numbits = numbits;
           mode_configuration.int16 = (numbits > 8) ? YES : NO;
         }
+        MSG_READ_HEADER;
         if (newDmode) {
           oldDmode = bus_pirate_configuration.display_mode;
           bus_pirate_configuration.display_mode = newDmode - 1;

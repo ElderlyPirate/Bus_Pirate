@@ -197,7 +197,7 @@ uint16_t i2c_read(void) {
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    value = bitbang_read_value();
+    value = bitbang_read_value(true);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     value = hardware_i2c_read();
@@ -218,8 +218,8 @@ unsigned int i2c_write(unsigned int c) {
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    bitbang_write_value(c);
-    c = bitbang_read_bit();
+    bitbang_write_value(c, true);
+    c = bitbang_read_bit(true);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     hardware_i2c_write(c);
@@ -429,8 +429,8 @@ void i2c_macro(unsigned int c) {
     for (i = 0; i < 0x100; i++) {
       if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
         bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT); // send start
-        bitbang_write_value(i);                        // send address
-        c = bitbang_read_bit();                        // look for ack
+        bitbang_write_value(i, true);                        // send address
+        c = bitbang_read_bit(true);                        // look for ack
       } else {
 #ifdef BP_I2C_USE_HW_BUS
         hardware_i2c_start();
@@ -448,7 +448,7 @@ void i2c_macro(unsigned int c) {
           MSG_I2C_WRITE_ADDRESS_END;
         } else {
           if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-            bitbang_read_value();
+            bitbang_read_value(true);
             bitbang_write_bit(HIGH);
           } else {
 #ifdef BP_I2C_USE_HW_BUS
@@ -945,6 +945,19 @@ void binary_io_enter_i2c_mode(void) {
   static unsigned char inByte, rawCommand, i;
   unsigned int fw, fr;
 
+  /*
+   * The byte transport below (i2c_write()/i2c_read() ->
+   * bitbang_write_value()/bitbang_read_value()) carries
+   * mode_configuration.numbits bits per byte.  A width left over from
+   * another mode - e.g. an interactive ;16 in a raw mode, whose exit path
+   * does not run the mode cleanup - would turn every byte into a 16-bit
+   * transfer: the wire carries a leading 0x00 byte and every slave NAKs
+   * the address.  Pin the byte width at entry, the same way the raw-wire
+   * binary handler in binary_io.c does.
+   */
+  mode_configuration.numbits = 8;
+  mode_configuration.int16 = NO;
+
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;
   SCL = LOW;
@@ -985,7 +998,7 @@ void binary_io_enter_i2c_mode(void) {
         break;
 
       case 4: // I2C read byte
-        user_serial_transmit_character(bitbang_read_value());
+        user_serial_transmit_character(bitbang_read_value(true));
         break;
 
       case 6: // I2C send ACK
@@ -1009,11 +1022,14 @@ void binary_io_enter_i2c_mode(void) {
         REPORT_IO_SUCCESS();
         // inByte - used as extended commmand
         // fr - used as result
-        // wait for subcommand byte
-        while (U1STAbits.URXDA == OFF) {
-        }
-
-        inByte = U1RXREG; // get byte
+        /*
+         * Read the subcommand through the portable accessor: on v4 the
+         * terminal link is the USB CDC, so the raw UART1 registers used
+         * here originally would never receive a byte and the firmware
+         * would hang until a replug (on v3 the accessor performs the same
+         * raw UART1 read as before).
+         */
+        inByte = user_serial_read_byte();
         // 0x00 - AUX/CS low
         // 0x01 - AUX/CS high
         // 0x02 - AUX/CS HiZ
@@ -1073,9 +1089,9 @@ void binary_io_enter_i2c_mode(void) {
 
       for (i = 0; i < inByte; i++) {
         bitbang_write_value(
-            user_serial_read_byte()); // JTR usb port //send byte
+            user_serial_read_byte(), true); // JTR usb port //send byte
         user_serial_transmit_character(
-            bitbang_read_bit()); // return ACK0 or NACK1
+            bitbang_read_bit(true)); // return ACK0 or NACK1
       }
 
       break;
@@ -1107,51 +1123,26 @@ void binary_io_enter_i2c_mode(void) {
 bool i2c_write_then_read(void) {
   /* Read the amount of bytes to write. */
   size_t bytes_to_write = user_serial_read_big_endian_word();
-  
+
   /* Read the amount of bytes to read. */
   size_t bytes_to_read = user_serial_read_big_endian_word();
 
-#ifndef BP_I2C_ENABLE_STREAMING_WRITE
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
+  /*
+   * Make sure the payloads fit in the internal buffer: both the write and
+   * the read payload are buffered in the terminal buffer, so both counts
+   * must be bounded here (the read check used to test the write count,
+   * leaving bytes_to_read host-controlled and unbounded).
+   */
+  if ((bytes_to_write > BP_TERMINAL_BUFFER_SIZE) ||
+      (bytes_to_read > BP_TERMINAL_BUFFER_SIZE)) {
     return false;
   }
-#endif /* !BP_I2C_ENABLE_STREAMING_WRITE */
-
-#ifndef BP_I2C_ENABLE_STREAMING_READ
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
-    return false;
-  }
-#endif /* !BP_I2C_ENABLE_STREAMING_READ */
 
   if ((bytes_to_write == 0) && (bytes_to_read == 0)) {
     return false;
   }
 
   uint8_t i2c_address = 0;
-
-#ifdef BP_I2C_ENABLE_STREAMING_WRITE
-
-  /* Read I2C address. */
-  i2c_address = user_serial_read_byte();
-
-  /* Start streaming. */
-  bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
-
-  /* Stream data from the serial port. */
-  bitbang_write_value(i2c_address);
-
-  for (size_t counter = 1; counter < bytes_to_write; counter++) {
-    bitbang_write_value(user_serial_read_byte());
-
-    if (bitbang_read_bit() == HIGH) {
-      /* No ACK read on the bus, bailing out. */
-      return false;
-    }
-  }
-
-#else
 
   /* Read payload. */
   for (size_t index = 0; index < bytes_to_write; index++) {
@@ -1166,24 +1157,22 @@ bool i2c_write_then_read(void) {
 
   /* Write the payload to the I2C bus. */
   for (size_t index = 0; index < bytes_to_write; index++) {
-    bitbang_write_value(bus_pirate_configuration.terminal_input[index]);
+    bitbang_write_value(bus_pirate_configuration.terminal_input[index], true);
 
-    if (bitbang_read_bit() == HIGH) {
+    if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
       return false;
     }
   }
-
-#endif /* BP_I2C_ENABLE_STREAMING_WRITE */
 
   if ((bytes_to_read > 0) && (bytes_to_write > 1)) {
     /* Send a restart signal on the I2C bus. */
     bitbang_i2c_start(BITBANG_I2C_RESTART);
 
     /* Send the I2C address. */
-    bitbang_write_value(i2c_address | 0x01);
+    bitbang_write_value(i2c_address | 0x01, true);
 
-    if (bitbang_read_bit() == HIGH) {
+    if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
       return false;
     }
@@ -1192,27 +1181,9 @@ bool i2c_write_then_read(void) {
   /* Read the rest of the data. */
   bytes_to_write = bytes_to_read - 1;
 
-#ifdef BP_I2C_ENABLE_STREAMING_READ
-
-  /* Start streaming data. */
-  REPORT_IO_SUCCESS();
-
-  for (size_t counter = 0; counter < bytes_to_read; counter++) {
-    /* Read byte from the I2C bus. */
-    user_serial_transmit_character(bitbang_read_value());
-    
-    /* Acknowledge read operation. */
-    bitbang_write_bit(counter >= bytes_to_write ? HIGH : LOW);
-  }
-
-  /* Stop the I2C bus. */
-  bitbang_i2c_stop();
-
-#else
-
   for (size_t index = 0; index < bytes_to_read; index++) {
     /* Read the byte from the I2C bus. */
-    bus_pirate_configuration.terminal_input[index] = bitbang_read_value();
+    bus_pirate_configuration.terminal_input[index] = bitbang_read_value(true);
 
     /* Report ACK or NACK depending on the length. */
     bitbang_write_bit(index >= bytes_to_write ? HIGH : LOW);
@@ -1226,8 +1197,6 @@ bool i2c_write_then_read(void) {
 
   /* And send the I2C data over to the UART. */
   bp_write_buffer(&bus_pirate_configuration.terminal_input[0], bytes_to_read);
-
-#endif /* BP_I2C_ENABLE_STREAMING_READ */
 
   return true;
 }

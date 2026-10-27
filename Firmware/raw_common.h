@@ -39,7 +39,7 @@
 #include "base.h"
 #include "bitbang.h"
 
-static inline bool raw_read_bit(void) { return bitbang_read_bit(); }
+static inline bool raw_read_bit(void) { return bitbang_read_bit(false); }
 
 static inline uint16_t raw_read_pin(void) { return bitbang_read_miso(); }
 

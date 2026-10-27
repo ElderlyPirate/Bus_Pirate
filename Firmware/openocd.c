@@ -57,10 +57,10 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 #define OOCD_TDI_ODC BP_MOSI_ODC
 #ifdef BUSPIRATEV3
 #define OOCD_SRST_ODC BP_AUX0_ODC
-#define OOCD_TRST_ODC BP_PGD
+#define OOCD_TRST_ODC BP_PGD_ODC
 #else
 #define OOCD_SRST_ODC BP_AUX_ODC
-#define OOCD_TRST_ODC BP_AUX1
+#define OOCD_TRST_ODC BP_AUX1_ODC
 #endif /* BUSPIRATEV3 */
 
 #define CMD_UNKNOWN 0x00
@@ -271,10 +271,27 @@ void binOpenOCD(void) {
           /* Clear TCK. */
           OOCD_CLK = LOW;
 
-          /* Output TMS and TDI. */
-          OOCD_TDI = (tdi_data_out & 0x0001) ? HIGH : LOW;
+          /*
+           * Output TMS and TDI.
+           *
+           * The masks are compile-time constants, so these compile to
+           * single-cycle BSET/BCLR on LATD (DS70000157G).  The bitfield
+           * writes these replaced compiled to a full read-modify-write of
+           * the port per pin per bit, which dominated the TCK period at
+           * the fastest delay settings.
+           */
+          if (tdi_data_out & 0x0001) {
+            IOLAT |= MOSI;
+          } else {
+            IOLAT &= ~MOSI;
+          }
           tdi_data_out >>= 1;
-          OOCD_TMS = (tms_data_out & 0x0001) ? HIGH : LOW;
+
+          if (tms_data_out & 0x0001) {
+            IOLAT |= CS;
+          } else {
+            IOLAT &= ~CS;
+          }
           tms_data_out >>= 1;
 
 #ifdef BP_JTAG_OPENOCD_DELAY

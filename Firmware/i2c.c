@@ -945,6 +945,19 @@ void binary_io_enter_i2c_mode(void) {
   static unsigned char inByte, rawCommand, i;
   unsigned int fw, fr;
 
+  /*
+   * The byte transport below (i2c_write()/i2c_read() ->
+   * bitbang_write_value()/bitbang_read_value()) carries
+   * mode_configuration.numbits bits per byte.  A width left over from
+   * another mode - e.g. an interactive ;16 in a raw mode, whose exit path
+   * does not run the mode cleanup - would turn every byte into a 16-bit
+   * transfer: the wire carries a leading 0x00 byte and every slave NAKs
+   * the address.  Pin the byte width at entry, the same way the raw-wire
+   * binary handler in binary_io.c does.
+   */
+  mode_configuration.numbits = 8;
+  mode_configuration.int16 = NO;
+
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;
   SCL = LOW;

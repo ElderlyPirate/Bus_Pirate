@@ -210,6 +210,19 @@ void read_atr_header(void) {
     MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION;
     break;
 
+  /*
+   * The value table only has 8 entries (indices 0..7).  Codes above that
+   * are out of its range: 9..14 are reserved in ISO 7816-3 and 15 is RFU;
+   * 8 is treated the same way here because the table defines no entry for
+   * it.  Report those as RFU instead of indexing past the array.
+   */
+  case 0b1000:
+  case 0b1001:
+  case 0b1010:
+  case 0b1011:
+  case 0b1100:
+  case 0b1101:
+  case 0b1110:
   case 0b1111:
     MSG_RAW2WIRE_ATR_RFU;
     break;

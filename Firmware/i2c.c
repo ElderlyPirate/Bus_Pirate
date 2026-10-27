@@ -1086,6 +1086,10 @@ void binary_io_enter_i2c_mode(void) {
       REPORT_IO_SUCCESS();
       break;
 
+    case 0b0111: // wait for an edge on the AUX pin
+      handle_wait_command(inByte);
+      break;
+
     case 0b0100: // configure peripherals w=power, x=pullups, y=AUX, z=CS
       bp_binary_io_peripherals_set(inByte);
       REPORT_IO_SUCCESS();

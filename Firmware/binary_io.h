@@ -106,6 +106,42 @@ uint8_t bitbang_pin_direction_set(const uint8_t direction_mask);
  */
 uint8_t bitbang_pin_state_set(const uint8_t state_mask);
 
+/**
+ * Edge selectors for the wait command group.
+ */
+typedef enum {
+  /** The wait ends on a low-to-high edge. */
+  BP_BINARY_IO_EDGE_RISING = 0b01,
+  /** The wait ends on a high-to-low edge. */
+  BP_BINARY_IO_EDGE_FALLING = 0b10,
+  /** The wait ends on either edge. */
+  BP_BINARY_IO_EDGE_EITHER = 0b11
+} binary_io_edge_t;
+
+/**
+ * @brief Waits for an edge on the AUX pin, or until a timeout expires.
+ *
+ * This is the handler of the wait command group (0b0111), which all binary
+ * protocol modes accept. Sub-command 0x0 waits for an edge; the next
+ * parameter selects which edge:
+ *
+ * | Value | Edge |
+ * |---|---|
+ * | 0b01 | rising (low to high) |
+ * | 0b10 | falling (high to low) |
+ * | 0b11 | either |
+ *
+ * A 16-bit big-endian timeout in milliseconds follows the selector (`0`
+ * checks the pin once and returns immediately). The reply is a result code
+ * followed by the AUX pin level at the moment the wait finished: success
+ * when the requested edge arrived, failure on timeout. An unknown edge
+ * selector is answered with a failure code alone.
+ *
+ * @param[in] command the full command byte, carrying the sub-command in its
+ * lower four bits.
+ */
+void handle_wait_command(uint8_t command);
+
 void bp_binary_io_peripherals_set(uint8_t input_byte);
 
 #ifdef BUSPIRATEV4

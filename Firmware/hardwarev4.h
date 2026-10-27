@@ -126,6 +126,16 @@
 #define BP_MOSI_CN CNEN4bits.CN50IE
 #define BP_CLK_CN CNEN4bits.CN51IE
 
+/*
+ * Change notice assignments for the pins bp_aux_pin_read() can select. The
+ * device pin table maps RD5 to CN14, RD4 to CN13, RD8 to CN53 and RD0 to
+ * CN49, and RD1/RD2 to CN50/CN51 as used above.
+ */
+#define BP_AUX0_CN CNEN1bits.CN14IE
+#define BP_CS_CN CNEN1bits.CN13IE
+#define BP_AUX1_CN CNEN4bits.CN53IE
+#define BP_AUX2_CN CNEN4bits.CN49IE
+
 // ADC assignment
 #define BP_ADC_PROBE 1
 #define BP_ADC_3V3 0

@@ -822,6 +822,10 @@ void binUART(void) {
       break;
 #endif /* BUSPIRATEV4 */
       
+    case 0b01110000: // wait for an edge on the AUX pin
+      handle_wait_command(input_byte);
+      break;
+
     case 0b01100000:
       input_byte &= 0b00001111;
       if (input_byte > 0b1010) {

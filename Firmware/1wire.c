@@ -269,6 +269,11 @@ extern command_t last_command;
 #define BINARY_IO_ONEWIRE_COMMAND_READ_PERIPHERALS 0x05
 
 /**
+ * Wait command group: wait for an edge on the AUX pin (see binary_io.h).
+ */
+#define BINARY_IO_ONEWIRE_COMMAND_WAIT_FOR_EDGE 0x07
+
+/**
  * @brief Binary I/O 1-Wire Action command to exit 1-Wire mode.
  *
  * Current format is as follows:
@@ -1295,6 +1300,10 @@ void binary_io_enter_1wire_mode(void) {
       user_serial_transmit_character(bp_binary_io_pullup_control(input_byte));
       break;
 #endif /* BUSPIRATEV4 */
+
+    case BINARY_IO_ONEWIRE_COMMAND_WAIT_FOR_EDGE:
+      handle_wait_command(input_byte);
+      break;
 
     default:
       REPORT_IO_FAILURE();

@@ -1110,60 +1110,26 @@ void binary_io_enter_i2c_mode(void) {
 bool i2c_write_then_read(void) {
   /* Read the amount of bytes to write. */
   size_t bytes_to_write = user_serial_read_big_endian_word();
-  
+
   /* Read the amount of bytes to read. */
   size_t bytes_to_read = user_serial_read_big_endian_word();
 
-#ifndef BP_I2C_ENABLE_STREAMING_WRITE
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
+  /*
+   * Make sure the payloads fit in the internal buffer: both the write and
+   * the read payload are buffered in the terminal buffer, so both counts
+   * must be bounded here (the read check used to test the write count,
+   * leaving bytes_to_read host-controlled and unbounded).
+   */
+  if ((bytes_to_write > BP_TERMINAL_BUFFER_SIZE) ||
+      (bytes_to_read > BP_TERMINAL_BUFFER_SIZE)) {
     return false;
   }
-#endif /* !BP_I2C_ENABLE_STREAMING_WRITE */
-
-#ifndef BP_I2C_ENABLE_STREAMING_READ
-  /* Make sure data fits in the internal buffer.  The non-streaming read
-     path stores the payload in the same terminal buffer as the write
-     path, so it is the read count that must be bounded here (this check
-     used to test bytes_to_write, leaving bytes_to_read unbounded and
-     host-controlled - a buffer overflow). */
-  if (bytes_to_read > BP_TERMINAL_BUFFER_SIZE) {
-    return false;
-  }
-#endif /* !BP_I2C_ENABLE_STREAMING_READ */
 
   if ((bytes_to_write == 0) && (bytes_to_read == 0)) {
     return false;
   }
 
   uint8_t i2c_address = 0;
-
-#ifdef BP_I2C_ENABLE_STREAMING_WRITE
-
-  /* Read I2C address. */
-  i2c_address = user_serial_read_byte();
-
-  /* Start streaming. */
-  bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
-
-  /* Stream data from the serial port. */
-  bitbang_write_value(i2c_address, true);
-
-  if (bitbang_read_bit(true) == HIGH) {
-    /* No ACK read on the bus, bailing out. */
-    return false;
-  }
-
-  for (size_t counter = 1; counter < bytes_to_write; counter++) {
-    bitbang_write_value(user_serial_read_byte(), true);
-
-    if (bitbang_read_bit(true) == HIGH) {
-      /* No ACK read on the bus, bailing out. */
-      return false;
-    }
-  }
-
-#else
 
   /* Read payload. */
   for (size_t index = 0; index < bytes_to_write; index++) {
@@ -1186,8 +1152,6 @@ bool i2c_write_then_read(void) {
     }
   }
 
-#endif /* BP_I2C_ENABLE_STREAMING_WRITE */
-
   if ((bytes_to_read > 0) && (bytes_to_write > 1)) {
     /* Send a restart signal on the I2C bus. */
     bitbang_i2c_start(BITBANG_I2C_RESTART);
@@ -1203,24 +1167,6 @@ bool i2c_write_then_read(void) {
 
   /* Read the rest of the data. */
   bytes_to_write = bytes_to_read - 1;
-
-#ifdef BP_I2C_ENABLE_STREAMING_READ
-
-  /* Start streaming data. */
-  REPORT_IO_SUCCESS();
-
-  for (size_t counter = 0; counter < bytes_to_read; counter++) {
-    /* Read byte from the I2C bus. */
-    user_serial_transmit_character(bitbang_read_value(true));
-    
-    /* Acknowledge read operation. */
-    bitbang_write_bit(counter >= bytes_to_write ? HIGH : LOW);
-  }
-
-  /* Stop the I2C bus. */
-  bitbang_i2c_stop();
-
-#else
 
   for (size_t index = 0; index < bytes_to_read; index++) {
     /* Read the byte from the I2C bus. */
@@ -1238,8 +1184,6 @@ bool i2c_write_then_read(void) {
 
   /* And send the I2C data over to the UART. */
   bp_write_buffer(&bus_pirate_configuration.terminal_input[0], bytes_to_read);
-
-#endif /* BP_I2C_ENABLE_STREAMING_READ */
 
   return true;
 }

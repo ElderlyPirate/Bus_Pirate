@@ -1119,8 +1119,12 @@ bool i2c_write_then_read(void) {
 #endif /* !BP_I2C_ENABLE_STREAMING_WRITE */
 
 #ifndef BP_I2C_ENABLE_STREAMING_READ
-  /* Make sure data fits in the internal buffer. */
-  if (bytes_to_write > BP_TERMINAL_BUFFER_SIZE) {
+  /* Make sure data fits in the internal buffer.  The non-streaming read
+     path stores the payload in the same terminal buffer as the write
+     path, so it is the read count that must be bounded here (this check
+     used to test bytes_to_write, leaving bytes_to_read unbounded and
+     host-controlled - a buffer overflow). */
+  if (bytes_to_read > BP_TERMINAL_BUFFER_SIZE) {
     return false;
   }
 #endif /* !BP_I2C_ENABLE_STREAMING_READ */

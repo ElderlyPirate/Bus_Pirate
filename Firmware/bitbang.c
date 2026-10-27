@@ -129,7 +129,7 @@ static bool bitbang_i2c_clock_high(void) {
     return false;
   }
   if (delay_profile->clock) {
-    bp_delay_us(delay_profile->clock);
+    delay_short_inline(delay_profile->clock);
   }
   return true;
 }
@@ -235,20 +235,100 @@ void bitbang_i2c_stop(void) {
 }
 
 uint16_t bitbang_read_with_write(const uint16_t value) {
+  const uint16_t settle = delay_profile->settle;
+  const uint16_t clock = delay_profile->clock;
+  const uint16_t numbits = mode_configuration.numbits;
+  const uint16_t bit_index = 1 << (numbits - 1);
+  uint16_t temporary = value;
+  uint16_t input = 0;
   size_t count;
-  uint16_t temporary;
-  uint16_t bit_index;
-  uint16_t input;
 
-  bit_index = 1 << (mode_configuration.numbits - 1);
-  temporary = value;
-  input = 0;
-  for (count = 0; count < mode_configuration.numbits; count++) {
-    bitbang_set_pins(temporary & bit_index, MOSI, delay_profile->settle);
-    bitbang_set_pins_high(CLK, delay_profile->clock);
-    input = (input << 1) | bitbang_read_pin(MISO);
-    temporary <<= 1;
-    bitbang_set_pins_low(CLK, delay_profile->clock);
+  /*
+   * This is a per-bit hot path for the 3-wire raw protocols, so the
+   * per-bit operations are written out directly, in the style of
+   * bitbang_advance_clock_ticks():
+   *
+   * - the high-impedance branch is hoisted (it cannot change mid-value),
+   * - the profile delays are loaded once instead of once per bit,
+   * - the pin writes compile to single-cycle BSET/BCLR on LATD/TRISD,
+   * - the per-bit bitbang_set_pins*() and bitbang_read_pin() calls are
+   *   replaced by their bodies (direction setup, three settling Nops,
+   *   port read),
+   * - delay_short() is called directly.
+   *
+   * The delays themselves, and therefore the selected speed profile, are
+   * unchanged.
+   */
+  if (mode_configuration.high_impedance == OFF) {
+    for (count = 0; count < numbits; count++) {
+      /* Output the next data bit (driven). */
+      if (temporary & bit_index) {
+        IOLAT |= MOSI;
+        IODIR &= ~MOSI;
+      } else {
+        IOLAT &= ~MOSI;
+        IODIR &= ~MOSI;
+      }
+      if (settle > 0) {
+        delay_short_inline(settle);
+      }
+
+      /* Clock high. */
+      IOLAT |= CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+
+      /* Sample the input. */
+      IODIR |= MISO;
+      Nop();
+      Nop();
+      Nop();
+      input = (input << 1) | ((IOPOR & MISO) ? 1 : 0);
+      temporary <<= 1;
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+    }
+  } else {
+    for (count = 0; count < numbits; count++) {
+      /* Output the next data bit (open collector: high is released). */
+      if (temporary & bit_index) {
+        IODIR |= MOSI;
+      } else {
+        IOLAT &= ~MOSI;
+        IODIR &= ~MOSI;
+      }
+      if (settle > 0) {
+        delay_short_inline(settle);
+      }
+
+      /* Clock high (open collector: released to the pull-up). */
+      IODIR |= CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+
+      /* Sample the input. */
+      IODIR |= MISO;
+      Nop();
+      Nop();
+      Nop();
+      input = (input << 1) | ((IOPOR & MISO) ? 1 : 0);
+      temporary <<= 1;
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+    }
   }
 
   return input;
@@ -256,53 +336,189 @@ uint16_t bitbang_read_with_write(const uint16_t value) {
 
 void bitbang_write_value(const uint16_t value,
                          const bool wait_for_clock_release) {
-  uint16_t temporary;
-  uint16_t bit_index;
+  const uint16_t settle = delay_profile->settle;
+  const uint16_t clock = delay_profile->clock;
+  const uint16_t numbits = mode_configuration.numbits;
+  const uint16_t bit_index = 1 << (numbits - 1);
+  uint16_t temporary = value;
   size_t count;
-
-  bit_index = 1 << (mode_configuration.numbits - 1);
-  temporary = value;
   if (wait_for_clock_release && i2c_error) {
     return;
   }
-  for (count = 0; count < mode_configuration.numbits; count++) {
-    bitbang_set_pins(temporary & bit_index, MOSI, delay_profile->settle);
-    if (wait_for_clock_release) {
-      if (!bitbang_i2c_clock_high()) {
-        return;
-      }
-    } else {
-      bitbang_set_pins_high(CLK, delay_profile->clock);
-    }
 
-    bitbang_set_pins_low(CLK, delay_profile->clock);
-    temporary <<= 1;
+  /*
+   * This is a per-bit hot path for the 2-wire raw protocols and the
+   * software I2C, so the per-bit operations are written out directly, in
+   * the style of bitbang_advance_clock_ticks():
+   *
+   * - the high-impedance branch is hoisted (it cannot change mid-value),
+   * - the profile delays are loaded once instead of once per bit,
+   * - the pin writes compile to single-cycle BSET/BCLR on LATD/TRISD,
+   * - the per-bit bitbang_set_pins*() calls are replaced by their
+   *   bodies,
+   * - delay_short() is called directly.
+   *
+   * The delays themselves, and therefore the selected speed profile, are
+   * unchanged.
+   */
+  if (mode_configuration.high_impedance == OFF) {
+    for (count = 0; count < numbits; count++) {
+      /* Output the next data bit (driven). */
+      if (temporary & bit_index) {
+        IOLAT |= MOSI;
+        IODIR &= ~MOSI;
+      } else {
+        IOLAT &= ~MOSI;
+        IODIR &= ~MOSI;
+      }
+      if (settle > 0) {
+        delay_short_inline(settle);
+      }
+
+      if (wait_for_clock_release) {
+        if (!bitbang_i2c_clock_high()) {
+          return;
+        }
+      } else {
+        IOLAT |= CLK;
+        IODIR &= ~CLK;
+        if (clock > 0) {
+          delay_short_inline(clock);
+        }
+      }
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+
+      temporary <<= 1;
+    }
+  } else {
+    for (count = 0; count < numbits; count++) {
+      /* Output the next data bit (open collector: high is released). */
+      if (temporary & bit_index) {
+        IODIR |= MOSI;
+      } else {
+        IOLAT &= ~MOSI;
+        IODIR &= ~MOSI;
+      }
+      if (settle > 0) {
+        delay_short_inline(settle);
+      }
+
+      if (wait_for_clock_release) {
+        if (!bitbang_i2c_clock_high()) {
+          return;
+        }
+      } else {
+        IODIR |= CLK;
+        if (clock > 0) {
+          delay_short_inline(clock);
+        }
+      }
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+
+      temporary <<= 1;
+    }
   }
 }
 
 uint16_t bitbang_read_value(const bool wait_for_clock_release) {
+  const uint16_t clock = delay_profile->clock;
+  const uint16_t numbits = mode_configuration.numbits;
   size_t count;
   uint16_t value;
-
   if (wait_for_clock_release && i2c_error) {
     return 0xFFFF;
   }
 
-  /* Setup for input. */
-  bitbang_read_pin(MOSI);
+  /* Setup for input (bitbang_read_pin(MOSI), its read discarded). */
+  IODIR |= MOSI;
+  Nop();
+  Nop();
+  Nop();
   value = 0;
 
-  for (count = 0; count < mode_configuration.numbits; count++) {
-    if (wait_for_clock_release) {
-      if (!bitbang_i2c_clock_high()) {
-        return 0xFFFF;
+  /*
+   * This is a per-bit hot path for the 2-wire raw protocols and the
+   * software I2C, so the per-bit operations are written out directly, in
+   * the style of bitbang_advance_clock_ticks():
+   *
+   * - the high-impedance branch is hoisted (it cannot change mid-value),
+   * - the profile delays are loaded once instead of once per bit,
+   * - the pin writes compile to single-cycle BSET/BCLR on LATD/TRISD,
+   * - the per-bit bitbang_set_pins*() and bitbang_read_pin() calls are
+   *   replaced by their bodies (direction setup, three settling Nops,
+   *   port read),
+   * - delay_short() is called directly.
+   *
+   * The delays themselves, and therefore the selected speed profile, are
+   * unchanged.
+   */
+  if (mode_configuration.high_impedance == OFF) {
+    for (count = 0; count < numbits; count++) {
+      if (wait_for_clock_release) {
+        if (!bitbang_i2c_clock_high()) {
+          return 0xFFFF;
+        }
+      } else {
+        IOLAT |= CLK;
+        IODIR &= ~CLK;
+        if (clock > 0) {
+          delay_short_inline(clock);
+        }
       }
-    } else {
-      bitbang_set_pins_high(CLK, delay_profile->clock);
-    }
 
-    value = (value << 1) | bitbang_read_pin(MOSI);
-    bitbang_set_pins_low(CLK, delay_profile->clock);
+      /* Sample the input. */
+      IODIR |= MOSI;
+      Nop();
+      Nop();
+      Nop();
+      value = (value << 1) | ((IOPOR & MOSI) ? 1 : 0);
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+    }
+  } else {
+    for (count = 0; count < numbits; count++) {
+      if (wait_for_clock_release) {
+        if (!bitbang_i2c_clock_high()) {
+          return 0xFFFF;
+        }
+      } else {
+        IODIR |= CLK;
+        if (clock > 0) {
+          delay_short_inline(clock);
+        }
+      }
+
+      /* Sample the input. */
+      IODIR |= MOSI;
+      Nop();
+      Nop();
+      Nop();
+      value = (value << 1) | ((IOPOR & MOSI) ? 1 : 0);
+
+      /* Clock low. */
+      IOLAT &= ~CLK;
+      IODIR &= ~CLK;
+      if (clock > 0) {
+        delay_short_inline(clock);
+      }
+    }
   }
 
   return value;
@@ -342,7 +558,7 @@ static bool bitbang_wait_for_clock_release(void) {
 
   /* Subsequent polls: direct pin reads, one tick apart. */
   for (waited = 0; waited < BB_CLK_STRETCH_TIMEOUT; waited++) {
-    bp_delay_us(1);
+    delay_short_inline(1);
 
     if (BP_CLK == HIGH) {
       return true;

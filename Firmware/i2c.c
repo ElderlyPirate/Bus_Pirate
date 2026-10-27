@@ -1009,11 +1009,14 @@ void binary_io_enter_i2c_mode(void) {
         REPORT_IO_SUCCESS();
         // inByte - used as extended commmand
         // fr - used as result
-        // wait for subcommand byte
-        while (U1STAbits.URXDA == OFF) {
-        }
-
-        inByte = U1RXREG; // get byte
+        /*
+         * Read the subcommand through the portable accessor: on v4 the
+         * terminal link is the USB CDC, so the raw UART1 registers used
+         * here originally would never receive a byte and the firmware
+         * would hang until a replug (on v3 the accessor performs the same
+         * raw UART1 read as before).
+         */
+        inByte = user_serial_read_byte();
         // 0x00 - AUX/CS low
         // 0x01 - AUX/CS high
         // 0x02 - AUX/CS HiZ

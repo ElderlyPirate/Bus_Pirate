@@ -248,28 +248,36 @@ uint16_t bitbang_read_value(const bool wait_for_clock_release) {
  *
  * Open-drain I2C slaves may hold SCL low (clock stretching) on any bit;
  * after this Bus Pirate has released the line, a line that still reads low
- * means the slave is not ready for the next edge.  The line is sampled
- * with the same settling as bitbang_read_pin() so the first sample cannot
- * be an artefact of the previous pin state.  After BB_CLK_STRETCH_TIMEOUT
- * the bus is abandoned for this bit, the event is counted (see
- * bitbang_clock_stretch_timeouts()) and false is returned.
+ * means the slave is not ready for the next edge.  The first sample goes
+ * through bitbang_read_pin(), settling included, so it cannot be an
+ * artefact of the previous pin state; the following polls read the pin
+ * directly (it is already an input by then), which keeps the cost of the
+ * hot polling path down to a read plus a tick delay.  After
+ * BB_CLK_STRETCH_TIMEOUT the bus is abandoned for this bit, the event is
+ * counted (see bitbang_clock_stretch_timeouts()) and false is returned.
  */
 static bool bitbang_wait_for_clock_release(void) {
   uint32_t waited;
 
-  for (waited = 0; !bitbang_read_pin(CLK); waited++) {
-    if (waited >= BB_CLK_STRETCH_TIMEOUT) {
-      if (bitbang_clk_stretch_timeouts != 0xFFFF) {
-        bitbang_clk_stretch_timeouts++;
-      }
-
-      return false;
-    }
-
-    bp_delay_us(1);
+  /* First sample: full helper (input direction + settling). */
+  if (bitbang_read_pin(CLK)) {
+    return true;
   }
 
-  return true;
+  /* Subsequent polls: direct pin reads, one tick apart. */
+  for (waited = 0; waited < BB_CLK_STRETCH_TIMEOUT; waited++) {
+    bp_delay_us(1);
+
+    if (BP_CLK == HIGH) {
+      return true;
+    }
+  }
+
+  if (bitbang_clk_stretch_timeouts != 0xFFFF) {
+    bitbang_clk_stretch_timeouts++;
+  }
+
+  return false;
 }
 
 bool bitbang_read_bit(const bool wait_for_clock_release) {

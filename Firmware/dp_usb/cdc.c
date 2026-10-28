@@ -335,7 +335,8 @@ void CDCFlushOnTimeout(void) {
                 cdc_In_len = 0;
                 cdc_timeout_count = 0;
             }
-        } else if (ZLPpending) {
+        } else if (ZLPpending && (lock == 0) && getInReady()) {
+            /* Never race a locked writer or wait for IN completion in the ISR. */
             SendZLP();
         }
     } else {
@@ -368,13 +369,15 @@ void write_cdc(uint16_t count)
     if (count == CDC_BUFFER_SIZE || (cdc_In_len + count == CDC_BUFFER_SIZE)) {
         putda_cdc(CDC_BUFFER_SIZE); // This will stall tranfers if both buffers are full then return when a buffer is available.
         cdc_In_len = 0;
+        /* A full final packet needs a short-packet terminator on timeout. */
+        ZLPpending = 1;
     }
     else
     {
         cdc_In_len += count;
         InPtr += count;
     }
-//    cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
+    cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
 //    lock = 0;
 }
 

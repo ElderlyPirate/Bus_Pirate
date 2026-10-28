@@ -42,8 +42,18 @@ void readByte(unsigned char *data){
                 bl=user_serial_read_byte();//get up to 255 bytes each time
                 bufBytes=(bh<<8)|bl;
                 for(i=0; i<bufBytes; i++){
-           //---     while(U1STAbits.URXDA == 0); //--- dont use it otherwise dead lock
-                        buf[i]=user_serial_read_byte();
+                        unsigned char incoming=user_serial_read_byte();
+
+                        /* Drain-discard anything past the buffer: a
+                           hostile or desynced 16-bit chunk length must
+                           never overrun buf[], and the stream must stay
+                           aligned for the next chunk. */
+                        if(i<MAX_BUFFER){
+                                buf[i]=incoming;
+                        }
+                }
+                if(bufBytes>MAX_BUFFER){
+                        bufBytes=MAX_BUFFER;
                 }
                 bufPointer=0;
         }

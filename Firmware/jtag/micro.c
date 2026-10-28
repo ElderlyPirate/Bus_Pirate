@@ -52,6 +52,7 @@
 #include "micro.h"
 #include "lenval.h"
 #include "ports.h"
+#include "../jtag.h"
 
 
 /*============================================================================
@@ -645,31 +646,60 @@ void xsvfShiftOnly( long    lNumBits,
         /* Process on a byte-basis */
         ucTdiByte   = (*(--pucTdi));
         ucTdoByte   = 0;
-        for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
+        if ( ( lNumBits >= 8 ) && !( iExitShift && ( lNumBits == 8 ) ) )
         {
-            --lNumBits;
-            if ( iExitShift && !lNumBits )
+            /* Full byte with no exit point inside: straight-line TCK
+               slots.  The JTAG pins are written directly - they are
+               single-bit SFR bitfields, so the constant writes compile
+               to single-cycle BSET/BCLR instead of setPort() calls. */
+            for ( i = 0; i < 8; ++i )
             {
-                /* Exit Shift-DR state */
-                setPort( TMS, 1 );
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
             }
-
-            /* Set the new TDI value */
-            setPort( TDI, (short)(ucTdiByte & 1) );
-            ucTdiByte   >>= 1;
-
-            /* Set TCK low */
-            setPort( TCK, 0 );
-
-            if ( pucTdo )
+            lNumBits -= 8;
+        }
+        else
+        {
+            for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
             {
-                /* Save the TDO value */
-                ucTdoBit    = readTDOBit();
-                ucTdoByte   |= ( ucTdoBit << i );
-            }
+                --lNumBits;
+                if ( iExitShift && !lNumBits )
+                {
+                    /* Exit Shift-DR state */
+                    JTAGTMS = 1;
+                }
 
-            /* Set TCK high */
-            setPort( TCK, 1 );
+                /* Set the new TDI value */
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
+            }
         }
 
         /* Save the TDO byte value */

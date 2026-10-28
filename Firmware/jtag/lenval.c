@@ -35,21 +35,6 @@ long value( lenVal*     plvValue )
 }
 
 /*****************************************************************************
-* Function:     initLenVal
-* Description:  Initialize the lenval array with the given value.
-*               Assumes lValue is less than 256.
-* Parameters:   plv         - ptr to lenval.
-*               lValue      - the value to set.
-* Returns:      void.
-*****************************************************************************/
-void initLenVal( lenVal*    plv,
-                 long       lValue )
-{
-	plv->len    = 1;
-	plv->val[0] = (unsigned char)lValue;
-}
-
-/*****************************************************************************
 * Function:     EqualLenVal
 * Description:  Compare two lenval arrays with an optional mask.
 * Parameters:   plvTdoExpected  - ptr to lenval #1.

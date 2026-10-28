@@ -405,6 +405,16 @@ int xsvfGotoTapState( unsigned char*   pucTapState,
     int i;
     int iErrorCode;
 
+    /* A target state outside the defined TAP states can never be reached:
+       the state machine only ever walks valid states, so the while()'s
+       default case cannot fire and the transition loop would orbit
+       forever.  XSTATE and XWAIT pass these bytes straight from the XSVF
+       stream, so validate once here. */
+    if ( ucTargetState > XTAPSTATE_UPDATEIR )
+    {
+        return( XSVF_ERROR_ILLEGALSTATE );
+    }
+
     iErrorCode  = XSVF_ERROR_NONE;
     if ( ucTargetState == XTAPSTATE_RESET )
     {

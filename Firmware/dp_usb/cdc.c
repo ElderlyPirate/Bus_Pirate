@@ -49,16 +49,24 @@ BYTE cdc_Out_bufferB[CDC_BUFFER_SIZE];
 #pragma udata
 
 struct _cdc_ControlLineState cls;
-BYTE cdc_In_len; // total cdc In length
+/*
+ * The variables below are shared between the USB start-of-frame interrupt
+ * handler (CDCFlushOnTimeout(), called through sof_handler) and the
+ * foreground code, so they must be volatile.  Marking them volatile is what
+ * makes the compiler re-read them on every access instead of caching them in
+ * a register, which is the same class of bug that was fixed for BDSTAT in
+ * issue #11.
+ */
+volatile BYTE cdc_In_len; // total cdc In length
 volatile BYTE cdc_Out_len; // total cdc out length
 BYTE IsInBufferA;
 BYTE IsOutBufferA;
 BYTE *InPtr;
 BYTE *OutPtr;
 BYTE LineStateUpdated = 0;
-BYTE cdc_timeout_count = 0;
-BYTE ZLPpending = 0;
-BYTE lock = 0;
+volatile BYTE cdc_timeout_count = 0;
+volatile BYTE ZLPpending = 0;
+volatile BYTE lock = 0;
 
 BDentry *CDC_Outbdp, *CDC_Inbdp;
 
@@ -335,7 +343,8 @@ void CDCFlushOnTimeout(void) {
                 cdc_In_len = 0;
                 cdc_timeout_count = 0;
             }
-        } else if (ZLPpending) {
+        } else if (ZLPpending && (lock == 0) && getInReady()) {
+            /* Never race a locked writer or wait for IN completion in the ISR. */
             SendZLP();
         }
     } else {
@@ -368,13 +377,15 @@ void write_cdc(uint16_t count)
     if (count == CDC_BUFFER_SIZE || (cdc_In_len + count == CDC_BUFFER_SIZE)) {
         putda_cdc(CDC_BUFFER_SIZE); // This will stall tranfers if both buffers are full then return when a buffer is available.
         cdc_In_len = 0;
+        /* A full final packet needs a short-packet terminator on timeout. */
+        ZLPpending = 1;
     }
     else
     {
         cdc_In_len += count;
         InPtr += count;
     }
-//    cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
+    cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
 //    lock = 0;
 }
 

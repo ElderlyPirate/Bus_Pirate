@@ -24,6 +24,10 @@
 #include "base.h"
 #include "core.h"
 
+#ifdef BUSPIRATEV4
+#include "dp_usb/cdc.h"
+#endif /* BUSPIRATEV4 */
+
 /**
  * @brief Prefix string for hexadecimal values in human-readable form.
  */
@@ -374,11 +378,38 @@ uint16_t bp_reverse_integer(const uint16_t value, const uint8_t bits) {
 }
 
 void bp_write_buffer(const uint8_t *buffer, const size_t length) {
+#ifdef BUSPIRATEV4
+  /* Bulk CDC path: fill the USB IN buffer directly instead of one
+     putc per byte (same getinbuf_cdc()/write_cdc() pattern spi.c's
+     sniffer uses); setLock()/freeLock() keep the stack's timeout flush
+     from touching the buffer mid-stream. */
+  size_t offset = 0;
+
+  setLock();
+  while (offset < length) {
+    uint16_t space = 0;
+    BYTE *cdc = getinbuf_cdc(&space);
+    size_t chunk = length - offset;
+    size_t index;
+
+    if (chunk > space) {
+      chunk = space;
+    }
+    for (index = 0; index < chunk; index++) {
+      cdc[index] = buffer[offset + index];
+    }
+    write_cdc((uint16_t)chunk);
+    offset += chunk;
+  }
+  CDC_Flush_In_Now();
+  freeLock();
+#else
   size_t offset;
 
   for (offset = 0; offset < length; offset++) {
     user_serial_transmit_character(buffer[offset]);
   }
+#endif /* BUSPIRATEV4 */
 }
 
 void bp_write_string(const char *string) {

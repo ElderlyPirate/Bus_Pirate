@@ -360,6 +360,18 @@ void i2c_setup_prepare(void) {
   }
 
   mode_configuration.high_impedance = ON;
+
+  /*
+   * Software I2C takes its clock timing from the bit-bang delay profile;
+   * apply it here as well because the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with a stale profile.  The pins
+   * are still configured by setup_execute() (hardware mode does its own
+   * setup there).
+   */
+  if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
+    bitbang_setup(2, mode_configuration.speed);
+  }
 }
 
 void i2c_setup_execute(void) {

@@ -1530,6 +1530,7 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     unsigned char   ucWaitState;
     unsigned char   ucEndState;
     long            lWaitTime;
+    int             iErrorCode;
 
     /* Get Parameters */
     /* <wait_state> */
@@ -1549,7 +1550,14 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <wait_state>, go to <wait_state> */
     if ( pXsvfInfo->ucTapState != ucWaitState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            /* Propagate (an undefined state byte is rejected here, not
+               silently ignored as before). */
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     /* Wait for <wait_time> microseconds */
@@ -1558,7 +1566,12 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <end_state>, go to <end_state> */
     if ( pXsvfInfo->ucTapState != ucEndState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     return( XSVF_ERROR_NONE );

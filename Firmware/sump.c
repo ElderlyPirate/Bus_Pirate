@@ -27,6 +27,60 @@
 #include "core.h"
 #include "uart.h"
 
+#ifdef BUSPIRATEV4
+#include "dp_usb/cdc.h"
+#endif /* BUSPIRATEV4 */
+
+#ifdef BUSPIRATEV4
+/*
+ * Bulk CDC stream for the capture readouts: bytes go straight into the
+ * USB IN buffer (getinbuf_cdc()/write_cdc(), the path spi.c's sniffer
+ * uses) instead of one putc transaction per byte.  setLock()/freeLock()
+ * keep the stack's timeout flush from touching the buffer mid-stream;
+ * write_cdc() blocks for back-pressure when the buffers are full.
+ */
+static BYTE *sump_stream_ptr;
+static uint16_t sump_stream_space;
+static uint16_t sump_stream_pending;
+
+static void sump_stream_open(void) {
+  setLock();
+  sump_stream_pending = 0;
+  sump_stream_ptr = getinbuf_cdc(&sump_stream_space);
+}
+
+static void sump_stream_byte(uint8_t value) {
+  if (sump_stream_space == 0) {
+    write_cdc(sump_stream_pending);
+    sump_stream_pending = 0;
+    sump_stream_ptr = getinbuf_cdc(&sump_stream_space);
+  }
+  *sump_stream_ptr++ = value;
+  sump_stream_space--;
+  sump_stream_pending++;
+}
+
+static void sump_stream_close(void) {
+  if (sump_stream_pending) {
+    write_cdc(sump_stream_pending);
+    sump_stream_pending = 0;
+  }
+  /* Push the final partial buffer out now; the stack would otherwise
+     wait for its timeout flush (the ID/metadata replies are a lot
+     smaller than one buffer). */
+  CDC_Flush_In_Now();
+  freeLock();
+}
+
+#define SUMP_STREAM_OPEN() sump_stream_open()
+#define SUMP_STREAM_BYTE(value) sump_stream_byte(value)
+#define SUMP_STREAM_CLOSE() sump_stream_close()
+#else
+#define SUMP_STREAM_OPEN() do { } while (0)
+#define SUMP_STREAM_BYTE(value) user_serial_transmit_character(value)
+#define SUMP_STREAM_CLOSE() do { } while (0)
+#endif /* BUSPIRATEV4 */
+
 /*
  * SUMP command set - taken from http://www.sump.org/projects/analyzer/protocol/
  * With additions taken from
@@ -1228,8 +1282,10 @@ static void sump_transmit_fast(unsigned int samples, unsigned int requested,
   uint8_t pattern = 0x55;
   unsigned int index;
 
+  SUMP_STREAM_OPEN();
+
   for (index = samples; index < requested; index++) {
-    user_serial_transmit_character(pattern);
+    SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
 
@@ -1240,18 +1296,19 @@ static void sump_transmit_fast(unsigned int samples, unsigned int requested,
     for (index = samples; index > 0; index--) {
       uint8_t value = BP_SUMP_SAMPLE_TRANSFORM(buffer[index - 1]) & mask;
 
-      user_serial_transmit_character((pattern & ~mask) | value);
+      SUMP_STREAM_BYTE((pattern & ~mask) | value);
       pattern ^= 0xFF;
     }
   } else {
     const uint8_t *buffer = bus_pirate_configuration.terminal_input;
 
     for (index = samples; index > 0; index--) {
-      user_serial_transmit_character((pattern & ~mask) |
-                                     (buffer[index - 1] & mask));
+      SUMP_STREAM_BYTE((pattern & ~mask) | (buffer[index - 1] & mask));
       pattern ^= 0xFF;
     }
   }
+
+  SUMP_STREAM_CLOSE();
 }
 
 /**
@@ -1269,8 +1326,10 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
   uint8_t pattern = 0x55;
   unsigned int index;
 
+  SUMP_STREAM_OPEN();
+
   for (index = samples; index < requested; index++) {
-    user_serial_transmit_character(pattern);
+    SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
 
@@ -1279,15 +1338,16 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
 
     if (absolute < floor) {
       /* The oldest part of the window was overwritten in the ring. */
-      user_serial_transmit_character(pattern & ~mask);
+      SUMP_STREAM_BYTE(pattern & ~mask);
     } else {
-      user_serial_transmit_character((pattern & ~mask) |
-                                     (buffer[slot] & mask));
+      SUMP_STREAM_BYTE((pattern & ~mask) | (buffer[slot] & mask));
     }
 
     pattern ^= 0xFF;
     slot = (slot == 0) ? 4095 : slot - 1;
   }
+
+  SUMP_STREAM_CLOSE();
 }
 
 /**
@@ -1322,8 +1382,10 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
   uint8_t pattern = 0x55;
   unsigned int index;
 
+  SUMP_STREAM_OPEN();
+
   for (index = samples; index < requested; index++) {
-    user_serial_transmit_character(pattern);
+    SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
 
@@ -1332,10 +1394,9 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
 
     if (absolute < floor) {
       /* The oldest part of the window was overwritten in the ring. */
-      user_serial_transmit_character(pattern & ~mask);
+      SUMP_STREAM_BYTE(pattern & ~mask);
     } else {
-      user_serial_transmit_character((pattern & ~mask) |
-                                     ((packed >> bitpos) & mask));
+      SUMP_STREAM_BYTE((pattern & ~mask) | ((packed >> bitpos) & mask));
     }
 
     pattern ^= 0xFF;
@@ -1349,6 +1410,8 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
       packed = buffer[slot];
     }
   }
+
+  SUMP_STREAM_CLOSE();
 }
 
 bool sump_acquire_samples(void) {

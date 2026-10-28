@@ -52,6 +52,7 @@
 #include "micro.h"
 #include "lenval.h"
 #include "ports.h"
+#include "../jtag.h"
 
 
 /*============================================================================
@@ -404,6 +405,16 @@ int xsvfGotoTapState( unsigned char*   pucTapState,
     int i;
     int iErrorCode;
 
+    /* A target state outside the defined TAP states can never be reached:
+       the state machine only ever walks valid states, so the while()'s
+       default case cannot fire and the transition loop would orbit
+       forever.  XSTATE and XWAIT pass these bytes straight from the XSVF
+       stream, so validate once here. */
+    if ( ucTargetState > XTAPSTATE_UPDATEIR )
+    {
+        return( XSVF_ERROR_ILLEGALSTATE );
+    }
+
     iErrorCode  = XSVF_ERROR_NONE;
     if ( ucTargetState == XTAPSTATE_RESET )
     {
@@ -645,31 +656,60 @@ void xsvfShiftOnly( long    lNumBits,
         /* Process on a byte-basis */
         ucTdiByte   = (*(--pucTdi));
         ucTdoByte   = 0;
-        for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
+        if ( ( lNumBits >= 8 ) && !( iExitShift && ( lNumBits == 8 ) ) )
         {
-            --lNumBits;
-            if ( iExitShift && !lNumBits )
+            /* Full byte with no exit point inside: straight-line TCK
+               slots.  The JTAG pins are written directly - they are
+               single-bit SFR bitfields, so the constant writes compile
+               to single-cycle BSET/BCLR instead of setPort() calls. */
+            for ( i = 0; i < 8; ++i )
             {
-                /* Exit Shift-DR state */
-                setPort( TMS, 1 );
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
             }
-
-            /* Set the new TDI value */
-            setPort( TDI, (short)(ucTdiByte & 1) );
-            ucTdiByte   >>= 1;
-
-            /* Set TCK low */
-            setPort( TCK, 0 );
-
-            if ( pucTdo )
+            lNumBits -= 8;
+        }
+        else
+        {
+            for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
             {
-                /* Save the TDO value */
-                ucTdoBit    = readTDOBit();
-                ucTdoByte   |= ( ucTdoBit << i );
-            }
+                --lNumBits;
+                if ( iExitShift && !lNumBits )
+                {
+                    /* Exit Shift-DR state */
+                    JTAGTMS = 1;
+                }
 
-            /* Set TCK high */
-            setPort( TCK, 1 );
+                /* Set the new TDI value */
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
+            }
         }
 
         /* Save the TDO byte value */
@@ -1490,6 +1530,7 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     unsigned char   ucWaitState;
     unsigned char   ucEndState;
     long            lWaitTime;
+    int             iErrorCode;
 
     /* Get Parameters */
     /* <wait_state> */
@@ -1509,7 +1550,14 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <wait_state>, go to <wait_state> */
     if ( pXsvfInfo->ucTapState != ucWaitState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            /* Propagate (an undefined state byte is rejected here, not
+               silently ignored as before). */
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     /* Wait for <wait_time> microseconds */
@@ -1518,7 +1566,12 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <end_state>, go to <end_state> */
     if ( pXsvfInfo->ucTapState != ucEndState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     return( XSVF_ERROR_NONE );

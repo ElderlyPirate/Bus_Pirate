@@ -134,6 +134,16 @@ void jtag(void) {
     }
 #endif /* BP_JTAG_XSVF_SUPPORT */
 
+    case 0x0F: {
+      /* Exit to the binary mode: the standard return-to-terminal byte the
+         other binary modes use.  The player loop previously had no way
+         out at all, so a tooling park (or an aborted host) trapped the
+         port until a reset - same trap class the bridges had.  Send 0x0F
+         once more to reach the terminal. */
+      jtag_reset();
+      return;
+    }
+
     default:
       break;
     }

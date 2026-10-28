@@ -616,6 +616,12 @@ _BPMSG1213_str:
 _BPMSG1214_str:
 	.pasciz "RS HIGH, DATA MODE"
 
+	; BPMSG1215
+	.section .text.BPMSG1215, code
+	.global _BPMSG1215_str
+_BPMSG1215_str:
+	.pasciz "Address of PCF8574?"
+
 	; BPMSG1216
 	.section .text.BPMSG1216, code
 	.global _BPMSG1216_str
@@ -651,6 +657,12 @@ _BPMSG1222_str:
 	.global _BPMSG1223_str
 _BPMSG1223_str:
 	.pasciz "CURSOR SET"
+
+	; BPMSG1225
+	.section .text.BPMSG1225, code
+	.global _BPMSG1225_str
+_BPMSG1225_str:
+	.pasciz "Adapter type:\r\n 1. SPI (74HC595)\r\n 2. I2C (PCF8574)"
 
 	; BPMSG1226
 	.section .text.BPMSG1226, code

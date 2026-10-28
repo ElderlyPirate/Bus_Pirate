@@ -304,6 +304,25 @@ void bp_write_hex_byte_to_ringbuffer(const uint8_t value);
 void bp_initialise_delay_timer(void);
 
 /**
+ * @brief Returns the microseconds elapsed since the last bp_timer_reset(),
+ * using the free-running delay timer and its overflow interrupt.
+ *
+ * The timestamp is 32 bits wide and wraps after about 35 minutes.
+ */
+uint32_t bp_timer_microseconds(void);
+
+/**
+ * @brief Prints the current timer value, in microseconds, to the user-facing
+ * serial port. Ten digits cover the full 32-bit range.
+ */
+void bp_timer_print(void);
+
+/**
+ * @brief Restarts the timestamp timer from zero.
+ */
+void bp_timer_reset(void);
+
+/**
  * @brief Shortcut for writing an empty line to the user-facing serial port.
  */
 #define bpBR bp_write_line("")

@@ -26,6 +26,7 @@
 #include "base.h"
 #include "core.h"
 #include "uart.h"
+#include "proc_menu.h"
 
 /*
  * SUMP command set - taken from http://www.sump.org/projects/analyzer/protocol/
@@ -454,9 +455,17 @@ void enter_sump_mode(void) {
 
       /* Process the command byte. */
       if (sump_handle_command_byte(user_serial_read_byte())) {
-
-        /* A SUMP_RESET command was received, abort. */
-        //return; //technically SUMP_RESET stays in SUMP mode
+        /*
+         * A reset byte was received: leave SUMP and give the terminal
+         * the same state a simulated reset produces - HiZ mode plus the
+         * banner - so tools (0x0F) and users ('#') can always recover
+         * the board without a power cycle.  This mirrors the reset
+         * contract that the terminal and binary modes already follow.
+         */
+        sump_reset();
+        bus_pirate_configuration.bus_mode = BP_HIZ;
+        print_version_info();
+        return;
       }
     }
 
@@ -519,6 +528,26 @@ bool sump_handle_command_byte(unsigned char input_byte) {
    * receiving a long (5 bytes) command.
    */
   static sump_command_t command_buffer = {.bytes = {0}, .count = 0, .left = 0};
+  static uint32_t last_command_us = 0;
+
+  /*
+   * A host that stalls mid long-command (or a stray stream that only ever
+   * feeds parameter bytes) would otherwise keep the parser misaligned
+   * forever: every later short command - including the exit bytes - would
+   * be swallowed as a parameter.  A one-second gap between parameter
+   * bytes abandons the in-flight command, so the next byte is read as a
+   * fresh command.  Real hosts send the five-byte commands back to back,
+   * so they never hit this; a lost sync always heals.
+   */
+  {
+    uint32_t now = bp_timer_microseconds();
+
+    if (command_processor_state == RX_COMMAND_PARAMETERS &&
+        (uint32_t)(now - last_command_us) > 1000000UL) {
+      command_processor_state = RX_COMMAND_IDLE;
+    }
+    last_command_us = now;
+  }
 
   switch (command_processor_state) {
 
@@ -526,9 +555,21 @@ bool sump_handle_command_byte(unsigned char input_byte) {
   case RX_COMMAND_IDLE:
     switch (input_byte) {
 
-    /* Reset the analyzer. */
+    /* Reset the analyzer (stays in SUMP mode, as documented). */
     case SUMP_RESET:
       sump_reset();
+      return false;
+
+    /*
+     * The simulated-reset bytes leave SUMP: 0x0F is the reset byte the
+     * binary modes use, '#' is the terminal's reset command and '$' is
+     * the terminal's bootloader command - so tooling can leave SUMP and
+     * go straight to the bootloader.  SUMP has no protocol-level exit,
+     * so without these the board stays trapped until a power cycle.
+     */
+    case 0x0F:
+    case '#':
+    case '$':
       return true;
 
     /* Send the device identification buffer. */

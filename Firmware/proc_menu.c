@@ -477,6 +477,15 @@ void serviceuser(void) {
         print_pins_information();
         break;
 
+      case 't':
+        bp_timer_print();
+        bpBR;
+        break;
+
+      case 'T':
+        bp_timer_reset();
+        break;
+
       case 'f':
         bp_frequency_counter_setup();
         break;
@@ -583,6 +592,14 @@ void serviceuser(void) {
 #ifdef BUSPIRATEV4
         MSG_RESET_MESSAGE;
       bpv4reset:
+        /*
+         * The v3 reset lands in HiZ mode; the v4 simulated reset must
+         * do the same.  Tools expect the "HiZ>" prompt after their
+         * reset byte - flashrom's buspirate_spi init waits for exactly
+         * that string - and without this the prompt is whatever mode
+         * the terminal was last left in, making those tools fail.
+         */
+        bus_pirate_configuration.bus_mode = BP_HIZ;
         print_version_info();
 #else
         BPMSG1093;

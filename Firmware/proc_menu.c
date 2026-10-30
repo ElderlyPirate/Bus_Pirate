@@ -629,9 +629,16 @@ void serviceuser(void) {
 
       case 'd':
         MSG_ADC_VOLTAGE_PROBE_HEADER;
-        bp_adc_probe();
-        MSG_VOLTAGE_UNIT;
-        bpBR;
+
+        /* `d:N` takes N readings instead of one, like the `@` command above.
+           Without a repeat count this runs exactly once, so the output of a
+           plain `d` is unchanged. */
+        repeat = getrepeat() + 1;
+        while (--repeat) {
+          bp_adc_probe();
+          MSG_VOLTAGE_UNIT;
+          bpBR;
+        }
         break;
 
       case 'D':

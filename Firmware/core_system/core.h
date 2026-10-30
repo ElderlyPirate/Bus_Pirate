@@ -175,6 +175,9 @@ typedef struct {
   const char name[8];
 } bus_pirate_protocol_t;
 
+const bus_pirate_protocol_t *bp_current_protocol(void);
+const bus_pirate_protocol_t *bp_protocol_by_index(uint8_t index);
+
 /**
  * All the available protocols.
  */

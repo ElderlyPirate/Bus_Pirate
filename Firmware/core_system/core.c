@@ -149,7 +149,7 @@ static void silent_null_operation_callback(void);
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
 
-bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
+static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
     {.start = null_operation_callback,
      .start_with_read = null_operation_callback,
      .stop = null_operation_callback,
@@ -468,4 +468,13 @@ void reset_mode_to_8_bits(void) {
 
   mode_configuration.numbits = 8;
   mode_configuration.int16 = NO;
+}
+
+
+const bus_pirate_protocol_t *bp_current_protocol(void) {
+  return &enabled_protocols[bus_pirate_configuration.bus_mode];
+}
+
+const bus_pirate_protocol_t *bp_protocol_by_index(uint8_t index) {
+  return &enabled_protocols[index];
 }

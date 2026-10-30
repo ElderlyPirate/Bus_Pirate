@@ -1043,7 +1043,10 @@ void spi_enter_binary_io(void) {
 
     case SPI_COMMAND_SET_SPEED: {
       uint8_t speed = input_byte & 0x0F;
-      if (speed > sizeof(spi_bus_speed)) {
+      /* The low nibble indexes the table directly.  The table holds one
+         byte per entry, so sizeof() is also the entry count - but an
+         index equal to it would read past the array, hence >=. */
+      if (speed >= sizeof(spi_bus_speed)) {
         REPORT_IO_FAILURE();
         break;
       }

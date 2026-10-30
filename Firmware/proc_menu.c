@@ -477,6 +477,15 @@ void serviceuser(void) {
         print_pins_information();
         break;
 
+      case 't':
+        bp_timer_print();
+        bpBR;
+        break;
+
+      case 'T':
+        bp_timer_reset();
+        break;
+
       case 'f':
         bp_frequency_counter_setup();
         break;
@@ -630,7 +639,6 @@ void serviceuser(void) {
       case 'd':
         MSG_ADC_VOLTAGE_PROBE_HEADER;
         bp_adc_probe();
-        MSG_VOLTAGE_UNIT;
         bpBR;
         break;
 

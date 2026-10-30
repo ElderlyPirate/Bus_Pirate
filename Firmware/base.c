@@ -253,10 +253,18 @@ void bp_adc_probe(void) {
   bp_enable_adc();
 
   /* Perform the measurement. */
-  bp_write_voltage(bp_read_adc(BP_ADC_PROBE));
+  uint16_t measurement = bp_read_adc(BP_ADC_PROBE);
+  bp_write_voltage(measurement);
+  MSG_VOLTAGE_UNIT;
 
   /* Turn the ADC off. */
   bp_disable_adc();
+
+  /* Report the raw ADC value alongside the conversion, as asked for in
+     issue #148. */
+  bp_write_string(" (raw ");
+  bp_write_dec_word(measurement);
+  bp_write_string(")");
 }
 
 void bp_adc_continuous_probe(void) {
@@ -551,6 +559,15 @@ uint16_t bp_read_from_flash(const uint16_t page, const uint16_t address) {
   return word;
 }
 
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+
+/**
+ * Timer #1 overflow count: one overflow is 65536 ticks, i.e. 32.768 ms.
+ */
+static volatile uint32_t timer_overflows;
+
+#endif /* BP_USE_HARDWARE_DELAY_TIMER */
+
 void bp_initialise_delay_timer(void) {
 #ifdef BP_USE_HARDWARE_DELAY_TIMER
 
@@ -576,6 +593,12 @@ void bp_initialise_delay_timer(void) {
 
   /* Start Timer #1. */
   T1CONbits.TON = ON;
+
+  /* Count overflows so full 32-bit microsecond timestamps can be built. */
+  timer_overflows = 0;
+  IFS0bits.T1IF = OFF;
+  IPC0bits.T1IP = 1; /* Give the overflow interrupt a priority level. */
+  IEC0bits.T1IE = ON;
 
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */
 }
@@ -628,6 +651,50 @@ void bp_delay_us(uint16_t microseconds) {
   }
 
   delay_long(microseconds);
+}
+
+/**
+ * Timer #1 overflow interrupt.
+ *
+ * Fires once every 65536 timer ticks (32.768 ms at the 2 MHz timer clock) and
+ * only advances the overflow counter; the delay loops poll TMR1 directly and
+ * are unaffected.
+ */
+#pragma interrupt _T1Interrupt
+
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt() {
+  IFS0bits.T1IF = OFF;
+  timer_overflows++;
+}
+
+uint32_t bp_timer_microseconds(void) {
+  uint32_t overflows;
+  uint16_t ticks;
+
+  /*
+   * Take a consistent snapshot: if the counter changed between the two
+   * reads, an overflow happened in between - repeat the read.
+   */
+  do {
+    overflows = timer_overflows;
+    ticks = TMR1;
+  } while (overflows != timer_overflows);
+
+  return ((overflows << 16) | ticks) >> 1;
+}
+
+void bp_timer_print(void) {
+  /* Ten digits cover the full 32-bit microsecond range. */
+  print_decimal(bp_timer_microseconds(), 1000000000L, 10);
+}
+
+void bp_timer_reset(void) {
+  /* Keep the reset atomic with respect to the overflow interrupt. */
+  IEC0bits.T1IE = OFF;
+  timer_overflows = 0;
+  TMR1 = 0x0000;
+  IFS0bits.T1IF = OFF;
+  IEC0bits.T1IE = ON;
 }
 
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */

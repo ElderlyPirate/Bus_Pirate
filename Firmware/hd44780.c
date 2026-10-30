@@ -209,8 +209,7 @@ void LCDmacro(unsigned int c)
 
         cmdstart=(cmdstart+1)&CMDLENMSK;
         //cmdstart&=CMDLENMSK;
-        consumewhitechars();
-        input=getint();
+        input=getint_with_spaces();
         mode_configuration.command_error=false;
 
         switch(c)

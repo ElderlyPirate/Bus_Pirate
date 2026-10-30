@@ -1064,6 +1064,11 @@ void consumewhitechars(void) {
   }
 }
 
+int getint_with_spaces(void) {
+  consumewhitechars();
+  return getint();
+}
+
 void changemode(void) {
   int i, busmode;
 

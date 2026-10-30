@@ -147,22 +147,16 @@ void uart_setup_prepare(void) {
   uart_settings.autobaud = OFF;
 #endif /* BUSPIRATEV4 */
 
-  consumewhitechars();
-  speed = getint();
+  speed = getint_with_spaces();
   if (speed == 10) // weird this is totaly ignored later as the Speed == 0 check
                    // later skips the calculation I added it below..
   {
-    consumewhitechars();
-    brg = getint();
+    brg = getint_with_spaces();
   }
-  consumewhitechars();
-  dbp = getint();
-  consumewhitechars();
-  sb = getint();
-  consumewhitechars();
-  rxp = getint();
-  consumewhitechars();
-  output = getint();
+  dbp = getint_with_spaces();
+  sb = getint_with_spaces();
+  rxp = getint_with_spaces();
+  output = getint_with_spaces();
 
   if ((speed > 0) && (speed <= 10)) {
     mode_configuration.speed = speed - 1;

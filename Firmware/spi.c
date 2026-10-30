@@ -550,14 +550,62 @@ void spi_disable_interface(void) {
   SPICS_ODC = PUSH_PULL;
 }
 
+/*
+ * Number of polling iterations to allow before giving up on the SPI
+ * peripheral.  Without a bound these loops spin forever whenever the module
+ * cannot make progress - for example after spi_disable_interface() has run -
+ * which locks the firmware up until the board is power cycled (issue #150).
+ */
+#define SPI_POLL_TIMEOUT 0xFFFF
+
+/**
+ * Waits until there is room to hand a byte to the SPI peripheral.
+ *
+ * @return true when the peripheral is ready, false on timeout.
+ */
+static bool spi_wait_writable(void)
+{
+    uint32_t timeout = SPI_POLL_TIMEOUT;
+
+    while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT)) {
+        if (--timeout == 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Waits until a received byte is available.
+ *
+ * @return true when a byte is available, false on timeout.
+ */
+static bool spi_wait_readable(void)
+{
+    uint32_t timeout = SPI_POLL_TIMEOUT;
+
+    while (SPI1STATbits.SRXMPT) {
+        if (--timeout == 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static uint8_t spi_write_byte(const uint8_t value)
 {
-    while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT));
+    if (!spi_wait_writable()) {
+        return 0xFF;
+    }
 
     /* Put the value on the bus. */
     SPI1BUF = value;
 
-    while (SPI1STATbits.SRXMPT);
+    if (!spi_wait_readable()) {
+        return 0xFF;
+    }
 
     /* Get the byte read from the bus. */
     uint8_t result = SPI1BUF;
@@ -567,12 +615,16 @@ static uint8_t spi_write_byte(const uint8_t value)
 
 static inline uint8_t spi_read_byte(void)
 {
-    while (SPI1STATbits.SPIBEC2 || (!SPI1STATbits.SRXMPT));
+    if (!spi_wait_writable()) {
+        return 0xFF;
+    }
 
     /* Put the value on the bus. */
     SPI1BUF = 0xff;
 
-    while (SPI1STATbits.SRXMPT);
+    if (!spi_wait_readable()) {
+        return 0xFF;
+    }
 
     /* Get the byte read from the bus. */
     uint8_t result = SPI1BUF;
@@ -672,13 +724,21 @@ static void spi_write_bytes(uint8_t* data, uint16_t length)
             SPI1BUF = data[sent++];
 
         if(!SPI1STATbits.SRXMPT)
-            SPI1BUF, cnt--;
+        {
+            /* Discard the byte clocked in while sending. */
+            (void)SPI1BUF;
+            cnt--;
+        }
     }
 
     while(cnt)
     {
         if( !SPI1STATbits.SRXMPT)
-            SPI1BUF, cnt--;
+        {
+            /* Discard the byte clocked in while sending. */
+            (void)SPI1BUF;
+            cnt--;
+        }
     }
 }
 #endif

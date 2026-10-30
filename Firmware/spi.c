@@ -1149,7 +1149,13 @@ void spi_read_write_io(const bool engage_cs) {
   uint16_t bytes_to_read = user_serial_read_big_endian_word();
 
   if ((bytes_to_write == 0) && (bytes_to_read == 0)) {
-    REPORT_IO_FAILURE();
+    /*
+     * A zero-length request is what avrdude sends while initialising its
+     * buspirate driver; answering it with a failure aborts the session
+     * ("initialization failed, rc=-2", issue #122). Success is what the
+     * protocol-side consumer expects here.
+     */
+    REPORT_IO_SUCCESS(); // needed for AVRDUDE
     return;
   }
 

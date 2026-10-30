@@ -668,6 +668,30 @@ void serviceuser(void) {
         }
         break;
 
+#ifdef BP_ENABLE_1WIRE_SUPPORT
+
+      case 'O':
+        if (bus_pirate_configuration.bus_mode != BP_1WIRE) {
+          BPMSG1088;
+        } else {
+          /*
+           * Switch the 1-Wire speed in place: the power supplies and the
+           * pull-up resistors keep running, so a device that has just been
+           * put into overdrive (Overdrive Skip ROM, 0x3C) can be driven at
+           * overdrive speed without leaving the mode and losing them.
+           */
+          if (mode_configuration.speed == 0) {
+            mode_configuration.speed = 1;
+            MSG_1WIRE_SPEED_OVERDRIVE;
+          } else {
+            mode_configuration.speed = 0;
+            MSG_1WIRE_SPEED_STANDARD;
+          }
+        }
+        break;
+
+#endif /* BP_ENABLE_1WIRE_SUPPORT */
+
       case '<':
         mode_configuration.command_error = YES;
         temp = 1;

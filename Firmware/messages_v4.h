@@ -345,6 +345,10 @@ void MSG_1WIRE_SKIP_ROM_MACRO_NAME_str(void);
 #define MSG_1WIRE_SKIP_ROM_MACRO_NAME bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SKIP_ROM_MACRO_NAME_str))
 void MSG_1WIRE_SPEED_PROMPT_str(void);
 #define MSG_1WIRE_SPEED_PROMPT bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_PROMPT_str))
+void MSG_1WIRE_SPEED_STANDARD_str(void);
+#define MSG_1WIRE_SPEED_STANDARD bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_STANDARD_str))
+void MSG_1WIRE_SPEED_OVERDRIVE_str(void);
+#define MSG_1WIRE_SPEED_OVERDRIVE bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_OVERDRIVE_str))
 void MSG_ACK_str(void);
 #define MSG_ACK bp_message_write_buffer(__builtin_tbladdress(MSG_ACK_str))
 void MSG_ADC_VOLTAGE_PROBE_HEADER_str(void);

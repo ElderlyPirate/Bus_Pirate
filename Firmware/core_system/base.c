@@ -370,17 +370,18 @@ uint16_t bp_reverse_integer(const uint16_t value, const uint8_t bits) {
          ((sizeof(uint16_t) * 8) - bits);
 #else
   uint16_t reversed;
-  uint16_t bitmask;
 
-  reversed = 0;
-  bitmask = 1;
-  while (bitmask != 0) {
-    reversed <<= 1;
-    if (value & bitmask) {
-      reversed |= 0b00000001;
-    }
-    bitmask <<= 1;
-  }
+  /* No flash table on v3: reverse by mask/shift stages - swap adjacent
+     bits, then pairs, nibbles and bytes (DS70000157G has no bit-reverse
+     instruction; this is the branchless equivalent). */
+  reversed = value;
+  reversed = (uint16_t)(((reversed & 0x5555u) << 1) |
+                        ((reversed >> 1) & 0x5555u));
+  reversed = (uint16_t)(((reversed & 0x3333u) << 2) |
+                        ((reversed >> 2) & 0x3333u));
+  reversed = (uint16_t)(((reversed & 0x0F0Fu) << 4) |
+                        ((reversed >> 4) & 0x0F0Fu));
+  reversed = (uint16_t)((reversed << 8) | (reversed >> 8));
 
   return reversed >> ((sizeof(uint16_t) * 8) - bits);
 #endif /* BUSPIRATEV4 */
@@ -530,9 +531,31 @@ void bp_write_dec_dword(const uint32_t value) {
   print_decimal(value, 1000000000UL, 10);
 }
 
-void bp_write_dec_word(const uint16_t value) { print_decimal(value, 10000, 5); }
+void bp_write_dec_word(const uint16_t number) {
+  char digits[5];
+  uint8_t count;
+  uint16_t remaining;
 
-void bp_write_dec_byte(const uint8_t value) { print_decimal(value, 100, 3); }
+  if (number == 0) {
+    user_serial_transmit_character('0');
+    return;
+  }
+
+  /* Least significant digit first - /10 and %10 are literal-divisor
+     operations, each folded to a multiply+shift. */
+  count = 0;
+  remaining = number;
+  while (remaining) {
+    digits[count++] = '0' + (uint8_t)(remaining % 10);
+    remaining /= 10;
+  }
+
+  while (count) {
+    user_serial_transmit_character(digits[--count]);
+  }
+}
+
+void bp_write_dec_byte(const uint8_t value) { bp_write_dec_word(value); }
 
 void bp_write_hex_byte(const uint8_t value) {
   MSG_HEXADECIMAL_NUMBER_PREFIX;
@@ -566,8 +589,14 @@ void bp_write_voltage(const uint16_t adc) {
    * be written as (adc * 29) / 45, making the final calculation result fit
    * inside an unsigned 16 bits integer.  The measurement error is less than
    * 1mV.
+   *
+   * Avoid the iterative divider/helper (DS70000157G) by carrying the
+   * exact ratio as a multiply+shift: with M = 42235 and s = 16,
+   * floor(adc * M / 2^16) equals floor(adc * 29 / 45) for every 10-bit
+   * ADC value 0..1023 (verified exhaustively), and the multiply is a
+   * single 16x16 -> 32 mul.uu whose high word is the result.
    */
-  const uint16_t centivolts = (adc * 29) / 45;
+  const uint16_t centivolts = (uint16_t)(((uint32_t)adc * 42235UL) >> 16);
 
   uint8_t value;
 

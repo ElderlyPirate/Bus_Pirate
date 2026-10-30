@@ -10,7 +10,7 @@ Regenerate both boards from the repository root:
 ```sh
 python tools/packstrings/packstrings.py tools/packstrings/bus_pirate_v3_strings.txt Firmware/core_messages/messages_v3 v3
 python tools/packstrings/packstrings.py tools/packstrings/bus_pirate_v4_strings.txt Firmware/core_messages/messages_v4 v4
-python Firmware/tests/test_messages.py
+python Firmware/tests/test_message_catalog.py
 ```
 
 Includes resolve relative to their source file, not the current directory.

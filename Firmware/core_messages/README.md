@@ -17,6 +17,11 @@ software-profile labels are already carried by Part 3 `521e344` (source
 `95f91cd`/`bf47033`). Earlier label revisions and equivalent aliases are not
 duplicated. No missing reader implementation existed in the accepted delta.
 
+The accepted packed-reader fixture from `0653843` is also retained as
+`tests/test_messages.py`, with only grouped source paths adapted. The new
+catalog contracts are in `tests/test_message_catalog.py`; neither suite
+replaces the other.
+
 ## Findings and dispositions
 
 | Candidate / finding | Final disposition |
@@ -70,7 +75,7 @@ Grouping and the packed object sections are compared independently of fixes.
 
 ## Regression gates
 
-`python Firmware/tests/test_messages.py` passes 15 checks, including:
+`python Firmware/tests/test_message_catalog.py` passes 15 checks, including:
 
 - all 596 per-board identifiers/declarations/macros and their line flags;
 - exact regeneration of four committed artifacts from canonical inputs;

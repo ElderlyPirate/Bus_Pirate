@@ -27,7 +27,9 @@ def function(source,name):
 base=(ROOT/"base.c").read_text()
 menu=(ROOT/"proc_menu.c").read_text()
 body="\n".join(function(base,x) for x in ("bp_write_dec_word","bp_write_dec_byte"))
-if "print_decimal(" in body:
+if "print_decimal16(" in body:
+    body=function(base,"print_decimal16")+"\n"+body
+elif "print_decimal(" in body:
     body=function(base,"print_decimal")+"\n"+body
 body+="\n"+"\n".join(function(menu,x) for x in ("getint","consumewhitechars","getint_with_spaces"))
 has_defaults="setup_defaults_mode" in body

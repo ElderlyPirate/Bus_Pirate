@@ -97,7 +97,6 @@
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
 extern command_t last_command;
-extern bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT];
 
 #ifdef BUSPIRATEV4
 static bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
@@ -300,7 +299,7 @@ void serviceuser(void) {
   user_macro = 0;
 
   for (;;) {
-    bp_write_string(enabled_protocols[bus_pirate_configuration.bus_mode].name);
+    bp_write_string(bp_current_protocol()->name);
 #ifdef BP_ENABLE_BASIC_SUPPORT
     if (bus_pirate_configuration.basic) {
       // bpWstring("(BASIC)");
@@ -327,10 +326,8 @@ void serviceuser(void) {
       while (!user_serial_ready_to_read()) {
         if (mode_configuration.periodicService == ON) {
           /* Print periodic service output if any has been generated. */
-          if (enabled_protocols[bus_pirate_configuration.bus_mode]
-                  .periodic_update()) {
-            bp_write_string(
-                enabled_protocols[bus_pirate_configuration.bus_mode].name);
+          if (bp_current_protocol()->periodic_update()) {
+            bp_write_string(bp_current_protocol()->name);
             bp_write_string(">");
             if (cmdstart != cmdend) {
               for (size_t offset = cmdstart; offset != cmdend; offset++) {
@@ -725,7 +722,7 @@ void serviceuser(void) {
         sendw = getint();
         consumewhitechars();
         if (cmdbuf[((cmdstart)&CMDLENMSK)] == ')') {
-          enabled_protocols[bus_pirate_configuration.bus_mode].run_macro(sendw);
+          bp_current_protocol()->run_macro(sendw);
           bpBR;
         } else {
           mode_configuration.command_error = YES;
@@ -753,7 +750,7 @@ void serviceuser(void) {
             if (mode_configuration.little_endian == YES) {
               sendw = bp_reverse_integer(sendw, mode_configuration.numbits);
             }
-            enabled_protocols[bus_pirate_configuration.bus_mode].send(sendw);
+            bp_current_protocol()->send(sendw);
           }
           cmdstart &= CMDLENMSK;
           user_serial_transmit_character('"');
@@ -762,19 +759,19 @@ void serviceuser(void) {
         break;
 
       case '[':
-        enabled_protocols[bus_pirate_configuration.bus_mode].start();
+        bp_current_protocol()->start();
         break;
 
       case '{':
-        enabled_protocols[bus_pirate_configuration.bus_mode].start_with_read();
+        bp_current_protocol()->start_with_read();
         break;
 
       case ']':
-        enabled_protocols[bus_pirate_configuration.bus_mode].stop();
+        bp_current_protocol()->stop();
         break;
 
       case '}':
-        enabled_protocols[bus_pirate_configuration.bus_mode].stop_from_read();
+        bp_current_protocol()->stop_from_read();
         break;
 
       case '0':
@@ -810,7 +807,7 @@ void serviceuser(void) {
             sendw = bp_reverse_integer(sendw, mode_configuration.numbits);
           }
           received =
-              enabled_protocols[bus_pirate_configuration.bus_mode].send(sendw);
+              bp_current_protocol()->send(sendw);
           bpSP;
           if (mode_configuration.write_with_read) {
             MSG_READ_HEADER;
@@ -840,7 +837,7 @@ void serviceuser(void) {
         }
         while (--repeat) {
           received =
-              enabled_protocols[bus_pirate_configuration.bus_mode].read();
+              bp_current_protocol()->read();
           if (mode_configuration.little_endian == YES) {
             received = bp_reverse_integer(received, mode_configuration.numbits);
           }
@@ -863,28 +860,28 @@ void serviceuser(void) {
 
       case '/':
         BPMSG1103;
-        enabled_protocols[bus_pirate_configuration.bus_mode].clock_high();
+        bp_current_protocol()->clock_high();
         break;
 
       case '\\':
         BPMSG1104;
-        enabled_protocols[bus_pirate_configuration.bus_mode].clock_low();
+        bp_current_protocol()->clock_low();
         break;
 
       case '-':
         BPMSG1105;
-        enabled_protocols[bus_pirate_configuration.bus_mode].data_high();
+        bp_current_protocol()->data_high();
         break;
 
       case '_':
         BPMSG1106;
-        enabled_protocols[bus_pirate_configuration.bus_mode].data_low();
+        bp_current_protocol()->data_low();
         break;
 
       case '.':
         BPMSG1098;
         echo_state(
-            enabled_protocols[bus_pirate_configuration.bus_mode].data_state());
+            bp_current_protocol()->data_state());
         break;
 
       case '^':
@@ -893,7 +890,7 @@ void serviceuser(void) {
         bp_write_formatted_integer(repeat);
         repeat++;
         while (--repeat) {
-          enabled_protocols[bus_pirate_configuration.bus_mode].clock_pulse();
+          bp_current_protocol()->clock_pulse();
         }
         bpBR;
         break;
@@ -903,7 +900,7 @@ void serviceuser(void) {
         BPMSG1109;
         while (--repeat) {
           echo_state(
-              enabled_protocols[bus_pirate_configuration.bus_mode].read_bit());
+              bp_current_protocol()->read_bit());
           bpSP;
         }
         BPMSG1107;
@@ -1080,7 +1077,7 @@ void changemode(void) {
     for (i = 0; i < ENABLED_PROTOCOLS_COUNT; i++) {
       bp_write_dec_byte(i + 1);
       bp_write_string(". ");
-      bp_write_line(enabled_protocols[i].name);
+      bp_write_line(bp_protocol_by_index(i)->name);
     }
     // bpWline("x. exit(without change)");
     BPMSG1111;
@@ -1092,10 +1089,10 @@ void changemode(void) {
       // bpWline("no mode change");
       BPMSG1112;
     } else {
-      enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
+      bp_current_protocol()->cleanup();
       bp_reset_board_state();
       bus_pirate_configuration.bus_mode = busmode;
-      enabled_protocols[bus_pirate_configuration.bus_mode].setup_prepare();
+      bp_current_protocol()->setup_prepare();
       MSG_CLUTCH_DISENGAGED;
       if (busmode) {
         BP_LEDMODE = 1; // mode led is on when proto >0
@@ -1108,10 +1105,10 @@ void changemode(void) {
   {
     busmode--; // save a couple of programwords to do it here :D
     if (busmode < ENABLED_PROTOCOLS_COUNT) {
-      enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
+      bp_current_protocol()->cleanup();
       bp_reset_board_state();
       bus_pirate_configuration.bus_mode = busmode;
-      enabled_protocols[bus_pirate_configuration.bus_mode].setup_prepare();
+      bp_current_protocol()->setup_prepare();
       if (busmode)
         BP_LEDMODE = 1; // mode led is on when proto >0
       // bpWmessage(MSG_READY);
@@ -1422,7 +1419,7 @@ void print_version_info(void) {
     if (index) {
       bpSP;
     }
-    bp_write_string(enabled_protocols[index].name);
+    bp_write_string(bp_protocol_by_index(index)->name);
   }
   user_serial_transmit_character(']');
 
@@ -1591,7 +1588,7 @@ void print_status_info(void) {
   }
 #endif /* BUSPIRATEV4 */
 
-  enabled_protocols[bus_pirate_configuration.bus_mode].print_settings();
+  bp_current_protocol()->print_settings();
   BPMSG1119;
 }
 
@@ -1605,7 +1602,7 @@ void print_pins_information(void) {
   BPMSG1227; // bpWstring("GND\t3.3V\t5.0V\tADC\tVPU\tAUX\t");
 #endif /* BUSPIRATEV4 */
 
-  enabled_protocols[bus_pirate_configuration.bus_mode].print_pins_state();
+  bp_current_protocol()->print_pins_state();
   BPMSG1228;
 #ifdef BUSPIRATEV4
   print_pin_direction(AUX2);
@@ -1944,7 +1941,7 @@ void refresh_mode_prompt(void) {
   MSG_CLEAR_LINE_WITH_CR;
 
   /* Write mode header. */
-  bp_write_string(enabled_protocols[bus_pirate_configuration.bus_mode].name);
+  bp_write_string(bp_current_protocol()->name);
 #ifdef BP_ENABLE_BASIC_SUPPORT
   if (bus_pirate_configuration.basic) {
     BPMSG1084;
@@ -2183,7 +2180,7 @@ void switch_psu_on(void) {
     /* Correct voltages read. */
     MSG_POWER_SUPPLIES_ON;
     bpBR;
-    enabled_protocols[bus_pirate_configuration.bus_mode].setup_execute();
+    bp_current_protocol()->setup_execute();
     MSG_CLUTCH_ENGAGED;
   } else {
     bp_disable_voltage_regulator();
@@ -2201,7 +2198,7 @@ void switch_psu_off(void) {
     return;
   }
 
-  enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
+  bp_current_protocol()->cleanup();
   MSG_CLUTCH_DISENGAGED;
   bp_disable_voltage_regulator();
   MSG_POWER_SUPPLIES_OFF;

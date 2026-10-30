@@ -32,6 +32,7 @@ void print_version_info(void);
 void serviceuser(void);
 
 int getint(void);
+int getint_with_spaces(void);
 int getrepeat(void);
 int getnumbits(void);
 

@@ -5,6 +5,9 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>../1wire.h</itemPath>
+      <itemPath>../avrisp_mkii.h</itemPath>
+      <itemPath>../avrisp_v2.h</itemPath>
+      <itemPath>../avrisp_xprog.h</itemPath>
       <itemPath>../base.h</itemPath>
       <itemPath>../basic.h</itemPath>
       <itemPath>../bitbang.h</itemPath>
@@ -65,6 +68,12 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>../1wire.c</itemPath>
+      <itemPath>../avrisp_isp.c</itemPath>
+      <itemPath>../avrisp_mkii.c</itemPath>
+      <itemPath>../avrisp_nvm_pdi.c</itemPath>
+      <itemPath>../avrisp_nvm_tpi.c</itemPath>
+      <itemPath>../avrisp_v2.c</itemPath>
+      <itemPath>../avrisp_xprog.c</itemPath>
       <itemPath>../base.c</itemPath>
       <itemPath>../basic.c</itemPath>
       <itemPath>../bitbang.c</itemPath>

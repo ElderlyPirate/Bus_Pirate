@@ -114,7 +114,7 @@
 #define BP_AUX_RPIN 10
 #define BP_AUX_RPOUT RPOR5bits.RP10R
 #define BP_CS_RPIN 6
-#define BP_CS_RPOUT RPOR5bits.RP6R
+#define BP_CS_RPOUT RPOR3bits.RP6R
 
 // define the PPS input/output for CLK pin
 #define BP_CLK_RPIN 8

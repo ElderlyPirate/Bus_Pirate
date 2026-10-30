@@ -19,6 +19,11 @@ or send a letter to
 #include "../dp_usb/usb_stack_globals.h"    // USB stack only defines Not function related.
 
 #include <string.h>
+#include "../configuration.h"
+
+#ifdef BP_ENABLE_AVRISP_MKII_SUPPORT
+#include "../avrisp_mkii.h"
+#endif /* BP_ENABLE_AVRISP_MKII_SUPPORT */
 
 enum stopbits {
     one = 0, oneandahalf = 1, two = 2
@@ -82,6 +87,14 @@ void initCDC(void) {
 }
 
 void user_configured_init(void) {
+#ifdef BP_ENABLE_AVRISP_MKII_SUPPORT
+    if (avrisp_usb_personality_active) {
+        // The AVRISP-MKII USB personality owns endpoint 2 while active.
+        avrisp_usb_configure_endpoints();
+        return;
+    }
+#endif /* BP_ENABLE_AVRISP_MKII_SUPPORT */
+
     // JTR NEW FUNCTION
     // After the device is enumerated and configured then we set up non EP0 endpoints.
     // We only enable the endpoints we are using, not all of them.
@@ -110,6 +123,10 @@ void user_configured_init(void) {
 
     usb_register_class_setup_handler(cdc_setup);
     cdc_trf_state = 0;
+    usb_register_sof_handler(CDCFlushOnTimeout);
+    cdc_timeout_count = 0;
+    ZLPpending = 0;
+    lock = 0;
     CDC_Outbdp = &usb_bdt[USB_CALC_BD(2, USB_DIR_OUT, USB_PP_EVEN)];
     CDC_Inbdp = &usb_bdt[USB_CALC_BD(2, USB_DIR_IN, USB_PP_EVEN)];
 

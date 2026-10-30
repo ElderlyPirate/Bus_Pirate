@@ -58,6 +58,10 @@
 #include "smps.h"
 #endif /* BP_ENABLE_SMPS_SUPPORT */
 
+#ifdef BP_ENABLE_AVRISP_MKII_SUPPORT
+#include "avrisp_mkii.h"
+#endif /* BP_ENABLE_AVRISP_MKII_SUPPORT */
+
 extern mode_configuration_t mode_configuration;
 extern bus_pirate_configuration_t bus_pirate_configuration;
 
@@ -135,6 +139,8 @@ typedef enum {
   BITBANG_COMMAND_RAW_WIRE,
   BITBANG_COMMAND_OPENOCD,
   BITBANG_COMMAND_PIC,
+  BITBANG_COMMAND_AVRISP_MKII_USB = 0x08,
+  BITBANG_COMMAND_AVRISP_MKII_SERIAL = 0x09,
   BITBANG_COMMAND_RETURN_TO_TERMINAL = 0x0F,
   BITBANG_COMMAND_SHORT_SELF_TEST,
   BITBANG_COMMAND_FULL_SELF_TEST,
@@ -439,6 +445,28 @@ int handle_bitbang_command(const bitbang_command command) {
     reset_state();
     binary_io_enter_pic_mode();
 #endif /* BP_ENABLE_PIC_SUPPORT */
+    reset_state();
+    send_binary_io_mode_identifier();
+    break;
+
+  case BITBANG_COMMAND_AVRISP_MKII_USB:
+#if defined(BP_ENABLE_AVRISP_MKII_SUPPORT) && defined(BUSPIRATEV4)
+    reset_state();
+    avrisp_mkii_enter(AVRISP_TRANSPORT_USB);
+#else
+    REPORT_IO_FAILURE();
+#endif /* BP_ENABLE_AVRISP_MKII_SUPPORT && BUSPIRATEV4 */
+    reset_state();
+    send_binary_io_mode_identifier();
+    break;
+
+  case BITBANG_COMMAND_AVRISP_MKII_SERIAL:
+#if defined(BP_ENABLE_AVRISP_MKII_SUPPORT)
+    reset_state();
+    avrisp_mkii_enter(AVRISP_TRANSPORT_SERIAL);
+#else
+    REPORT_IO_FAILURE();
+#endif /* BP_ENABLE_AVRISP_MKII_SUPPORT */
     reset_state();
     send_binary_io_mode_identifier();
     break;

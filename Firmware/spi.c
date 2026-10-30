@@ -330,18 +330,12 @@ void spi_setup_prepare(void) {
   int spi_enabled;
   int spi_cs_line_state;
 
-  consumewhitechars();
-  spi_speed = getint();
-  consumewhitechars();
-  spi_clock_polarity = getint();
-  consumewhitechars();
-  spi_clock_edge = getint();
-  consumewhitechars();
-  spi_data_sampling = getint();
-  consumewhitechars();
-  spi_cs_line_state = getint();
-  consumewhitechars();
-  spi_enabled = getint();
+  spi_speed = getint_with_spaces();
+  spi_clock_polarity = getint_with_spaces();
+  spi_clock_edge = getint_with_spaces();
+  spi_data_sampling = getint_with_spaces();
+  spi_cs_line_state = getint_with_spaces();
+  spi_enabled = getint_with_spaces();
 
   user_prompt = !(((spi_speed > 0) && (spi_speed <= 4)) &&
                   ((spi_clock_polarity > 0) && (spi_clock_polarity <= 2)) &&

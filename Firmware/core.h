@@ -21,6 +21,7 @@
 #include "configuration.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Protocol definition.
@@ -173,6 +174,12 @@ typedef struct {
    */
   const char name[8];
 } bus_pirate_protocol_t;
+
+/** Current mode's callbacks/settings; resolves the live mode on each call. */
+const bus_pirate_protocol_t *bp_current_protocol(void);
+
+/** Mode-menu entry; index must be less than ENABLED_PROTOCOLS_COUNT. */
+const bus_pirate_protocol_t *bp_protocol_by_index(uint8_t index);
 
 /**
  * All the available protocols.

@@ -88,10 +88,8 @@ void raw2wire_print_settings(void) {
 }
 
 void raw2wire_setup_prepare(void) {
-  consumewhitechars();
-  int speed = getint();
-  consumewhitechars();
-  int output = getint();
+  int speed = getint_with_spaces();
+  int output = getint_with_spaces();
 
   bool user_prompt =
       !(((speed > 0) && (speed <= 4)) && ((output > 0) && (output <= 2)));

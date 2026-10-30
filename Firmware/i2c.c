@@ -303,14 +303,12 @@ void i2c_setup_prepare(void) {
   HW = 0; // keep compiler happy if BP_USE_HW is not defined
 
 #ifdef BP_I2C_USE_HW_BUS
-  consumewhitechars();
-  HW = getint();
+  HW = getint_with_spaces();
 #else
   i2c_state.mode = I2C_TYPE_SOFTWARE;
 #endif /* BP_I2C_USE_HW_BUS */
 
-  consumewhitechars();
-  speed = getint();
+  speed = getint_with_spaces();
 
 #ifdef BP_I2C_USE_HW_BUS
   if ((HW > 0) && (HW <= 2)) {

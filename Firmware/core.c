@@ -149,7 +149,9 @@ static void silent_null_operation_callback(void);
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
 
-bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
+/* Private, read-only through the accessors. XC16's initialized-data encoding
+   costs less Flash here than moving this table into PSV const storage. */
+static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
     {.start = null_operation_callback,
      .start_with_read = null_operation_callback,
      .stop = null_operation_callback,
@@ -422,6 +424,14 @@ bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .name = "DIO"}
 #endif /* BP_ENABLE_DIO_SUPPORT */
 };
+
+const bus_pirate_protocol_t *bp_current_protocol(void) {
+  return &enabled_protocols[bus_pirate_configuration.bus_mode];
+}
+
+const bus_pirate_protocol_t *bp_protocol_by_index(uint8_t index) {
+  return &enabled_protocols[index];
+}
 
 void null_operation_callback(void) {
   MSG_COMMAND_HAS_NO_EFFECT;

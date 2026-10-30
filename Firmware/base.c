@@ -117,19 +117,6 @@ static void clear_mode_configuration(void);
 static void print_decimal(const uint32_t value, const uint32_t denominator,
                           const uint8_t digits);
 
-/**
- * @brief Prints a 16-bit value as a decimal number, no leading zeroes.
- *
- * Every division/modulus here has the literal 10 as its divisor, so each
- * one is folded into a multiply+shift at compile time - the PIC24 core
- * has no hardware divide (DS70000157G).  This carries every byte/word
- * display: only the rare 32-bit paths (dword, timer) still use the
- * runtime division helper.
- *
- * @param[in] number the value to print.
- */
-static inline void print_decimal16(const uint16_t number);
-
 #ifdef BP_USE_HARDWARE_DELAY_TIMER
 
 /**
@@ -462,7 +449,10 @@ void bp_write_dec_dword_friendly(const uint32_t value) {
     bp_write_dec_word(number);
 }
 
-static inline void print_decimal16(const uint16_t number) {
+/* Byte output delegates here: collect and emit decimal digits only once.
+   Literal /10 and %10 still fold to multiply/shift; only the 32-bit path
+   below needs a runtime division helper on the PIC24. */
+void bp_write_dec_word(const uint16_t number) {
   char digits[5];
   uint8_t count;
   uint16_t remaining;
@@ -488,7 +478,7 @@ static inline void print_decimal16(const uint16_t number) {
 
 /* 32-bit decimal printing.  xc16 -O1 only folds constant division up to
    16-bit, so the digit loop here keeps the runtime division helper; only
-   the rare dword and timer displays use this path (see print_decimal16
+   the rare dword and timer displays use this path (see bp_write_dec_word
    for the folded byte/word path). */
 static void print_decimal(const uint32_t value, const uint32_t denominator,
                           const uint8_t digits) {
@@ -523,9 +513,7 @@ void bp_write_dec_dword(const uint32_t value) {
   print_decimal(value, 10000000, 8);
 }
 
-void bp_write_dec_word(const uint16_t value) { print_decimal16(value); }
-
-void bp_write_dec_byte(const uint8_t value) { print_decimal16(value); }
+void bp_write_dec_byte(const uint8_t value) { bp_write_dec_word(value); }
 
 void bp_write_hex_byte(const uint8_t value) {
   MSG_HEXADECIMAL_NUMBER_PREFIX;

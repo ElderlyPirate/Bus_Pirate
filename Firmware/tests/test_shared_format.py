@@ -1,7 +1,7 @@
-"""Exhaustive output and parser checks without importing sibling PR features.
+"""Exhaustive output and parser checks against the available production APIs.
 
-Uses the real upstream generic formatter or its future #237 replacement;
-scripted-setup defaults are tested only when that feature exists.
+Supports the generic formatter, the #237 prerequisite, and the shared
+implementation; scripted defaults are tested only when that feature exists.
 """
 from pathlib import Path
 import re

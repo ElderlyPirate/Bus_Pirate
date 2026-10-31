@@ -1635,7 +1635,7 @@ _MSG_UART_MACRO_MENU_str:
 	.section .text.MSG_UART_MODE_HEADER, code
 	.global _MSG_UART_MODE_HEADER_str
 _MSG_UART_MODE_HEADER_str:
-	.pasciz "UART (spd brg dbp sb rxp hiz)=( "
+	.pasciz "UART (spd brg dbp sb rxp hiz dup)=( "
 
 	; MSG_UART_MODE_IDENTIFIER
 	.section .text.MSG_UART_MODE_IDENTIFIER, code

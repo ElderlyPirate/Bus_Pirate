@@ -37,6 +37,7 @@ extern mode_configuration_t mode_configuration;
 typedef struct {
   uint8_t databits_parity : 2;
   uint8_t stop_bits : 1;
+  uint8_t half_duplex : 1;
   uint8_t receive_polarity : 1;
   uint8_t echo_uart : 1;
 #ifdef BUSPIRATEV4
@@ -135,13 +136,12 @@ void UARTsettings(void) {
   bpSP;
   bp_write_dec_byte(mode_configuration.high_impedance);
   bpSP;
-  /* This standalone UART is full-duplex; match the shared seven-field header. */
-  bp_write_dec_byte(0);
+  bp_write_dec_byte(uart_settings.half_duplex);
   MSG_MODE_HEADER_END;
 }
 
 void uart_setup_prepare(void) {
-  int speed, dbp, sb, rxp, output, brg = 0;
+  int speed, dbp, sb, rxp, output, hd, brg = 0;
   // autobaud detection; multi uses
   unsigned long abd = 0;
 
@@ -165,6 +165,8 @@ void uart_setup_prepare(void) {
   rxp = getint();
   consumewhitechars();
   output = getint();
+  consumewhitechars();
+  hd = getint();
 
   if ((speed > 0) && (speed <= 10)) {
     mode_configuration.speed = speed - 1;
@@ -192,6 +194,15 @@ void uart_setup_prepare(void) {
 
   if ((output > 0) && (output <= 2)) {
     mode_configuration.high_impedance = ~(output - 1);
+  } else {
+    speed = 0; // when speed is 0 we ask the user
+  }
+
+  if (hd == 0) {
+    hd = 1; // parameter lists from before the duplex option: full duplex
+  }
+  if ((hd > 0) && (hd <= 2)) {
+    uart_settings.half_duplex = hd - 1;
   } else {
     speed = 0; // when speed is 0 we ask the user
   }
@@ -247,6 +258,9 @@ void uart_setup_prepare(void) {
 
     MSG_PIN_OUTPUT_TYPE_PROMPT;
     mode_configuration.high_impedance = ~(getnumber(1, 1, 2, 0) - 1);
+
+    MSG_UART_DUPLEX_PROMPT;
+    uart_settings.half_duplex = getnumber(1, 1, 2, 0) - 1;
   } else {
     if (mode_configuration.speed == 9) {
       abd = brg;
@@ -262,6 +276,7 @@ void uart_setup_prepare(void) {
 }
 
 void uart_setup_execute(void) {
+  uart2_set_single_wire(uart_settings.half_duplex == 1);
   uart2_setup(mode_configuration.speed == 9
                   ? U2BRG
                   : UART_BRG_SPEED[mode_configuration.speed],
@@ -706,6 +721,8 @@ void binUART(void) {
   mode_configuration.high_impedance = ON;
   brg_value = UART_BRG_SPEED[0]; // start at 300bps
   uart_settings.echo_uart = OFF;
+  uart_settings.half_duplex = 0; // binary UART stays full duplex
+  uart2_set_single_wire(false);  // (uart2_disable() also clears this)
   uart2_setup(brg_value, mode_configuration.high_impedance,
               uart_settings.receive_polarity, uart_settings.databits_parity,
               uart_settings.stop_bits);

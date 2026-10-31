@@ -28,6 +28,13 @@
 #define UARTTX_ODC BP_MOSI_ODC
 
 /*
+ * Half-duplex single-wire selection (uart2_set_single_wire()).  Kept here,
+ * outside the per-call setup parameters, so routine re-setups (bridge
+ * macros and friends) cannot silently clobber the shared-wire mapping.
+ */
+static bool uart2_single_wire = false;
+
+/*
  * UART2 receive buffer (both variants; the U2RX interrupt is available on
  * the v3 and v4 chips alike).
  *
@@ -93,15 +100,27 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
   }
 }
 
+void uart2_set_single_wire(const bool single_wire) {
+  uart2_single_wire = single_wire;
+}
+
 void uart2_setup(const uint16_t baud_rate_generator_prescaler,
                  const bool open_drain_output, const bool invert_polarity,
                  const uint8_t databits_and_parity, const bool stop_bits) {
 
-  /* Set open drain output mode. */
-  UARTTX_ODC = (open_drain_output == UART2_OPEN_DRAIN) ? OPEN_DRAIN : PUSH_PULL;
+  /*
+   * Set the output mode.  Single-wire operation forces open drain: the
+   * shared wire relies on an external pull-up for its idle level.
+   */
+  UARTTX_ODC = ((open_drain_output == UART2_OPEN_DRAIN) || uart2_single_wire)
+                   ? OPEN_DRAIN
+                   : PUSH_PULL;
 
-  /* Map RB7 as UART TX. */
-  RPINR19bits.U2RXR = UARTRX_PIN;
+  /*
+   * Map UART TX to the MOSI pin.  In single-wire mode the receiver listens
+   * on that same pin (the PPS input and output paths are independent).
+   */
+  RPINR19bits.U2RXR = uart2_single_wire ? BP_MOSI_RPIN : UARTRX_PIN;
   UARTTX_PIN = U2TX_IO;
 
   /* Set UART2 baud rate generator prescaler. */
@@ -189,6 +208,9 @@ void uart2_disable(void) {
   UARTTX_PIN = OFF;
   UARTTX_ODC = OFF;
 
+  /* Drop any single-wire selection with the port. */
+  uart2_single_wire = false;
+
   /*
    * Tristate bits are ignored by the PPS peripheral, and are set here only to
    * allow the 'v' command to report the right direction.
@@ -197,11 +219,36 @@ void uart2_disable(void) {
 }
 
 void uart2_tx(const uint8_t character) {
+  uint8_t saved_head;
+
+  /*
+   * Single wire: remember the receive ring's state so the self-echo of
+   * this byte can be discarded once it has been transmitted.
+   */
+  saved_head = uart2_rx_head;
+
   /* Wait until the TX buffer is empty. */
   while (U2STAbits.UTXBF == ON) {
   }
 
   U2TXREG = character;
+
+  if (uart2_single_wire) {
+    /*
+     * Wait for the byte to leave the shift register before trusting the
+     * receiver again (the line is shared with the peer).
+     */
+    while (U2STAbits.TRMT == NO) {
+    }
+
+    /*
+     * Drop what the receiver heard of our own transmission.  Anything the
+     * peer sent before the byte was queued stays in the ring.
+     */
+    if (uart2_rx_head != saved_head) {
+      uart2_rx_head = saved_head;
+    }
+  }
 }
 
 uint8_t uart2_rx(void) {

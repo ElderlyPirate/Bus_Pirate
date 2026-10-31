@@ -104,6 +104,37 @@
 #define UART2_OPEN_DRAIN OPEN_DRAIN
 
 /**
+ * @def UART2_SINGLE_WIRE
+ *
+ * Flag indicating that the port works in half-duplex single-wire mode: the
+ * receiver listens on the TX pin and the transmit path discards the
+ * self-echo heard during its own bytes.  The bus relies on an external
+ * pull-up (open-drain output is forced).
+ */
+#define UART2_SINGLE_WIRE ON
+
+/**
+ * @def UART2_FULL_DUPLEX
+ *
+ * Flag indicating separate TX and RX pins (the default, RS232-style).
+ */
+#define UART2_FULL_DUPLEX OFF
+
+/**
+ * Selects half-duplex single-wire operation for subsequent uart2_setup()
+ * calls: the receiver input is mapped to the TX pin and the TX pin is
+ * forced open-drain.  The selection persists across uart2_setup() calls
+ * until uart2_disable() or another call here.
+ *
+ * @param[in] single_wire UART2_SINGLE_WIRE for a shared TX/RX wire,
+ * UART2_FULL_DUPLEX for separate pins.
+ *
+ * @see UART2_SINGLE_WIRE
+ * @see UART2_FULL_DUPLEX
+ */
+void uart2_set_single_wire(const bool single_wire);
+
+/**
  * Sets up UART #2.
  *
  * @param[in] baud_rate_generator_prescaler the prescaler value for UART #2's

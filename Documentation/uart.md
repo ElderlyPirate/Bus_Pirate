@@ -2,8 +2,8 @@ UART Mode
 ===================
 UART is also known as the common PC serial port. A PC serial port operates at full RS232 voltage levels (-13volts to +13volts), which are not compatible with the Bus Pirate.
 
-  - **Bus:** [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver/transmitter), [MIDI](http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface)
-  - **Connections:** two pins (RX/TX) and ground
+  - **Bus:** [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver/transmitter), [MIDI](http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface), half-duplex single-wire UART
+  - **Connections:** two pins (RX/TX) and ground; one data pin (TX) and ground in half-duplex single-wire mode
   - **Output types:** 
     - 3.3volt normal output (high=3.3volts, low=ground)
     - [open drain/open collector](http://en.wikipedia.org/wiki/High_impedence) (high=Hi-Z, low=ground), [pull-up resistors](http://dangerousprototypes.com/docs/Practical_guide_to_Bus_Pirate_pull-up_resistors) required. Use open drain/open collector output types with pull-up resistors for multi-voltage interfacing.
@@ -12,7 +12,8 @@ UART is also known as the common PC serial port. A PC serial port operates at fu
   - **Speed:** (BPS) 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 31250 (v2.7+), BRG (v5.1+)
   - **Data bits and parity:** 8/none, 8/even, 8/odd, 9/none
   - **Stop bits:** 1,2
-  - **Recieve polarity:** idle 1, idle 0
+  - **Receive polarity:** idle 1, idle 0
+  - **Duplex:** full (separate RX/TX pins) or half (single wire, open drain, pull-up required)
 
 
 Bus Requirements
@@ -21,6 +22,10 @@ Bus Requirements
 ### Pull-up resistors
 
 In open-collector mode, it requires pull-up resistors to hold the RX and TX lines high.
+
+In half-duplex single-wire mode the two data pins share one wire and the bus is
+open drain; a **pull-up resistor (1–10 kΩ) to 3.3 V is required**, and both ends
+must be single-wire/open-drain capable.
 
 
 Starting UART Mode
@@ -64,8 +69,36 @@ Starting UART Mode
      2. Normal (H=3.3V, L=GND)
 
     (1)>2    <<<choose output type
+    Duplex:
+     1. Full (TX+RX) *default
+     2. Half (single wire)
+
+    (1)>     <<<choose duplex (default accepted = full duplex)
     Ready
     UART>
+
+
+### Half-duplex single-wire mode (HDUART)
+
+Select `2. Half (single wire)` at the duplex prompt (setup option 6; optional
+in inline parameter lists — omitting it selects full duplex).
+
+  - **Wiring:** one data wire (the TX pin, MOSI on BPv4) plus ground. The bus is
+    open drain and **requires a pull-up resistor (1–10 kΩ) to 3.3 V**; both ends
+    must be open-drain/single-wire capable (another Bus Pirate, or a target
+    running its USART with wired-AND on its TX pin).
+  - **No self-echo:** bytes the Bus Pirate transmits are not displayed back;
+    received bytes are read normally (`r`, `{`/`[`, macros).
+  - On BPv4 enable the supplies (`W`) and the pull-ups (`P`) after mode entry,
+    as with the regular UART mode.
+  - All commands, macros and the transparent bridge work unchanged. The binary
+    bitbang UART protocol stays full duplex.
+
+    UART>2      <<<half duplex selected; peer sends 0x55 0xAA
+    READ: 0x55
+    READ: 0xAA
+    UART>0x12   <<<transmit 0x12 on the shared wire
+    WRITE: 0x12
 
 
 Command Syntax
@@ -187,6 +220,8 @@ Connections
 ![UART Connection Diagram](images/connections/UART.png)
 
 Connect the Bus Pirate transmit pin (TX/MOSI) to the UART device receive pin (RX). Connect the Bus Pirate receive pin (RX/MISO) to the UART device transmit pin (TX).
+
+In half-duplex single-wire mode, connect the Bus Pirate TX pin (MOSI) to the peer's single data line, share ground, and fit the pull-up resistor to 3.3 V.
 
 For macros and modes with flow control: CTS is on the CS pin (PIC input from external circuit is passed to FTDI USB->serial chip). RTS is on the CLOCK pin (PIC output mirrors output from FTDI chip). 
 

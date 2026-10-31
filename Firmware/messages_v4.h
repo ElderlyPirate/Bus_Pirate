@@ -557,6 +557,8 @@ void MSG_UART_BITS_PARITY_PROMPT_str(void);
 #define MSG_UART_BITS_PARITY_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_BITS_PARITY_PROMPT_str))
 void MSG_UART_BITS_STOP_PROMPT_str(void);
 #define MSG_UART_BITS_STOP_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_BITS_STOP_PROMPT_str))
+void MSG_UART_DUPLEX_PROMPT_str(void);
+#define MSG_UART_DUPLEX_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_DUPLEX_PROMPT_str))
 void MSG_UART_BPS_MARKER_str(void);
 #define MSG_UART_BPS_MARKER bp_message_write_line(__builtin_tbladdress(MSG_UART_BPS_MARKER_str))
 void MSG_UART_BRIDGE_str(void);

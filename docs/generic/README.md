@@ -1,63 +1,106 @@
-# Using the prompt (generic layer) — first draft
+# Using the prompt — the generic (base) terminal layer
 
-**Status:** draft, 2026-11-01 — "how to use the prompt" as its own usage
-document (part of the central `docs/` plan).  The capability matrix (v3/v4)
-lives in `SPEC.md` §1; per-mode command details live with each mode
-(`docs/<mode>/`).  This page explains how to drive the prompt itself.
+**Status:** draft, 2026-11-01.
 
-Applies to v3 and v4 unless noted.
+This folder documents the shared CLI that every mode leans into: the prompt,
+command grammar, the base-layer controls, and the entry sequences into the
+binary modes.  Per-mode behaviour lives in `docs/<mode>/`.  The full capability
+matrix — which board supports what — is in `docs/SPEC.md`.
 
-## 1. Getting around
-| Key | What it does |
+## Getting connected
+
+- The Bus Pirate is a USB serial device: a v4 presents a USB CDC virtual COM
+  port, a v3 uses its FTDI cable.  It appears as `COM<n>` (Windows) or
+  `/dev/ttyUSB*` / `/dev/ttyACM*` (Linux/macOS).
+- Default link settings are **115200 baud, 8 data bits, no parity, 1 stop bit
+  (8N1)**, no flow control.  The firmware boots at 115200 and the `b` menu
+  default is option 9 = 115200.
+- Open the port and press Enter: the default prompt is `HiZ>`.  Commands end
+  with Enter.
+- Drivers, building and flashing are developer topics — see `docs/dev/` (stub).
+
+## Glossary
+
+- **Clutch** — the bus-engagement metaphor.  "Clutch disengaged" means the bus
+  is parked: after a mode change the new mode is inert and its I/O is not driven
+  until the supplies are started with `W`, which prints "Clutch engaged!!!".
+  `w` (supplies off) parks the bus again.
+- **VPU** — the pull-up supply.  The pull-up resistors tie the I/O lines to
+  whatever voltage is present on the physical **Vpullup** pin (the pin marked
+  `Vpu`, "input pull-up resistors 0-5 V", on the reference card).  On v4 the `e`
+  command can select that source (external/none, on-board 3.3 V, on-board
+  5.0 V); v3 has no `e`, so the Vpullup pin must be fed externally — see
+  [commands.md](commands.md) §Wiring.
+- **AUX** — the auxiliary I/O pin: `a` drives it low, `A` high, `@` reads it.
+  On v4 it can be reassigned among AUX0/AUX1/AUX2 (`c`/`C`/`k`/`K`).
+
+This README is a **map, not the manual** — every detail lives in the files
+below:
+
+| File | Covers |
 |---|---|
-| `i` | banner / info: firmware version, chip revision, enabled modes |
-| `?` | help screen (command map) |
-| `m` | mode menu — change mode; `x` leaves without changing |
-| `h` | command history (v4: 15 entries, v3: 7) |
-| `b` | terminal link baud rate: 300…115200 plus custom BRG |
+| [navigation.md](navigation.md) | prompt lifecycle, line editing, `i`, `?`, `m`, `b`, `o`; the v3/v4 delta table |
+| [commands.md](commands.md) | wiring requirements, the complete reference tables (values, elements, macros, wrappers, bit ops, firmware-level), and leaving the CLI for binary/SUMP |
+| [usage.md](usage.md) | worked terminal sessions (mode change, `W`/`P`, `e`/`v`, `$`, `#`, wrappers) |
+| [edge-cases.md](edge-cases.md) | failure modes, warnings and known quirks |
+| [verification.md](verification.md) | bench runs and what is not verified |
 
-## 2. Entering values and text
-- Numbers are decimal by default; `0x…` hex, `0b…` binary.
-- `"text"` sends a string; plain numbers send a value (per mode).
-- `;` injects extra bits into the previous value.
-- `=` converts a value between bases; `|` reverses the bit order.
-- `o` selects the display format: HEX / DEC / BIN / RAW (+ line length).
+## The five-minute version
 
-## 3. Controlling & inspecting the elements
-| Key | Element |
-|---|---|
-| `W` / `w` | power supplies on / off (`W` prints the voltages) |
-| `P` / `p` | pull-up resistors on / off (mind the VPU warning) |
-| `e` | pull-up (VPU) source: External / 3.3 V / 5 V — **v4 only** |
-| `a` / `A` / `@` | AUX pin: low / high / read |
-| `c` / `C` (`k` / `K` v4) | AUX assignment: A0 / CS / A1 / A2 (via `k`/`K` on v4) |
-| `L` / `l` | bit order: MSB-first / LSB-first |
-| `v` | show pin states and voltages |
-| `d` / `D` | ADC: one-shot / continuous; `d:N` repeats N times |
-| `f` | frequency counter (AUX pin) |
-| `g` / `S` | PWM / servo output (AUX pin; not in HiZ) |
-| `t` / `T` | elapsed timer: read / reset (µs) |
-| `~` | self-test (HiZ only) |
-| `&` / `%` | delay N µs / N ms |
+- The prompt shows the current mode (`HiZ>`, `UART>`, …); commands end with
+  Enter.
+- `?` help · `i` version/status · `m` mode menu · `o` display format · `b` baud.
+- Elements: `W`/`w` supplies · `P`/`p` pull-ups · `a`/`A`/`@` AUX pin ·
+  `l`/`L` bit order · `v` volts/pin states.
+- Macros: `<n>` user, `(n)` mode.  Wrappers `[` `{` `]` `}`; reads `r`;
+  bit ops `/ \ ^ - _ . !`.
+- `#` reset · `$` bootloader · `s` BASIC.
 
-## 4. Macros
-- `<n>` — user macros: list / assign / run (slot counts differ between v3/v4).
-- `(n)` — mode macros: run; `(0)` shows the current mode's macro menu.
+**Pull-up note:** `P` only works if a voltage is already on the Vpullup pin —
+select the on-board 3.3 V / 5.0 V source with `e2`/`e3` on v4, or feed the pin
+externally on v3.  See [commands.md](commands.md) §Feeding the VPU pin.
 
-## 5. Wrappers, reads and bit ops
-- `[` `{` `]` `}` — start / start-with-read / stop / stop-with-read.
-- `r` — read (arguments `r:N`, `r;bits`); exact semantics per mode.
-- `/` `\` `^` `-` `_` `.` `!` — clock hi / clock lo / tick / data hi /
-  data lo / read / bit read (meaning is mode-dependent).
+A first session (v4 bench, 2026-11-01; abridged — the full transcript is in
+[usage.md](usage.md)):
 
-## 6. Reset and firmware
-- `#` — reset; v3: hardware reset, v4: simulated (returns to HiZ).
-- `$` — jump to the bootloader (confirm with `y`) — the enabler for
-  firmware updates.
-- `s` — BASIC interpreter (documented under `docs/basic/`).
+```
+HiZ>m3
+Set serial port speed: (bps) …          (answer six setup prompts; each defaults to 1)
+Ready
+UART>W
+POWER SUPPLIES ON
+Clutch engaged!!!
+UART>P
+Pull-up resistors ON
+Warning: no voltage on Vpullup pin
+UART>o1
+Display format set
+UART>v
+Pinstates: …                            (rail + pin table)
+UART>
+```
 
-## 7. Notes / TODO (draft)
-- Verify the v3/v4 deltas: history depth, `c`/`C` vs `k`/`K`, `#` behaviour,
-  macro slot counts.
-- The help label for `o` ("Set output type") is a misnomer — it sets the
-  *display* format; earmarked for the firmware help cleanup, not just docs.
+## Availability (summary)
+
+| | v3 | v4 |
+|---|---|---|
+| prompt / CLI | present | present (bench-default image) |
+| bench coverage | **build-only** — no v3 hardware here, so the v3 column is read from the source | covered by bench runs |
+
+Full delta table (history depth, macro slots, `e`, `#`, buffers, help text):
+[navigation.md](navigation.md).
+
+## Limits & out of scope
+
+- Per-mode settings defaults, per-mode `r`/`[`/`]` semantics, per-mode pin
+  tables and per-mode macros are **not** here — see `docs/<mode>/`.
+- No pull-**down** command exists — the pull-up elements are on/off only and
+  the output matrix offers open-drain or push-pull (a per-mode setup prompt),
+  never a pull-down.
+- No command-line editing beyond the keys in [navigation.md](navigation.md)
+  (no word-delete, no tab completion).
+- BASIC internals, the binary protocol, SUMP and self-test detail live on
+  their own pages: `docs/basic/` (stub), `docs/binary/` (stub), `docs/sump/`
+  (stub), `docs/self-test/`.
+- The `o` help label and the `v` label-row control byte are firmware string
+  defects, flagged but not fixed by this document.

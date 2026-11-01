@@ -63,12 +63,15 @@ UART>o1
 Display format set
 UART>v
 Pinstates:
-12.(Bk)	11.(Wt)	10.(Gy)	9.(Pu)	8.(Bu)	7.(Gn)	6.(Yw)	5.(Or)	4.(Rd)	3.(Br)	2.(Bk).(Wt)
-GND	5.0V	3.3V	VPU	ADC	AUX2	AUX1	AUX	-	RxD	-	TxD
-P	P	P	I	I	I	I	I	I	I	I	O	
-GND	4.98V	3.29V	2.19V	0.00V	L	L	L	H	H	H	H	
+12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)*
+GND      5.0V     3.3V     VPU     ADC     AUX2    AUX1    AUX     -       RxD     -       TxD
+P        P        P        I       I       I       I       I       I       I       I       O
+GND      4.98V    3.29V    2.19V   0.00V   L       L       L       H       H       H       H
 UART>
 ```
+
+(* the `1.` label in the pin legend is garbled by the known string
+defect — see [edge-cases.md](edge-cases.md).)
 
 The `m3` setup prompts are UART-mode territory (speed, framing, polarity,
 output type, duplex); the base layer only contributes `Clutch disengaged!!!` /
@@ -257,17 +260,17 @@ is no `e` command at all.
 
 ### `v` in HiZ
 
-Captured on the v4 bench, TAB-separated, reproduced as captured (the label row
-contains a stray control byte between `2.(Bk)` and `.(Wt)`, a known string
-defect — see [edge-cases.md](edge-cases.md)):
+Captured on the v4 bench; transcribed with the columns aligned (`*`: the `1.`
+label of pin 1 is garbled by a known string defect — the capture shows a stray
+byte that eats it; see [edge-cases.md](edge-cases.md)):
 
 ```
 v
 Pinstates:
-12.(Bk)	11.(Wt)	10.(Gy)	9.(Pu)	8.(Bu)	7.(Gn)	6.(Yw)	5.(Or)	4.(Rd)	3.(Br)	2.(Bk).(Wt)
-GND	5.0V	3.3V	VPU	ADC	AUX2	AUX1	AUX	CS	MISO	CLK	MOSI
-P	P	P	I	I	I	I	I	I	I	I	I	
-GND	0.00V	0.00V	0.00V	0.00V	L	L	H	L	H	H	H	
+12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)*
+GND      5.0V     3.3V     VPU     ADC     AUX2    AUX1    AUX     CS      MISO    CLK     MOSI
+P        P        P        I       I       I       I       I       I       I       I       I
+GND      0.00V    0.00V    0.00V   0.00V   L       L       H       L       H       H       H
 HiZ>
 ```
 

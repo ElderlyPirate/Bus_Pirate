@@ -88,32 +88,33 @@ text is owned by the mode docs.
 
 ### Help — `?`
 
-`?` prints the 23-line help screen.  v4 output; columns are TAB-separated:
+`?` prints the 23-line help screen (v4 default).  The device shows it as two
+tab-separated columns; transcribed here with the columns aligned:
 
 ```
-General					Protocol interaction
+General                                Protocol interaction
 ---------------------------------------------------------------------------
-?	This help			(0)	List current macros
-=X/|X	Converts X/reverse X		(x)	Macro x
-~	Selftest			[	Start
-o	Set output type			]	Stop
-$	Jump to bootloader		{	Start with read
-&/%	Delay 1 us/ms			}	Stop
-a/A/@	AUXPIN (low/HI/READ)		"abc"	Send string
-b	Set baudrate			123	Send integer value
-c/C/k/K	AUX assignment (A0/CS/A1/A2)	0x123	Send hex value
-d/D	Measure ADC (once/CONT.)	0b110	Send binary value
-f	Measure frequency		r	Read
-g/S	Generate PWM/Servo		/	CLK hi
-h	Commandhistory			\	CLK lo
-i	Versioninfo/statusinfo		^	CLK tick
-l/L	Bitorder (msb/LSB)		-	DAT hi
-m	Change mode			_	DAT lo
-e	Set Pullup Method		.	DAT read
-p/P	Pullup resistors (off/ON)	!	Bit read
-s	Script engine			:	Repeat e.g. r:10
-v	Show volts/states		;	Bits to read/write e.g. 0x55;2
-w/W	PSU (off/ON)		<x>/<x= >/<0>	Usermacro x/assign x/list all
+?        This help                     (0)             List current macros
+=X/|X    Converts X/reverse X          (x)             Macro x
+~        Selftest                      [               Start
+o        Set output type               ]               Stop
+$        Jump to bootloader            {               Start with read
+&/%      Delay 1 us/ms                 }               Stop
+a/A/@    AUXPIN (low/HI/READ)          "abc"           Send string
+b        Set baudrate                  123             Send integer value
+c/C/k/K  AUX assignment (A0/CS/A1/A2)  0x123           Send hex value
+d/D      Measure ADC (once/CONT.)      0b110           Send binary value
+f        Measure frequency             r               Read
+g/S      Generate PWM/Servo            /               CLK hi
+h        Commandhistory                \               CLK lo
+i        Versioninfo/statusinfo        ^               CLK tick
+l/L      Bitorder (msb/LSB)            -               DAT hi
+m        Change mode                   _               DAT lo
+e        Set Pullup Method             .               DAT read
+p/P      Pullup resistors (off/ON)     !               Bit read
+s        Script engine                 :               Repeat e.g. r:10
+v        Show volts/states             ;               Bits to read/write e.g. 0x55;2
+w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign x/list all
 ```
 
 Two firmware string defects (wording, not behaviour):
@@ -145,21 +146,19 @@ x. exit(without change)
 (1)>
 ```
 
-- The list is dynamic: it is built from the enabled modes in menu order, so it
-  changes with the build feature set.  LCD/SMPS are off in the default v4
-  build.
-- Reply with a number → that mode.  Reply `x` (or press Enter for the default
-  `1`) → `x` prints `no mode change`; Enter selects HiZ.
-- `m<N>` (e.g. `m6`) changes directly, skipping the list; an out-of-range
-  number prints `Nonexistent protocol!`.
-- A direct `m<N>` runs the mode's **setup prompts** — answer each one (the
-  default is `1`) — then prints `Ready`.  The prompts must be answered before
-  the bus can be engaged: `W` starts the supplies only after the mode's setup
-  chain has run.
-- The `m` menu form runs the same setup prompts and additionally prints
-  `Clutch disengaged!!!` + (non-HiZ) `To finish setup, start up the power
-  supplies with command 'W'` before `Ready`.
-- `x` leaves the current mode unchanged.
+The list is dynamic — it follows the enabled modes, so it changes with the
+build's feature set (LCD/SMPS are off in the default v4 build).
+
+| Input | Result |
+|---|---|
+| `m`, then a number | the new mode's setup prompts run, then `Clutch disengaged!!!` + (non-HiZ) `To finish setup, start up the power supplies with command 'W'` + `Ready` |
+| `m<N>` (e.g. `m6`) | same setup prompts, straight to `Ready` — the `Clutch` line is printed only by the menu form |
+| Enter | accepts the default `1` (HiZ) |
+| `x` | leaves the current mode unchanged (`no mode change`) |
+| out-of-range number | `Nonexistent protocol!` |
+
+A direct `m<N>` still runs the setup prompts — answer each one (the default
+is `1`); the bus can be engaged with `W` only after the setup chain has run.
 
 The mode's setup prompts (speed, output type, and any mode-specific settings)
 belong to that mode's page.  "Clutch disengaged" is explained in

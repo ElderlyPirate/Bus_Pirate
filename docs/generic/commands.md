@@ -24,8 +24,9 @@ Stated for every element command:
 ### Feeding the VPU pin
 
 The pull-up resistors connect the I/O lines to whatever voltage is on the
-**Vpullup** pin — the pin marked `Vpu` ("input pull-up resistors 0-5 V") on the
-reference card; the firmware calls it "Vpullup".  The per-board route is:
+**Vpullup** pin — the pin marked `Vpu` ("input pull-up resistors 0-5 V")
+on the reference card; the firmware calls it "Vpullup".  The per-board
+route is:
 
 - **v4** — the pin can be fed by an on-board source.  `e1` selects
   **External (or None)**, `e2` routes the on-board **3.3 V** rail to VPU, and
@@ -34,8 +35,7 @@ reference card; the firmware calls it "Vpullup".  The per-board route is:
   command is refused.
 - **v3** — there is no `e` command, and the v3 firmware does not switch any
   on-board source onto VPU.  The Vpullup pin must be fed from an external
-  0-5 V supply.  (v3 routing is derived from source — not verified on this
-  bench.)
+  0-5 V supply.  (v3 routing is not verified.)
 
 Pull-up / supply requirements are never implied — the table above is the
 authority for the base-layer commands; per-mode docs own the bus-specific
@@ -43,9 +43,8 @@ requirements (e.g. I2C needs pull-ups).
 
 ## Command reference
 
-Base-layer commands are handled before the active mode sees them.  "Any
-mode" means the command is handled by the base layer; mode-specific effects
-are called out.
+Base-layer commands are handled before the active mode sees them; mode-specific
+effects are called out in the tables.
 
 ### Navigation, display and info
 
@@ -80,9 +79,10 @@ are called out.
 | `=X` | convert X → hex/decimal/binary line |
 | `\|X` | bit-reverse X (within current width) then convert |
 
-`X` must be 0…65535.  `;` accepts widths 1…16; a width >16 is a syntax error.
+`X` must be 0…65535.  `;` accepts widths 1…16; a width >16 is a syntax
+error.
 `=X`/`|X` print `0x05 = 5 = 0b00000101` for `=5` and `0xA0 = 160 = 0b10100000`
-for `|5` — captured on the v4 bench.
+for `|5`.
 
 ### Repetition / width grammar details
 
@@ -93,7 +93,7 @@ for `|5` — captured on the v4 bench.
 - `r` takes an optional display-letter attempt: the character after `r` is
   peeked for `x`/`d`/`b`/`w` to temporarily override the display for that
   read.  The letter is **not** consumed, so typing `rx` performs the read and
-  then reports a syntax error on the leftover `x`.  Bench (v4, HiZ): `rx`
+  then reports a syntax error on the leftover `x`.  In HiZ, `rx`
   prints `READ: ERROR: command has no effect here`, `0x00`, then
   `Syntax error at char 1`.  Treat the one-shot display override as
   non-functional in this build; the exact behaviour in a mode where the read
@@ -108,7 +108,7 @@ for `|5` — captured on the v4 bench.
 | `P` / `p` | pull-up resistors on / off | `P` warns `Warning: no voltage on Vpullup pin` if VPU is unpowered; warns `WARNING: pins not open drain (HiZ)` in push-pull mode; refused in HiZ |
 | `e` | (v4) VPU pull-up source menu | `e1` External/none, `e2` 3.3 V, `e3` 5.0 V; refused in HiZ / non-open-drain / VPU already powered |
 | `a` / `A` / `@` | AUX pin low / high / read | `@` prints `AUX INPUT/HI-Z, READ:` then `0` or `1`; `@:N` samples N times |
-| `c` / `C` (`k`/`K` v4) | AUX assignment A0 / CS / AUX1 / AUX2 | prints `a/A/@ controls <pin> pin` |
+| `c` / `C` (`k`/`K` v4) | AUX assignment: targets `A0` / `CS` / `A1` / `A2` | prints `a/A/@ controls <pin> pin`; the pins show as `AUX` / `CS` / `AUX1` / `AUX2` |
 | `l` / `L` | bit order MSB-first / LSB-first | `l` → `MSB set: MOST sig bit first`; `L` → `LSB set: LEAST sig bit first` |
 | `d` / `D` | ADC one-shot / continuous voltmeter | `d:N` takes N readings; `D` exits on any key |
 | `f` | frequency counter (AUX pin) | errors if PWM is currently active |
@@ -132,10 +132,10 @@ for `|5` — captured on the v4 bench.
 
 User macro count/width: v4 5 × 32 B, v3 3 × 24 B.  A macro body longer than
 the slot, or an out-of-range slot, is a syntax error.  Running `<n>` replays the
-stored body as if typed.  `(n)` in a mode with no macros (HiZ, 3WIRE, DIO) prints
-`ERROR: command has no effect here` plus a syntax error.
+stored body as if typed.  `(n)` in a mode with no macros (HiZ, 3WIRE, DIO)
+prints `ERROR: command has no effect here` plus a syntax error.
 
-**Note —** assignment syntax, captured on the v4 bench: `<n=` + body + `>` —
+**Note —** assignment syntax: `<n=` + body + `>` —
 the trailing `>` terminates the body.  `<1=0x55>` stores `0x55`; `<0>` then
 lists `1. <0x55>`; `<1>` replays the stored text as if typed.  The help line
 `<x= >` is the terse form.
@@ -164,7 +164,7 @@ per-mode; the grammar is shared.
 these actions have no effect, so a write/read prints `ERROR: command has no
 effect here` and a syntax error.
 
-A short captured session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
+A short session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
 [usage.md](usage.md#wrappers-and-bit-ops-2wire).
 
 ### Firmware-level
@@ -184,12 +184,13 @@ prints `Ready`.  Full behaviour: `docs/basic/` (stub).
 
 Two terminal byte sequences leave the CLI instead of acting as commands:
 
-1. **Binary bitbang:** 20× `0x00` (NUL bytes) → enters the binary bitbang layer
-   and prints `BBIO1`.  On v4 the NUL count is reset and a simulated reset is
-   performed on return; send `0x0F` to return to the terminal.  Page:
-   `docs/binary/` (stub).
-2. **SUMP logic analyzer:** ≥ 5× `0x00` followed by a Left-arrow byte (`0x02`)
-   → enters the SUMP logic-analyzer mode.  Page: `docs/sump/` (stub).
+1. **Binary bitbang:** 20× `0x00` (NUL bytes) → enters the binary bitbang
+   layer and prints `BBIO1`.  On v4 the NUL count is reset and a simulated
+   reset is performed on return; send `0x0F` to return to the terminal.
+   Page: `docs/binary/` (stub).
+2. **SUMP logic analyzer:** ≥ 5× `0x00` followed by a Left-arrow byte
+   (`0x02`) → enters the SUMP logic-analyzer mode.  Page: `docs/sump/`
+   (stub).
 
 Neither is a "command"; both are documented here only so the generic page is
 complete.  The NUL counter is visible in the prompt logic but not to the user.

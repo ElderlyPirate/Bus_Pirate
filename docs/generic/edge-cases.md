@@ -28,7 +28,7 @@ Part of the generic-layer documentation set (`docs/generic/`).
 The `r` command peeks the character after it (`x`/`d`/`b`/`w`) to override the
 display for that one read, but it does **not** consume the letter.  Typing `rx`
 therefore performs the read and then reports a syntax error on the leftover
-letter.  On the v4 bench in HiZ:
+letter.  In HiZ:
 
 ```
 rx

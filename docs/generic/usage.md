@@ -1,9 +1,8 @@
 # Worked sessions — base layer
 
-Part of the generic-layer documentation set (`docs/generic/`).  Sessions are captured on the v4 bench; the development logs
-live outside this repository.
+Part of the generic-layer documentation set (`docs/generic/`).
 
-## Usage — real terminal sessions
+## Usage — example sessions
 
 When a transcript shows `Clutch disengaged!!!`, the bus is parked — the mode's
 I/O is not driven until `W` starts the supplies and prints `Clutch engaged!!!`
@@ -11,7 +10,7 @@ I/O is not driven until `W` starts the supplies and prints `Clutch engaged!!!`
 
 ### First session — UART (`m3`), supplies, pull-ups, display, volts
 
-Captured on the v4 bench, 2026-11-01 (`m3` setup chain, `W`, `P`, `o1`, `v`):
+Example (`m3` setup chain, `W`, `P`, `o1`, `v`):
 
 ```
 HiZ>m3
@@ -81,16 +80,16 @@ nothing is on the Vpullup pin; `o1` selects HEX and prints `Display format
 set`; `v` prints the pin/rail table (the `v` table is described below).
 
 A reader might notice that `P` warns about no voltage while the following `v`
-reads 2.19 V on VPU.  They are two separate samples of the same pin: `P` checks
-the VPU sense once, right after switching the pull-ups on, and warns when it
-reads below a small threshold (about 0.5 V); `v` takes a fresh ADC sample a
-moment later.  With nothing driving the Vpullup pin it floats, so the two
-readings can differ — the 2.19 V is a floating/leakage voltage, not a connected
-supply.
+shows a small voltage on VPU.  They are two separate samples of the same pin:
+`P` checks the VPU sense once, right after switching the pull-ups on, and
+warns when it reads below a small threshold (about 0.5 V); `v` takes a fresh
+ADC sample a moment later.  With nothing driving the Vpullup pin it floats, so
+the two readings can differ — a floating pin can show a stray voltage instead
+of a connected supply.
 
-### Mode change → bus → clean exit (UART, HDUART battery)
+### Mode change → bus → clean exit (UART)
 
-Captured on the v4 bench (`m`, reply `3`; setup prompts abridged; then `W`, `P`,
+Example (`m`, reply `3`; setup prompts abridged; then `W`, `P`,
 and a clean return to HiZ):
 
 ```
@@ -142,18 +141,15 @@ Ready
 HiZ>
 ```
 
-The HDUART battery records `PASS mode menu -> UART`, `PASS supplies on (W)`,
-`PASS pull-ups toggled (P)`, `PASS clean exit to HiZ`.  The intermediate
-per-mode setup prompts are mode territory; only the base-layer framing
-(`Clutch disengaged!!!` / `To finish setup…` / `Clutch engaged!!!` / prompt) is
-documented here.
+The intermediate per-mode setup prompts are mode territory; only the
+base-layer framing (`Clutch disengaged!!!` / `To finish setup…` /
+`Clutch engaged!!!` / prompt) is documented here.
 
 ### Wrappers and bit ops (2WIRE)
 
-Captured on the v4 bench, 2026-11-01.  `m6` selects 2WIRE and runs its two
-setup prompts (`Set speed:`, `Select output type:`); answer each with its
-default `1` (~6 kHz, open drain).  `W` then engages the bus, and each
-wrapper/bit op is sent one at a time:
+`m6` selects 2WIRE and runs its two setup prompts (`Set speed:`, `Select
+output type:`); answer each with its default `1` (~6 kHz, open drain).  `W`
+then engages the bus, and each wrapper/bit op is sent one at a time:
 
 ```
 2WIRE>W
@@ -189,7 +185,7 @@ Legend (shared grammar; the bus wording is 2WIRE's):
 `{` / `}` are the "start with read" / "stop-from-read" variants (see
 [commands.md](commands.md) §Transaction wrappers and bit ops).
 
-A read session on the same bench (2WIRE, bus engaged, nothing on the bus), the
+A read session (2WIRE, bus engaged, nothing on the bus), the
 read and its framing sent one at a time:
 
 ```
@@ -214,7 +210,7 @@ READ: 0x00 0x00
 
 `r` reads once (`READ: 0x00`) and `r:2` reads twice (`READ: 0x00 0x00`); `{` is
 the read-framed start and its matching `]` is the stop.  With nothing on the bus
-the read is a static `0x00` — that is the bench capture, not a device value.
+the read is a static `0x00`, not a device value.
 
 ### `W` in a mode (supplies)
 
@@ -260,9 +256,9 @@ is no `e` command at all.
 
 ### `v` in HiZ
 
-Captured on the v4 bench; transcribed with the columns aligned (`*`: the `1.`
-label of pin 1 is garbled by a known string defect — the capture shows a stray
-byte that eats it; see [edge-cases.md](edge-cases.md)):
+Transcribed with the columns aligned (`*`: the `1.` label of pin 1 is garbled
+by a known string defect — a stray byte eats it; see
+[edge-cases.md](edge-cases.md)):
 
 ```
 v

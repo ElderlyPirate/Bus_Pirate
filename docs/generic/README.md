@@ -1,7 +1,6 @@
 # Using the prompt — the generic (base) terminal layer
 
-**Status:** draft, 2026-11-01.  Verified against the v4 build `e4b2239`
-(bench, 2026-11-01); the v3 column is derived from source only.
+**Status:** draft.  The v3 column is not verified.
 
 This folder documents the shared CLI that every mode leans into: the prompt,
 command grammar, the base-layer controls, and the entry sequences into the
@@ -18,7 +17,8 @@ matrix — which board supports what — is in `docs/SPEC.md`.
   default is option 9 = 115200.
 - Open the port and press Enter: the default prompt is `HiZ>`.  Commands end
   with Enter.
-- Drivers, building and flashing are developer topics — see `docs/dev/` (stub).
+- Drivers, building and flashing are developer topics — see `docs/dev/`
+  (stub).
 
 ## Glossary
 
@@ -33,7 +33,8 @@ matrix — which board supports what — is in `docs/SPEC.md`.
   5.0 V); v3 has no `e`, so the Vpullup pin must be fed externally — see
   [commands.md](commands.md) §Wiring.
 - **AUX** — the auxiliary I/O pin: `a` drives it low, `A` high, `@` reads it.
-  On v4 it can be reassigned among AUX0/AUX1/AUX2 (`c`/`C`/`k`/`K`).
+  On v4 it can be reassigned among `A0` / `CS` / `A1` / `A2` (`c`/`C`/`k`/`K`;
+  the target pins are shown as `AUX` / `CS` / `AUX1` / `AUX2`).
 
 This README is a **map, not the manual** — every detail lives in the files
 below:
@@ -49,7 +50,8 @@ below:
 
 - The prompt shows the current mode (`HiZ>`, `UART>`, …); commands end with
   Enter.
-- `?` help · `i` version/status · `m` mode menu · `o` display format · `b` baud.
+- `?` help · `i` version/status · `m` mode menu · `o` display format ·
+  `b` baud.
 - Elements: `W`/`w` supplies · `P`/`p` pull-ups · `a`/`A`/`@` AUX pin ·
   `l`/`L` bit order · `v` volts/pin states.
 - Macros: `<n>` user, `(n)` mode.  Wrappers `[` `{` `]` `}`; reads `r`;
@@ -60,7 +62,7 @@ below:
 select the on-board 3.3 V / 5.0 V source with `e2`/`e3` on v4, or feed the pin
 externally on v3.  See [commands.md](commands.md) §Feeding the VPU pin.
 
-A first session (v4 bench, 2026-11-01; abridged — the full transcript is in
+A first session (abridged — the full transcript is in
 [usage.md](usage.md)):
 
 ```
@@ -84,11 +86,11 @@ UART>
 
 | Feature | v3 | v4 |
 |---|---|---|
-| prompt / CLI | present | present (bench-default image) |
-| bench coverage | **build-only** — no v3 hardware here, so the v3 column is read from the source | covered by bench runs |
+| command history `h` | 7 entries | 15 entries |
+| user macros `<n>` | 3 slots × 24 B | 5 slots × 32 B |
+| VPU pull-up source `e` | — | present |
 
-Full delta table (history depth, macro slots, `e`, `#`, buffers, help text):
-[navigation.md](navigation.md).
+Full delta table (buffers, `#`, help text): [navigation.md](navigation.md).
 
 ## Limits & out of scope
 

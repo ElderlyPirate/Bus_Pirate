@@ -9,13 +9,13 @@ v3/v4 delta table.
 
 | Feature | v3 | v4 |
 |---|---|---|
-| prompt / CLI | present | present (bench-default) |
+| prompt / CLI | present | present |
 | startup banner printed by firmware | yes | no — the banner only appears from `i`, reset `#`, or after leaving the binary layer |
 | command history `h` | 7 entries | 15 entries |
 | user macros `<n>` | 3 slots × 24 bytes | 5 slots × 32 bytes |
 | terminal command buffer | 128 B | 256 B |
 | VPU source `e` | — (no such command) | present |
-| AUX assignment `c`/`C` (`k`/`K`) | A0 / CS only | A0 / CS / AUX1 / AUX2 |
+| AUX assignment `c`/`C` (`k`/`K`) | A0 / CS only | A0 / CS / A1 / A2 |
 | reset `#` | hardware reset (reboot) | simulated reset to HiZ + banner |
 | bit-word separator example in help | `.` | `;` |
 | `#` documented in `?` help | yes | no — the help slot is taken by `o`/`e` |
@@ -55,7 +55,7 @@ The firmware supports cursor editing and history directly on the command line:
 ### Banner / version info — `i`
 
 `i` prints the version block and, when **not** in HiZ, also a status block.
-In HiZ the exact output is (captured verbatim on the v4 bench — the git hash in
+In HiZ the exact output is (the git hash in
 the firmware line is baked in at build time, so your build's hash will differ):
 
 ```
@@ -69,7 +69,8 @@ HiZ>
 ```
 
 - `Bus Pirate v4` — the board name (on v3 this line reads `Bus Pirate v3`).
-- `ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> ` — the firmware string;
+- `ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> ` — the firmware
+  string;
   `<hash>` is the git short hash baked in at build time, so the trailing space
   is part of the string.
 - `[ ... ]` — the enabled mode list, in mode-menu order.  The width of this
@@ -81,8 +82,8 @@ HiZ>
 - `http://github.com/ElderlyPirate` — printed with a newline.
 
 In a non-HiZ mode `i` appends a status block: `CFG0/CFG1/CFG2` config words
-(v4 only for CFG0), a `*----------*` separator, the `v` pin/voltage table (see
-below), the supply/pull-up/VPU/open-drain/bit-order state, the current bit
+(v4 only for CFG0), a `*----------*` separator, the `v` pin/voltage table,
+the supply/pull-up/VPU/open-drain/bit-order state, the current bit
 width, the AUX assignment, then the mode's own settings.  Per-mode settings
 text is owned by the mode docs.
 
@@ -124,13 +125,13 @@ Two firmware string defects (wording, not behaviour):
 
 - the `o` line says `Set output type`; `o` actually selects the **display
   format** (see §Display format);
-- on v3 the help line for `v` shows the bit separator as `.` and three v3 lines
-  differ (`#` reset present, `c/C` only AUX/CS).
+- on v3 the help line for `v` shows the bit separator as `.`, and three further
+  help lines differ (`#` reset present, `c/C` only AUX/CS, `e` present only on
+  v4).
 
 ### Mode menu — `m`
 
-`m` with no argument lists the enabled modes and prompts for a number.  Captured
-verbatim on the v4 bench:
+`m` with no argument lists the enabled modes and prompts for a number:
 
 ```
 m
@@ -188,9 +189,9 @@ The menu then lists:
   then applies it.
 - After selecting, the firmware prints `Adjust your terminal` + `Space to
   continue` and waits for a space before re-initialising the port.
-- The menu text also lists option `11. Auto-Baud Detection`, but `b` limits the
-  choice to 1…10, so option 11 is **not** selectable through `b` — it is only
-  offered inside UART mode setup.
+- The menu text also lists option `11. Auto-Baud Detection`, but `b` limits
+  the choice to 1…10, so option 11 is **not** selectable through `b` — it
+  is only offered inside UART mode setup.
 
 ### Display format — `o`
 

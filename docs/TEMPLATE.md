@@ -66,7 +66,8 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 - **Presentation:** **no TAB characters** — captures are transcribed
   space-aligned (monospace-safe) or as tables; menus / option lists / result
   chains are tables, not bullet chains; prose wraps at ~80 columns; garbled
-  capture artifacts get a footnote.
+  capture artifacts get a footnote; **no internal log/test-file names**
+  (write "captured on the v4 bench, <date>").
 - The set is the single source for its function — stale claims are removed,
   not duplicated.
 - The CodeGuidelines §13 quality gate must pass before the set is called

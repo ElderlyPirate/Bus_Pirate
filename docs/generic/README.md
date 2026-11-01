@@ -82,7 +82,7 @@ UART>
 
 ## Availability (summary)
 
-| | v3 | v4 |
+| Feature | v3 | v4 |
 |---|---|---|
 | prompt / CLI | present | present (bench-default image) |
 | bench coverage | **build-only** — no v3 hardware here, so the v3 column is read from the source | covered by bench runs |

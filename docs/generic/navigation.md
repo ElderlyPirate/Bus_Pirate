@@ -7,7 +7,7 @@ v3/v4 delta table.
 
 ## Availability
 
-| | v3 | v4 |
+| Feature | v3 | v4 |
 |---|---|---|
 | prompt / CLI | present | present (bench-default) |
 | startup banner printed by firmware | yes | no — the banner only appears from `i`, reset `#`, or after leaving the binary layer |
@@ -113,9 +113,11 @@ m        Change mode                   _               DAT lo
 e        Set Pullup Method             .               DAT read
 p/P      Pullup resistors (off/ON)     !               Bit read
 s        Script engine                 :               Repeat e.g. r:10
-v        Show volts/states             ;               Bits to read/write e.g. 0x55;2
-w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign x/list all
+v        Show volts/states             ;               Bits to read/write
+w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign/list
 ```
+
+`;` — bits to read/write, e.g. `0x55;2`; `<x>` / `<x= >` / `<0>` — user macro x / assign x / list all.
 
 Two firmware string defects (wording, not behaviour):
 
@@ -171,8 +173,14 @@ belong to that mode's page.  "Clutch disengaged" is explained in
 - `b<N>` with `N` = 1…10 selects the corresponding rate from the port-speed
   menu directly.
 - `b` with no/invalid argument prints `Set serial port speed: (bps)` and
-  prompts `(9)>`: `1.300 · 2.1200 · 3.2400 · 4.4800 · 5.9600 · 6.19200 ·
-  7.38400 · 8.57600 · 9.115200 · 10.Input Custom BAUD`.
+  prompts `(9)>`, then lists the choices:
+
+| Option | Selection |
+|---|---|
+| 1–9 | 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 bps |
+| 10 | Input Custom BAUD |
+| 11 | Auto-Baud Detection (listed; not selectable here — see below) |
+
 - Option 10 asks for a raw BRG value (`Enter raw value for BRG`, default 34),
   then applies it.
 - After selecting, the firmware prints `Adjust your terminal` + `Space to

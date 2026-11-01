@@ -279,7 +279,8 @@ the signal names, row 3 the pin *dir*ections (`P` = power/analogue fixed,
 `I` input, `O` output), row 4 the measured voltages then the pin *state*s
 (`H`/`L`).  The last two rows are filled in by the active mode.  The signal
 names in row 2 differ per mode (compare the UART session above, where the last
-columns read `RxD`/`TxD`).
+columns read `RxD`/`TxD`).  A `-` in row 2 marks a pin that has no signal name
+in the current mode.
 
 ### Bootloader jump — `$`
 

@@ -19,7 +19,7 @@ Part of the generic-layer documentation set (`docs/generic/`).
 | Input line longer than the buffer | further characters beep | buffer size 128 (v3) / 256 (v4); must be a power of two |
 | Over-long user-macro body | syntax error | body must fit 24/32 bytes |
 | `;` width > 16 | syntax error | widths 1…16 only |
-| `v` label row | a stray control byte appears between `2.(Bk)` and `.(Wt)` | cosmetic string defect; does not affect the values |
+| `v` label row | a stray control byte eats the `1.` prefix of pin 1's legend label, leaving `.(Wt)` | cosmetic string defect; the transcript restores it as `1.(Wt)*`; does not affect the values |
 | Any tool that resets the bus by byte | expects `HiZ>` after reset | v4 `#`/binary reset forces HiZ and prints the banner |
 | `?` label `o  Set output type` | misleading label | it is the display format, not the per-mode output type |
 

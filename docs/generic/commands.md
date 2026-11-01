@@ -34,8 +34,8 @@ reference card; the firmware calls it "Vpullup".  The per-board route is:
   command is refused.
 - **v3** — there is no `e` command, and the v3 firmware does not switch any
   on-board source onto VPU.  The Vpullup pin must be fed from an external
-  0-5 V supply.  (v3 routing is not verified on this bench — see
-  [verification.md](verification.md).)
+  0-5 V supply.  (v3 routing is derived from source — not verified on this
+  bench.)
 
 Pull-up / supply requirements are never implied — the table above is the
 authority for the base-layer commands; per-mode docs own the bus-specific

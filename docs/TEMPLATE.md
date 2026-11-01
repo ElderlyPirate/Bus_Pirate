@@ -19,9 +19,8 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
   (examples: `navigation` vs `commands` vs `usage`; or per sub-function:
   `hduart`, `extended`).  Each detail file is written at full standard and
   owns its substance.
-- Shared files allowed per folder: `verification.md` (all evidence in one
-  place).  **No `references.md` in user folders** — maintainer code maps live
-  in `docs/dev/`.
+- **No `verification.md` or `references.md` in user folders** — maintainer
+  records (evidence, code maps) live in `docs/dev/`.
 
 ## Minimum sections (the document SET must cover them all)
 1. **Scope** — what is covered and what is not; who the reader is.
@@ -43,9 +42,10 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 8. **Sub-functions** — one section or dedicated file each, with usage + limits.
 9. **Edge cases & failure modes** — concrete: trigger → symptom → behavior →
    recovery; cite `Firmware/<file>:<line>` and/or test/log names.
-10. **Verification** — what was proven, and how: bench battery + log file
-    name, native test, or `Required, not run` + reason.  v3 is build-only on
-    this bench — say that instead of implying it was tested.
+10. **Verification** — caveats live **inline** in the user docs where they
+    matter ("not verified on v3"); the maintainer-facing evidence record
+    (dated runs, `Required, not run`) belongs in `docs/dev/` — never as a
+    user page.
 11. **Limitations & out of scope** — known limits, unsupported cases, `tbi`.
 12. **Related docs** — links to the pages this set leans on (`docs/generic/`,
     `docs/SPEC.md`, sibling functions).  **User documents carry NO code
@@ -84,8 +84,6 @@ This README is a map, not the manual; details live in the files below.
 |---|---|
 | [<topic>.md](<topic>.md) | … |
 | [<topic2>.md](<topic2>.md) | … |
-| [verification.md](verification.md) | bench evidence / not verified |
-| [references.md](references.md) | source map |
 
 ## The five-minute version
 - … (≤ 6 bullets: entry, key commands, wiring headline)

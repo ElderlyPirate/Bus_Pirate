@@ -1,6 +1,7 @@
 # Using the prompt — the generic (base) terminal layer
 
-**Status:** draft, 2026-11-01.
+**Status:** draft, 2026-11-01.  Verified against the v4 build `e4b2239`
+(bench, 2026-11-01); the v3 column is derived from source only.
 
 This folder documents the shared CLI that every mode leans into: the prompt,
 command grammar, the base-layer controls, and the entry sequences into the
@@ -43,7 +44,6 @@ below:
 | [commands.md](commands.md) | wiring requirements, the complete reference tables (values, elements, macros, wrappers, bit ops, firmware-level), and leaving the CLI for binary/SUMP |
 | [usage.md](usage.md) | worked terminal sessions (mode change, `W`/`P`, `e`/`v`, `$`, `#`, wrappers) |
 | [edge-cases.md](edge-cases.md) | failure modes, warnings and known quirks |
-| [verification.md](verification.md) | bench runs and what is not verified |
 
 ## The five-minute version
 

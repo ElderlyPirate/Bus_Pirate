@@ -3,10 +3,9 @@
 Part of the 1-Wire documentation set (`docs/1wire/`).  This page documents the
 binary/host-programming interface to 1-Wire mode.
 
-**Evidence note:** this page is written from the firmware's command
-definitions.  It was **not run on this bench** — no host-side capture exists.
-The general binary layer (entering BBIO, framing, the shared commands) is
-documented in `docs/generic/` (see
+This page is written from the firmware's command definitions; it is
+unverified.  The general binary layer (entering BBIO, framing, the shared
+commands) is documented in `docs/generic/` (see
 [commands.md](../generic/commands.md) §Leaving the CLI) and `docs/binary/`
 (stub).
 
@@ -70,7 +69,7 @@ This command exists on v4 only; it is not in the v3 build.
 
 ## Worked exchange
 
-The framing, derived from the command definitions (not a bench capture):
+The framing for a complete exchange:
 
 ```
 host -> 0x04                 select 1-Wire
@@ -92,5 +91,5 @@ host <- "BBIO1"
 ## v3 / v4
 
 The action, bulk-write and configure commands are the same in both builds.
-The read-peripherals command (`0x50xx`) is **v4 only**.  No part of this
-sub-protocol was verified on this bench; both columns are from the firmware.
+The read-peripherals command (`0x50xx`) is **v4 only**.  This sub-protocol is
+unverified; both columns are from the firmware.

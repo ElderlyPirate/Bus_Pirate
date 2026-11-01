@@ -1,7 +1,6 @@
 # 1-Wire
 
-**Status:** draft, 2026-11-01 — v4 bench captures from 2026-10-27,
-against an emulated 1-Wire slave; v3 is build-only (no v3 hardware here).
+**Status:** draft — available on v3 and v4; v3 is build-only and unverified.
 
 1-Wire (Dallas/Maxim) is a single-wire bus: one data line plus ground.  This
 mode drives that line, offers standard and overdrive speeds, ROM-search
@@ -14,7 +13,7 @@ details live in the files below.
 | [wiring.md](wiring.md) | the data pin, the **required** pull-up, VPU feeding, v3/v4 |
 | [bus-operations.md](bus-operations.md) | bus reset, device detection, error codes, read/write and bit ops |
 | [macros.md](macros.md) | ROM macros 51/85/204/236/240, the device roster, the `(0)` list |
-| [timings.md](timings.md) | observed standard/overdrive reset and bit-slot behaviour |
+| [timings.md](timings.md) | standard/overdrive reset and bit-slot behaviour |
 | [binary.md](binary.md) | the `1W01` binary sub-protocol (client/host API) |
 | [edge-cases.md](edge-cases.md) | failure modes and known quirks |
 
@@ -29,8 +28,8 @@ details live in the files below.
   with `[` or `{`.
 - `r` reads a byte; `0xNN`, `0b…` or a decimal write one.
 - `(51)` reads the ROM of a single device; `(240)` searches all devices.
-- `O` switches standard ⇄ overdrive in place and prints the new speed.
-- `v` prints the pin table (the data pin is shown as `OWD`).
+- `O` switches standard ⇄ overdrive in place and prints the new speed; `v`
+  prints the pin table (the data pin is shown as `OWD`).
 
 On v3 there is no on-board source: feed the VPU pin (Vpullup) from an external
 supply.
@@ -40,7 +39,6 @@ supply.
 | Feature | v3 | v4 |
 |---|---|---|
 | build | present (build-only here) | present |
-| bench coverage | none — v3 not verified on this bench | v4 bench session (emulated slave) |
 | required pull-up | yes | yes |
 | in-place `O` toggle | present | present |
 | VPU source `e` | — (feed VPU externally) | `e1` / `e2` / `e3` |
@@ -53,9 +51,8 @@ Full per-item detail and the exact wording are in the topic files.
 - No device-specific command layer (for example DS18B20 temperature
   conversion) is built in — 1-Wire here is a manual byte/bit bus plus the
   ROM/roster macros.
-- Search and roster macros are documented from the firmware; on this bench
-  only the single-device READ ROM path was captured (see
-  [macros.md](macros.md)).
+- Search and roster macros are documented from the firmware and are
+  unverified (see [macros.md](macros.md)).
 - Shared prompt grammar (`r`, `W`, `P`, `(n)`, wrappers, bit ops, safe
-  reset `#`, bootloader `$`) lives in `docs/generic/` and is not repeated
-  here.
+  reset `#`, bootloader `$`) lives in
+  [the generic layer](../generic/README.md) and is not repeated here.

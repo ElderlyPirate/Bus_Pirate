@@ -43,9 +43,8 @@ The list the firmware prints verbatim:
  240.SEARCH ROM (0xF0)
 ```
 
-Only `(51)` was exercised on this bench (see the session in
-[bus-operations.md](bus-operations.md)); `(85)`, `(204)`, `(236)` and `(240)`
-are documented from the firmware.
+These ROM command macros are documented from the firmware and are unverified;
+`(51)` is shown worked in [bus-operations.md](bus-operations.md).
 
 `(51)` on a single-device bus resets, sends `0x33`, and reads the 8 ROM bytes
 back; the first byte is the family code, looked up against the table below:
@@ -75,9 +74,7 @@ Device IDs are available by MACRO, see (0).
 ```
 
 Each row between them is `N.`, then the 8 ROM bytes, then the family-name
-lookup.  **No capture of a search's output exists** — a `(240)`/`(236)`
-capture needs a bus with one or more 1-Wire devices (or an emulated slave that
-reports distinct ROM numbers) plus the pull-up fitted.
+lookup.
 
 The roster holds up to **10** devices.  If a search finds more than ten, they
 are all printed, but only the first ten can be recalled; re-run the search to
@@ -105,21 +102,18 @@ An address macro writes only the stored ROM bytes; it does **not** send a
 leading `0x55` (MATCH ROM).  To address a specific device, send `(85)` (or a
 plain `0x55`) first, then the address macro — or send the bytes by hand.
 
-**Requires verification (from the firmware, not bench-captured):** the number
-printed in the `ADDRESS MACRO <n>:` line is one greater than the roster number
-shown for the same device by `(0)`.  The first listed device is recalled with
-`(1)` but its line reads `ADDRESS MACRO 2:`.  Use the roster order (or the
-ROM bytes on the line) to identify the device, not the printed number.
+**Requires verification:** the number printed in the `ADDRESS MACRO <n>:`
+line is one greater than the roster number shown for the same device by
+`(0)`.  The first listed device is recalled with `(1)` but its line reads
+`ADDRESS MACRO 2:`.  Use the roster order (or the ROM bytes on the line) to
+identify the device, not the printed number.
 
 Roster entries live only as long as the mode is active; leaving and re-entering
 1-WIRE clears the roster (a fresh search is needed).
 
-## Evidence and v3 / v4
+## v3 / v4
 
-- Bench-verified: `(51)` READ ROM, on a single-device emulated bus (v4).
-- Documented from firmware, **not bench-captured**: the `(0)` list, `(85)`,
-  `(204)`, `(236)`, `(240)`, the roster table, and the address macros.  A
-  capture needs one or more 1-Wire devices (or a slave emulator that reports
-  distinct ROM numbers) plus the pull-up.
-- v3/v4: the macro identifiers, the 10-slot roster and the printed strings
-  are the same in both builds; v3 is **not verified on this bench**.
+- The macro identifiers, the 10-slot roster and the printed strings are the
+  same in both v3 and v4; v3 is **not verified**.
+- The `(0)` list, `(85)`, `(204)`, `(236)`, `(240)`, the roster table, and the
+  address macros are documented from the firmware and are unverified.

@@ -17,7 +17,7 @@ equivalent entries:
 |---|---|---|
 | `m`, then `2` | lists the mode menu, then runs the setup prompt | menu form also prints `Clutch disengaged!!!` |
 | `m2` | direct entry, runs the setup prompt | no `Clutch` line |
-| `m 2 1` | direct entry with the speed answer on the same line | used by the bench scripts |
+| `m 2 1` | direct entry, speed supplied on the same line | no `Clutch` line |
 
 The mode menu and the shared entry grammar are owned by `docs/generic/`
 (see [navigation.md](../generic/navigation.md) §Mode menu).  After a menu-form
@@ -33,7 +33,7 @@ Ready
 The direct form prints only `Ready` and the prompt.  Until `W` is sent the bus
 is parked (`Clutch disengaged`); the 1-Wire I/O line is not driven.
 
-A bench capture of the direct form (v4, 2026-10-27):
+The direct form as an example:
 
 ```
 HiZ>m 2 1
@@ -41,9 +41,8 @@ Ready
 1-WIRE>
 ```
 
-The interactive form is the same, with the speed menu shown between the mode
-number and `Ready` (the menu-entry form prints `Clutch disengaged!!!` first —
-the direct `m2` form below does not):
+The `m2` form runs the same speed prompt; it skips the
+`Clutch disengaged!!!` line the `m`-menu form prints:
 
 ```
 HiZ>m2
@@ -102,11 +101,10 @@ Note that the **device** side persists overdrive until its own power cycle —
 the Bus Pirate cannot talk a device back to standard over the bus.  `O`
 toggles only the host's timing.
 
-### Bench capture (v4, emulated slave, 2026-10-27)
+### Example: toggling in place
 
-From the bench session (standard → overdrive → standard round trip,
-17/17 checks passed).  The sequence in full is in
-[bus-operations.md](bus-operations.md); the toggle itself:
+The toggle on its own (the full sequence is in
+[bus-operations.md](bus-operations.md)):
 
 ```
 1-WIRE>O
@@ -116,16 +114,12 @@ From the bench session (standard → overdrive → standard round trip,
 1-WIRE>
 ```
 
-The accompanying slave log confirmed the host's reset widths changed with the
-speed (standard resets ≈ 500 µs, overdrive resets ≈ 70 µs) — see
-[timings.md](timings.md).
-
 ## v3 / v4
 
 | | v3 | v4 |
 |---|---|---|
 | mode number 2, speed menu, `O` toggle | present | present |
-| `O` behaviour | from source — **not verified on this bench** | bench-verified |
+| `O` behaviour | **not verified** | present |
 
-The `O` handler and the speed menu strings are identical in both builds; only
-the v4 board was available for the bench run.
+The `O` handler and the speed-menu strings are the same in both builds; v3
+behaviour is not verified.

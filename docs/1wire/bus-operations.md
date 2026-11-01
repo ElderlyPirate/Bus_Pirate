@@ -32,11 +32,8 @@ the line low during the presence window.
 | no device answered | `BUS RESET Warning: *No device detected` |
 | line held low (short, or no working pull-up) | `BUS RESET Warning: *Short or no pull-up` |
 
-The first line is captured on the bench (see the session below).  The two
-failure strings are the firmware's own messages; no bench capture of the 1-Wire
-failure path exists yet (the current rig is wired for other modes — a capture
-needs a 1-Wire target plus pull-up, or an unwired data line for the
-no-device case).
+The failure strings are the firmware's own messages; the 1-Wire failure
+path is unverified.
 
 How to tell them apart:
 
@@ -98,11 +95,11 @@ The stored-state model was changed in firmware v5.2: `-` and `_` now only set
 the value used by the **next** `^`; they no longer also send a bit.  A run of
 four high bits is therefore `-^^^^`, not `-^^^`.
 
-## Worked session (v4, emulated slave, 2026-10-27)
+## Worked session
 
-Full round trip from the bench session: enter, engage, detect, read the
-ROM, put the device into overdrive, toggle the host speed with `O`, read
-again, toggle back.  Abridged to the on-bus commands:
+Full round trip: enter, engage, detect, read the ROM, put the device into
+overdrive, toggle the host speed with `O`, read again, toggle back.  Abridged
+to the on-bus commands:
 
 ```
 1-WIRE>W
@@ -135,10 +132,9 @@ Unknown device
 ```
 
 The `Unknown device` line is the family-code lookup on the first ROM byte
-(`0x01`); the lookup table is in [macros.md](macros.md).  The full battery
-passed 17/17 checks.
+(`0x01`); the lookup table is in [macros.md](macros.md).
 
 ## v3 / v4
 
 Reset, read/write, bit ops and the error strings are the same in both builds.
-The v3 path is read from source only — **not verified on this bench**.
+The v3 path is **not verified**.

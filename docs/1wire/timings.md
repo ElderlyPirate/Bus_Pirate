@@ -1,13 +1,13 @@
 # 1-Wire — timing behaviour
 
 Part of the 1-Wire documentation set (`docs/1wire/`).  This page describes the
-observable timing of the two speeds; it states measured behaviour, not the
+observable timing of the two speeds; it states behavioural values, not the
 firmware's internal delay constants.
 
 ## Scope
 
-The two speeds, their reset pulses, and their bit-slot lengths, as measured on
-the v4 bench.  It does not describe device-internal timing.
+The two speeds, their reset pulses, and their bit-slot lengths.  It does not
+describe device-internal timing.
 
 ## The two speeds
 
@@ -22,30 +22,23 @@ can be toggled in place with `O` (see
 
 ## Reset pulse
 
-The bus reset is a long low pulse; the length depends on the speed.  The
-bench measured it at the far end of the bus (the slave recorded the width of
-every reset it saw):
+The bus reset is a long low pulse; the length depends on the speed.  Nominal
+low widths:
 
-| Speed | Reset low width (bench) |
+| Speed | Reset low width |
 |---|---|
 | standard | ≈ 490–501 µs |
 | overdrive | ≈ 57–71 µs |
 
 The standard pulse is comfortably longer than the 480 µs the spec requires;
 the overdrive pulse sits inside the overdrive reset window.  The two are
-clearly distinguishable — the bench session relied on exactly this to
-confirm that `O` changed the host timing (standard resets ≈ 500 µs, overdrive
-resets ≈ 70 µs).
-
-A standalone scope attempt to capture a single reset on the data line produced
-noisy results (readings of 120 µs and 943 µs across runs) because a lone reset
-is hard to trigger and hold; the slave-side widths above are the reliable
-figures and are used here.
+clearly distinguishable, which is what `O` relies on to change the host
+timing.
 
 ## Bit slots
 
 Each bit is one time slot; the same slot shape is used to send and to receive.
-Scope captures of `^:255` bursts on the data line (v4, 2026-10-27):
+Nominal slot widths (a `^:255` burst):
 
 | Speed | Bit sent | Slot period | Data-low time |
 |---|---|---|---|
@@ -69,14 +62,8 @@ Observable properties:
 Overdrive is a property of the **device** as well as the host.  A device put
 into overdrive stays there until its own power is cycled; the host cannot talk
 it back to standard over the bus.  `O` toggles only the Bus Pirate's timing,
-so the host must follow the device.  In the bench battery the slave emulator
-was explicitly reset to standard (modelling a device power-cycle) before the
-final standard-speed read.
+so the host must follow the device.
 
-## Evidence
+## v3 / v4
 
-- Reset widths and the `O` round trip: v4 + emulated slave, 2026-10-27, 17/17.
-- Bit-slot widths: scope runs, v4, 2026-10-27 (standard and overdrive, bit 0
-  and bit 1).
-- These are bench measurements against an emulated slave, not against a
-  commercial 1-Wire part.  The v3 timing is **not verified on this bench**.
+v3 timing is **not verified**.

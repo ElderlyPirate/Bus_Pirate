@@ -48,8 +48,7 @@ example EEPROM writes) that need more current.
 The Bus Pirate's own on-board pull-up resistors can serve as the pull-up when
 a voltage is present on VPU.  The v3a and later boards are documented with an
 on-board 2 kΩ pull-up on the data line; older boards (for example v2go) need
-an external 2 kΩ resistor.  **The on-board value has not been re-measured on
-this v4 bench — treat the 2 kΩ figure as unverified for v4.**
+an external 2 kΩ resistor.  **Treat the 2 kΩ figure as unverified for v4.**
 
 ## Feeding the pull-up voltage (VPU)
 
@@ -60,10 +59,10 @@ physical **Vpullup** pin.  That pin must already be at the pull-up voltage:
   - `e1` External (or None),
   - `e2` on-board **3.3 V**,
   - `e3` on-board **5.0 V**.
-  The bench battery uses `e2` (3.3 V on-board pull-up).  `e` is only accepted
-  while the pins are open-drain HiZ and no voltage is already on VPU.
+  `e` is only accepted while the pins are open-drain HiZ and no voltage is
+  already on VPU.
 - **v3** — there is no `e`; feed the Vpullup pin from an external 0–5 V
-  supply.  (Derived from source — **not verified on this bench**.)
+  supply.  (**not verified**.)
 
 If nothing is on VPU, `P` still enables the pull-ups but prints
 `Warning: no voltage on Vpullup pin`, and the bus has no idle-high.  The
@@ -89,7 +88,6 @@ Bus Pirate's own pull-up source is at most the on-board 5.0 V rail.
 | data pin | MOSI | MOSI |
 | pull-up required | yes | yes |
 | VPU source selection | none — feed externally | `e1` / `e2` / `e3` |
-| on-board pull-up | documented 2 kΩ (v3a+) | not re-measured here |
+| on-board pull-up | documented 2 kΩ (v3a+) | unverified |
 
-v3 wiring and the v3 VPU route are read from the firmware/hardware
-documentation and are **not verified on this bench** (no v3 hardware).
+v3 wiring and the v3 VPU route are **not verified**.

@@ -43,11 +43,11 @@ control are listed here.
 | · standard / overdrive | x | x | `O` in-place toggle | ✓ |
 | · ROM search macros 51/85/204/236/240 | x | x | — | ✓ |
 | · device roster macros | x | x | address book | ✓ |
-| **UART** | x | x | — | ✓ `uart.md` |
+| **UART** | x | x | — | ✓ [uart/](uart/README.md) |
 | · full duplex | x | x | — | ✓ |
-| · half-duplex single-wire (HDUART) | x | x | open drain + pull-up; no self-echo | ✓ (new) |
-| · bridge / live monitor / flow-control bridge | x | x | macros 1–3 | partial |
-| · auto-baud detection | - | x | macro 4; v3 menu lists it (see note ⓐ) | none |
+| · half-duplex single-wire (HDUART) | x | x | open drain + pull-up; no self-echo | ✓ |
+| · bridge / live monitor / flow-control bridge | x | x | macros 1–3 | ✓ |
+| · auto-baud detection | x | x | macro 4 handled on both builds; settings field + bps form v4-only | ✓ |
 | · parity/framing/overrun reporting | x | x | — | ✓ |
 | · custom BRG | x | x | — | ✓ |
 | **I2C** | x | x | — | ✓ [i2c/](i2c/README.md) |
@@ -67,8 +67,9 @@ control are listed here.
 | **HD44780 LCD** | off | off | optional build (not in default image) | `hd44780.md` |
 | **SMPS** | off | off | optional **v4** build; legacy external board; binary commands `0xF0`–`0xF2` | none |
 
-ⓐ v3 macro menu lists auto-baud, but the settings field and code path are
-`#ifdef BUSPIRATEV4` — to verify in the per-function review.
+ⓐ The v3 macro menu lists auto-baud; the macro itself is handled on both
+builds — only the settings field behind the entry-time option and the bps
+custom-baud form are v4-only (confirmed in the UART round).
 
 ## 3. Programmer personality — AVRISP-MKII
 
@@ -116,5 +117,5 @@ control are listed here.
 | SWD (ARM two-wire debug) | tbi | tbi | needs target hardware |
 
 ---
-*First draft — corrections welcome (especially the auto-baud v3 entry and the
-regular/extended SUMP split).*
+*First draft — corrections welcome (especially the regular/extended SUMP
+split).*

@@ -25,7 +25,7 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 ## Minimum sections (the document SET must cover them all)
 1. **Scope** — what is covered and what is not; who the reader is.
 2. **Availability** — v3 / v4, default build or optional, hardware needed.
-   State plainly when the bench cannot confirm behavior.  (README: summary;
+   State plainly where a build is not verified.  (README: summary;
    detail file: the full table.)
 3. **Wiring** — one line per wire, pins named.  **Always state explicitly
    whether a pull-up / supply is required** ("pull-up 1–10 kΩ to 3.3 V
@@ -41,11 +41,14 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 7. **Binary protocol** (if any) — byte values, framing, one worked exchange.
 8. **Sub-functions** — one section or dedicated file each, with usage + limits.
 9. **Edge cases & failure modes** — concrete: trigger → symptom → behavior →
-   recovery; cite `Firmware/<file>:<line>` and/or test/log names.
-10. **Verification** — caveats live **inline** in the user docs where they
-    matter ("not verified on v3"); the maintainer-facing evidence record
-    (dated runs, `Required, not run`) belongs in `docs/dev/` — never as a
-    user page.
+   recovery.  Maintainer evidence (code refs, logs) lives in `docs/dev/` —
+   never in user pages.
+10. **Verification** — **bench results are never part of the user docs**
+    (user ruling 2026-11-01): no dated runs, pass counts, rig/battery notes,
+    "captured on…" provenance, or evidence sections.  Maintainer summaries
+    live in `docs/dev/` / the development workspace.  User docs keep at most
+    a short inline caveat where it changes what the reader can rely on —
+    e.g. "not verified", "unverified".
 11. **Limitations & out of scope** — known limits, unsupported cases, `tbi`.
 12. **Related docs** — links to the pages this set leans on (`docs/generic/`,
     `docs/SPEC.md`, sibling functions).  **User documents carry NO code
@@ -54,9 +57,9 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
     fine only in local audit records (`docs-sweep\*`).
 
 ## Rules (the contract, applied to this repo)
-- Confirm behavior from `Firmware/` sources before writing; label statements
-  `Verified` / `Assumption` / `Unknown` / `Requires verification` when not
-  self-evident.
+- Confirm behavior from `Firmware/` sources before writing; label
+  uncertainty with short `unverified` / `Requires verification` caveats where
+  it is not self-evident — never with bench-result reporting.
 - No marketing language, no placeholders, no invented commands, pins, or
   menus.
 - Exact paths and names; tables over prose for mappings.
@@ -66,8 +69,9 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 - **Presentation:** **no TAB characters** — captures are transcribed
   space-aligned (monospace-safe) or as tables; menus / option lists / result
   chains are tables, not bullet chains; prose wraps at ~80 columns; garbled
-  capture artifacts get a footnote; **no internal log/test-file names**
-  (write "captured on the v4 bench, <date>").
+  capture artifacts get a footnote.  **No bench-result reporting at all** —
+  no dates, pass counts, rig notes, evidence sections, capture provenance or
+  internal log/test-file names; examples are presented simply as examples.
 - The set is the single source for its function — stale claims are removed,
   not duplicated.
 - The CodeGuidelines §13 quality gate must pass before the set is called

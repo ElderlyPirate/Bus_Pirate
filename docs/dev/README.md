@@ -12,10 +12,20 @@ packaging, tooling).  Not part of the function spec.
 
 ## Documentation verification
 
-- Generic layer: verified against the v4 build `e4b2239` (bench runs,
-  2026-11-01); v3 behaviour is derived from source only (no v3 hardware).
-  Per-function caveats are stated inline in the user docs.
-- Evidence logs from the bench live in the development workspace (outside this
-  repository).  Summary records belong here, not in the user docs — a
-  per-topic `verification.md` in the user set was removed for exactly that
-  reason (it reads like a changelog and adds no user value).
+Maintainer-facing — **never part of the user docs** (user ruling 2026-11-01:
+bench results are not documentation; user pages keep at most short
+`unverified` caveats).
+
+- Generic layer: v4 build `e4b2239`, bench runs 2026-11-01; v3 source-only.
+- 1-Wire: v4 + emulated slave (2026-10-27) — READ ROM round trip, `O` toggle
+  17/17, bit/reset widths; macros (0)/85/204/236/240, roster, `1W01` binary
+  and the failure strings source-only.
+- I2C: v4 + emulated EEPROM-style slave (2026-10-26/27) — tester matrix
+  32/32, terminal legs, sniffer, on-board EEPROM via the Windows tool;
+  address scanner, hardware rates, binary `0x08` success path source-only.
+- UART: v4 + peer rig (2026-10-31/11-01) — HDUART five runs 19/19
+  (9600–57600 + 64-byte bulk), bridge 17/17, loopback, error flags; 115200
+  rig-limited; binary presets source-only.
+- Evidence logs from the bench live in the development workspace (outside
+  this repository).  Per-topic `verification.md` in a user set remains
+  removed (changelog-like, no user value) — summaries belong here.

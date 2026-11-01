@@ -43,11 +43,13 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 9. **Edge cases & failure modes** — concrete: trigger → symptom → behavior →
    recovery.  Maintainer evidence (code refs, logs) lives in `docs/dev/` —
    never in user pages.
-10. **Verification** — **bench results are never part of the user docs**
-    (user ruling 2026-11-01): no dated runs, pass counts, rig/battery notes,
-    "captured on…" provenance, or evidence sections.  Maintainer summaries
-    live in `docs/dev/` / the development workspace.  User docs keep at most
-    a short inline caveat where it changes what the reader can rely on —
+10. **Verification** — **no bench prose, no dates, no tested/verified-result
+    prose in user docs** (user ruling 2026-11-01): no bench/rig/battery/
+    capture narratives, no run or test dates (dated status lines included),
+    no pass counts, no "tested"/"verified" claims, no "captured on…"
+    provenance, no evidence sections.  Maintainer summaries live in
+    `docs/dev/` / the development workspace.  User docs keep at most a
+    short inline caveat where it changes what the reader can rely on —
     e.g. "not verified", "unverified".
 11. **Limitations & out of scope** — known limits, unsupported cases, `tbi`.
 12. **Related docs** — links to the pages this set leans on (`docs/generic/`,
@@ -69,8 +71,9 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 - **Presentation:** **no TAB characters** — captures are transcribed
   space-aligned (monospace-safe) or as tables; menus / option lists / result
   chains are tables, not bullet chains; prose wraps at ~80 columns; garbled
-  capture artifacts get a footnote.  **No bench-result reporting at all** —
-  no dates, pass counts, rig notes, evidence sections, capture provenance or
+  capture artifacts get a footnote.  **No bench prose, no dates, no
+  tested/verified-result prose** — no bench/rig/capture narratives, no run or
+  test dates, no pass counts, no evidence sections, capture provenance or
   internal log/test-file names; examples are presented simply as examples.
 - The set is the single source for its function — stale claims are removed,
   not duplicated.

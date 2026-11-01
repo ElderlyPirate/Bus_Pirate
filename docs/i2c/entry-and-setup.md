@@ -46,7 +46,7 @@ its strings exist in the v3 source but are removed from that build.
 | | `2` | `400kHz` |
 | | `3` | `1MHz` |
 
-_not captured on this bench; the strings are read from the firmware_
+_not verified_
 
 The two menus are **different**: the software driver offers the four bit-bang
 profiles, the hardware driver the three engine rates.  The default answer to
@@ -63,10 +63,10 @@ Ready
 I2C>
 ```
 
-## Bench capture (v4, 2026-10-26)
+## Example entry — software driver
 
-The software branch, captured on the v4 bench against the emulated slave.  The
-mode menu is abridged (the full menu is in `docs/generic/`):
+The software branch of the entry sequence.  The mode menu is abridged (the full
+menu is in `docs/generic/`):
 
 ```
 HiZ>m
@@ -101,9 +101,7 @@ Ready
 I2C>
 ```
 
-The hardware branch was **not captured** on this bench: only the software
-driver was exercised (v4 bench, 2026-10-26).  Its prompt strings are read from
-the firmware.
+The hardware branch is **not verified**.
 
 ## The one-line settings form
 
@@ -158,8 +156,7 @@ provides it, on v3 it must be fed externally.  Selecting the source **before**
 base-layer elements — see [commands.md](../generic/commands.md) and the
 I2C-specific notes in [wiring.md](wiring.md).
 
-A bench capture of the bring-up (captured on the v4 bench, 2026-10-26/27;
-this run enabled `P` before feeding VPU):
+Bring-up example (pull-ups enabled before feeding VPU):
 
 ```
 I2C>W
@@ -185,7 +182,7 @@ The pull-ups were enabled but had no reference until `e2` supplied one.
 | hardware speed menu | not in a default build | present |
 | output-type prompt | not asked | not asked |
 
-The v3 column is read from the source (no v3 hardware here) and is **not
-verified on this bench**.  Before this rewrite the published I2C page stated a
-single speed menu of `~50kHz / ~100kHz / ~400kHz`; that wording matches
-neither driver and has been replaced.
+The v3 column is **not verified**.  Before this
+rewrite the published I2C page stated a single speed menu of
+`~50kHz / ~100kHz / ~400kHz`; that wording matches neither driver and has been
+replaced.

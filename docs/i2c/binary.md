@@ -6,11 +6,6 @@ binary/host-programming interface to I2C mode.  The general binary layer
 (see [commands.md](../generic/commands.md) §Leaving the CLI) and `docs/binary/`
 (stub).
 
-The entry sequence, the action/bulk/speed/peripheral commands and the `0x08`
-bounds refusal **were run on the v4 bench** (2026-10-26/27) against the
-emulated EEPROM-style slave; the successful `0x08` transfer path is read from
-the firmware.
-
 ## Entry and exit
 
 1. Enter the binary bitbang layer from the terminal by sending 20 × `0x00`;
@@ -64,10 +59,10 @@ bit 1 = AUX line, bit 0 = CS line.  For example `0x4C` = power on + pull-ups
 on.
 
 The AUX bit and the extended AUX command (`0x09`) drive the AUX pin.  If AUX is
-jumpered to a bus pin, driving it will clamp that line — on this bench AUX was
-jumpered to CLK, so the session had to release AUX (`0x09 0x02`, high-Z) before
-any bus traffic.  The AUX sub-commands also print the AUX state line into the
-stream (for example `AUX INPUT/HI-Z`) in addition to the result byte.
+jumpered to a bus pin, driving it will clamp that line; release AUX
+(`0x09 0x02`, high-Z) before any bus traffic when it is jumpered to SDA or SCL.
+The AUX sub-commands also print the AUX state line into the stream (for
+example `AUX INPUT/HI-Z`) in addition to the result byte.
 
 ### Write-then-read (`0x08`)
 
@@ -83,18 +78,17 @@ it sends a repeated start and the read address (device address with the R/W bit
 set).  It then reads the requested bytes, ACKing all but the last (NACK), sends
 a stop, replies `0x01`, and finally sends the read bytes to the host.
 
-Bounds (the refusal is bench-verified; the success path is read from the
-firmware): both counts must fit the terminal buffer — **4096 bytes on v4, 2048
+Bounds: both counts must fit the terminal buffer — **4096 bytes on v4, 2048
 on v3** — and the all-zero case is refused.  A request with either count over
 the limit is answered `0x00` with **no bytes consumed and no bus traffic**.  A
 NACK during the write phase aborts with `0x00`.
 
-## Worked exchange (v4 bench, 2026-10-27)
+## Worked exchange
 
-Host → Bus Pirate and Bus Pirate → host, abridged from the v4 bench session,
-2026-10-27 (emulated slave at `0x50`).  `0x51`/`0x4C`/`0x09`/`0x60` are the
-bring-up; the frames then write `0xAA 0xBB` at register `0x20` and read them
-back.
+Host → Bus Pirate and Bus Pirate → host.  `0x51`/`0x4C`/`0x09`/`0x60` are
+the bring-up; the frames then write `0xAA 0xBB` at register `0x20` and read
+them back.  The addressed device in this example is an EEPROM-style slave at
+address `0x50`.
 
 ```
 host -> 0x00 x20        enter bitbang
@@ -150,9 +144,6 @@ host -> 0x03            stop
 host <- 0x01
 ```
 
-In that session every check passed, including the `0x08` oversize refusal and
-a held-bus timeout (see [clock-stretching.md](clock-stretching.md)).
-
 ## v3 / v4
 
 | | v3 | v4 |
@@ -161,4 +152,4 @@ a held-bus timeout (see [clock-stretching.md](clock-stretching.md)).
 | read pull-up/power state (`0x5x`) | — | present |
 | terminal buffer bound for `0x08` | 2048 bytes | 4096 bytes |
 
-The v3 column is read from the source — **not verified on this bench**.
+The v3 column is **not verified**.

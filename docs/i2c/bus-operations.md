@@ -60,7 +60,7 @@ not sent when the byte is read**.  Instead the Bus Pirate remembers it as
 - for any other next command it is sent as **ACK**.
 
 This is why reading two bytes in a row prints an `ACK` before the second
-value.  Bench capture (v4, 2026-10-26):
+value:
 
 ```
 I2C>r
@@ -103,8 +103,7 @@ address, R/W bit 1) marker.  All hits are printed on one line.  Datasheets
 usually list the 7-bit address; the 8-bit form is what a logic analyzer or
 sniffer shows.
 
-**Hit example** — format illustration, not a bench capture (no scanner
-capture exists on this bench; see the evidence note below):
+**Hit example** — format illustration:
 
 ```
 I2C>(1)
@@ -113,9 +112,8 @@ Searching I2C address space. Found devices at:
 I2C>
 ```
 
-**Empty bus** (no device responds) — derived from the firmware, not a bench
-capture: the header prints and then nothing else, no addresses, one blank
-line, then the prompt.
+**Empty bus** (no device responds): the header prints and then nothing else,
+no addresses, one blank line, then the prompt.
 
 ```
 I2C>(1)
@@ -124,7 +122,7 @@ Searching I2C address space. Found devices at:
 I2C>
 ```
 
-Behaviour details (from the firmware):
+Behaviour details:
 
 - Before scanning, both lines are driven high through the pull-up.  The
   pre-check trips **only when a line still reads low** (a short, or a target
@@ -139,15 +137,12 @@ Behaviour details (from the firmware):
   starts driving data, and a stop sent immediately can be missed; reading and
   NACKing ends the transaction cleanly and avoids "ghost" addresses.
 
-**No bench capture of the scanner exists on this bench** — the bench rig is an
-emulated slave that the scanner macro was not run against.  The strings and
-format above are read from the firmware; both example blocks follow that
-format.
+The strings and format above are **not verified**.
 
-## Worked session (v4, emulated slave, 2026-10-26/27)
+## Worked session
 
-Abridged from the bench session against an EEPROM-style emulated slave at
-address `0x50` (write `0xA0`, read `0xA1`).  The bring-up is in
+In this example the addressed device is an EEPROM-style slave at address
+`0x50` (write `0xA0`, read `0xA1`).  The bring-up is in
 [entry-and-setup.md](entry-and-setup.md); this is the on-bus flow:
 
 ```
@@ -181,14 +176,13 @@ I2C STOP BIT
 I2C>
 ```
 
-The emulated slave treated the first data byte after the address as a register
-pointer, so this writes `0xAA 0xBB` at register `0x20` and reads them back.
-The same session's binary-mode exchange completed with every check passing
-(see [binary.md](binary.md)).
+In this example the EEPROM-style device treats the first data byte after the
+address as a register pointer, so the sequence writes `0xAA 0xBB` at register
+`0x20` and reads them back.  A binary-mode exchange of the same transaction is
+in [binary.md](binary.md).
 
 ## v3 / v4
 
 Start/stop, read/write and the ACK/NACK rules are the same in both builds.
 The scanner's per-bit timing depends on the software driver's speed profile,
-which differs per board only in menu wording.  The v3 path is read from source
-only — **not verified on this bench**.
+which differs per board only in menu wording.  The v3 path is **not verified**.

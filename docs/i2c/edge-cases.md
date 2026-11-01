@@ -59,6 +59,5 @@ trigger, the observable symptom, and the recovery.
 ## Unverified / v3
 
 - The on-board EEPROM macros, the hardware-driver branch, the address-scanner
-  capture and the sniffer format/capture were not exercised on this bench; they
-  are read from the firmware.
-- All v3 behaviour in this set is build-only — **not verified on this bench**.
+  output and the sniffer output are **not verified**.
+- All v3 behaviour in this set is build-only and **not verified**.

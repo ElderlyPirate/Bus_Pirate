@@ -23,10 +23,8 @@ The on-board EEPROM is **write-protected until `(4)` is run**, and a reset
 re-asserts the protect.  The internal bus is driven by the hardware I2C
 engine, so these macros belong with the Hardware driver.
 
-These macros were **not exercised** on this bench; the strings, address and
-write-protect behaviour are read from the firmware.  A capture would need a
-v4 with a populated on-board EEPROM and the macros run under the Hardware
-driver.
+These macros are **not verified**.  They require a v4 with a populated on-board
+EEPROM.
 
 ## The Windows I2C EEPROM client
 
@@ -58,21 +56,9 @@ i2ceepromwin [com?] [chip addr 0-7] [R/W/Rs/Ws] [file] (read len) (mem addr)
   `A5 5A C3 3C 01 FE`.
 - Write mode retries a byte until the EEPROM acknowledges it, then reports
   `N bytes written with M retries`.
-
-### Bench evidence (v4, emulated EEPROM-style slave, 2026-10-26)
-
-Run against an emulated EEPROM-style slave at address `0x50` (not a physical
-24LC part), with a two-byte address, so the tool used its `R`/`W` form:
-
-| Check | Result |
-|---|---|
-| read 16 bytes from register 4 | returned `04 … 13`, matching the slave's memory |
-| read 16 bytes from register 16 | returned `10 … 1F` |
-| write `A5 5A C3 3C 01 FE` at register 48 | reported `6 bytes written with 0 retries`; read-back matched |
-
-The client's raw binary command sequence is exactly the `0x02` start, `0x1x`
-bulk-write, `0x04` read and `0x06`/`0x07` ACK/NACK commands documented in
-[binary.md](binary.md).
+- The client's raw binary command sequence is exactly the `0x02` start, `0x1x`
+  bulk-write, `0x04` read and `0x06`/`0x07` ACK/NACK commands documented in
+  [binary.md](binary.md).
 
 ## Related
 

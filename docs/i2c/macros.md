@@ -76,22 +76,17 @@ I2C>
 - The protect is re-asserted by a reset; run macro 3, then macro 4, before any
   EEPROM write in a new session.
 
-## Evidence
+## Status
 
-Macros 3 and 4 were **not exercised** on this bench; their strings, routing and
-the write-protect line are read from the firmware — verify on a v4 with a
-populated on-board EEPROM.  The macro menu wording, macro 1 and macro 2 are
-present in the source; the menu itself was **not captured** on this bench.  A
-capture would need the mode entered and `(0)` typed, with the on-board-EEPROM
-checks run on v4 hardware.
+Macros 3 and 4 are **not verified**.  They require a v4 with a populated
+on-board EEPROM.
 
 ## v3 / v4
 
 | Macro | v3 | v4 |
 |---|---|---|
 | `(0)`, `(1)`, `(2)` | present | present |
-| `(3)`, `(4)` | absent | present (documented, not exercised here) |
+| `(3)`, `(4)` | absent | present (not verified) |
 
 Running `(3)` or `(4)` on a v3 build falls to the unknown-macro message, since
-those cases are compiled out.  The v3 column is read from the source — **not
-verified on this bench**.
+those cases are compiled out.  The v3 column is **not verified**.

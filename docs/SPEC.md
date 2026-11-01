@@ -1,13 +1,13 @@
 # Bus Pirate — Function Specification (first draft)
 
-**Status:** draft, 2026-11-01 — structure and taxonomy under discussion (see
-`WORKLOG-DOCUMENTATION.md`).  This file is the one-page capability index; the
-per-function documentation (`docs/<function>/`) expands each row.
+**Status:** draft — structure and taxonomy under discussion.  This file is
+the one-page capability index; the per-function documentation
+(`docs/<function>/`) expands each row.
 
 **Legend —** `x` = present in that build · `-` = not in that build ·
 `tbi` = to be implemented (planned, not in the firmware yet).
-The BPv3 column means *present in the v3 build* — our bench has no v3 hardware,
-so v3 is build-verified only.  "Docs" = state of the per-function documentation
+The BPv3 column means *present in the v3 build* — v3 is build-verified only.
+"Docs" = state of the per-function documentation
 — the built set under `docs/<function>/` where it exists, otherwise the legacy
 `Documentation/` file (✓ · partial · stale · stub · none).
 
@@ -76,8 +76,8 @@ control are listed here.
 |---|---|---|---|---|
 | USB personality (STK500v2 / XPROG) | - | x | client: avrdude (`-c avrispmkII -P usb`) | ✓ `avrisp_mkii.md` |
 | · ISP targets | - | x | — | ✓ |
-| · PDI (Xmega) | - | x | benched (XM64) | ✓ |
-| · TPI (ATtiny) | - | x | build-only (no ATtiny on bench) | ✓ |
+| · PDI (Xmega) | - | x | — | ✓ |
+| · TPI (ATtiny) | - | x | not verified | ✓ |
 | serial route (framed STK500v2 over CDC) | - | x | ISP only; avrdude `-c stk500v2 -P COMx` | ✓ |
 | rescue clock / AVR053 OSCCAL | - | x | — | ✓ |
 
@@ -112,7 +112,7 @@ control are listed here.
 
 | Function | v3 | v4 | Notes |
 |---|---|---|---|
-| IR (infrared) mode | tbi | tbi | cannot be bench-tested here (no IR hardware) |
+| IR (infrared) mode | tbi | tbi | no IR hardware available |
 | SWD (ARM two-wire debug) | tbi | tbi | needs target hardware |
 
 ---

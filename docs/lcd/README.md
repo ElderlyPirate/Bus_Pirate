@@ -1,8 +1,8 @@
 # LCD (HD44780)
 
-**Status:** stub — migrate + expand.  The LCD adapter is **not on our bench**;
-write from the firmware and the existing page, and mark unconfirmed behavior
-`Requires verification`.
+**Status:** stub — migrate + expand.  The LCD adapter is **not available for
+testing**; write from the firmware and the existing page, and mark unconfirmed
+behavior `Requires verification`.
 
 HD44780 / 74HCT595 LCD adapter mode: display control via the Bus Pirate LCD
 adapter.  Not built in the default v3/v4 images (`BP_ENABLE_HD44780_SUPPORT`

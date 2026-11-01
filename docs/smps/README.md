@@ -1,7 +1,7 @@
 # SMPS (switched-mode power supply board)
 
 **Status:** stub — write from code only.  The external SMPS board and its 2010
-documentation are **not available on this bench**; treat everything as
+documentation are **not available for testing**; treat everything as
 `Requires verification` unless confirmed in source.
 
 Drives a legacy Dangerous Prototypes SMPS add-on board connected to a **BPv4**

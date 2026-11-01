@@ -38,7 +38,7 @@ After entering bitbang mode, you can enter other binary protocol modes.
 
 ### 00000010 - Enter binary I2C mode, responds “I2C1”
   
-[Binary I2C mode is documented here](i2c.md).
+[Binary I2C mode is documented here](../docs/i2c/binary.md).
 
 ### 00000011 - Enter binary UART mode, responds “ART1”
   

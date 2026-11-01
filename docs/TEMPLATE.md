@@ -62,6 +62,12 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 - Confirm behavior from `Firmware/` sources before writing; label
   uncertainty with short `unverified` / `Requires verification` caveats where
   it is not self-evident — never with bench-result reporting.
+- **Naming/mapping contract:** the firmware's own displayed strings are the
+  authority for names.  Where the firmware uses two forms for the same item
+  (e.g. a `?`-help token vs a status-print label such as AUX targets
+  `A0`/`A1`/`A2` vs pins printed `AUX`/`AUX1`/`AUX2`), state the mapping
+  explicitly once and use it consistently; never invent names or silently
+  mix forms.
 - No marketing language, no placeholders, no invented commands, pins, or
   menus.
 - Exact paths and names; tables over prose for mappings.

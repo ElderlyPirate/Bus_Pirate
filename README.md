@@ -18,7 +18,7 @@ Public domain (Creative Commons Zero) source: prototype with the Bus Pirate, the
 
 One central location: **[docs/](docs/)**.  This README intentionally does not repeat capabilities — the specification does that:
 
-* **[SPEC.md](SPEC.md)** — the specification: every mode, function and sub-function (e.g. UART *and* HDUART, SUMP *and* its extended logic analyzer) with its v3/v4 status.  Planned items are marked `tbi`.
+* **[docs/SPEC.md](docs/SPEC.md)** — the specification: every mode, function and sub-function (e.g. UART *and* HDUART, SUMP *and* its extended logic analyzer) with its v3/v4 status.  Planned items are marked `tbi`.
 * **[docs/generic/](docs/generic/)** — how to use the prompt (the generic layer: navigation, formatting, macros, elements).
 * per-function documentation under `docs/<function>/` — being consolidated from the existing [Documentation/](Documentation/) files.
 * developer documentation (build, flash, bootloaders, tooling) — coming under `docs/dev/`.

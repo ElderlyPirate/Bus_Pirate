@@ -117,7 +117,8 @@ v        Show volts/states             ;               Bits to read/write
 w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign/list
 ```
 
-`;` — bits to read/write, e.g. `0x55;2`; `<x>` / `<x= >` / `<0>` — user macro x / assign x / list all.
+`;` — bits to read/write, e.g. `0x55;2`; `<x>` / `<x= >` / `<0>` —
+user macro x / assign x / list all.
 
 Two firmware string defects (wording, not behaviour):
 
@@ -173,7 +174,9 @@ belong to that mode's page.  "Clutch disengaged" is explained in
 - `b<N>` with `N` = 1…10 selects the corresponding rate from the port-speed
   menu directly.
 - `b` with no/invalid argument prints `Set serial port speed: (bps)` and
-  prompts `(9)>`, then lists the choices:
+  prompts `(9)>`.
+
+The menu then lists:
 
 | Option | Selection |
 |---|---|

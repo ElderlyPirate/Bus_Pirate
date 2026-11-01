@@ -7,8 +7,9 @@ per-function documentation (`docs/<function>/`) expands each row.
 **Legend —** `x` = present in that build · `-` = not in that build ·
 `tbi` = to be implemented (planned, not in the firmware yet).
 The BPv3 column means *present in the v3 build* — our bench has no v3 hardware,
-so v3 is build-verified only.  "Docs" = current state in `Documentation/`
-(✓ · partial · stale · stub · none).
+so v3 is build-verified only.  "Docs" = state of the per-function documentation
+— the built set under `docs/<function>/` where it exists, otherwise the legacy
+`Documentation/` file (✓ · partial · stale · stub · none).
 
 Build/flash tooling is developer documentation (`docs/dev/`), not part of this
 spec.  Client programs are mentioned with the function they serve.
@@ -38,10 +39,10 @@ control are listed here.
 | Function | v3 | v4 | Notes | Docs |
 |---|---|---|---|---|
 | **HiZ** | x | x | default; self-test reachable | none |
-| **1-WIRE** | x | x | DS2404, DS2431, … | ✓ `1-wire.md` |
+| **1-WIRE** | x | x | DS2404, DS2431, … | ✓ [1wire/](1wire/README.md) |
 | · standard / overdrive | x | x | `O` in-place toggle | ✓ |
 | · ROM search macros 51/85/204/236/240 | x | x | — | ✓ |
-| · device roster macros | x | x | address book | partial |
+| · device roster macros | x | x | address book | ✓ |
 | **UART** | x | x | — | ✓ `uart.md` |
 | · full duplex | x | x | — | ✓ |
 | · half-duplex single-wire (HDUART) | x | x | open drain + pull-up; no self-echo | ✓ (new) |
@@ -49,12 +50,12 @@ control are listed here.
 | · auto-baud detection | - | x | macro 4; v3 menu lists it (see note ⓐ) | none |
 | · parity/framing/overrun reporting | x | x | — | ✓ |
 | · custom BRG | x | x | — | ✓ |
-| **I2C** | x | x | — | stale `i2c.md` |
-| · software (bit-banged) | x | x | ~6k/~60k/~150k/max | stale |
-| · hardware engine | - | x | 100k/400k/1M | none |
-| · clock stretching | x | x | per-bit wait + timeout count | stale (doc denies v3) |
-| · address scanner / sniffer macros | x | x | — | partial |
-| · on-board EEPROM macros 3/4 | - | x | connect + write-enable | stale (missing) |
+| **I2C** | x | x | — | ✓ [i2c/](i2c/README.md) |
+| · software (bit-banged) | x | x | ~6k/~60k/~150k/max | ✓ |
+| · hardware engine | - | x | 100k/400k/1M | ✓ |
+| · clock stretching | x | x | per-bit wait + timeout count | ✓ |
+| · address scanner / sniffer macros | x | x | — | ✓ |
+| · on-board EEPROM macros 3/4 | - | x | connect + write-enable | ✓ |
 | **SPI** | x | x | — | partial `spi.md` |
 | · sniffer (CS-low / all / live tweaks) | x | x | v4: hardware-CS note | partial |
 | · binary mode | x | x | — | missing |

@@ -178,7 +178,7 @@ A short captured session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
 
 `s` sets the BASIC flag; the interpreter launches on the next command line and
 prints `Ready`.  Full behaviour: `docs/basic/` (stub).
-`O` is dispatched by the base layer but is owned by `docs/1wire/` (stub).
+`O` is dispatched by the base layer but is owned by `docs/1wire/`.
 
 ## Leaving the CLI — binary / SUMP entry
 

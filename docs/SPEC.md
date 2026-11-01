@@ -64,7 +64,7 @@ control are listed here.
 | **PIC** | x | x | command/data `[`/`]`, devID macro; host tool `picprog` | partial |
 | **DIO** | x | x | 100% pin control | stub |
 | **HD44780 LCD** | off | off | optional build (not in default image) | `hd44780.md` |
-| **SMPS** | off | off | optional build (not in default image) | none |
+| **SMPS** | off | off | optional **v4** build; legacy external board; binary commands `0xF0`–`0xF2` | none |
 
 ⓐ v3 macro menu lists auto-baud, but the settings field and code path are
 `#ifdef BUSPIRATEV4` — to verify in the per-function review.

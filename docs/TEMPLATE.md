@@ -63,6 +63,10 @@ parallel files** inside the function folder.  Nobody reads a 600-line README.
 - **User docs are human docs:** no `Firmware/` files, no line numbers, no
   symbol names.  Code maps for maintainers live in `docs/dev/` (file +
   symbol; no line numbers); local audit records may use file:line.
+- **Presentation:** **no TAB characters** — captures are transcribed
+  space-aligned (monospace-safe) or as tables; menus / option lists / result
+  chains are tables, not bullet chains; prose wraps at ~80 columns; garbled
+  capture artifacts get a footnote.
 - The set is the single source for its function — stale claims are removed,
   not duplicated.
 - The CodeGuidelines §13 quality gate must pass before the set is called

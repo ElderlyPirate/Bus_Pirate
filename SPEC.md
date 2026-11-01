@@ -12,40 +12,26 @@ so v3 is build-verified only.  "Docs" = current state in `Documentation/`
 
 Build/flash tooling is developer documentation (`docs/dev/`), not part of this
 spec.  Client programs are mentioned with the function they serve.
+Prompt mechanics (navigation, formatting, value entry, macros, wrappers,
+reads, reset, bootloader) are *usage* documentation — "how to use the prompt"
+(`docs/generic/`) — not capability rows; only the elements/features they
+control are listed here.
 
-## 1. Generic prompt layer (enablers)
+## 1. Device elements & capabilities (controlled from the prompt)
 
-| Function | v3 | v4 | Notes | Docs |
+| Capability | v3 | v4 | Notes | Docs |
 |---|---|---|---|---|
-| Banner / `i` status | x | x | — | none |
-| Help `?` | x | x | — | (self) |
-| Mode menu `m` | x | x | — | per-mode |
-| Display format `o` | x | x | HEX/DEC/BIN/RAW | none |
-| Pin states / volts `v` | x | x | — | none |
-| Elapsed timer `t`/`T` | x | x | — | none (not even help) |
-| Frequency counter `f` | x | x | — | none |
-| PWM / servo `g` / `S` | x | x | not in HiZ | none |
-| AUX assignment `c`/`C` (`k`/`K` v4) | x | x | v3 two-way, v4 four-way | none |
-| Bit order `l`/`L` | x | x | — | none |
-| Pull-ups `P`/`p` | x | x | — | partial |
-| VPU pull-up source `e` | - | x | External / 3.3 V / 5 V | none |
-| Convert / reverse `=` `\|` | x | x | — | none |
-| Reset `#` | x | x | v3: hardware; v4: simulated → HiZ | none |
-| Self-test `~` | x | x | device diagnostic | stub |
-| Bootloader jump `$` | x | x | enabler: replaces all functions | ✓ build doc |
-| AUX pin `a`/`A`/`@` | x | x | — | mode docs |
-| Power supplies `W`/`w` | x | x | — | mode docs |
-| ADC probe `d`/`D` | x | x | `d:N` repeat | partial |
-| Delays `&` / `%` | x | x | µs / ms | partial |
-| User macros `<n>` | x | x | assign / run (slot counts differ) | none |
-| Mode macros `(n)` | x | x | per mode | mode docs |
-| Send string/value `"..."`, `0x`, `0b` | x | x | — | mode docs |
-| Start/stop `[` `]` `{` `}` | x | x | mode-dependent | mode docs |
-| Read `r` (+ `r:N`, `r;bits`) | x | x | — | mode docs |
-| Bit ops `/ \ ^ - _ . !` | x | x | clock/data hi/lo/read | partial |
-| Terminal baud `b` | x | x | 300…115200 + BRG | partial |
-| History `h` | x | x | — | none |
-| Bit inject `;` | x | x | into previous value | help only |
+| Pull-up resistors | x | x | `P` / `p` on/off; needs a VPU voltage | partial |
+| VPU / pull-up source | - | x | `e`: External / 3.3 V / 5 V | none |
+| Power supplies | x | x | `W` / `w`; programmable voltages | mode docs |
+| AUX pin control | x | x | `a` / `A` / `@` low / high / read | mode docs |
+| AUX assignment | x | x | `c`/`C`; v4 adds `k`/`K` (four targets) | none |
+| Bit order | x | x | `l` / `L` LSB-first / MSB-first | none |
+| ADC probe | x | x | `d` / `D` one-shot / continuous; `d:N` repeats | partial |
+| Frequency counter | x | x | `f` on the AUX pin | none |
+| PWM / servo output | x | x | `g` / `S` on the AUX pin (not in HiZ) | none |
+| Elapsed timer | x | x | `t` / `T` read / reset (µs) | none |
+| Self-test | x | x | `~` (HiZ only) | stub |
 
 ## 2. Modes & sub-functions
 

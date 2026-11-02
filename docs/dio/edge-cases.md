@@ -1,0 +1,23 @@
+# DIO — edge cases & failure modes
+
+Part of the DIO documentation set (`docs/dio/`).  Concrete, non-happy-path
+behaviour: trigger, symptom, current behaviour, recovery.
+
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| after `W`, send any state value whose bit 6 is clear — for example `0x80` or `0x87` | the next `v` shows the rails at `0.00V`; `POWER SUPPLIES ON` is not re-printed | every state value carries `POWER` (bit 6) and `PULLUP` (bit 5); the whole byte is applied, so a clear bit 6 disables the supply and a clear bit 5 releases the pull-ups | include bit 6 in every state value sent while the supply must stay on (`0xE0` OR the pin bits), or send `W` again |
+| set a pin level (state write) while that pin's direction is still input | the pin does not change on `v`; the level appears only after the pin is made an output | a level is driven only when the direction bit is 0 (output); the state bit is stored but the pin stays Hi-Z | send a direction value with that pin's bit cleared (for example `0x00` for all outputs) before or together with the state write |
+| `r` in DIO | the returned value does not match the `0x10` / `0x08` / … bit positions used by the write values | `r` returns the raw hardware port register, at hardware bit positions — not the compact write layout; on v4 the five pins are on a different port than `r` samples, so the value never follows them (see [pin-control.md](pin-control.md)) | read the pins with `v`, which reports each pin's level and direction directly |
+| `[`, `{`, `]`, `}`, `/`, `\`, `-`, `_`, `.`, `^`, `!`, or `(n)` | `ERROR: command has no effect here` followed by `Syntax error at char N` | DIO has no start/stop, clock, data, bit-read or macro callbacks, so these shared commands do nothing and flag an error | none needed; use the value commands and `v` |
+| a binary-layer command code such as `0x01` (SPI) or `0x0F` (return to terminal) | no mode change; instead a pin value is applied | the binary command codes are interpreted by the binary layer, not by DIO.  In DIO every value is a direction (`0x00`–`0x7F`) or state (`0x80`–`0xFF`) write, so `0x01` sets `CS` as an input | none; use the numeric direction/state values |
+| a value larger than a byte, for example `0x1FF` | the applied direction or state matches only the low byte | only the low byte reaches the pin-control function, and only bit 7 of that byte selects direction versus state | send a value in `0x00`–`0xFF` |
+| set a pin to output while an external driver holds the same net at the opposite level | excessive current; the target or the Bus Pirate pin may be damaged.  The firmware gives no warning. | DIO does not detect contention; an output drives the pin regardless of what is on the net | set the pin to input (its direction bit = 1) before connecting an external driver; never drive a pin against a supply |
+| `W` with a short or no supply | `VREG too low, is there a short?` followed by `POWER SUPPLIES OFF` | the supply is switched off; the mode stays parked | clear the short (or connect the supply), then `W` again |
+| `#` (reset) or `w` (supplies off) | the pins return to input; after `#` the prompt returns to `HiZ` | reset re-parks all pins and returns to HiZ; `w` runs the mode cleanup and restores the default 8-bit width | re-enter DIO and re-send the direction and state values |
+| drive the v4 `AUX1` or `AUX2` header pin with a DIO value | no bit in the value changes those pins; they stay inputs | a DIO value only addresses `AUX` (`AUX0`), `MOSI`, `CLK`, `MISO` and `CS` | on v4 those pins can instead be reached through the AUX route — select the target with `c` / `C` / `k` / `K`, then drive it with `a` / `A` (see [commands.md](../generic/commands.md) §Elements) |
+| `P` when nothing is on the `VPU` pin, or a state value with bit 5 set while `VPU` is unpowered | `P` prints `Warning: no voltage on Vpullup pin`; a state value with bit 5 set enables the pull-ups with **no** warning | the `P` command checks the VPU sense once right after enabling and warns if it reads below a small threshold; the state bit only enables the resistors, so it never warns.  Either way the lines have no high reference until `VPU` is fed. | provide a `VPU` voltage first (`e2` / `e3` on v4, external on v3), then enable the pull-ups.  A pull-up is optional for DIO in any case. |
+
+The `P` warning route is the only one that reports the missing reference: a
+state value is applied by the same pin engine as the binary layer, which does
+not sample `VPU`.  `Vpullup` in the warning is the firmware's name for the
+`VPU` pin (see [wiring.md](wiring.md) §Pin naming).

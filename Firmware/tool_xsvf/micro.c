@@ -1667,7 +1667,11 @@ void xsvfCleanup( SXsvfInfo* pXsvfInfo )
 *****************************************************************************/
 int xsvfExecute()
 {
-    SXsvfInfo   xsvfInfo;
+    /* Zero the whole state first: xsvfInfoInit() leaves the lenVal
+       buffers unset (lvTdoExpected in particular), and the TDO compare
+       reads them before any XSDRTDO/XTDOMASK has loaded them.  The
+       struct is a stack local, so anything not zeroed here is garbage. */
+    SXsvfInfo   xsvfInfo = { 0 };
 
     xsvfInitialize( &xsvfInfo );
 

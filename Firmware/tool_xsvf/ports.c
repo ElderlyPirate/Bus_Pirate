@@ -21,7 +21,7 @@ void xsvf_setup(void){
         bufBytes=0;
         JTAGTDI_TRIS=0;
         JTAGTCK_TRIS=0;
-        JTAGTD0_TRIS=1;
+        JTAGTDO_TRIS=1;
         JTAGTMS_TRIS=0;
 }
 
@@ -36,6 +36,7 @@ void readByte(unsigned char *data){
         unsigned char bh, bl;
 
         if(bufBytes==0){
+                do{
                 user_serial_transmit_character(0xff);
        //--- while(U1STAbits.URXDA == 0);  //--- dont use it as already in UART1RX => dead lock
                 bh=user_serial_read_byte();//get up to 255 bytes each time
@@ -56,6 +57,9 @@ void readByte(unsigned char *data){
                         bufBytes=MAX_BUFFER;
                 }
                 bufPointer=0;
+                /* a zero-length chunk is not data: re-request; it previously
+                   underflowed bufBytes (0-1 -> 0xFFFF) and served stale .bss. */
+                }while(bufBytes==0);
         }
 
         (*data)=buf[bufPointer];
@@ -72,6 +76,7 @@ void waitTime(long microsec){
                 bp_delay_us(1);
     }
 }
+
 
 #endif /* BP_JTAG_XSVF_SUPPORT */
 

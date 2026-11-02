@@ -25,7 +25,7 @@
 
 #include "base.h"
 #include "core.h"
-#include "uart.h"
+#include "protocol_uart/uart.h"
 #include "proc_menu.h"
 
 /*

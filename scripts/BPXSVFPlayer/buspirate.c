@@ -18,6 +18,25 @@ const char *modes[]={
     "ART",
     "1W0",
     "RAW",
+    "0x06",
+    "0x07",
+    "0x08",
+    "0x09",
+    "0x0a",
+    "0x0b",
+    "0x0c",
+    "0x0d",
+    "0x0e",
+    "0x0f",
+    "0x10",
+    "0x11",
+    "0x12",
+    "0x13",
+    "0x14",
+    "0x15",
+    "0x16",
+    "0x17",
+    "XSVF",
 };
 
 //static struct BP_t pBP;
@@ -184,6 +203,12 @@ int BP_EnableMode(int fd, char bbmode)
                  break;
             case RAW:
                if ( (ret==4) && (strncmp(tmp, "RAW1", 4) == 0))
+                     response=bbmode;
+               else
+                     response=ERR;
+               break;
+            case JTAG:
+               if ( (ret==4) && (strncmp(tmp, "XSV1", 4) == 0))
                      response=bbmode;
                else
                      response=ERR;

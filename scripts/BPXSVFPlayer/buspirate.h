@@ -15,6 +15,7 @@
 #define ART  0x03
 #define OWD  0x04
 #define RAW  0X05
+#define JTAG 0x18
 
 
 uint32_t BP_WriteToPirate(int , char *);

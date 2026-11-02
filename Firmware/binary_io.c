@@ -667,6 +667,7 @@ void binary_io_raw_wire_mode_handler(void) {
   io_state.pic_mode = PIC_MODE_614;
 
   bitbang_setup(2, BITBANG_SPEED_MAXIMUM);
+  R3WCLK = LOW;              /* defined idle clock: the first bit gets a rise */
   R3WMOSI_TRIS = OUTPUT;
   R3WCLK_TRIS = OUTPUT;
   R3WMISO_TRIS = INPUT;
@@ -926,7 +927,7 @@ void handle_bulk_byte_transfer(const uint8_t command) {
       if (mode_configuration.little_endian == YES) {
         value = bp_reverse_integer(value, mode_configuration.numbits);
       }
-      bitbang_write_value(value & 0xFF, false);
+      user_serial_transmit_character(value & 0xFF);
     }
   }
 }

@@ -66,8 +66,6 @@ static void jtag_tms_low(void);
 typedef struct {
   uint8_t state : 2;
   uint8_t hiz : 1;
-  uint8_t bit_pending : 1;
-  uint8_t delayed_bit : 1;
 } jtag_settings_t;
 
 static jtag_settings_t jtag_settings = {0};
@@ -75,8 +73,6 @@ static jtag_settings_t jtag_settings = {0};
 void jtag(void) {
   jtag_setup();
   jtag_settings.hiz = true;
-  jtag_settings.bit_pending = false;
-  jtag_settings.delayed_bit = false;
 
   for (;;) {
     uint8_t cmd = user_serial_read_byte();
@@ -105,6 +101,12 @@ void jtag(void) {
         if (words > 250) {
           break; // 250 device timout/limit...
         }
+      }
+      /* The reply's count byte carries words * 4; a chain of more than
+         63 devices cannot be represented and would desync the host, so
+         report the first 63. */
+      if (words > 63) {
+        words = 63;
       }
       jtag_leave_state();
       jtag_reset();
@@ -162,14 +164,6 @@ void jtag_leave_state(void) {
     break;
 
   case SHIFTIR:
-    if (jtag_settings.bit_pending) {
-      if (jtag_settings.delayed_bit) {
-        jtag_data_high();
-      } else {
-        jtag_data_low();
-      }
-      jtag_settings.bit_pending = false;
-    }
     jtag_tms_high();
     jtag_clock_ticks(2);
     jtag_tms_low();
@@ -228,7 +222,7 @@ void jtag_set_state(const uint8_t new_state) {
 }
 
 void jtag_setup(void) {
-  JTAGTD0_TRIS = INPUT;
+  JTAGTDO_TRIS = INPUT;
   JTAGTCK_TRIS = OUTPUT;
   JTAGTDI_TRIS = OUTPUT;
   JTAGTMS_TRIS = OUTPUT;
@@ -240,11 +234,6 @@ void jtag_setup(void) {
 
 uint8_t jtag_read_byte(void) {
   jtag_clock_low();
-
-  if (jtag_settings.bit_pending) {
-    jtag_write_bit(jtag_settings.delayed_bit);
-    jtag_settings.bit_pending = false;
-  }
 
   uint8_t value = 0;
   for (size_t bit_index = 0; bit_index < 8; bit_index++) {

@@ -52,7 +52,7 @@
 #include "micro.h"
 #include "lenval.h"
 #include "ports.h"
-#include "../jtag.h"
+#include "../protocol_jtag/jtag.h"
 
 
 /*============================================================================

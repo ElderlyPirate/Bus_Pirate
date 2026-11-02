@@ -72,11 +72,19 @@ unsigned char readTDOBit(){return JTAGTDO;}
 void waitTime(long microsec){
     volatile long i;
 
+    /* Coarse chunks first: one calibrated delay builtin per whole
+       millisecond instead of one per microsecond (the per-us loop
+       below adds its own overhead to every pass, so long XRUNTEST/
+       XWAIT waits used to run well past their nominal duration). */
+    while (microsec >= 1000){
+        bp_delay_us(1000);
+        microsec -= 1000;
+    }
+
     for ( i = 0; i < microsec; ++i ){
                 bp_delay_us(1);
     }
 }
-
 
 #endif /* BP_JTAG_XSVF_SUPPORT */
 

@@ -102,7 +102,8 @@ Full delta table (buffers, `#`, help text): [navigation.md](navigation.md).
 - No command-line editing beyond the keys in [navigation.md](navigation.md)
   (no word-delete, no tab completion).
 - BASIC internals, the binary protocol, SUMP and self-test detail live on
-  their own pages: `docs/basic/` (stub), `docs/binary/` (stub), `docs/sump/`
-  (stub), `docs/self-test/`.
+  their own pages: [docs/basic/](../basic/README.md),
+  [docs/binary/](../binary/README.md), [docs/sump/](../sump/README.md),
+  [docs/self-test/](../self-test/README.md).
 - The `o` help label and the `v` label-row control byte are firmware string
   defects, flagged but not fixed by this document.

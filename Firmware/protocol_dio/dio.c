@@ -25,12 +25,12 @@
 extern mode_configuration_t mode_configuration;
 
 /**
- * Bit #9 indicates whether it is to set the pin state or the pin direction.
+ * Bit 7 (0x80) indicates whether it is to set the pin state or the pin direction.
  */
 #define DIO_PIN_SET_STATE_FLAG_MASK 0b0000000010000000
 
 unsigned int dio_read(void) {
-	return PORTB;
+	return bitbang_pin_state_get();
 }
 
 unsigned int dio_write(unsigned int value) {

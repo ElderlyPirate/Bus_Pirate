@@ -32,7 +32,7 @@ void dio_setup_prepare(void);
 /**
  * Writes a value to the device.
  * 
- * The given value can be either a state or direction.  If bit #9 is set, then
+ * The given value can be either a state or direction.  If bit 7 (0x80) is set, then
  * the value will be interpreted as a state change mask, otherwise it will be
  * interpreted as a direction change mask.
  * 

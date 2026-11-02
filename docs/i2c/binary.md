@@ -4,7 +4,9 @@ Part of the I2C documentation set (`docs/i2c/`).  This page documents the
 binary/host-programming interface to I2C mode.  The general binary layer
 (entering BBIO, framing, the shared commands) is documented in `docs/generic/`
 (see [commands.md](../generic/commands.md) §Leaving the CLI) and `docs/binary/`
-(stub).
+— see [entering-and-framing.md](../binary/entering-and-framing.md),
+[commands.md](../binary/commands.md) and
+[sub-protocols.md](../binary/sub-protocols.md).
 
 ## Entry and exit
 
@@ -37,7 +39,7 @@ the operand.
 | `0x0F` | action | enter the sniffer; the next host byte exits | `0x01` |
 | `0x1x` | bulk | write `x + 1` bytes (`x` = 0…15) | `0x01`, then one ACK/NACK byte per written byte |
 | `0x4x` | configure | peripherals: power, pull-ups, AUX, CS | `0x01` |
-| `0x5x` | read | read pull-up/power state (**v4 only**) | a state byte |
+| `0x5x` | configure | set the pull-up feed (**v4 only**) | `0x01` / `0x00` |
 | `0x6x` | configure | set speed; low 2 bits select software profile 0–3 | `0x01` |
 | `0x7x` | wait | wait for an edge on the AUX pin (shared) | shared 2-byte reply |
 | other | — | unrecognised | `0x00` |
@@ -149,7 +151,7 @@ host <- 0x01
 | | v3 | v4 |
 |---|---|---|
 | action / bulk / speed / `0x08` groups | present | present |
-| read pull-up/power state (`0x5x`) | — | present |
+| set the pull-up feed (`0x5x`) | — (answered `0x00`) | present |
 | terminal buffer bound for `0x08` | 2048 bytes | 4096 bytes |
 
 The v3 column is **not verified**.

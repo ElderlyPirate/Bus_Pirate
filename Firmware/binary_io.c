@@ -667,7 +667,10 @@ void binary_io_raw_wire_mode_handler(void) {
   io_state.pic_mode = PIC_MODE_614;
 
   bitbang_setup(2, BITBANG_SPEED_MAXIMUM);
-  R3WCLK = LOW;              /* defined idle clock: the first bit gets a rise */
+  /* Latch-safe idle levels (see raw3wire_setup_execute(): a PORTD bit
+     write is a read-modify-write whose read side returns the pin
+     levels, so it must not be used to preset the outputs). */
+  IOLAT &= ~(MOSI | CLK);    /* first bit gets a rising edge, MOSI idles low */
   R3WMOSI_TRIS = OUTPUT;
   R3WCLK_TRIS = OUTPUT;
   R3WMISO_TRIS = INPUT;

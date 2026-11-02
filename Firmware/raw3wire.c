@@ -132,9 +132,13 @@ void raw3wire_setup_execute(void) {
 
   /* Defined idle levels before the drivers are enabled: CLK low so the
      first bit of the first transfer gets its rising edge (raw2wire does
-     exactly this), MOSI low so the first data level is defined. */
-  R3WMOSI = LOW;
-  R3WCLK = LOW;
+     exactly this), MOSI low so the first data level is defined.
+     Written through the latch (IOLAT), never through PORTD: a PORTD bit
+     write is a read-modify-write of PORTD and PORTD reads return the
+     pin levels (DS39897C 10.1), so a second PORTD write re-latches the
+     first pin's externally pulled-up level.  LATx reads return the
+     latch, so consecutive writes cannot clobber each other. */
+  IOLAT &= ~(MOSI | CLK);
 
   R3WMOSI_TRIS = OUTPUT;
   R3WCLK_TRIS = OUTPUT;

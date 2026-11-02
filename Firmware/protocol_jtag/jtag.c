@@ -53,9 +53,10 @@ static void jtag_set_state(const uint8_t new_state);
 static void jtag_leave_state(void);
 static void jtag_reset(void);
 static uint8_t jtag_read_byte(void);
-static uint8_t jtag_write_bit(const bool value);
 static uint8_t jtag_read_bit(void);
+#ifdef BP_JTAG_XSVF_SUPPORT
 static void jtag_data_low(void);
+#endif /* BP_JTAG_XSVF_SUPPORT */
 static void jtag_data_high(void);
 static void jtag_clock_low(void);
 static void jtag_clock_high(void);
@@ -245,18 +246,6 @@ uint8_t jtag_read_byte(void) {
   return value;
 }
 
-uint8_t jtag_write_bit(const bool value) {
-  if (value == LOW) {
-    jtag_data_low();
-  } else {
-    jtag_data_high();
-  }
-  jtag_clock_high();
-  uint8_t input_bit = JTAGTDO;
-  jtag_clock_low();
-  return input_bit;
-}
-
 uint8_t jtag_read_bit(void) {
   jtag_clock_high();
   uint8_t input_bit = JTAGTDO;
@@ -270,11 +259,13 @@ void jtag_data_high(void) {
   bp_delay_us(JTAGDATASETTLE);
 }
 
+#ifdef BP_JTAG_XSVF_SUPPORT
 void jtag_data_low(void) {
   JTAGTDI = LOW;
   JTAGTDI_TRIS = OUTPUT;
   bp_delay_us(JTAGDATASETTLE);
 }
+#endif /* BP_JTAG_XSVF_SUPPORT */
 
 void jtag_clock_ticks(size_t ticks) {
   for (size_t tick = 0; tick < ticks; tick++) {

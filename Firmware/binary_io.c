@@ -40,7 +40,7 @@
 #endif /* BP_ENABLE_UART_SUPPORT */
 
 #ifdef BP_ENABLE_1WIRE_SUPPORT
-#include "1wire.h"
+#include "protocol_wire/1wire.h"
 #endif /* BP_ENABLE_1WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_PIC_SUPPORT

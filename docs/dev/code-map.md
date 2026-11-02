@@ -1,6 +1,6 @@
 # Code map — generic layer (maintainer notes)
 
-**Status:** draft, 2026-11-01.  Developer-side companion to `docs/generic/`
+**Status:** draft.  Developer-side companion to `docs/generic/`
 (the user documentation carries no code references by policy).  Symbols only —
 **no line numbers** (they rot with any edit).
 

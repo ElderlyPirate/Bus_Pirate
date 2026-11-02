@@ -21,7 +21,7 @@ One central location: **[docs/](docs/)**.  This README intentionally does not re
 * **[docs/SPEC.md](docs/SPEC.md)** — the specification: every mode, function and sub-function (e.g. UART *and* HDUART, SUMP *and* its extended logic analyzer) with its v3/v4 status.  Planned items are marked `tbi`.
 * **[docs/generic/](docs/generic/)** — how to use the prompt (the generic layer: navigation, formatting, macros, elements).
 * per-function documentation under `docs/<function>/` — being consolidated from the existing [Documentation/](Documentation/) files.
-* developer documentation (build, flash, bootloaders, tooling) — coming under `docs/dev/`.
+* developer documentation (build, flash, bootloaders, tooling) — see [docs/dev/](docs/dev/).
 
 *(Documentation restructure in progress — 2026-11.)*
 
@@ -50,7 +50,7 @@ The Bus Pirate is used through a simple terminal interface; these programs can d
 
 ## Firmware
 
-Refer to [building-and-flashing-firmware](Documentation/building-and-flashing-firmware.md) to see how to build and flash this firmware (moving to `docs/dev/` with the documentation restructure).
+Refer to [docs/dev/](docs/dev/) to see how to build and flash this firmware.
 
 [OpenOCD]: http://openocd.org
 [AVRDude]: http://www.nongnu.org/avrdude

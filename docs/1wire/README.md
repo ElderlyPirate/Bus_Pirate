@@ -1,4 +1,4 @@
-# 1-Wire
+# 1-WIRE (Dallas/Maxim)
 
 **Status:** draft — available on v3 and v4; v3 is build-only and unverified.
 

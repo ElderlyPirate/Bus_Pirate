@@ -6,8 +6,10 @@ binary/host-programming interface to 1-Wire mode.
 This page is written from the firmware's command definitions; it is
 unverified.  The general binary layer (entering BBIO, framing, the shared
 commands) is documented in `docs/generic/` (see
-[commands.md](../generic/commands.md) §Leaving the CLI) and `docs/binary/`
-(stub).
+[commands.md](../generic/commands.md) §Leaving the CLI) and `docs/binary/` —
+see [entering-and-framing.md](../binary/entering-and-framing.md),
+[commands.md](../binary/commands.md) and
+[sub-protocols.md](../binary/sub-protocols.md).
 
 ## Entry and exit
 
@@ -35,7 +37,7 @@ The first nibble of each request byte selects the command group.
 | `0x1n` | bulk | write `n + 1` bytes (`n` = 0…15) | `0x01` after each byte |
 | `0x2s` | configure | speed: `s` = 0 standard, 1 overdrive | `0x01` |
 | `0x4v` | configure | peripherals (see below) | `0x01` |
-| `0x50xx` | read | read peripherals (v4 only) | pull-up state byte |
+| `0x5x` | configure | set the pull-up feed (v4 only) | `0x01` / `0x00` |
 | `0x7x` | wait | wait for an edge on the AUX pin (shared) | shared reply |
 
 - `0x01` is the success/ack value; `0x00` is failure.  An unrecognised request
@@ -47,25 +49,29 @@ The first nibble of each request byte selects the command group.
 
 The low four bits of `v` set the board's state:
 
-| Bit | Function |
+| Bit | Mask | When set | When clear |
+|---|---|---|---|
+| 3 | `0x08` | power on | power off |
+| 2 | `0x04` | pull-ups on | pull-ups off |
+| 1 | `0x02` | AUX high | AUX low |
+| 0 | `0x01` | CS high (released) | CS low (asserted) |
+
+### Set the pull-up feed (`0x5x`, v4 only)
+
+The low nibble selects the on-board source feeding the pull-up voltage (VPU);
+the group is shared with the other binary modes (see
+[../binary/sub-protocols.md](../binary/sub-protocols.md) §Shared command
+groups).
+
+| Operand | Source |
 |---|---|
-| 3 | power on/off |
-| 2 | pull-ups on/off |
-| 1 | AUX line low/high |
-| 0 | CS line low/high |
+| `0x51` | on-board **+3.3 V** |
+| `0x52` | on-board **+5.0 V** |
+| any other | both off |
 
-### Read peripherals (`0x50xx`, v4 only)
-
-The low two bits select the pull-up voltage and the reply carries the state:
-
-| Bits | Pull-up |
-|---|---|
-| `00` | off |
-| `01` | +3.3 V |
-| `10` | +5.0 V |
-| `11` | off |
-
-This command exists on v4 only; it is not in the v3 build.
+The reply is `0x01` when the request was applied and `0x00` when it was refused
+(the pins are not open-drain HiZ, or a voltage is already present on VPU).  The
+group exists on v4 only; it is not in the v3 build.
 
 ## Worked exchange
 
@@ -91,5 +97,5 @@ host <- "BBIO1"
 ## v3 / v4
 
 The action, bulk-write and configure commands are the same in both builds.
-The read-peripherals command (`0x50xx`) is **v4 only**.  This sub-protocol is
+The pull-up feed (`0x5x`) is **v4 only**.  This sub-protocol is
 unverified; both columns are from the firmware.

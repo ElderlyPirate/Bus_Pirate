@@ -510,6 +510,24 @@ void reset_state(void) {
   bitbang_pin_state_set(0x00);
 }
 
+/**
+ * Reads the current state of the I/O pins.
+ *
+ * The value is in the same format the pin update commands answer with:
+ * AUX0/MOSI/CLK/MISO/CS on bits 4..0.  The reads go through the
+ * per-board pin macros, so they reflect the header pins on both hardware
+ * revisions (a PORTx read returns the pin levels).
+ *
+ * @return the current state of the pins.
+ */
+uint8_t bitbang_pin_state_get(void) {
+  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
+         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
+         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
+         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
+         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+}
+
 uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Set directions. */
@@ -526,11 +544,7 @@ uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
@@ -552,11 +566,7 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 void binary_io_self_test(const bool jumper_test) {

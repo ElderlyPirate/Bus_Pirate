@@ -26,7 +26,7 @@
 #endif /* BP_ENABLE_1WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_UART_SUPPORT
-#include "uart.h"
+#include "protocol_uart/uart.h"
 #endif /* BP_ENABLE_UART_SUPPORT */
 
 #ifdef BP_ENABLE_I2C_SUPPORT

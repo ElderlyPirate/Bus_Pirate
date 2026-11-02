@@ -25,8 +25,8 @@
 
 #ifdef BP_JTAG_XSVF_SUPPORT
 
-#include "jtag/micro.h"
-#include "jtag/ports.h"
+#include "tool_xsvf/micro.h"
+#include "tool_xsvf/ports.h"
 
 #define XSVF_ERROR_NONE 0
 #define XSVF_ERROR_UNKNOWN 1

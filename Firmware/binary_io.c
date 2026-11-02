@@ -48,9 +48,9 @@
 #endif /* BP_ENABLE_PIC_SUPPORT */
 
 #ifdef BP_ENABLE_JTAG_SUPPORT
-#include "jtag.h"
+#include "protocol_jtag/jtag.h"
 #ifdef BP_JTAG_OPENOCD_SUPPORT
-#include "openocd.h"
+#include "tool_openocd/openocd.h"
 #endif /* BP_JTAG_OPENOCD_SUPPORT */
 #endif /* BP_ENABLE_JTAG_SUPPORT */
 

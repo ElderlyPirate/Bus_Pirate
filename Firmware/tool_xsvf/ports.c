@@ -12,7 +12,7 @@
 #ifdef BP_JTAG_XSVF_SUPPORT
 
 #include "ports.h"
-#include "../jtag.h"
+#include "../protocol_jtag/jtag.h"
 #define MAX_BUFFER 4096
 static unsigned char buf[MAX_BUFFER]; //buffer to hold incoming bytes
 static unsigned int bufBytes=0, bufPointer=0;

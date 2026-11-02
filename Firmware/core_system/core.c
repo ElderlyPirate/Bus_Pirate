@@ -22,7 +22,7 @@
 #include "bitbang.h"
 
 #ifdef BP_ENABLE_1WIRE_SUPPORT
-#include "1wire.h"
+#include "protocol_wire/1wire.h"
 #endif /* BP_ENABLE_1WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_UART_SUPPORT
@@ -42,11 +42,11 @@
 #endif /* BP_ENABLE_JTAG_SUPPORT */
 
 #ifdef BP_ENABLE_RAW_2WIRE_SUPPORT
-#include "raw2wire.h"
+#include "protocol_wire/raw2wire.h"
 #endif /* BP_ENABLE_RAW_2WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_RAW_3WIRE_SUPPORT
-#include "raw3wire.h"
+#include "protocol_wire/raw3wire.h"
 #endif /* BP_ENABLE_RAW_3WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_PC_AT_KEYBOARD_SUPPORT
@@ -66,7 +66,7 @@
 #endif /* BP_ENABLE_DIO_SUPPORT */
 
 #if defined(BP_ENABLE_RAW_2WIRE_SUPPORT) || defined(BP_ENABLE_RAW_3WIRE_SUPPORT)
-#include "raw_common.h"
+#include "protocol_wire/raw_common.h"
 #endif /* BP_ENABLE_RAW_2WIRE_SUPPORT || BP_ENABLE_RAW_3WIRE_SUPPORT */
 
 /**

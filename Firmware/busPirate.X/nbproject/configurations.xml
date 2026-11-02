@@ -4,7 +4,7 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>../1wire.h</itemPath>
+      <itemPath>../protocol_wire/1wire.h</itemPath>
       <itemPath>../core_system/base.h</itemPath>
       <itemPath>../basic.h</itemPath>
       <itemPath>../core_bitbang/bitbang.h</itemPath>
@@ -15,8 +15,8 @@
       <itemPath>../pc_at_keyboard.h</itemPath>
       <itemPath>../pic.h</itemPath>
       <itemPath>../core_usb/picusb.h</itemPath>
-      <itemPath>../raw2wire.h</itemPath>
-      <itemPath>../raw3wire.h</itemPath>
+      <itemPath>../protocol_wire/raw2wire.h</itemPath>
+      <itemPath>../protocol_wire/raw3wire.h</itemPath>
       <itemPath>../selftest.h</itemPath>
       <itemPath>../sump.h</itemPath>
       <itemPath>../core_usb/usb_stack.h</itemPath>
@@ -39,7 +39,7 @@
       <itemPath>../core_system/core.h</itemPath>
       <itemPath>../uart2.h</itemPath>
       <itemPath>../aux_pin.h</itemPath>
-      <itemPath>../raw_common.h</itemPath>
+      <itemPath>../protocol_wire/raw_common.h</itemPath>
       <itemPath>../types.h</itemPath>
       <itemPath>../hardware.h</itemPath>
       <itemPath>../hardwarev4.h</itemPath>
@@ -66,7 +66,7 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
-      <itemPath>../1wire.c</itemPath>
+      <itemPath>../protocol_wire/1wire.c</itemPath>
       <itemPath>../core_system/base.c</itemPath>
       <itemPath>../basic.c</itemPath>
       <itemPath>../core_bitbang/bitbang.c</itemPath>
@@ -79,8 +79,8 @@
       <itemPath>../core_system/main.c</itemPath>
       <itemPath>../pc_at_keyboard.c</itemPath>
       <itemPath>../pic.c</itemPath>
-      <itemPath>../raw2wire.c</itemPath>
-      <itemPath>../raw3wire.c</itemPath>
+      <itemPath>../protocol_wire/raw2wire.c</itemPath>
+      <itemPath>../protocol_wire/raw3wire.c</itemPath>
       <itemPath>../selftest.c</itemPath>
       <itemPath>../smps.c</itemPath>
       <itemPath>../sump.c</itemPath>

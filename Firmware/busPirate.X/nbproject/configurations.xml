@@ -10,7 +10,7 @@
       <itemPath>../core_bitbang/bitbang.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
       <itemPath>../core_usb/descriptors.h</itemPath>
-      <itemPath>../dio.h</itemPath>
+      <itemPath>../protocol_dio/dio.h</itemPath>
       <itemPath>../hardwarev3.h</itemPath>
       <itemPath>../pc_at_keyboard.h</itemPath>
       <itemPath>../pic.h</itemPath>
@@ -71,7 +71,7 @@
       <itemPath>../basic.c</itemPath>
       <itemPath>../core_bitbang/bitbang.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
-      <itemPath>../dio.c</itemPath>
+      <itemPath>../protocol_dio/dio.c</itemPath>
       <itemPath>../jtag.c</itemPath>
       <itemPath>../jtag/lenval.c</itemPath>
       <itemPath>../jtag/micro.c</itemPath>

@@ -62,7 +62,7 @@
 #endif /* BP_ENABLE_PIC_SUPPORT */
 
 #ifdef BP_ENABLE_DIO_SUPPORT
-#include "dio.h"
+#include "protocol_dio/dio.h"
 #endif /* BP_ENABLE_DIO_SUPPORT */
 
 #if defined(BP_ENABLE_RAW_2WIRE_SUPPORT) || defined(BP_ENABLE_RAW_3WIRE_SUPPORT)

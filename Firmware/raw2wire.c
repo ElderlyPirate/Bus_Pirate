@@ -108,6 +108,11 @@ void raw2wire_setup_prepare(void) {
     raw2wire_print_settings();
   }
 
+  /* A write never returns a read-back in this mode; clear any stale
+     write-with-read state carried in from a previous mode (e.g. 3WIRE
+     '{'), otherwise every write would print a bogus READ. */
+  mode_configuration.write_with_read = NO;
+
   /*
    * Apply the timing profile here as well: the interactive flow only runs
    * setup_execute() on the first power-on request (`W`), so a mode that is
@@ -118,8 +123,11 @@ void raw2wire_setup_prepare(void) {
 }
 
 void raw2wire_setup_execute(void) {
-  R2WCLK = LOW;
-  R2WDIO = LOW;
+  /* Latch-safe idle levels (see raw3wire_setup_execute()): a PORTD bit
+     write is a read-modify-write whose read side returns the pin levels
+     (DS39897C 10.1), so the second write would re-latch the first wire's
+     externally pulled-up level.  LATx reads return the latch. */
+  IOLAT &= ~(CLK | MOSI);
   R2WDIO_TRIS = INPUT;
   R2WCLK_TRIS = OUTPUT;
   bitbang_setup(2, mode_configuration.speed);

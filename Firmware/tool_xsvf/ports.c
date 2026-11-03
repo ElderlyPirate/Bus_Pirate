@@ -112,6 +112,18 @@ unsigned char readTDOBit(){return JTAGTDO;}
 void waitTime(long microsec){
     volatile long i;
 
+    /* The host only sends while the player is blocked on a chunk
+       request; a byte arriving while the player is busy therefore means
+       the host wants out.  Mark the stream stalled (the run unwinds at
+       the next command boundary) and skip the rest of the wait. */
+    while (user_serial_ready_to_read()){
+        (void)user_serial_read_byte();
+        xsvf_stream_stalled = true;
+    }
+    if (xsvf_stream_stalled){
+        return;
+    }
+
     /* Coarse chunks first: one calibrated delay builtin per whole
        millisecond instead of one per microsecond (the per-us loop
        below adds its own overhead to every pass, so long XRUNTEST/

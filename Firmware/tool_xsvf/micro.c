@@ -226,6 +226,10 @@ typedef int (*TXsvfDoCmdFuncPtr)( SXsvfInfo* );
 /* and add corresponding xsvfDoCmd function to xsvf_pfDoCmd below. */
 #define XLASTCMD         24         /* Last command marker */
 
+/* Upper bound (usec) for the XAPP058 retry-time growth: the 25% steps
+   would otherwise grow an unattended retry loop into minutes/hours. */
+#define XSVF_MAX_RUN_TEST_US 100000L
+
 
 /*============================================================================
 * XSVF Command Parameter Values
@@ -825,8 +829,19 @@ int xsvfShift( unsigned char*   pucTapState,
                     xsvfGotoTapState( pucTapState, XTAPSTATE_PAUSEDR );
                     /* Shift 1 extra bit */
                     xsvfGotoTapState( pucTapState, XTAPSTATE_SHIFTDR );
-                    /* Increment RUNTEST time by an additional 25% */
-                    lRunTestTime    += ( lRunTestTime >> 2 );
+                    /* Increment RUNTEST time by an additional 25%, but
+                       clamp the growth: a mismatching file must not
+                       schedule minute-long waits (an XRUNTEST that the
+                       file sets explicitly is used unchanged - only the
+                       retry growth is bounded). */
+                    if ( lRunTestTime < XSVF_MAX_RUN_TEST_US )
+                    {
+                        lRunTestTime += ( lRunTestTime >> 2 );
+                        if ( lRunTestTime > XSVF_MAX_RUN_TEST_US )
+                        {
+                            lRunTestTime = XSVF_MAX_RUN_TEST_US;
+                        }
+                    }
                 }
                 else
                 {

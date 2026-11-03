@@ -8,6 +8,7 @@
       <itemPath>../core_system/base.h</itemPath>
       <itemPath>../basic.h</itemPath>
       <itemPath>../core_bitbang/bitbang.h</itemPath>
+      <itemPath>../capability_adc/adc.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
       <itemPath>../core_usb/descriptors.h</itemPath>
       <itemPath>../dio.h</itemPath>
@@ -17,7 +18,7 @@
       <itemPath>../core_usb/picusb.h</itemPath>
       <itemPath>../raw2wire.h</itemPath>
       <itemPath>../raw3wire.h</itemPath>
-      <itemPath>../selftest.h</itemPath>
+      <itemPath>../capability_selftest/selftest.h</itemPath>
       <itemPath>../sump.h</itemPath>
       <itemPath>../core_usb/usb_stack.h</itemPath>
       <itemPath>../core_usb/usb_stack_globals.h</itemPath>
@@ -29,16 +30,16 @@
       <itemPath>../spi.h</itemPath>
       <itemPath>../uart.h</itemPath>
       <itemPath>../jtag.h</itemPath>
-      <itemPath>../smps.h</itemPath>
+      <itemPath>../capability_smps/smps.h</itemPath>
       <itemPath>../openocd.h</itemPath>
       <itemPath>../core_messages/messages_v3.h</itemPath>
       <itemPath>../core_messages/messages_v4.h</itemPath>
       <itemPath>../core_messages/messages.h</itemPath>
-      <itemPath>../binary_io.h</itemPath>
+      <itemPath>../protocol_binary/binary_io.h</itemPath>
       <itemPath>../core_system/proc_menu.h</itemPath>
       <itemPath>../core_system/core.h</itemPath>
       <itemPath>../uart2.h</itemPath>
-      <itemPath>../aux_pin.h</itemPath>
+      <itemPath>../capability_aux/aux_pin.h</itemPath>
       <itemPath>../raw_common.h</itemPath>
       <itemPath>../types.h</itemPath>
       <itemPath>../hardware.h</itemPath>
@@ -70,6 +71,7 @@
       <itemPath>../core_system/base.c</itemPath>
       <itemPath>../basic.c</itemPath>
       <itemPath>../core_bitbang/bitbang.c</itemPath>
+      <itemPath>../capability_adc/adc.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
       <itemPath>../dio.c</itemPath>
       <itemPath>../jtag.c</itemPath>
@@ -81,8 +83,8 @@
       <itemPath>../pic.c</itemPath>
       <itemPath>../raw2wire.c</itemPath>
       <itemPath>../raw3wire.c</itemPath>
-      <itemPath>../selftest.c</itemPath>
-      <itemPath>../smps.c</itemPath>
+      <itemPath>../capability_selftest/selftest.c</itemPath>
+      <itemPath>../capability_smps/smps.c</itemPath>
       <itemPath>../sump.c</itemPath>
       <itemPath>../core_usb/usb_stack.c</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
@@ -95,11 +97,11 @@
       <itemPath>../core_messages/messages_v3.s</itemPath>
       <itemPath>../core_messages/messages_v4.s</itemPath>
       <itemPath>../core_messages/messages.c</itemPath>
-      <itemPath>../binary_io.c</itemPath>
+      <itemPath>../protocol_binary/binary_io.c</itemPath>
       <itemPath>../core_system/proc_menu.c</itemPath>
       <itemPath>../core_system/core.c</itemPath>
       <itemPath>../uart2.c</itemPath>
-      <itemPath>../aux_pin.c</itemPath>
+      <itemPath>../capability_aux/aux_pin.c</itemPath>
     </logicalFolder>
   </logicalFolder>
   <sourceRootList>

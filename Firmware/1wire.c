@@ -55,7 +55,7 @@
 #include <stdint.h>
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "proc_menu.h"
 
 extern mode_configuration_t mode_configuration;

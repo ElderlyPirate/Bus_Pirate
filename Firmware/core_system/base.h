@@ -197,32 +197,6 @@ bool bp_adc_foreground_available(void);
  */
 bool bp_adc_check_foreground(void);
 
-/**
- * @brief Reads a value from the ADC on the given channel.
- *
- * @warning Requires an initialized, foreground-owned manual ADC, with no
- *          concurrent auto-sampling/interrupt owner. The converter is restarted
- *          internally to retire pending results and select the requested input
- *          before sampling. It remains enabled on return; the caller disables
- *          it when the manual measurement session is complete.
- *          Callers must check bp_adc_foreground_available() before enabling or
- *          disabling the ADC; terminal clients use bp_adc_check_foreground().
- *
- * @param[in] channel the channel to read data from.
- * @return the value read from the channel.
- */
-uint16_t bp_read_adc(const uint16_t channel);
-
-/**
- * @brief Takes one single ADC measurement and prints it to the serial port.
- */
-void bp_adc_probe(void);
-
-/**
- * @brief Takes ADC measurements and prints them to the serial port until a byte
- * is sent to the serial port.
- */
-void bp_adc_continuous_probe(void);
 
 /**
  * @brief Prints the given value to the user terminal according to the format

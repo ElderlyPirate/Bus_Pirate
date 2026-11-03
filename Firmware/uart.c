@@ -20,7 +20,7 @@
 #ifdef BP_ENABLE_UART_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "proc_menu.h"
 #include "uart2.h"
 

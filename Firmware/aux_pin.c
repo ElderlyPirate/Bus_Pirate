@@ -1023,6 +1023,34 @@ bool bp_aux_pin_read(void) {
 #endif /* BUSPIRATEV3 */
 }
 
+bool bp_aux_pin_state_get(void) {
+#ifdef BUSPIRATEV3
+  if (mode_configuration.alternate_aux == 0) {
+    return BP_AUX0;
+  }
+
+  return BP_CS;
+#else
+  switch (MASKBOTTOM8(mode_configuration.alternate_aux, 2)) {
+  case 0:
+    return BP_AUX0;
+
+  case 1:
+    return BP_CS;
+
+  case 2:
+    return BP_AUX1;
+
+  case 3:
+    return BP_AUX2;
+
+  default:
+    /* Should not happen. */
+    return LOW;
+  }
+#endif /* BUSPIRATEV3 */
+}
+
 void bp_aux_pin_set_change_notification(const bool state) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {

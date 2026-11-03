@@ -106,6 +106,18 @@ void bp_aux_pin_set_low(void);
 bool bp_aux_pin_read(void);
 
 /**
+ * @brief Returns the state of the currently chosen AUX pin without changing
+ * the pin's direction.
+ *
+ * Unlike bp_aux_pin_read(), this leaves the pin exactly as it is; the
+ * wait-for-edge command uses it so a caller's output direction survives the
+ * wait.
+ *
+ * @return `HIGH` or `LOW` according to the chosen AUX pin state.
+ */
+bool bp_aux_pin_state_get(void);
+
+/**
  * @brief Enables or disables change notification on the currently chosen AUX
  * pin.
  *

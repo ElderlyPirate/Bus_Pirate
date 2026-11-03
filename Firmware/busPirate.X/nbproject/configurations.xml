@@ -23,7 +23,7 @@
       <itemPath>../core_usb/usb_stack_globals.h</itemPath>
       <itemPath>../core_usb/prj_usb_config.h</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.h</itemPath>
-      <itemPath>../i2c.h</itemPath>
+      <itemPath>../protocol_i2c/i2c.h</itemPath>
       <itemPath>../configuration.h</itemPath>
       <itemPath>../hd44780.h</itemPath>
       <itemPath>../spi.h</itemPath>
@@ -86,7 +86,7 @@
       <itemPath>../sump.c</itemPath>
       <itemPath>../core_usb/usb_stack.c</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
-      <itemPath>../i2c.c</itemPath>
+      <itemPath>../protocol_i2c/i2c.c</itemPath>
       <itemPath>../hd44780.c</itemPath>
       <itemPath>../spi.c</itemPath>
       <itemPath>../uart.c</itemPath>

@@ -120,6 +120,25 @@ static const uint8_t HARDWARE_I2C_BRG_SPEEDS[] = {
 };
 
 /**
+ * Last valid index of HARDWARE_I2C_BRG_SPEEDS.  The software driver has
+ * one speed profile more than the hardware engine has rates (profile 4 is
+ * software-only).
+ */
+#define HARDWARE_I2C_BRG_MAX_INDEX 2
+
+/**
+ * Returns the hardware baud rate generator value for the current session
+ * speed, bounded to the table: the onboard-EEPROM macro keeps the
+ * session speed, which can come from a software driver profile that has
+ * no hardware rate.
+ */
+static uint8_t hardware_i2c_brg(void) {
+  return HARDWARE_I2C_BRG_SPEEDS[mode_configuration.speed > HARDWARE_I2C_BRG_MAX_INDEX
+                                     ? HARDWARE_I2C_BRG_MAX_INDEX
+                                     : mode_configuration.speed];
+}
+
+/**
  * Performs hardware initialisation on the chosen hardware I2C interface.
  */
 static void hardware_i2c_setup(void);
@@ -347,6 +366,15 @@ void i2c_setup_prepare(void) {
   if ((HW > 0) && (HW <= 2)) {
     i2c_state.mode = HW - 1;
   } else {
+    speed = 0;
+  }
+
+  /*
+   * The engine has three rates (100 kHz, 400 kHz, 1 MHz); profile 4 is
+   * for the software driver only.  Ask again rather than silently
+   * accepting a rate the engine does not offer.
+   */
+  if ((i2c_state.mode == I2C_TYPE_HARDWARE) && (speed > 3)) {
     speed = 0;
   }
 #endif /* BP_I2C_USE_HW_BUS */
@@ -578,7 +606,7 @@ void i2c_macro(unsigned int c) {
     I2C1MSK = 0;
 
     /* Set the I2C baud rate generator speed. */
-    I2C1BRG = HARDWARE_I2C_BRG_SPEEDS[mode_configuration.speed];
+    I2C1BRG = hardware_i2c_brg();
 
     /* Enable the internal I2C module. */
     I2C1CONbits.I2CEN = ON;
@@ -799,7 +827,7 @@ void hardware_i2c_setup(void) {
   I2C3MSK = 0;
 
   /* Set the I2C baud rate generator speed. */
-  I2C3BRG = HARDWARE_I2C_BRG_SPEEDS[mode_configuration.speed];
+  I2C3BRG = hardware_i2c_brg();
 
   /* Enable the I2C module. */
   I2C3CONbits.I2CEN = ON;
@@ -813,7 +841,7 @@ void hardware_i2c_setup(void) {
   I2C1MSK = 0;
 
   /* Set the I2C baud rate generator speed. */
-  I2C1BRG = HARDWARE_I2C_BRG_SPEEDS[mode_configuration.speed];
+  I2C1BRG = hardware_i2c_brg();
 
   /*
    * I2C1CON: I2C1 CONTROL REGISTER

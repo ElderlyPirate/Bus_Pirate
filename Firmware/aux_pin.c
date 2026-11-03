@@ -903,31 +903,31 @@ void bp_aux_pin_set_high(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = HIGH;
+    BP_AUX0_LAT = HIGH;
   } else {
     BP_CS_DIR = OUTPUT;
-    BP_CS = HIGH;
+    BP_CS_LAT = HIGH;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = HIGH;
+    BP_AUX0_LAT = HIGH;
     break;
 
   case 1:
     BP_CS_DIR = OUTPUT;
-    BP_CS = HIGH;
+    BP_CS_LAT = HIGH;
     break;
 
   case 2:
     BP_AUX1_DIR = OUTPUT;
-    BP_AUX1 = HIGH;
+    BP_AUX1_LAT = HIGH;
     break;
 
   case 3:
     BP_AUX2_DIR = OUTPUT;
-    BP_AUX2 = HIGH;
+    BP_AUX2_LAT = HIGH;
     break;
 
   default:
@@ -942,31 +942,31 @@ void bp_aux_pin_set_low(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = LOW;
+    BP_AUX0_LAT = LOW;
   } else {
     BP_CS_DIR = OUTPUT;
-    BP_CS = LOW;
+    BP_CS_LAT = LOW;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = LOW;
+    BP_AUX0_LAT = LOW;
     break;
 
   case 1:
     BP_CS_DIR = OUTPUT;
-    BP_CS = LOW;
+    BP_CS_LAT = LOW;
     break;
 
   case 2:
     BP_AUX1_DIR = OUTPUT;
-    BP_AUX1 = LOW;
+    BP_AUX1_LAT = LOW;
     break;
 
   case 3:
     BP_AUX2_DIR = OUTPUT;
-    BP_AUX2 = LOW;
+    BP_AUX2_LAT = LOW;
     break;
 
   default:

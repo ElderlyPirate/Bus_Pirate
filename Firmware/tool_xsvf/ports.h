@@ -22,6 +22,10 @@ extern unsigned char readTDOBit();
 //read byte of xsvf
 extern void readByte(unsigned char *data);
 
+//set when the host stops feeding a chunk (the player aborts at the next
+//command boundary instead of blocking forever)
+extern bool xsvf_stream_stalled;
+
 //pause one microsecond
 extern void waitTime(long microsec);
 

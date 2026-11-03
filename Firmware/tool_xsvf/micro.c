@@ -1619,6 +1619,15 @@ int xsvfInitialize( SXsvfInfo* pXsvfInfo )
 *****************************************************************************/
 int xsvfRun( SXsvfInfo* pXsvfInfo )
 {
+    /* A stalled host stream (readByte timeout) aborts the run at a
+       command boundary with a defined error so the port stays
+       recoverable; the flag is cleared by the next xsvf_setup(). */
+    if ( xsvf_stream_stalled )
+    {
+        pXsvfInfo->iErrorCode = XSVF_ERROR_UNKNOWN;
+        return( pXsvfInfo->iErrorCode );
+    }
+
     /* Process the XSVF commands */
     if ( (!pXsvfInfo->iErrorCode) && (!pXsvfInfo->ucComplete) )
     {

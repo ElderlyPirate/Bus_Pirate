@@ -967,7 +967,7 @@ void handle_wait_command(const uint8_t command) {
   bp_aux_pin_set_change_notification(ON);
   IFS1bits.CNIF = OFF;
 
-  bool level = bp_aux_pin_read();
+  bool level = bp_aux_pin_state_get();
   bool edge_seen = NO;
 
   /*
@@ -985,7 +985,7 @@ void handle_wait_command(const uint8_t command) {
     if (IFS1bits.CNIF) {
       IFS1bits.CNIF = OFF;
 
-      const bool next_level = bp_aux_pin_read();
+      const bool next_level = bp_aux_pin_state_get();
 
       if (next_level != level) {
         const bool rising_edge = next_level;
@@ -1006,7 +1006,7 @@ void handle_wait_command(const uint8_t command) {
     last_ticks = now_ticks;
 
     if (elapsed_ticks >= timeout_ticks) {
-      level = bp_aux_pin_read();
+      level = bp_aux_pin_state_get();
       break;
     }
 

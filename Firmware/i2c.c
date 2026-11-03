@@ -19,9 +19,9 @@
 
 #ifdef BP_ENABLE_I2C_SUPPORT
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "bitbang.h"
 #include "core.h"
 #include "proc_menu.h"

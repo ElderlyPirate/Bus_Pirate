@@ -20,13 +20,14 @@
 
 #include "configuration.h"
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "basic.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "core.h"
 #include "proc_menu.h" //need our public versionInfo() function
-#include "selftest.h"
+#include "capability_selftest/selftest.h"
 #include "sump.h"
 
 /**

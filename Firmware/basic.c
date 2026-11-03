@@ -52,8 +52,9 @@
  */
 #define BP_BASIC_VARIABLES_COUNT 26
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "bitbang.h"
 #include "core.h"
 #include "proc_menu.h"

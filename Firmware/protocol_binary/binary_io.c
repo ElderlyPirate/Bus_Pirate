@@ -19,13 +19,14 @@
 
 /* Binary access modes for Bus Pirate scripting */
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "binary_io.h"
 #include "bitbang.h"
 #include "configuration.h"
 #include "core.h"
-#include "selftest.h"
+#include "capability_selftest/selftest.h"
 
 #ifdef BP_ENABLE_SPI_SUPPORT
 #include "spi.h"
@@ -55,7 +56,7 @@
 #endif /* BP_ENABLE_JTAG_SUPPORT */
 
 #ifdef BP_ENABLE_SMPS_SUPPORT
-#include "smps.h"
+#include "capability_smps/smps.h"
 #endif /* BP_ENABLE_SMPS_SUPPORT */
 
 extern mode_configuration_t mode_configuration;

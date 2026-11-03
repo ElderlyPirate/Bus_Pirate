@@ -75,8 +75,6 @@
 #define BP_MISO_LAT LATDbits.LATD3
 #define BP_CS_LAT LATDbits.LATD4
 #define BP_AUX0_LAT LATDbits.LATD5
-#define BP_AUX1_LAT LATDbits.LATD8
-#define BP_AUX2_LAT LATDbits.LATD0
 #define BP_LEDMODE PORTBbits.RB8 // single MODE led on v2a
 #define BP_VREGEN PORTBbits.RB9  // single vreg enable pin on v2a
 #define BP_PULLUP PORTEbits.RE4  // Pull-up pin on V2a

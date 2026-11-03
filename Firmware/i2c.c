@@ -391,6 +391,14 @@ void i2c_setup_prepare(void) {
   }
 
   mode_configuration.high_impedance = ON;
+#ifdef BUSPIRATEV4
+  /*
+   * A new session starts on the external bus; the onboard-EEPROM macro
+   * must not leak its I2C1 routing into the next session.
+   */
+  i2c_state.to_eeprom = false;
+#endif /* BUSPIRATEV4 */
+
   bitbang_i2c_clear_error();
 
   /*

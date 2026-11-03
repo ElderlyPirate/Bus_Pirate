@@ -1033,7 +1033,7 @@ rawI2C mode:
 
 void binary_io_enter_i2c_mode(void) {
   static unsigned char inByte, rawCommand, i;
-  unsigned int fw, fr;
+  unsigned int fr;
 
   /*
    * The byte transport below (i2c_write()/i2c_read() ->
@@ -1161,7 +1161,8 @@ void binary_io_enter_i2c_mode(void) {
           break;
 
         default:
-          fw = 0;
+          /* The sub-command is unknown: report failure. */
+          fr = 0;
           break;
         }
 

@@ -1291,6 +1291,14 @@ void handle_pic_command_write_and_read_commands(void) {
   }
 }
 
+/*
+ * SMPS request encoding (intended, per the module review): the low nibble
+ * of a request carries the 12-bit output-voltage high bits, with 0x0 and
+ * 0x1 reserved for the fixed GET/STOP requests.  Start requests therefore
+ * begin at 0xF2 (= 0x2000, the SMPS board's minimum), so 0xF0/0xF1 can
+ * never collide with a start value and the 0x0000..0x1FFF range is
+ * unreachable by design.
+ */
 void handle_smps_command(const smps_command command) {
 #if defined(BP_ENABLE_SMPS_SUPPORT)
   switch (command) {

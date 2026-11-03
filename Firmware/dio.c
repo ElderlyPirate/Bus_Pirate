@@ -20,7 +20,7 @@
 #ifdef BP_ENABLE_DIO_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 
 extern mode_configuration_t mode_configuration;
 

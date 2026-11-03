@@ -21,6 +21,7 @@
 #include "selftest.h"
 
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "core.h"
 
 /**

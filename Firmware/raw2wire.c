@@ -19,7 +19,7 @@
 
 #ifdef BP_ENABLE_RAW_2WIRE_SUPPORT
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
 #include "bitbang.h"
 #include "proc_menu.h"

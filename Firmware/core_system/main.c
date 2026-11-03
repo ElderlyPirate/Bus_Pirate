@@ -21,7 +21,7 @@
 #include "basic.h"
 #include "core.h"
 #include "proc_menu.h"
-#include "selftest.h"
+#include "capability_selftest/selftest.h"
 
 #ifdef BUSPIRATEV4
 

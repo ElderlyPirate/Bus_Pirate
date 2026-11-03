@@ -56,6 +56,19 @@
 #define BP_MISO PORTBbits.RB7
 #define BP_CS PORTBbits.RB6
 #define BP_AUX0 PORTBbits.RB10   // moved pin5 (AUX) to RB10
+
+/*
+ * Latch aliases for driving the bus pins.  A write through the PORTx
+ * macros is a read-modify-write whose read side returns the pin levels
+ * (DS39897C 10.1), so consecutive pin writes re-latch each other with
+ * stale levels; outputs are driven through the latches instead.  Reads
+ * keep using the PORTx macros above.
+ */
+#define BP_MOSI_LAT LATBbits.LATB9
+#define BP_CLK_LAT LATBbits.LATB8
+#define BP_MISO_LAT LATBbits.LATB7
+#define BP_CS_LAT LATBbits.LATB6
+#define BP_AUX0_LAT LATBbits.LATB10
 #define BP_LEDMODE PORTAbits.RA1 // single MODE led on v2a
 #define BP_VREGEN PORTAbits.RA0  // single vreg enable pin on v2a
 #define BP_PULLUP PORTBbits.RB11 // Pull-up pin on V2a

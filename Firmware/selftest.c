@@ -101,11 +101,11 @@ uint8_t perform_selftest(bool show_progress, bool jumper_test) {
 
   /* Check whether AUX0 goes HIGH when requested. */
 
-  BP_AUX0 = HIGH;
+  BP_AUX0_LAT = HIGH;
   BP_AUX0_DIR = OUTPUT;
   BPMSG1165;
   check_result(BP_AUX0, HIGH);
-  BP_AUX0 = LOW;
+  BP_AUX0_LAT = LOW;
   BP_AUX0_DIR = INPUT;
 
   /* Check whether the LED line goes HIGH when requested. */

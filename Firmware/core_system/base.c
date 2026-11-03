@@ -23,6 +23,7 @@
 
 #include "base.h"
 #include "core.h"
+#include "aux_pin.h"
 
 #ifdef BUSPIRATEV4
 #include "core_usb/cdc.h"
@@ -181,7 +182,7 @@ void bp_reset_board_state(void) {
 #endif /* BUSPIRATEv4 */
 
   /* Detach source from the currently-set AUX pin. */
-  BP_AUX_RPOUT = OFF;
+  bp_aux_pin_reset_state();
 
   bus_pirate_configuration.bus_mode = BP_HIZ;
   clear_mode_configuration();

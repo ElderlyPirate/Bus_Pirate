@@ -255,7 +255,7 @@ void bp_pwm_setup(void) {
   uint16_t pwm_duty_cycle;
   uint16_t pwm_frequency;
   uint16_t pwm_divisor;
-  float pwm_period_float;
+  uint16_t pwm_duty;
   bool valid_arguments;
 
   stop_timers();
@@ -307,10 +307,10 @@ void bp_pwm_setup(void) {
   consumewhitechars();
   pwm_frequency = getint();
   consumewhitechars();
-  pwm_period_float = getint();
+  pwm_duty = getint();
 
   valid_arguments = ((pwm_frequency > 0) && (pwm_frequency < 4000) &&
-                     ((pwm_period_float > 0) && (pwm_period_float < 100)));
+                     ((pwm_duty > 0) && (pwm_duty < 100)));
 
   if (!valid_arguments) {
     mode_configuration.command_error = NO;
@@ -324,11 +324,15 @@ void bp_pwm_setup(void) {
 
   if (!valid_arguments) {
     BPMSG1033;
-    pwm_period_float = getnumber(50, 0, 99, 0);
+    pwm_duty = getnumber(50, 0, 99, 0);
   }
 
-  pwm_period_float /= 100;
-  pwm_duty_cycle = pwm_period * pwm_period_float;
+  /*
+   * Duty in percent of the period.  pwm_period stays within 64 ticks (the
+   * prescaler table caps it; see setup_prescaler_divisor), so the 16-bit
+   * product cannot overflow and the /100 constant folds to a multiply.
+   */
+  pwm_duty_cycle = (pwm_period * pwm_duty) / 100;
 
   /* Assign output source to AUX pin. */
   AUXPIN_RPOUT = OC5_IO;
@@ -430,7 +434,7 @@ void bp_frequency_counter_setup(void) {
       BPMSG1245;
       period = average_sample_frequency(frequency);
       if (period > 400000) {
-        frequency = 16e11 / period;
+        frequency = 1600000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 100000);
         user_serial_transmit_character('.');
         frequency = frequency % 100000;
@@ -451,7 +455,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 126491) {
-        frequency = 16e10 / period;
+        frequency = 160000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 10000);
         user_serial_transmit_character('.');
         frequency = frequency % 10000;
@@ -469,7 +473,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 40000) {
-        frequency = 16e9 / period;
+        frequency = 16000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 1000);
         user_serial_transmit_character('.');
         frequency = frequency % 1000;
@@ -484,7 +488,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 12649) {
-        frequency = 16e8 / period;
+        frequency = 1600000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 100);
         user_serial_transmit_character('.');
         frequency = frequency % 100;
@@ -495,7 +499,7 @@ void bp_frequency_counter_setup(void) {
         goto write_marker;
       }
 
-      frequency = 16e7 / period;
+      frequency = 160000000ULL / period;
       bp_write_dec_dword_friendly(frequency / 10);
       user_serial_transmit_character('.');
       bp_write_dec_byte(frequency % 10);
@@ -1086,7 +1090,7 @@ void bp_servo_setup(void) {
   uint16_t period;
   uint16_t duty_cycle;
   bool keep_asking;
-  float pwm_period;
+  int16_t position;
 
   stop_timers();
 
@@ -1134,11 +1138,12 @@ void bp_servo_setup(void) {
 
   cmdstart = (cmdstart + 1) & CMDLENMSK;
   consumewhitechars();
-  pwm_period = getint();
-  if ((mode_configuration.command_error == YES)|| (pwm_period > 180)) {
+  position = getint();
+  if ((mode_configuration.command_error == YES) || (position < 0) ||
+      (position > 180)) {
     mode_configuration.command_error = NO;
     BPMSG1254;
-    pwm_period = getnumber(90, 0, 180, 0);
+    position = getnumber(90, 0, 180, 0);
     keep_asking = true;
   }
 
@@ -1146,8 +1151,13 @@ void bp_servo_setup(void) {
     T2CONbits.TCKPS1 = ON;
     T2CONbits.TCKPS0 = ON;
     period = 1250;
-    pwm_period /= 3500;
-    duty_cycle = (period * pwm_period) + 62;
+    /*
+     * Pulse width for the 20 ms frame (1250+1 ticks at 16 us): the
+     * position in degrees maps to the classic 1..2 ms servo pulse as
+     * duty = period * position / 3500 + 62, which reduces to
+     * position * 5 / 14 + 62 in exact integer maths (no float).
+     */
+    duty_cycle = ((position * 5) / 14) + 62;
     AUXPIN_RPOUT = OC5_IO;
     OC5R = duty_cycle;
     OC5RS = duty_cycle;
@@ -1195,8 +1205,8 @@ void bp_servo_setup(void) {
     state.mode = AUX_MODE_PWM;
 
     if (keep_asking) {
-      pwm_period = getnumber(-1, 0, 180, 1);
-      if (pwm_period < 0) {
+      position = getnumber(-1, 0, 180, 1);
+      if (position < 0) {
         bpBR;
         return;
       }

@@ -12,7 +12,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build" / "avrisp-tests"
 OUT.mkdir(parents=True, exist_ok=True)
-for source in ROOT.glob("avrisp_*"):
+for source in (ROOT / "programmer_avrisp").glob("avrisp_*"):
     text = source.read_text()
     if source.suffix == ".c":
         text = re.sub(r"#pragma interrupt[^\n]*", "", text)

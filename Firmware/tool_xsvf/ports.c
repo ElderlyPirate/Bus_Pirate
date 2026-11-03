@@ -17,8 +17,15 @@
 static unsigned char buf[MAX_BUFFER]; //buffer to hold incoming bytes
 static unsigned int bufBytes=0, bufPointer=0;
 
+#define XSVF_STREAM_TIMEOUT_MS 5000
+
+/* Set when the host stops feeding a chunk; the player then aborts at the
+   next command boundary instead of parking the port until a power cycle. */
+bool xsvf_stream_stalled = false;
+
 void xsvf_setup(void){
         bufBytes=0;
+        xsvf_stream_stalled = false;
         JTAGTDI_TRIS=0;
         JTAGTCK_TRIS=0;
         JTAGTDO_TRIS=1;
@@ -31,6 +38,30 @@ void setPort(short p,short val){
     if (p==TCK) {JTAGTCK = (unsigned char) val;}//  bpDelayUS(50);}
 }
 
+static int xsvf_wait_byte(unsigned char *out){
+        uint32_t waited = 0;
+
+        if (xsvf_stream_stalled){
+                *out = 0xff;            /* consumed as an illegal command */
+                return 0;
+        }
+
+        while (!user_serial_ready_to_read()){
+                if (++waited > XSVF_STREAM_TIMEOUT_MS){
+                        /* The host vanished mid-chunk: give up after a
+                           generous wait so the port can be recovered with
+                           the 0x0F escape instead of a power cycle. */
+                        xsvf_stream_stalled = true;
+                        *out = 0xff;
+                        return 0;
+                }
+                bp_delay_ms(1);
+        }
+
+        *out = user_serial_read_byte();
+        return 1;
+}
+
 void readByte(unsigned char *data){
         unsigned int i;
         unsigned char bh, bl;
@@ -38,12 +69,15 @@ void readByte(unsigned char *data){
         if(bufBytes==0){
                 do{
                 user_serial_transmit_character(0xff);
-       //--- while(U1STAbits.URXDA == 0);  //--- dont use it as already in UART1RX => dead lock
-                bh=user_serial_read_byte();//get up to 255 bytes each time
-                bl=user_serial_read_byte();//get up to 255 bytes each time
+                        xsvf_wait_byte(&bh);    //chunk length, big endian
+                        xsvf_wait_byte(&bl);
                 bufBytes=(bh<<8)|bl;
+                if (xsvf_stream_stalled){
+                        bufBytes = 0;
+                }
                 for(i=0; i<bufBytes; i++){
-                        unsigned char incoming=user_serial_read_byte();
+                        unsigned char incoming;
+                        xsvf_wait_byte(&incoming);
 
                         /* Drain-discard anything past the buffer: a
                            hostile or desynced 16-bit chunk length must
@@ -59,7 +93,13 @@ void readByte(unsigned char *data){
                 bufPointer=0;
                 /* a zero-length chunk is not data: re-request; it previously
                    underflowed bufBytes (0-1 -> 0xFFFF) and served stale .bss. */
-                }while(bufBytes==0);
+                }while(bufBytes==0 && !xsvf_stream_stalled);
+                if (xsvf_stream_stalled && bufBytes==0){
+                        /* keep the serve below defined: 0xFF is an illegal
+                           command, so the player exits at the next step */
+                        buf[0] = 0xff;
+                        bufBytes = 1;
+                }
         }
 
         (*data)=buf[bufPointer];

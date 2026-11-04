@@ -60,11 +60,11 @@ PREFIX = r'''
 #define MASKBOTTOM16(v,b) ((uint16_t)(v) & ((1u << (b))-1u))
 static struct { unsigned numbits, int16, high_impedance, speed, periodicService, alternate_aux,
                          little_endian, write_with_read, command_error; } mode_configuration;
-static struct { unsigned display_mode, terminal_speed, bus_mode; } bus_pirate_configuration;
+static struct { unsigned display_mode, terminal_speed, bus_mode, quiet, basic; } bus_pirate_configuration;
 static struct { char data[256]; unsigned char guard[8]; } ring;
 #define cmdbuf ring.data
 static unsigned int cmdstart, cmdend;
-static struct { unsigned cursor_position, history_entry_counter, binary_mode_counter, escape_state; } menu_state;
+static struct { unsigned cursor_position, history_entry_counter, binary_mode_counter, escape_state; bool command_present; } menu_state;
 static unsigned values[32], used, serial_reads;
 static const char *input = "";
 static unsigned readpos;
@@ -187,6 +187,15 @@ int main(void) {
     update_binary_prefix(2); assert(menu_state.binary_mode_counter==5);
     puts("PASS only consecutive NUL/raw-STX prefixes survive normal input");
 }'''),
+    "reset": ("proc_menu.c", ["reset_terminal_state"], r'''
+int main(void) {
+    memset(&menu_state,0xff,sizeof(menu_state)); cmdend=37; user_macro=1;
+    bus_pirate_configuration.quiet=1; bus_pirate_configuration.display_mode=RAW;
+    reset_terminal_state();
+    assert(cleaned==1 && reset_board==1 && !user_macro && !bus_pirate_configuration.quiet);
+    assert(menu_state.cursor_position==37 && !menu_state.escape_state && !menu_state.binary_mode_counter && !menu_state.command_present);
+    puts("PASS simulated reset clears protocol/editor state without jumping into parser locals");
+}'''),
 }
 
 
@@ -197,6 +206,10 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "reset":
+        prefix += "static int cleaned, reset_board, user_macro;\nstatic void cleanup(void) {cleaned++;}\n"
+        prefix += "static struct { void (*cleanup)(void); } enabled_protocols[1] = {{cleanup}};\n"
+        prefix += "static void bp_reset_board_state(void) { reset_board++; }\nstatic void bp_disable_usb_led(void) {}\n"
     if name == "escape":
         prefix += "static unsigned keys[7];\n"
         for i, key in enumerate(("left_arrow", "right_arrow", "up_arrow", "down_arrow", "home_key", "end_key", "delete")):

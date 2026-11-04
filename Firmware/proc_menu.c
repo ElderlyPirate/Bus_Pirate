@@ -273,6 +273,20 @@ typedef struct {
  */
 static menu_state_t menu_state = {0};
 
+static void reset_terminal_state(void) {
+  enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
+  bp_reset_board_state();
+  bp_disable_usb_led();
+  bus_pirate_configuration.quiet = NO;
+  bus_pirate_configuration.display_mode = HEX;
+#ifdef BP_ENABLE_BASIC_SUPPORT
+  bus_pirate_configuration.basic = NO;
+#endif
+  memset(&menu_state, 0, sizeof(menu_state));
+  menu_state.cursor_position = cmdend;
+  user_macro = 0;
+}
+
 static void update_binary_prefix(uint8_t character) {
   /* Only consecutive NULs followed by raw STX may request SUMP. ANSI cursor
    * keys and ordinary typing must not retain an old binary-entry prefix. */
@@ -415,9 +429,11 @@ void serviceuser(void) {
         if (menu_state.binary_mode_counter == 20) {
           enter_binary_bitbang_mode();
 #ifdef BUSPIRATEV4
-          menu_state.binary_mode_counter = 0;
-          /* Simulate reset. */
-          goto bpv4reset;
+          reset_terminal_state();
+          cmdstart = cmdend;
+          cmdbuf[cmdend] = 0;
+          print_version_info();
+          bp_write_string("HiZ>");
 #endif /* BUSPIRATEV4 */
         }
         break;
@@ -595,7 +611,8 @@ void serviceuser(void) {
       case '#':
 #ifdef BUSPIRATEV4
         MSG_RESET_MESSAGE;
-      bpv4reset:
+        reset_terminal_state();
+        cmdstart = (cmdend - 1) & CMDLENMSK;
         print_version_info();
 #else
         BPMSG1093;
@@ -1927,7 +1944,9 @@ void handle_left_arrow(void) {
 #ifdef BP_ENABLE_SUMP_SUPPORT
   if (menu_state.binary_mode_counter >= 5) {
     enter_sump_mode();
-    menu_state.binary_mode_counter = 0;
+    reset_terminal_state();
+    cmdstart = cmdend;
+    cmdbuf[cmdend] = 0;
     return;
   }
 #endif /* BP_ENABLE_SUMP_SUPPORT */

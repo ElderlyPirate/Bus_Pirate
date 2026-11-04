@@ -102,6 +102,72 @@ int main(void) {
 }
 '''
 
+EP_PREFIX = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+typedef uint8_t BYTE;
+typedef struct { BYTE BDCNT, BDSTAT; BYTE *BDADDR; } BDentry;
+typedef volatile unsigned int usb_uep_t;
+#define MAX_EPNUM_USED 2
+#define USB_CALC_BD(ep,dir,pp) (2*(ep)+(dir))
+#define USB_PP_EVEN 0
+#define USB_UEP_EPSTALL 2
+#define USB_UEP_EPINEN 4
+#define USB_UEP_EPOUTEN 8
+#define UOWN 0x80
+#define DTS 0x40
+#define DTSEN 8
+#define BSTALL 4
+static BDentry usb_bdt[6];
+static usb_uep_t regs[16];
+#define USB_UEP regs
+static BYTE reply[8], packet[8];
+static BDentry inbd = {0, 0, reply}, reqbd = {0, 0, packet};
+static BDentry *EP0_Inbdp = &inbd;
+static int error, ack;
+static void usb_RequestError(void) { error++; }
+static void usb_ack_dat1(int n) { ack = n; }
+'''
+
+EP_TEST = r'''
+int main(void) {
+    BYTE states[] = {0x88, 0xc8, 0x24, 0x64, 0x84, 0xc4};
+    packet[0] = 0x82; packet[1] = USB_REQUEST_GET_STATUS;
+    packet[4] = 0x82; packet[6] = 2; regs[2] = 0x1d;
+    for (unsigned int i = 0; i < sizeof(states); ++i) {
+        usb_bdt[5].BDSTAT = states[i];
+        usb_handle_StandardEndpointRequest(&reqbd);
+        assert(!error && ack == 2 && usb_bdt[5].BDSTAT == states[i]);
+        assert(reply[0] == (i >= 4) && reply[1] == 0);
+    }
+    puts("PASS endpoint GET_STATUS is read-only; completed PID is not a halt flag");
+    return 0;
+}
+'''
+
+BOUNDS_TEST = r'''
+int main(void) {
+    BYTE indices[] = {3, 15, 0x83, 0x8f, 0x72, 0xf2, 0x81};
+    packet[0] = 0x82; packet[1] = USB_REQUEST_GET_STATUS; packet[6] = 2;
+    regs[2] = 0x1d;
+    for (unsigned int i = 0; i < sizeof(indices); ++i) {
+        packet[4] = indices[i]; error = 0;
+        usb_handle_StandardEndpointRequest(&reqbd);
+        assert(error == 1);
+    }
+    packet[4] = 0x82; packet[5] = 1; error = 0;
+    usb_handle_StandardEndpointRequest(&reqbd); assert(error == 1);
+    packet[5] = 0; packet[1] = USB_REQUEST_SET_FEATURE;
+    packet[0] = 2; packet[6] = 0; packet[2] = 1; error = 0;
+    usb_handle_StandardEndpointRequest(&reqbd); assert(error == 1);
+    puts("PASS endpoint indices, reserved bits, absent directions and feature selectors rejected");
+    (void)usb_bdt;
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -115,7 +181,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -130,6 +196,13 @@ def main():
     for name, tests in (("line", LINE_TEST), ("baud", BAUD_TEST)):
         if args.case in ("all", name):
             compile_run(PREFIX + defines + "\n" + decl, body, tests, name)
+    stack = source("dp_usb/usb_stack.c", args.revision)
+    ep_defines = "\n".join(line for line in headers.splitlines()
+                           if re.match(r"#define USB_(b|w|REQUEST_)", line))
+    for name, tests in (("endpoint", EP_TEST), ("bounds", BOUNDS_TEST)):
+        if args.case in ("all", name):
+            compile_run(EP_PREFIX + ep_defines + "\n",
+                        function(stack, "usb_handle_StandardEndpointRequest"), tests, name)
 
 
 if __name__ == "__main__":

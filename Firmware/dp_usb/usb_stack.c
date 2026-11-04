@@ -453,7 +453,8 @@ void usb_handle_StandardEndpointRequest(BDentry *bdp) {
             epnum = packet[USB_wIndex] & 0x0F;
             dir = packet[USB_wIndex] >> 7;
             epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_EVEN)];
-            if (epbd->BDSTAT &= ~BSTALL)
+            /* DS39897C pp.214-215: BSTALL is PID0 after ownership returns. */
+            if ((epbd->BDSTAT & (UOWN | BSTALL)) == (UOWN | BSTALL))
                 EP0_Inbdp->BDADDR[0] = 0x01; // EVEN BD is stall flag set?
             //epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_ODD)];
             //if (epbd->BDSTAT &= ~BSTALL)

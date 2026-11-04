@@ -96,6 +96,7 @@ entries common to both PIC families.
 #define USB_DIR_IN      1
 #define USB_PP_EVEN     0
 #define USB_PP_ODD      1
+#define NO_PINGPONG     0
 
 
 /* PIC DEFINES SPECIFIC TO PIC18 */
@@ -408,7 +409,7 @@ typedef volatile unsigned int usb_uep_t;
 #define EnableUsb()                             while(!U1CONbits.USBEN){U1CONbits.USBEN = 1;} //                U1CONbits.USBEN = 1
 #define SignalResume()                          do {U1CONbits.RESUME = 1; delay_ms(10); U1CONbits.RESUME = 0;} while(0)
 #define SuspendUsb()                            U1PWRCbits.USUSPND = 1
-#define WakeupUsb()                             do {U1PWRCbits.USUSPND = 0; while(USB_RESUME_FLAG){USB_RESUME_FLAG = 0;}} while(0)
+#define WakeupUsb()                             do {U1PWRCbits.USUSPND = 0; ClearUsbInterruptFlag(USB_RESUM);} while(0)
 
 
 /* UADDR */

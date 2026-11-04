@@ -412,7 +412,9 @@ int main(void) {
 
 
 def compile_run(prefix, body, tests, name):
-    with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
+    tmpbase = Path(tempfile.gettempdir()) / "opencode"
+    tmpbase.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=tmpbase) as tmp:
         c = Path(tmp) / (name + ".c")
         exe = c.with_suffix(".exe")
         c.write_text(prefix + body + tests, encoding="ascii")
@@ -423,7 +425,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control", "hardware"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -469,6 +471,13 @@ def main():
                     body += "\n" + function(stack, "usb_handle_StandardInterfaceRequest")
                 compile_run(EP_PREFIX + "#include <stddef.h>\n" + CONFIG_PREFIX + all_defines + "\n",
                             body, tests, name)
+    if args.case in ("all", "hardware"):
+        pic = source("dp_usb/picusb.h", args.revision).split("#if defined(PIC_24F)")[1]
+        wake = next(line for line in pic.splitlines() if line.startswith("#define WakeupUsb()"))
+        assert "ClearUsbInterruptFlag(USB_RESUM)" in wake
+        assert re.search(r"#define ClearUsbInterruptFlag\(x\)\s+U1IR = x", pic)
+        assert "volatile unsigned char BDCNT" in pic
+        print("PASS PIC24 resume uses a word W1C acknowledgement, not bit-clear polling")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
       <itemPath>../1wire.h</itemPath>
       <itemPath>../core_system/base.h</itemPath>
       <itemPath>../basic.h</itemPath>
-      <itemPath>../bitbang.h</itemPath>
+      <itemPath>../core_bitbang/bitbang.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
       <itemPath>../core_usb/descriptors.h</itemPath>
       <itemPath>../dio.h</itemPath>
@@ -69,7 +69,7 @@
       <itemPath>../1wire.c</itemPath>
       <itemPath>../core_system/base.c</itemPath>
       <itemPath>../basic.c</itemPath>
-      <itemPath>../bitbang.c</itemPath>
+      <itemPath>../core_bitbang/bitbang.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
       <itemPath>../dio.c</itemPath>
       <itemPath>../jtag.c</itemPath>
@@ -317,7 +317,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -558,7 +558,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

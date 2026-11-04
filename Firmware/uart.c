@@ -135,6 +135,9 @@ void UARTsettings(void) {
   bp_write_dec_byte(uart_settings.receive_polarity);
   bpSP;
   bp_write_dec_byte(mode_configuration.high_impedance);
+  bpSP;
+  /* This standalone UART is full-duplex; match the shared seven-field header. */
+  bp_write_dec_byte(0);
   MSG_MODE_HEADER_END;
 }
 

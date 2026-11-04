@@ -524,14 +524,17 @@ uint16_t bitbang_read_value(const bool wait_for_clock_release) {
   return value;
 }
 /**
- * Time limit, in wait-loop iterations (about one microsecond each), for a
+ * Time limit, in wait-loop iterations, for a
  * slave to release the I2C clock line it is stretching.  A bus that stays
  * stuck longer than this is abandoned so that a faulty device cannot hang
  * the Bus Pirate; the event is counted (bitbang_clock_stretch_timeouts()).
  *
- * 25 ms covers the SMBus bus timeout minimum, which bounds
- * SMBus-compatible devices (e.g. the SHT3x family, whose maximum
- * measurement stretch is 15 ms), while staying strictly bounded.
+ * This is not a wall-clock deadline: delay_short_inline(1) waits for a timer
+ * transition, and GPIO/counter/branch instructions add to each iteration.
+ * With FCY=16 MHz and the 2 MHz Timer1 (DS39897C 11.0), the XC16 -O1 V4 bench
+ * observed roughly 25 ms of waiting, not 12.5 ms. This covers the SHT3x's
+ * 15 ms measurement stretch on that build; it is not a portable SMBus timing
+ * guarantee. The finite iteration count is the implementation's hard bound.
  */
 #define BB_CLK_STRETCH_TIMEOUT 25000
 

@@ -262,7 +262,14 @@ inline void WaitInReady(void) {
 
 /******************************************************************************/
 inline BYTE getOutReady(void) {
-    return usb_device_state == CONFIGURED_STATE && !(CDC_Outbdp->BDSTAT & UOWN);
+    if (usb_device_state == CONFIGURED_STATE && !(CDC_Outbdp->BDSTAT & UOWN)) {
+        if (CDC_Outbdp->BDCNT && CDC_Outbdp->BDCNT <= CDC_BUFFER_SIZE)
+            return 1;
+        /* A ZLP is not an application byte, but must be recycled to avoid NAKing
+         * every subsequent OUT. Treat an invalid DMA count the same way. */
+        getda_cdc();
+    }
+    return 0;
 }
 
 /******************************************************************************/
@@ -291,6 +298,8 @@ BYTE getda_cdc(void) {
     }
     IsOutBufferA ^= 0xFF;
     cdc_Out_len = CDC_Outbdp->BDCNT;
+    if (cdc_Out_len > CDC_BUFFER_SIZE)
+        cdc_Out_len = 0;
     CDC_Outbdp->BDCNT = CDC_BUFFER_SIZE;
     CDC_Outbdp->BDSTAT = ((CDC_Outbdp->BDSTAT ^ DTS) & DTS) | UOWN | DTSEN;
     if (irq) EnableUsbGlobalInterrupt();

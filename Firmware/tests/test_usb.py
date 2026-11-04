@@ -410,6 +410,36 @@ int main(void) {
 }
 '''
 
+READY_PREFIX = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+typedef uint8_t BYTE;
+typedef struct { BYTE BDCNT, BDSTAT; BYTE *BDADDR; } BDentry;
+#define CONFIGURED_STATE 0x20
+#define UOWN 0x80
+#define CDC_BUFFER_SIZE 64
+static BYTE usb_device_state = CONFIGURED_STATE;
+static BDentry bd, *CDC_Outbdp = &bd;
+static int recycled;
+static BYTE getda_cdc(void) { ++recycled; bd.BDSTAT = UOWN; return 0; }
+'''
+
+READY_TEST = r'''
+int main(void) {
+    bd.BDCNT = 0; bd.BDSTAT = 0;
+    assert(!getOutReady() && recycled == 1 && bd.BDSTAT == UOWN);
+    bd.BDCNT = 65; bd.BDSTAT = 0;
+    assert(!getOutReady() && recycled == 2 && bd.BDSTAT == UOWN);
+    bd.BDCNT = 64; bd.BDSTAT = 0;
+    assert(getOutReady() && recycled == 2);
+    usb_device_state = 0; assert(!getOutReady());
+    puts("PASS OUT ZLP/invalid count recycled without advertising a byte or blocking later OUT");
+    (void)getda_cdc;
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     tmpbase = Path(tempfile.gettempdir()) / "opencode"
@@ -425,7 +455,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control", "hardware"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control", "hardware", "ready"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -478,6 +508,8 @@ def main():
         assert re.search(r"#define ClearUsbInterruptFlag\(x\)\s+U1IR = x", pic)
         assert "volatile unsigned char BDCNT" in pic
         print("PASS PIC24 resume uses a word W1C acknowledgement, not bit-clear polling")
+    if args.case in ("all", "ready"):
+        compile_run(READY_PREFIX, function(cdc, "getOutReady").replace("inline ", ""), READY_TEST, "ready")
 
 
 if __name__ == "__main__":

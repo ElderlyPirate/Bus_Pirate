@@ -333,9 +333,9 @@ void serviceuser(void) {
                 enabled_protocols[bus_pirate_configuration.bus_mode].name);
             bp_write_string(">");
             if (cmdstart != cmdend) {
-              for (size_t offset = cmdstart; offset != cmdend; offset++) {
+              for (size_t offset = cmdstart; offset != cmdend;
+                   offset = (offset + 1) & CMDLENMSK) {
                 user_serial_transmit_character(cmdbuf[offset]);
-                offset &= CMDLENMSK;
               }
             }
           }
@@ -1845,7 +1845,7 @@ void remove_current_character_from_command_line(void) {
   for (size_t index = menu_state.cursor_position; index != cmdend;
        index = (index + 1) & CMDLENMSK) {
     /* Move right-hand character over their left-hand counterpart. */
-    cmdbuf[index] = cmdbuf[index + 1];
+    cmdbuf[index] = cmdbuf[(index + 1) & CMDLENMSK];
 
     /* Write the moved character. */
     user_serial_transmit_character(cmdbuf[index] ?: ' ');
@@ -1864,8 +1864,8 @@ void remove_current_character_from_command_line(void) {
 }
 
 void handle_delete(void) {
-  if (menu_state.cursor_position == cmdstart) {
-    /* Cursor at the beginning of the line - nothing to handle. */
+  if (menu_state.cursor_position == cmdend) {
+    /* There is no character after the end cursor to delete. */
     user_serial_transmit_character(BELL);
     return;
   }
@@ -2150,7 +2150,7 @@ void handle_character(const uint8_t character) {
       bp_write_string("C");
       uint16_t offset = cmdend;
       while (offset != ((menu_state.cursor_position - 1) & CMDLENMSK)) {
-        cmdbuf[offset + 1] = cmdbuf[offset];
+        cmdbuf[(offset + 1) & CMDLENMSK] = cmdbuf[offset];
         if (cmdbuf[offset]) {
           user_serial_transmit_character(cmdbuf[offset]);
           MSG_CURSOR_LEFT_TWO;

@@ -7,7 +7,7 @@
 #ifndef lenval_dot_h
 #define lenval_dot_h
 
-#include "../base.h"
+#include "base.h"
 
 #ifdef BP_ENABLE_JTAG_SUPPORT
 

@@ -13,7 +13,7 @@
 #ifndef XSVF_MICRO_H
 #define XSVF_MICRO_H
 
-#include "../base.h"
+#include "base.h"
 
 #ifdef BP_ENABLE_JTAG_SUPPORT
 

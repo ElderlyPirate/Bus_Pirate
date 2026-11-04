@@ -140,6 +140,14 @@ bool bitbang_read_bit(const bool wait_for_clock_release);
  */
 uint16_t bitbang_clock_stretch_timeouts(void);
 
+/* Sticky status for an I2C operation; raw/non-waiting operations ignore it. */
+void bitbang_i2c_clear_error(void);
+bool bitbang_i2c_error(void);
+/* Waiting I2C signals return true on success; legacy raw signals below do not wait. */
+bool bitbang_i2c_start_wait(bp_bitbang_i2c_start_type_t type);
+bool bitbang_i2c_stop_wait(void);
+bool bitbang_i2c_write_bit(bool state);
+
 /**
  * Writes the given bit to the bus via the MOSI pin.
  *

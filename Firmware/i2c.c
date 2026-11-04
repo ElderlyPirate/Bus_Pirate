@@ -186,11 +186,25 @@ static void i2c_sniffer(bool interactive_mode);
  */
 static bool i2c_write_then_read(void);
 
+static bool i2c_check_error(void) {
+  if (i2c_state.mode == I2C_TYPE_SOFTWARE && bitbang_i2c_error()) {
+    i2c_state.acknowledgment_pending = false;
+    bp_write_line("I2C bus error");
+    mode_configuration.command_error = YES;
+    return true;
+  }
+  return false;
+}
+
 uint16_t i2c_read(void) {
   uint8_t value;
+  bitbang_i2c_clear_error();
 
   if (i2c_state.acknowledgment_pending) {
     handle_pending_ack(I2C_ACK_BIT);
+    if (i2c_check_error()) {
+      return 0xFF;
+    }
     bpSP;
     MSG_ACK;
     bpSP;
@@ -205,16 +219,23 @@ uint16_t i2c_read(void) {
     value = 0;
 #endif /* BP_I2C_USE_HW_BUS */
   }
+  if (i2c_check_error()) {
+    return 0xFF;
+  }
   i2c_state.acknowledgment_pending = true;
   return value;
 }
 
 unsigned int i2c_write(unsigned int c) {
+  bitbang_i2c_clear_error();
   if (i2c_state.acknowledgment_pending) {
+    handle_pending_ack(I2C_ACK_BIT);
+    if (i2c_check_error()) {
+      return 0x100;
+    }
     bpSP;
     MSG_ACK;
     bpSP;
-    handle_pending_ack(I2C_ACK_BIT);
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
@@ -227,6 +248,9 @@ unsigned int i2c_write(unsigned int c) {
 #endif /* BP_I2C_USE_HW_BUS */
   }
 
+  if (i2c_check_error()) {
+    return 0x100;
+  }
   bpSP;
   if (c == 0) {
     MSG_ACK;
@@ -238,6 +262,7 @@ unsigned int i2c_write(unsigned int c) {
 }
 
 void i2c_start(void) {
+  bitbang_i2c_clear_error();
   /* Reset the bus state if an acknowledgement is pending. */
 
   if (i2c_state.acknowledgment_pending) {
@@ -245,43 +270,49 @@ void i2c_start(void) {
     bpBR;
 
     handle_pending_ack(I2C_NACK_BIT);
+    if (i2c_check_error()) {
+      return;
+    }
   }
 
   /* Send a start signal on the bus. */
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    if (bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT)) {
-      /* There is a short or pull-ups are wrong. */
-      MSG_WARNING_HEADER;
-      MSG_WARNING_SHORT_OR_NO_PULLUP;
-      bpBR;
-    }
+    bitbang_i2c_start_wait(BITBANG_I2C_START_ONE_SHOT);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     hardware_i2c_start();
 #endif /* BP_I2C_USE_HW_BUS */
   }
 
-  MSG_I2C_START_BIT;
+  if (!i2c_check_error()) {
+    MSG_I2C_START_BIT;
+  }
 }
 
 void i2c_stop(void) {
+  bitbang_i2c_clear_error();
   if (i2c_state.acknowledgment_pending) {
     MSG_NACK;
     bpBR;
 
     handle_pending_ack(I2C_NACK_BIT);
+    if (i2c_check_error()) {
+      return;
+    }
   }
 
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    bitbang_i2c_stop();
+    bitbang_i2c_stop_wait();
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     hardware_i2c_stop();
 #endif /* BP_I2C_USE_HW_BUS */
   }
 
-  MSG_I2C_STOP_BIT;
+  if (!i2c_check_error()) {
+    MSG_I2C_STOP_BIT;
+  }
 }
 
 void i2c_print_settings(void) {
@@ -360,6 +391,7 @@ void i2c_setup_prepare(void) {
   }
 
   mode_configuration.high_impedance = ON;
+  bitbang_i2c_clear_error();
 }
 
 void i2c_setup_execute(void) {
@@ -411,6 +443,7 @@ void i2c_macro(unsigned int c) {
     break;
 
   case 1:
+    bitbang_i2c_clear_error();
     // setup both lines high first
     bitbang_set_pins_high(MOSI | CLK, 0);
     BPMSG1070;
@@ -428,7 +461,7 @@ void i2c_macro(unsigned int c) {
 
     for (i = 0; i < 0x100; i++) {
       if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-        bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT); // send start
+        bitbang_i2c_start_wait(BITBANG_I2C_START_ONE_SHOT);
         bitbang_write_value(i, true);                        // send address
         c = bitbang_read_bit(true);                        // look for ack
       } else {
@@ -439,6 +472,9 @@ void i2c_macro(unsigned int c) {
 #endif /* BP_I2C_USE_HW_BUS */
       }
 
+      if (i2c_check_error()) {
+        return;
+      }
       if (c == I2C_ACK_BIT) {
         bp_write_formatted_integer(i);
         user_serial_transmit_character('(');
@@ -449,7 +485,7 @@ void i2c_macro(unsigned int c) {
         } else {
           if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
             bitbang_read_value(true);
-            bitbang_write_bit(HIGH);
+            bitbang_i2c_write_bit(HIGH);
           } else {
 #ifdef BP_I2C_USE_HW_BUS
             hardware_i2c_read();
@@ -461,11 +497,14 @@ void i2c_macro(unsigned int c) {
       }
 
       if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-        bitbang_i2c_stop();
+        bitbang_i2c_stop_wait();
       } else {
 #ifdef BP_I2C_USE_HW_BUS
         hardware_i2c_stop();
 #endif /* BP_I2C_USE_HW_BUS */
+      }
+      if (i2c_check_error()) {
+        return;
       }
     }
     bpBR;
@@ -916,7 +955,7 @@ void i2c_sniffer(bool interactive_mode) {
 
 void handle_pending_ack(const bool bus_bit) {
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
-    bitbang_write_bit(bus_bit);
+    bitbang_i2c_write_bit(bus_bit);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
     hardware_i2c_send_ack(bus_bit);
@@ -956,6 +995,7 @@ void binary_io_enter_i2c_mode(void) {
   mode_configuration.high_impedance = ON;
   mode_configuration.little_endian = NO;
   bitbang_setup(2, BITBANG_SPEED_MAXIMUM);
+  bitbang_i2c_clear_error();
   MSG_I2C_MODE_IDENTIFIER;
 
   for (;;) {
@@ -975,27 +1015,33 @@ void binary_io_enter_i2c_mode(void) {
         break;
 
       case 2: // I2C start bit
-        bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
-        REPORT_IO_SUCCESS();
+        bitbang_i2c_clear_error();
+        user_serial_transmit_character(
+            bitbang_i2c_start_wait(BITBANG_I2C_START_ONE_SHOT));
         break;
 
       case 3: // I2C stop bit
-        bitbang_i2c_stop();
-        REPORT_IO_SUCCESS();
+        bitbang_i2c_clear_error();
+        user_serial_transmit_character(bitbang_i2c_stop_wait());
         break;
 
       case 4: // I2C read byte
+        bitbang_i2c_clear_error();
         user_serial_transmit_character(bitbang_read_value(true));
         break;
 
       case 6: // I2C send ACK
-        bitbang_write_bit(LOW);
-        REPORT_IO_SUCCESS();
+        bitbang_i2c_clear_error();
+        user_serial_transmit_character(bitbang_i2c_write_bit(LOW));
         break;
 
       case 7: // I2C send NACK
-        bitbang_write_bit(HIGH);
-        REPORT_IO_SUCCESS();
+        bitbang_i2c_clear_error();
+        user_serial_transmit_character(bitbang_i2c_write_bit(HIGH));
+        break;
+
+      case 0x0A: // Last bus operation status (read-byte framing stays compatible)
+        user_serial_transmit_character(!bitbang_i2c_error());
         break;
 
       case 8: // write-then-read
@@ -1067,6 +1113,7 @@ void binary_io_enter_i2c_mode(void) {
       break;
 
     case 0b0001:            // get x+1 bytes
+      bitbang_i2c_clear_error();
       inByte &= 0b00001111; // clear command portion
       inByte++;             // increment by 1, 0=1byte
       REPORT_IO_SUCCESS();
@@ -1105,6 +1152,7 @@ void binary_io_enter_i2c_mode(void) {
 }
 
 bool i2c_write_then_read(void) {
+  bitbang_i2c_clear_error();
   /* Read the amount of bytes to write. */
   size_t bytes_to_write = user_serial_read_big_endian_word();
   
@@ -1137,10 +1185,15 @@ bool i2c_write_then_read(void) {
   i2c_address = user_serial_read_byte();
 
   /* Start streaming. */
-  bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
+  if (!bitbang_i2c_start_wait(BITBANG_I2C_START_ONE_SHOT)) {
+    return false;
+  }
 
   /* Stream data from the serial port. */
   bitbang_write_value(i2c_address, true);
+  if (bitbang_read_bit(true) == HIGH) {
+    return false;
+  }
 
   for (size_t counter = 1; counter < bytes_to_write; counter++) {
     bitbang_write_value(user_serial_read_byte(), true);
@@ -1162,7 +1215,9 @@ bool i2c_write_then_read(void) {
   i2c_address = bus_pirate_configuration.terminal_input[0];
 
   /* Signal write start. */
-  bitbang_i2c_start(BITBANG_I2C_START_ONE_SHOT);
+  if (!bitbang_i2c_start_wait(BITBANG_I2C_START_ONE_SHOT)) {
+    return false;
+  }
 
   /* Write the payload to the I2C bus. */
   for (size_t index = 0; index < bytes_to_write; index++) {
@@ -1178,7 +1233,9 @@ bool i2c_write_then_read(void) {
 
   if ((bytes_to_read > 0) && (bytes_to_write > 1)) {
     /* Send a restart signal on the I2C bus. */
-    bitbang_i2c_start(BITBANG_I2C_RESTART);
+    if (!bitbang_i2c_start_wait(BITBANG_I2C_RESTART)) {
+      return false;
+    }
 
     /* Send the I2C address. */
     bitbang_write_value(i2c_address | 0x01, true);
@@ -1199,14 +1256,22 @@ bool i2c_write_then_read(void) {
 
   for (size_t counter = 0; counter < bytes_to_read; counter++) {
     /* Read byte from the I2C bus. */
-    user_serial_transmit_character(bitbang_read_value(true));
+    uint16_t value = bitbang_read_value(true);
+    if (bitbang_i2c_error()) {
+      return false;
+    }
+    user_serial_transmit_character(value);
     
     /* Acknowledge read operation. */
-    bitbang_write_bit(counter >= bytes_to_write ? HIGH : LOW);
+    if (!bitbang_i2c_write_bit(counter >= bytes_to_write ? HIGH : LOW)) {
+      return false;
+    }
   }
 
   /* Stop the I2C bus. */
-  bitbang_i2c_stop();
+  if (!bitbang_i2c_stop_wait()) {
+    return false;
+  }
 
 #else
 
@@ -1214,12 +1279,20 @@ bool i2c_write_then_read(void) {
     /* Read the byte from the I2C bus. */
     bus_pirate_configuration.terminal_input[index] = bitbang_read_value(true);
 
+    if (bitbang_i2c_error()) {
+      return false;
+    }
+
     /* Report ACK or NACK depending on the length. */
-    bitbang_write_bit(index >= bytes_to_write ? HIGH : LOW);
+    if (!bitbang_i2c_write_bit(index >= bytes_to_write ? HIGH : LOW)) {
+      return false;
+    }
   }
 
   /* Stop the I2C bus operations. */
-  bitbang_i2c_stop();
+  if (!bitbang_i2c_stop_wait()) {
+    return false;
+  }
 
   /* Report operation status. */
   REPORT_IO_SUCCESS();

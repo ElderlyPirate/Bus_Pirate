@@ -101,12 +101,90 @@ static const bitbang_delays_t *delay_profile;
  * timeout used to be silent).  Saturating.
  */
 static uint16_t bitbang_clk_stretch_timeouts = 0;
+static bool i2c_error = false;
 
 uint16_t bitbang_clock_stretch_timeouts(void) {
   return bitbang_clk_stretch_timeouts;
 }
 
 static bool bitbang_wait_for_clock_release(void);
+
+void bitbang_i2c_clear_error(void) { i2c_error = false; }
+
+bool bitbang_i2c_error(void) { return i2c_error; }
+
+static void bitbang_i2c_abort(void) {
+  i2c_error = true;
+  IODIR |= MOSI | CLK;
+}
+
+/* I2C high time starts on the wire's rise, not when we release the pin. */
+static bool bitbang_i2c_clock_high(void) {
+  if (i2c_error) {
+    return false;
+  }
+  bitbang_set_pins_high(CLK, 0);
+  if (!bitbang_wait_for_clock_release()) {
+    bitbang_i2c_abort();
+    return false;
+  }
+  if (delay_profile->clock) {
+    bp_delay_us(delay_profile->clock);
+  }
+  return true;
+}
+
+bool bitbang_i2c_start_wait(bp_bitbang_i2c_start_type_t type) {
+  if (i2c_error) {
+    return false;
+  }
+  if (type == BITBANG_I2C_RESTART) {
+    bitbang_set_pins_low(CLK, delay_profile->clock);
+  }
+  /* Release SDA while SCL is still low on a repeated START. */
+  bitbang_set_pins_high(MOSI, delay_profile->clock);
+  if (!bitbang_i2c_clock_high()) {
+    return false;
+  }
+  if (!bitbang_read_pin(MOSI)) {
+    bitbang_i2c_abort();
+    return false;
+  }
+  bitbang_set_pins_low(MOSI, delay_profile->clock);
+  bitbang_set_pins_low(CLK, delay_profile->clock);
+  bitbang_set_pins_high(MOSI, delay_profile->clock);
+  return true;
+}
+
+bool bitbang_i2c_stop_wait(void) {
+  if (i2c_error) {
+    return false;
+  }
+  bitbang_set_pins_low(CLK, delay_profile->clock);
+  bitbang_set_pins_low(MOSI, delay_profile->clock);
+  if (!bitbang_i2c_clock_high()) {
+    return false;
+  }
+  /* Never signal STOP by moving SDA before the actual SCL high phase. */
+  bitbang_set_pins_high(MOSI, delay_profile->clock);
+  if (!bitbang_read_pin(MOSI)) {
+    bitbang_i2c_abort();
+    return false;
+  }
+  return true;
+}
+
+bool bitbang_i2c_write_bit(bool state) {
+  if (i2c_error) {
+    return false;
+  }
+  bitbang_set_pins(state, MOSI, delay_profile->settle);
+  if (!bitbang_i2c_clock_high()) {
+    return false;
+  }
+  bitbang_set_pins_low(CLK, delay_profile->clock);
+  return true;
+}
 
 void bitbang_setup(unsigned char bitbang_pins, const bp_bitbang_speed_t speed) {
   miso_pin = (bitbang_pins == 3) ? MISO : MOSI;
@@ -181,22 +259,20 @@ void bitbang_write_value(const uint16_t value,
   uint16_t temporary;
   uint16_t bit_index;
   size_t count;
-  bool wait = wait_for_clock_release;
 
   bit_index = 1 << (mode_configuration.numbits - 1);
   temporary = value;
+  if (wait_for_clock_release && i2c_error) {
+    return;
+  }
   for (count = 0; count < mode_configuration.numbits; count++) {
     bitbang_set_pins(temporary & bit_index, MOSI, delay_profile->settle);
-    bitbang_set_pins_high(CLK, delay_profile->clock);
-
-    /*
-     * I2C: hold the bit until the slave is ready for the edge - a slave
-     * may stretch the clock within a written byte, not only at the
-     * acknowledge.  After a timeout the rest of this byte stops waiting
-     * (the bus is known to be stuck; the event is counted once).
-     */
-    if (wait) {
-      wait = bitbang_wait_for_clock_release();
+    if (wait_for_clock_release) {
+      if (!bitbang_i2c_clock_high()) {
+        return;
+      }
+    } else {
+      bitbang_set_pins_high(CLK, delay_profile->clock);
     }
 
     bitbang_set_pins_low(CLK, delay_profile->clock);
@@ -207,22 +283,22 @@ void bitbang_write_value(const uint16_t value,
 uint16_t bitbang_read_value(const bool wait_for_clock_release) {
   size_t count;
   uint16_t value;
-  bool wait = wait_for_clock_release;
+
+  if (wait_for_clock_release && i2c_error) {
+    return 0xFFFF;
+  }
 
   /* Setup for input. */
   bitbang_read_pin(MOSI);
   value = 0;
 
   for (count = 0; count < mode_configuration.numbits; count++) {
-    bitbang_set_pins_high(CLK, delay_profile->clock);
-
-    /*
-     * I2C: sample only once the slave has released the clock - it may
-     * stretch within a read byte, not only at the acknowledge.  After a
-     * timeout the rest of this byte stops waiting (counted once).
-     */
-    if (wait) {
-      wait = bitbang_wait_for_clock_release();
+    if (wait_for_clock_release) {
+      if (!bitbang_i2c_clock_high()) {
+        return 0xFFFF;
+      }
+    } else {
+      bitbang_set_pins_high(CLK, delay_profile->clock);
     }
 
     value = (value << 1) | bitbang_read_pin(MOSI);
@@ -283,22 +359,20 @@ static bool bitbang_wait_for_clock_release(void) {
 bool bitbang_read_bit(const bool wait_for_clock_release) {
   bool bit_value;
 
+  if (wait_for_clock_release && i2c_error) {
+    return true;
+  }
+
   /* Set the MISO pin as input. */
   bitbang_read_pin(miso_pin);
 
   /* Set CLK high. With an open collector output this releases the line. */
-  bitbang_set_pins_high(CLK, delay_profile->clock);
-
-  if (wait_for_clock_release && !bitbang_wait_for_clock_release()) {
-    /*
-     * The slave never released the clock, so the acknowledge is unknown:
-     * report "not acknowledged" (high) instead of sampling a stuck bus,
-     * so callers cannot mistake a timeout for a valid ACK.  The timeout
-     * itself is counted (bitbang_clock_stretch_timeouts()).
-     */
-    bitbang_set_pins_low(CLK, delay_profile->clock);
-
-    return true;
+  if (wait_for_clock_release) {
+    if (!bitbang_i2c_clock_high()) {
+      return true;
+    }
+  } else {
+    bitbang_set_pins_high(CLK, delay_profile->clock);
   }
 
   /* Read value. */

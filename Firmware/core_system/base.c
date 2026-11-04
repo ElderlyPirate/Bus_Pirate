@@ -346,7 +346,7 @@ inline uint8_t bp_reverse_byte(const uint8_t value) {
 
 inline uint16_t bp_reverse_word(const uint16_t value) {
 #ifdef BUSPIRATEV4
-  return (REVERSED_BITS_TABLE[value & 0xFF] << 8) |
+  return ((uint16_t)REVERSED_BITS_TABLE[value & 0xFF] << 8) |
          REVERSED_BITS_TABLE[value >> 8];
 #else
   return bp_reverse_integer(value, 16);
@@ -355,7 +355,7 @@ inline uint16_t bp_reverse_word(const uint16_t value) {
 
 uint16_t bp_reverse_integer(const uint16_t value, const uint8_t bits) {
 #ifdef BUSPIRATEV4
-  return ((REVERSED_BITS_TABLE[value & 0xFF] << 8) |
+  return (((uint16_t)REVERSED_BITS_TABLE[value & 0xFF] << 8) |
           REVERSED_BITS_TABLE[value >> 8]) >>
          ((sizeof(uint16_t) * 8) - bits);
 #else

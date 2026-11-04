@@ -281,6 +281,16 @@ int main(void) {
     bp_disable_3v3_pullup(); assert(dir33==1 && dir50==1);
     puts("PASS VPU source selection uses LAT and breaks the other source before make");
 }'''),
+    "reverse": ("base.c", ["bp_reverse_word", "bp_reverse_integer"], r'''
+int main(void) {
+    for(unsigned n=0;n<=65535;++n) {
+        uint16_t expected=0;
+        for(unsigned i=0;i<16;++i) expected=(uint16_t)((expected<<1)|((n>>i)&1u));
+        assert(bp_reverse_word(n)==expected);
+        for(unsigned bits=1;bits<=16;++bits) assert(bp_reverse_integer(n,bits)==(expected>>(16-bits)));
+    }
+    puts("PASS 65536 word reversals and 1048576 partial-width reversals");
+}'''),
 }
 
 
@@ -290,7 +300,10 @@ def run_case(name, revision):
     if name == "escape" and "static bool handle_escape_sequence(uint8_t character) {" in src:
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
+    if name == "reverse": body = body.replace("inline ", "")
     prefix = PREFIX
+    if name == "reverse":
+        prefix += re.search(r"static const uint8_t REVERSED_BITS_TABLE\[\] = \{.*?\};",src,re.S)[0]+"\n"
     if name == "vpu_latch":
         prefix += "#define INPUT 1\n#define OUTPUT 0\n#define LOW 0\nstatic unsigned select33,select50,dir33,dir50,pin33,pin50;\n"
         prefix += "#define BP_PUVSEL33_LAT select33\n#define BP_PUVSEL50_LAT select50\n#define BP_PUVSEL33_DIR dir33\n#define BP_PUVSEL50_DIR dir50\n#define BP_PUVSEL33 pin33\n#define BP_PUVSEL50 pin50\n"

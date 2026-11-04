@@ -52,6 +52,9 @@ Secondary pre-read results:
   writes from PORTF to LATF, preserving break-before-make and the low-latch
   open-drain policy. Five-volt source injection is not used on the attached
   3.3 V fixture; the source/MMIO proof covers that leg.
+- Bit-reversal table entries are cast to uint16 before shifting: otherwise
+  uint8 promotes to signed 16-bit int and high-byte values overflow that
+  signed shift. Exhaustive word/partial-width reference checks cover it.
 
 The reset path cleans the old protocol and clears power, width, duplex,
 editor/prefix and pending macro state. It does not jump across initialization

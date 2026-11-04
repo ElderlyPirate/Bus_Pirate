@@ -446,6 +446,28 @@ void usb_handle_StandardEndpointRequest(BDentry *bdp) {
 
     packet = bdp->BDADDR;
 
+    epnum = packet[USB_wIndex] & 0x0f;
+    dir = packet[USB_wIndex] >> 7;
+    /* Bound the allocated BDT, not merely the silicon's endpoint count. */
+    if (packet[USB_wIndexHigh] || (packet[USB_wIndex] & 0x70) ||
+            epnum > MAX_EPNUM_USED ||
+            !(USB_UEP[epnum] & (dir ? USB_UEP_EPINEN : USB_UEP_EPOUTEN)) ||
+            packet[USB_wValue] || packet[USB_wValueHigh]) {
+        usb_RequestError();
+        return;
+    }
+    if (packet[USB_bRequest] == USB_REQUEST_GET_STATUS) {
+        if (packet[USB_bmRequestType] != 0x82 ||
+                packet[USB_wLength] != 2 || packet[USB_wLengthHigh]) {
+            usb_RequestError();
+            return;
+        }
+    } else if (packet[USB_bmRequestType] != 0x02 || epnum == 0 ||
+            packet[USB_wLength] || packet[USB_wLengthHigh]) {
+        usb_RequestError();
+        return;
+    }
+
     switch (packet[USB_bRequest]) {
         case USB_REQUEST_GET_STATUS:
             EP0_Inbdp->BDADDR[0] = 0x00; // Assume no stall

@@ -23,6 +23,10 @@ Hardware I2C uses the same bounded polling budget for every master sequence
 (SEN/RSEN, PEN, ACKEN, TRSTAT/TBF and RCEN/RBF), and for initially idle lines.
 BCL, IWCOL and I2COV abort the operation. Recovery disables the selected
 module, releases its pins and invalidates pending ACK state; a new START
-reinitializes that same bus. STAT accesses are word-wide for old v3 silicon
+reinitializes that same bus. If SDA is still held mid-read, that explicit
+new START first attempts nine open-drain recovery clocks and STOP, with a
+bounded SCL wait on each edge (SHT3x-DIS section 4.9, Interface Reset).
+This recovery is for the Bus Pirate's single-master use, not multi-master
+arbitration. STAT accesses are word-wide for old v3 silicon
 (DS39881 errata #26). See DS39897C registers 16-1/16-2 for completion and
 error bits. Successful reads still defer the ninth bit until the next command.

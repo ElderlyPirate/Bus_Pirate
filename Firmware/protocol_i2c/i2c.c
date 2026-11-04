@@ -594,8 +594,8 @@ void i2c_macro(unsigned int c) {
       break;
     }
     if (hardware_i2c_active) {
-      hardware_i2c_stop();
-      if (i2c_check_error()) {
+      i2c_stop();
+      if (hardware_i2c_error) {
         break;
       }
     }
@@ -627,7 +627,7 @@ void i2c_pins_state(void) { MSG_I2C_PINS_STATE; }
 
 #if defined(BP_I2C_USE_HW_BUS)
 
-/* DS39897C 16.1/16.4: complete each sequence and check errors before ACKSTAT.
+/* DS39897C 16.1, registers 16-1/16-2: check completion before ACKSTAT.
  * Use word-wide STAT accesses also on old v3 silicon (DS39881 errata #26). */
 #define I2C_HW_TIMEOUT 25000U
 #define I2C_HW_SEQUENCES 0x001FU
@@ -709,8 +709,70 @@ static bool hardware_i2c_wait_idle_lines(void) {
   return false;
 }
 
+static bool hardware_i2c_wait_gpio_high(uint16_t pin) {
+  uint16_t waited;
+  for (waited = 0; waited < I2C_HW_TIMEOUT; waited++) {
+    if (IOPOR & pin) {
+      return true;
+    }
+    bp_delay_us(1);
+  }
+  hardware_i2c_abort();
+  return false;
+}
+
+static bool hardware_i2c_bus_clear(void) {
+  uint16_t clock = CLK;
+  uint16_t data = MOSI;
+  uint8_t pulse;
+#ifdef BUSPIRATEV4
+  if (i2c_state.to_eeprom) {
+    clock = (1U << 10);
+    data = (1U << 9);
+  }
+#endif
+  /* A new START after a fault requests recovery of this single-master bus.
+     SHT3x-DIS 4.9 specifies nine released-SDA clocks
+     to reset an interface stranded mid-read, followed by a new START. */
+  IODIR |= clock | data;
+  IOLAT &= ~(clock | data);
+  if (!hardware_i2c_wait_gpio_high(clock)) {
+    return false;
+  }
+  if (IOPOR & data) {
+    return true;
+  }
+  for (pulse = 0; pulse < 9; pulse++) {
+    IODIR &= ~clock;
+    bp_delay_us(5);
+    IODIR |= clock;
+    if (!hardware_i2c_wait_gpio_high(clock)) {
+      return false;
+    }
+    bp_delay_us(5);
+  }
+  if (!(IOPOR & data)) {
+    hardware_i2c_abort();
+    return false;
+  }
+  IODIR &= ~clock;
+  IODIR &= ~data;
+  bp_delay_us(5);
+  IODIR |= clock;
+  if (!hardware_i2c_wait_gpio_high(clock)) {
+    return false;
+  }
+  bp_delay_us(5);
+  IODIR |= data;
+  bp_delay_us(5);
+  return true;
+}
+
 void hardware_i2c_start(void) {
   hardware_i2c_registers_t bus = hardware_i2c_registers();
+  if (hardware_i2c_error && !hardware_i2c_bus_clear()) {
+    return;
+  }
   if (hardware_i2c_error || !(*bus.con & _I2C1CON_I2CEN_MASK)) {
     hardware_i2c_setup();
   }

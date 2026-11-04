@@ -1263,14 +1263,14 @@ bool i2c_write_then_read(void) {
 
     if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
-      return false;
+      goto abort_transfer;
     }
   }
 
   if ((bytes_to_read > 0) && (bytes_to_write > 1)) {
     /* Send a restart signal on the I2C bus. */
     if (!bitbang_i2c_start_wait(BITBANG_I2C_RESTART)) {
-      return false;
+      goto abort_transfer;
     }
 
     /* Send the I2C address. */
@@ -1278,7 +1278,7 @@ bool i2c_write_then_read(void) {
 
     if (bitbang_read_bit(true) == HIGH) {
       /* No ACK read on the bus, bailing out. */
-      return false;
+      goto abort_transfer;
     }
   }
 
@@ -1290,18 +1290,18 @@ bool i2c_write_then_read(void) {
     bus_pirate_configuration.terminal_input[index] = bitbang_read_value(true);
 
     if (bitbang_i2c_error()) {
-      return false;
+      goto abort_transfer;
     }
 
     /* Report ACK or NACK depending on the length. */
     if (!bitbang_i2c_write_bit(index >= bytes_to_write ? HIGH : LOW)) {
-      return false;
+      goto abort_transfer;
     }
   }
 
   /* Stop the I2C bus operations. */
   if (!bitbang_i2c_stop_wait()) {
-    return false;
+    goto abort_transfer;
   }
 
   /* Report operation status. */
@@ -1311,6 +1311,13 @@ bool i2c_write_then_read(void) {
   bp_write_buffer(&bus_pirate_configuration.terminal_input[0], bytes_to_read);
 
   return true;
+
+abort_transfer:
+  /* A timeout has already released both pins. A slave NACK still needs STOP. */
+  if (!bitbang_i2c_error()) {
+    bitbang_i2c_stop_wait();
+  }
+  return false;
 }
 
 #endif /* BP_ENABLE_I2C_SUPPORT */

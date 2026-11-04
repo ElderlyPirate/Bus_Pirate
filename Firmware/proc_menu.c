@@ -640,7 +640,7 @@ void serviceuser(void) {
         break;
 
       case '@':
-        repeat = getrepeat() + 1;
+        repeat = (uint16_t)getrepeat() + 1u;
         while (--repeat) {
           BPMSG1095;
           echo_state(bp_aux_pin_read());
@@ -820,7 +820,7 @@ void serviceuser(void) {
         sendw = getint();
         cmdstart--;
         cmdstart &= CMDLENMSK;
-        repeat = getrepeat() + 1;
+        repeat = (uint16_t)getrepeat() + 1u;
         numbits = getnumbits();
         if (mode_configuration.command_error) break;
         if (numbits) {
@@ -858,7 +858,7 @@ void serviceuser(void) {
       case 'r':
         MSG_READ_HEADER;
         newDmode = change_read_display();
-        repeat = getrepeat() + 1;
+        repeat = (uint16_t)getrepeat() + 1u;
         numbits = getnumbits();
         if (mode_configuration.command_error) break;
         if (numbits) {
@@ -930,7 +930,7 @@ void serviceuser(void) {
         break;
 
       case '!':
-        repeat = getrepeat() + 1;
+        repeat = (uint16_t)getrepeat() + 1u;
         BPMSG1109;
         while (--repeat) {
           echo_state(

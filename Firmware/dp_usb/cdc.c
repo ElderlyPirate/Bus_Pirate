@@ -467,8 +467,20 @@ void putc_cdc(BYTE c) {
 // No return count is required as this function always returns one byte.
 
 BYTE getc_cdc(void) { // Must be used only in double buffer mode.
-    uint16_t count = 1;
-    return *getoutbuf_cdc(&count);
+    BYTE irq, c;
+    for (;;) {
+        while (cdc_Out_len == 0)
+            getda_cdc();
+        irq = TestGlobalUsbInterruptEnable();
+        DisableGlobalUsbInterrupt();
+        if (cdc_Out_len) {
+            c = *OutPtr++;
+            cdc_Out_len--;
+            if (irq) EnableUsbGlobalInterrupt();
+            return c;
+        }
+        if (irq) EnableUsbGlobalInterrupt();
+    }
 }
 
 BYTE* getoutbuf_cdc(uint16_t* bufsize)

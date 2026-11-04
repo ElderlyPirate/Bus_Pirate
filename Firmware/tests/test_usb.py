@@ -262,6 +262,7 @@ static BYTE getInReady(void) { return !busy; }
 static BYTE getOutReady(void) { return rxready; }
 static BYTE getda_cdc(void) {
     if (rxready) assert(!fake_irq);
+    else assert(fake_irq);
     rxready = 0; cdc_Out_len = 3; OutPtr = buffers[0]; return 3;
 }
 static void putda_cdc(BYTE n) {

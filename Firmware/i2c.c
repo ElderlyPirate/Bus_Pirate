@@ -979,17 +979,17 @@ void handle_pending_ack(const bool bus_bit) {
 /*
 rawI2C mode:
 # 00000000//reset to BBIO
-# 00000001 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ mode version string (I2C1)
-# 00000010 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ I2C start bit
-# 00000011 ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ I2C stop bit
+# 00000001 � mode version string (I2C1)
+# 00000010 � I2C start bit
+# 00000011 � I2C stop bit
 # 00000100 - I2C read byte
 # 00000110 - ACK bit
 # 00000111 - NACK bit
-# 0001xxxx ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ Bulk transfer, send 1-16 bytes (0=1byte!)
+# 0001xxxx � Bulk transfer, send 1-16 bytes (0=1byte!)
 # (0110)000x - Set I2C speed, 3 = 400khz 2=100khz 1=50khz 0=5khz
 # (0111)000x - Read speed, (planned)
-# (0100)wxyz ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
-# (0101)wxyz ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ read peripherals (planned, not implemented)
+# (0100)wxyz � Configure peripherals w=power, x=pullups, y=AUX, z=CS (was 0110)
+# (0101)wxyz � read peripherals (planned, not implemented)
  */
 
 void binary_io_enter_i2c_mode(void) {

@@ -194,7 +194,7 @@ bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .cleanup = reset_mode_to_8_bits,
      .print_pins_state = onewire_pins_state,
      .print_settings = empty_print_settings_implementation,
-     .name = "1-WIRE"}
+     .name = "1WIRE"}
 #endif /* BP_ENABLE_1WIRE_SUPPORT */
 
 #ifdef BP_ENABLE_UART_SUPPORT

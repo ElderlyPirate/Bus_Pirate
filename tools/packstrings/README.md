@@ -26,6 +26,9 @@ duplicate identifiers, embedded NUL and non-byte payloads are errors before
 output is written.
 
 `.pasciz` is the PIC24 three-bytes-per-program-word representation, not a
-Pascal length-prefixed string. The assembler appends NUL. Firmware accessors
+Pascal length-prefixed string. The assembler appends NUL to each quoted
+operand (DS50002106, 5.3.5), so the generator emits exactly one quoted literal
+per message; fixed-width octal escapes preserve arbitrary non-NUL bytes.
+Firmware accessors
 take even table addresses and restore TBLPAG; their public bounds contract and
 instruction proof are in `Firmware/core_messages/README.md`.

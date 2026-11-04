@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT=Path(__file__).resolve().parents[2]
 TEMP=Path.home()/'AppData/Local/Temp/opencode'
@@ -38,9 +39,14 @@ def assembly(text):
     for name,value in re.findall(r'(?m)^_(\w+)_str:\s*\n\s*\.pasciz\s+([^\n]+)',text):
         assert name not in entries,name
         result=bytearray()
+        terminated=False
         for token in re.findall(r'"(?:\\.|[^"\\])*"|<\d+>',value):
+            assert not terminated,(name,'data follows a NUL-terminated .pasciz string operand')
             if token.startswith('<'):result.append(int(token[1:-1]))
-            else:result.extend(ast.literal_eval(token).encode('latin1'))
+            else:
+                result.extend(ast.literal_eval(token).encode('latin1'))
+                terminated=True
+        assert terminated,(name,'missing quoted NUL-terminated operand')
         entries[name]=bytes(result)
     assert len(entries)==len(re.findall(r'(?m)^_\w+_str:',text))
     return entries
@@ -231,6 +237,18 @@ def main():
             assert all(b'\0' not in v for v in tables[board].values())
             assert all(flags[board]['HLP%d'%i] for i in range(1000,1023))
             print('PASS',board,len(tables[board]),'unique message identifiers, paired declarations/macros, no embedded NUL',flush=True)
+        if not args.revision:
+            project=ROOT/'Firmware/busPirate.X/nbproject/configurations.xml'
+            xml=ET.parse(project)
+            directory='core_messages/' if (ROOT/'Firmware/core_messages/messages.c').exists() else ''
+            listed={n.text for n in xml.findall('.//itemPath')}
+            for name in ('messages.c','messages.h','messages_v3.h','messages_v3.s','messages_v4.h','messages_v4.s'):
+                assert '../'+directory+name in listed
+            excluded={n.attrib['path'] for n in xml.findall('.//item') if n.attrib.get('ex')=='true'}
+            for b in ('v3','v4'):
+                for ext in ('.h','.s'):assert '../'+directory+'messages_'+b+ext in excluded
+            if directory:assert project.read_text(encoding='utf-8').count('../core_messages')>=12
+            print('PASS MPLAB lists all six message files and preserves per-board exclusions',flush=True)
     if wanted('regen'):
         assert not args.revision,'regeneration gate uses the current catalog'
         with tempfile.TemporaryDirectory(prefix='bp-regenerate-',dir=TEMP) as tmp:
@@ -286,11 +304,11 @@ int main(void){for(unsigned i=0;i<256;++i){answer=i;used=0;assert(agree()==(i=='
                 out=tmp/('invalid%d'%i)
                 r=subprocess.run([sys.executable,str(tools/'packstrings.py'),str(src),str(out),'test'],cwd=ROOT,capture_output=True,text=True)
                 assert r.returncode and not out.with_suffix('.s').exists() and not out.with_suffix('.h').exists(),(i,r.stdout,r.stderr)
-            (tmp/'leaf.txt').write_text('MSG_OK\t0\t"ok\\x1b"\n',encoding='utf-8')
+            (tmp/'leaf.txt').write_text('MSG_OK\t0\t"ok\\x1b"\nMSG_EMPTY\t1\t""\nMSG_BYTES\t0\t"\\x08A\\xFF9"\n',encoding='utf-8')
             src=tmp/'top.txt';src.write_text('#include leaf.txt\n',encoding='utf-8')
             out=tmp/'valid'
             subprocess.run([sys.executable,str(tools/'packstrings.py'),str(src),str(out),'test'],cwd=ROOT,check=True)
-            assert assembly(out.with_suffix('.s').read_text(encoding='utf-8'))=={'MSG_OK':b'ok\x1b'}
+            assert assembly(out.with_suffix('.s').read_text(encoding='utf-8'))=={'MSG_OK':b'ok\x1b','MSG_EMPTY':b'','MSG_BYTES':b'\x08A\xff9'}
         print('PASS generator rejects malformed/duplicate/non-byte/NUL inputs before output; includes resolve relative to source',flush=True)
     if wanted('uart_fields'):
         uart=source('uart.c',args.revision)

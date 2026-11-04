@@ -22,12 +22,12 @@ duplicated. No missing reader implementation existed in the accepted delta.
 | Candidate / finding | Final disposition |
 | --- | --- |
 | B1, stale built v3 colour row | `905242e`: match the existing intended mixed-case canonical row from `9a81c15`. V3 source/target proof, not a physical v3 claim. |
-| B2, generator inputs drift from artifacts | `ddc187e`: preserve accepted UART prompt/header, A6, URL and SPI-menu bytes in canonical inputs; regenerate both boards. All payload bytes and line flags remain unchanged by regeneration itself. |
+| B2, generator inputs drift from artifacts | `ddc187e`: preserve accepted UART prompt/header, A6, URL and SPI-menu bytes in canonical inputs. Canonical generation reproduces the final corrected catalogs, with unchanged public identifiers and flags. |
 | B3, allegedly dead overrun message | Retain it. It has two standalone UART call sites and linked V3/V4 sections. It is GC'd only in combined's different UART implementation; that is not global deadness. |
 | B4, reversed UART LFCR sequences | `97efea5`: baud prefixes and board macro menus use the existing serial CRLF contract; inputs and artifacts agree. |
 | B5, exact-value dedup TODO | No encoding/refactor. V3 has no exact duplicate group; V4 only RESET. Per-message sections/GC avoid a material linked cost. `0aefbf1` documents that ownership. |
 | B6 / top-10 #6, alleged core bulk-writer zero-space spin | Rejected by the actual composite production functions: at full occupancy, `write_cdc(0)` publishes the full packet and resets length, so the next iteration progresses. All 65 fills and seven payload lengths pass. Intentional host backpressure is not a local spin. No base/CDC change. |
-| Backspace/ESC source spelling | Different literal/numeric spellings have identical bytes. Canonical generation chooses the spelling; no runtime issue. |
+| Backspace/ESC mixed-operand claim | Not byte-equivalent in general: actual XC16 `.pasciz <8>, " ", <8>` inserts NUL after the quoted space. The generator now emits one quoted literal with fixed-width octal escapes; reader unchanged. Actual target objects, not source concatenation, are the arbiter. |
 | Disabled BASIC filesystem strings | Keep feature-owned public identifiers; section GC handles disabled features. No BASIC feature change. |
 | Per-board help/pin order/bridge/macros | Keep intended board differences. Documentation and callers agree; actual message macros and payloads are tested separately. |
 | Documented 160kps / output-type wording | Retain those public strings; no unrelated wording sweep. |
@@ -58,6 +58,9 @@ arbitrary flash-range promise is added to this ABI.
 - XC16 assembler `.pasciz` behavior is verified in the actual V3/V4 objects:
   all 288/308 sections have the expected payload, terminator and rounded word
   count. This is target-object proof, not an assumption from source spelling.
+- DS50002106 5.3.5: each quoted `.pasciz` operand gets a trailing zero.
+  One quoted operand with fixed-width octal escapes avoids embedded NULs;
+  target-assembled synthetic empty/backspace/all-byte fixtures cover emission.
 - CRLF, field counts and UI syntax follow the actual serial/parser contracts;
   a peripheral manual does not define those application strings.
 
@@ -67,7 +70,7 @@ Grouping and the packed object sections are compared independently of fixes.
 
 ## Regression gates
 
-`python Firmware/tests/test_messages.py` passes 14 checks, including:
+`python Firmware/tests/test_messages.py` passes 15 checks, including:
 
 - all 596 per-board identifiers/declarations/macros and their line flags;
 - exact regeneration of four committed artifacts from canonical inputs;

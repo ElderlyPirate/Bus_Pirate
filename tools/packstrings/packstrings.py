@@ -129,30 +129,18 @@ with open(args.outbase + '.s', 'w', encoding='utf-8', newline='\n') as assembly_
         assembly_output.write('\t.global _%s_str\n' % row[0])
         assembly_output.write('_%s_str:\n' % row[0])
         assembly_output.write('\t.pasciz ')
-        string_segments = []
+        # .pasciz terminates each quoted operand, not just the directive.
+        # One literal avoids an embedded NUL before a later control byte.
+        encoded = []
         for character in row[2]:
-          if character in MAPPING_OUT:
-            if (len(string_segments) == 0) or (type(string_segments[-1]) != str):
-              string_segments.append(MAPPING_OUT[character])
+            if character in MAPPING_OUT:
+                encoded.append(MAPPING_OUT[character])
+            elif ord(character) < 0x20 or ord(character) > 0x7E:
+                encoded.append('\\%03o' % ord(character))
             else:
-              string_segments[-1] += MAPPING_OUT[character]
-          elif (ord(character) < 0x20) or (ord(character) > 0x7E):
-            string_segments.append(ord(character))
-          else:
-            if (len(string_segments) == 0) or (type(string_segments[-1]) != str):
-              string_segments.append(character)
-            else:
-              string_segments[-1] += character
-        for segment_index in range(len(string_segments)):
-          segment = string_segments[segment_index]
-          if type(segment) == str:
-            assembly_output.write('"%s"' % segment)
-          else:
-            assembly_output.write('<%d>' % segment)
-          if segment_index < (len(string_segments) - 1):
-            assembly_output.write(', ')
-          else:
-            assembly_output.write('\n' if row_index == len(lines) - 1 else '\n\n')
+                encoded.append(character)
+        assembly_output.write('"' + ''.join(encoded) + '"')
+        assembly_output.write('\n' if row_index == len(lines) - 1 else '\n\n')
 
 offset = 0
 BUFFER_WRITE_CALL = 'bp_message_write_buffer'

@@ -419,6 +419,8 @@ void i2c_setup_prepare(void) {
   }
 
   mode_configuration.high_impedance = ON;
+  bitbang_i2c_clear_error();
+
 #ifdef BUSPIRATEV4
   /*
    * A new session starts on the external bus; the onboard-EEPROM macro
@@ -426,8 +428,6 @@ void i2c_setup_prepare(void) {
    */
   i2c_state.to_eeprom = false;
 #endif /* BUSPIRATEV4 */
-
-  bitbang_i2c_clear_error();
 
   /*
    * Software I2C takes its clock timing from the bit-bang delay profile;

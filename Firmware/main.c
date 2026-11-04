@@ -38,10 +38,11 @@ extern volatile uint8_t usb_device_state;
 static void initialize_board(void);
 
 /**
- * Internal terminal buffer area.
+ * Internal terminal/sample buffer area. Word consumers require even alignment
+ * (DS70000157G data-address alignment); retain the existing #232 contract.
  */
 static uint8_t bp_buffer[BP_TERMINAL_BUFFER_SIZE]
-    __attribute__((section(".bss.end")));
+    __attribute__((section(".bss.end"), aligned(2)));
 
 /**
  * Global configuration data holder.

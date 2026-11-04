@@ -311,12 +311,12 @@ void MSG_1WIRE_SEARCH_MACRO_NAME_str(void);
 #define MSG_1WIRE_SEARCH_MACRO_NAME bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SEARCH_MACRO_NAME_str))
 void MSG_1WIRE_SKIP_ROM_MACRO_NAME_str(void);
 #define MSG_1WIRE_SKIP_ROM_MACRO_NAME bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SKIP_ROM_MACRO_NAME_str))
+void MSG_1WIRE_SPEED_OVERDRIVE_str(void);
+#define MSG_1WIRE_SPEED_OVERDRIVE bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_OVERDRIVE_str))
 void MSG_1WIRE_SPEED_PROMPT_str(void);
 #define MSG_1WIRE_SPEED_PROMPT bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_PROMPT_str))
 void MSG_1WIRE_SPEED_STANDARD_str(void);
 #define MSG_1WIRE_SPEED_STANDARD bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_STANDARD_str))
-void MSG_1WIRE_SPEED_OVERDRIVE_str(void);
-#define MSG_1WIRE_SPEED_OVERDRIVE bp_message_write_line(__builtin_tbladdress(MSG_1WIRE_SPEED_OVERDRIVE_str))
 void MSG_ACK_str(void);
 #define MSG_ACK bp_message_write_buffer(__builtin_tbladdress(MSG_ACK_str))
 void MSG_ADC_VOLTAGE_PROBE_HEADER_str(void);
@@ -525,14 +525,14 @@ void MSG_UART_BITS_PARITY_PROMPT_str(void);
 #define MSG_UART_BITS_PARITY_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_BITS_PARITY_PROMPT_str))
 void MSG_UART_BITS_STOP_PROMPT_str(void);
 #define MSG_UART_BITS_STOP_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_BITS_STOP_PROMPT_str))
-void MSG_UART_DUPLEX_PROMPT_str(void);
-#define MSG_UART_DUPLEX_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_DUPLEX_PROMPT_str))
 void MSG_UART_BPS_MARKER_str(void);
 #define MSG_UART_BPS_MARKER bp_message_write_line(__builtin_tbladdress(MSG_UART_BPS_MARKER_str))
 void MSG_UART_BRIDGE_str(void);
 #define MSG_UART_BRIDGE bp_message_write_line(__builtin_tbladdress(MSG_UART_BRIDGE_str))
 void MSG_UART_BRIDGE_EXIT_str(void);
 #define MSG_UART_BRIDGE_EXIT bp_message_write_line(__builtin_tbladdress(MSG_UART_BRIDGE_EXIT_str))
+void MSG_UART_DUPLEX_PROMPT_str(void);
+#define MSG_UART_DUPLEX_PROMPT bp_message_write_buffer(__builtin_tbladdress(MSG_UART_DUPLEX_PROMPT_str))
 void MSG_UART_EARLY_EXIT_str(void);
 #define MSG_UART_EARLY_EXIT bp_message_write_line(__builtin_tbladdress(MSG_UART_EARLY_EXIT_str))
 void MSG_UART_FAILED_NO_DATA_str(void);

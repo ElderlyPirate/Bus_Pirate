@@ -1024,6 +1024,12 @@ _MSG_1WIRE_SEARCH_MACRO_NAME_str:
 _MSG_1WIRE_SKIP_ROM_MACRO_NAME_str:
 	.pasciz "SKIP ROM (0xCC)"
 
+	; MSG_1WIRE_SPEED_OVERDRIVE
+	.section .text.MSG_1WIRE_SPEED_OVERDRIVE, code
+	.global _MSG_1WIRE_SPEED_OVERDRIVE_str
+_MSG_1WIRE_SPEED_OVERDRIVE_str:
+	.pasciz "1-WIRE speed: overdrive"
+
 	; MSG_1WIRE_SPEED_PROMPT
 	.section .text.MSG_1WIRE_SPEED_PROMPT, code
 	.global _MSG_1WIRE_SPEED_PROMPT_str
@@ -1035,12 +1041,6 @@ _MSG_1WIRE_SPEED_PROMPT_str:
 	.global _MSG_1WIRE_SPEED_STANDARD_str
 _MSG_1WIRE_SPEED_STANDARD_str:
 	.pasciz "1-WIRE speed: standard"
-
-	; MSG_1WIRE_SPEED_OVERDRIVE
-	.section .text.MSG_1WIRE_SPEED_OVERDRIVE, code
-	.global _MSG_1WIRE_SPEED_OVERDRIVE_str
-_MSG_1WIRE_SPEED_OVERDRIVE_str:
-	.pasciz "1-WIRE speed: overdrive"
 
 	; MSG_ACK
 	.section .text.MSG_ACK, code
@@ -1172,7 +1172,7 @@ _MSG_CURSOR_RIGHT_str:
 	.section .text.MSG_DESTRUCTIVE_BACKSPACE, code
 	.global _MSG_DESTRUCTIVE_BACKSPACE_str
 _MSG_DESTRUCTIVE_BACKSPACE_str:
-	.pasciz "\x08 \x08"
+	.pasciz <8>, " ", <8>
 
 	; MSG_FINISH_SETUP_PROMPT
 	.section .text.MSG_FINISH_SETUP_PROMPT, code
@@ -1666,12 +1666,6 @@ _MSG_UART_BITS_PARITY_PROMPT_str:
 _MSG_UART_BITS_STOP_PROMPT_str:
 	.pasciz "Stop bits:\r\n 1. 1 *default\r\n 2. 2"
 
-	; MSG_UART_DUPLEX_PROMPT
-	.section .text.MSG_UART_DUPLEX_PROMPT, code
-	.global _MSG_UART_DUPLEX_PROMPT_str
-_MSG_UART_DUPLEX_PROMPT_str:
-	.pasciz "Duplex:\r\n 1. Full (TX+RX) *default\r\n 2. Half (single wire)"
-
 	; MSG_UART_BPS_MARKER
 	.section .text.MSG_UART_BPS_MARKER, code
 	.global _MSG_UART_BPS_MARKER_str
@@ -1695,6 +1689,12 @@ _MSG_UART_BRIDGE_EXIT_str:
 	.global _MSG_UART_CUSTOM_BAUD_RATE_PROMPT_str
 _MSG_UART_CUSTOM_BAUD_RATE_PROMPT_str:
 	.pasciz "Input a custom BAUD rate:"
+
+	; MSG_UART_DUPLEX_PROMPT
+	.section .text.MSG_UART_DUPLEX_PROMPT, code
+	.global _MSG_UART_DUPLEX_PROMPT_str
+_MSG_UART_DUPLEX_PROMPT_str:
+	.pasciz "Duplex:\r\n 1. Full (TX+RX) *default\r\n 2. Half (single wire)"
 
 	; MSG_UART_EARLY_EXIT
 	.section .text.MSG_UART_EARLY_EXIT, code

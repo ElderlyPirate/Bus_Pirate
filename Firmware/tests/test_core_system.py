@@ -55,6 +55,8 @@ PREFIX = r'''
 #define BP_COMMAND_BUFFER_SIZE 256
 #define CMDLENMSK 255
 #define BELL 7
+#define ASCII_NUL 0
+#define ASCII_STX 2
 #define MASKBOTTOM16(v,b) ((uint16_t)(v) & ((1u << (b))-1u))
 static struct { unsigned numbits, int16, high_impedance, speed, periodicService, alternate_aux,
                          little_endian, write_with_read, command_error; } mode_configuration;
@@ -173,6 +175,17 @@ int main(void) {
     assert(!handle_escape_sequence('i') && !menu_state.escape_state && !serial_reads);
 #endif
     puts("PASS lone/truncated ESC never blocks; complete sequences and normal input survive");
+}'''),
+    "prefix": ("proc_menu.c", ["update_binary_prefix"], r'''
+int main(void) {
+    const uint8_t ordinary[]={'i','\r',27,'[','D',8};
+    for (unsigned i=0;i<sizeof(ordinary);++i) {
+        menu_state.binary_mode_counter=19; update_binary_prefix(ordinary[i]);
+        assert(!menu_state.binary_mode_counter);
+    }
+    menu_state.binary_mode_counter=5; update_binary_prefix(0); assert(menu_state.binary_mode_counter==5);
+    update_binary_prefix(2); assert(menu_state.binary_mode_counter==5);
+    puts("PASS only consecutive NUL/raw-STX prefixes survive normal input");
 }'''),
 }
 

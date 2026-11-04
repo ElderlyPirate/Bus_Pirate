@@ -273,6 +273,13 @@ typedef struct {
  */
 static menu_state_t menu_state = {0};
 
+static void update_binary_prefix(uint8_t character) {
+  /* Only consecutive NULs followed by raw STX may request SUMP. ANSI cursor
+   * keys and ordinary typing must not retain an old binary-entry prefix. */
+  if (character != ASCII_NUL && character != ASCII_STX)
+    menu_state.binary_mode_counter = 0;
+}
+
 void serviceuser(void) {
   int newstart;
   int oldstart;
@@ -354,6 +361,7 @@ void serviceuser(void) {
       /* Process incoming byte. */
 
       uint8_t user_byte = user_serial_read_byte();
+      update_binary_prefix(user_byte);
 
       if (menu_state.escape_state && user_byte != ASCII_ESCAPE &&
           handle_escape_sequence(user_byte)) continue;
@@ -1924,6 +1932,7 @@ void handle_left_arrow(void) {
   }
 #endif /* BP_ENABLE_SUMP_SUPPORT */
 
+  menu_state.binary_mode_counter = 0;
   if (menu_state.cursor_position != cmdstart) {
     menu_state.cursor_position = (menu_state.cursor_position - 1) & CMDLENMSK;
     MSG_CURSOR_LEFT;

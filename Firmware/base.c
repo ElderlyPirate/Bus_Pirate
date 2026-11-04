@@ -295,39 +295,39 @@ void bp_write_formatted_integer(const uint16_t value) {
   uint16_t integer;
 
   integer = (mode_configuration.numbits < 16)
-                ? MASKBOTTOM16(value, mode_configuration.numbits)
+                ? value & ((1u << mode_configuration.numbits) - 1u)
                 : value;
 
   switch (bus_pirate_configuration.display_mode) {
   case HEX:
     if (mode_configuration.int16 == YES) {
-      bp_write_hex_word(value);
+      bp_write_hex_word(integer);
     } else {
-      bp_write_hex_byte(value);
+      bp_write_hex_byte(integer);
     }
     break;
 
   case DEC:
     if (mode_configuration.int16 == YES) {
-      bp_write_dec_word(value);
+      bp_write_dec_word(integer);
     } else {
-      bp_write_dec_byte(value);
+      bp_write_dec_byte(integer);
     }
     break;
 
   case BIN:
     if (mode_configuration.int16 == YES) {
-      bp_write_bin_byte(value >> 8);
+      bp_write_bin_byte(integer >> 8);
       bpSP;
     }
-    bp_write_bin_byte(value & 0xFF);
+    bp_write_bin_byte(integer & 0xFF);
     break;
 
   case RAW:
     if (mode_configuration.int16 == YES) {
-      user_serial_transmit_character(value >> 8);
+      user_serial_transmit_character(integer >> 8);
     }
-    user_serial_transmit_character(value & 0xFF);
+    user_serial_transmit_character(integer & 0xFF);
     break;
   }
 }

@@ -18,3 +18,11 @@ starting the next bus operation does. In a bulk write the fault remains
 latched for the whole bulk command, whose remaining payload is consumed and
 NACKed without more bus activity. A normal slave NACK is not a bus fault.
 Combined write/read reports failure rather than returning invalid read data.
+
+Hardware I2C uses the same bounded polling budget for every master sequence
+(SEN/RSEN, PEN, ACKEN, TRSTAT/TBF and RCEN/RBF), and for initially idle lines.
+BCL, IWCOL and I2COV abort the operation. Recovery disables the selected
+module, releases its pins and invalidates pending ACK state; a new START
+reinitializes that same bus. STAT accesses are word-wide for old v3 silicon
+(DS39881 errata #26). See DS39897C registers 16-1/16-2 for completion and
+error bits. Successful reads still defer the ninth bit until the next command.

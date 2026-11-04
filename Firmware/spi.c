@@ -824,9 +824,18 @@ restart:
   _CNIE = 1;
 #endif /* BUSPIRATEV4 */
 
-  if (trigger == SPI_SNIFF_ON_CS_LOW) {
-    SPI1CON1bits.SSEN = ON;
-    SPI2CON1bits.SSEN = ON;
+  /* Slave CKE=1 requires SSEN (DS39897C 15.1). Sniff-all must keep SS
+     active without gating on physical CS; the null PPS input is tied low. */
+  SPI1CON1bits.SSEN = ON;
+  SPI2CON1bits.SSEN = ON;
+  if (trigger == SPI_SNIFF_ALWAYS) {
+#ifdef BUSPIRATEV4
+    RPINR21bits.SS1R = 0x3F; /* RP63/VSS, DS39897C 10.4.5. */
+    RPINR23bits.SS2R = 0x3F;
+#else
+    RPINR21bits.SS1R = 0x1F; /* Reset/null input on the v3 PPS module. */
+    RPINR23bits.SS2R = 0x1F;
+#endif
   }
 
   SPI1STATbits.SPIEN = ON;

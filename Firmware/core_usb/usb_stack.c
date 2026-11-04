@@ -16,7 +16,7 @@ Influence and inspiration taken from http://pe.ece.olin.edu/ece/projects.html
 // JTR v0.2a Jan 26th 2012
 
 
-#include "../dp_usb/usb_stack_globals.h"     // USB stack only defines Not function related.
+#include "usb_stack_globals.h"     // USB stack only defines Not function related.
 
 #if USB_EP0_BUFFER_SIZE == 8u
 #elif USB_EP0_BUFFER_SIZE == 16u

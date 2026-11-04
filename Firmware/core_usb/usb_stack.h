@@ -16,7 +16,7 @@ or send a letter to
 
 // JTR v0.2a
 
-#include "../dp_usb/picusb.h"     // JTR combined PIC_18F and PIC_24F header. This is the only included header.
+#include "picusb.h"     // JTR combined PIC_18F and PIC_24F header. This is the only included header.
 
 #define USB_TOKEN_Mask  0b00111100
 #define USB_TOKEN_OUT   0b00000100

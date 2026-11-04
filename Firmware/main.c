@@ -25,7 +25,7 @@
 
 #ifdef BUSPIRATEV4
 
-#include "descriptors.h"
+#include "core_usb/descriptors.h"
 
 void usb_suspend(void);
 extern volatile uint8_t usb_device_state;

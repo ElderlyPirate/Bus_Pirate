@@ -23,7 +23,7 @@
 #endif /* BUSPIRATEV3 */
 
 #ifdef BUSPIRATEV4
-#include "dp_usb/usb_stack_globals.h"
+#include "core_usb/usb_stack_globals.h"
 #include "hardwarev4.h"
 #include "onboard_eeprom.h"
 #endif /* BUSPIRATEV4 */

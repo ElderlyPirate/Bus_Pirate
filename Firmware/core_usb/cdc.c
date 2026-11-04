@@ -16,7 +16,7 @@ or send a letter to
 // JTR v0.1c	// tidy up added code line code handler to set the SPBRG based on line coding.
 // JTR V0.2a   // 26th Jan 2012
 
-#include "../dp_usb/usb_stack_globals.h"    // USB stack only defines Not function related.
+#include "usb_stack_globals.h"    // USB stack only defines Not function related.
 
 #include <string.h>
 #include "../configuration.h"

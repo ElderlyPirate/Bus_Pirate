@@ -14,8 +14,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def source(path, revision):
     if revision:
-        return subprocess.check_output(["git", "show", revision + ":Firmware/" + path],
-                                       cwd=ROOT, text=True)
+        for directory in ("core_usb", "dp_usb"):
+            result = subprocess.run(["git", "show", revision + ":Firmware/" + directory + "/" + Path(path).name],
+                                    cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            if result.returncode == 0:
+                return result.stdout
+        raise RuntimeError("USB source not found at " + revision + ": " + path)
     usb = ROOT / "Firmware/core_usb"
     if not usb.exists():
         usb = ROOT / "Firmware/dp_usb"
@@ -467,8 +471,8 @@ def main():
     parser.add_argument("--revision")
     parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control", "hardware", "ready"), default="all")
     args = parser.parse_args()
-    cdc = source("dp_usb/cdc.c", args.revision)
-    headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
+    cdc = source("cdc.c", args.revision)
+    headers = source("usb_stack.h", args.revision) + source("cdc.h", args.revision)
     defines = "\n".join(line for line in headers.splitlines()
                         if re.match(r"#define (USB_b|USB_w|CDC_)", line))
     if "enum stopbits" in cdc:
@@ -480,7 +484,7 @@ def main():
     for name, tests in (("line", LINE_TEST), ("baud", BAUD_TEST)):
         if args.case in ("all", name):
             compile_run(PREFIX + defines + "\n" + decl, body, tests, name)
-    stack = source("dp_usb/usb_stack.c", args.revision)
+    stack = source("usb_stack.c", args.revision)
     ep_defines = "\n".join(line for line in headers.splitlines()
                            if re.match(r"#define USB_(b|w|REQUEST_)", line))
     for name, tests in (("endpoint", EP_TEST), ("bounds", BOUNDS_TEST), ("halt", HALT_TEST)):
@@ -512,7 +516,7 @@ def main():
                 compile_run(EP_PREFIX + "#include <stddef.h>\n" + CONFIG_PREFIX + all_defines + "\n",
                             body, tests, name)
     if args.case in ("all", "hardware"):
-        pic = source("dp_usb/picusb.h", args.revision).split("#if defined(PIC_24F)")[1]
+        pic = source("picusb.h", args.revision).split("#if defined(PIC_24F)")[1]
         wake = next(line for line in pic.splitlines() if line.startswith("#define WakeupUsb()"))
         assert "ClearUsbInterruptFlag(USB_RESUM)" in wake
         assert re.search(r"#define ClearUsbInterruptFlag\(x\)\s+U1IR = x", pic)

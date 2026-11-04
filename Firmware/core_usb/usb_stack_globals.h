@@ -6,7 +6,7 @@
 typedef unsigned char BYTE;
 
 // =================== GLOBAL HEADERS
-#include "../prj_usb_config.h" // from parent folder.
+#include "prj_usb_config.h"
 #include "usb_stack.h"
 #include "cdc.h"
 

@@ -131,6 +131,7 @@ void usb_handle_reset(void) {
     } while (USB_TRANSACTION_FLAG);
 
     ClearUSBtoDefault();
+    usb_device_state = DEFAULT_STATE;
     EnablePacketTransfer();
 }
 
@@ -389,7 +390,10 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
             break;
 
         case USB_REQUEST_SET_CONFIGURATION:
-            if (USB_NUM_CONFIGURATIONS >= packet[USB_wValue]) {
+            if (packet[USB_bmRequestType] == 0 && !packet[USB_wValueHigh] &&
+                    !packet[USB_wIndex] && !packet[USB_wIndexHigh] &&
+                    !packet[USB_wLength] && !packet[USB_wLengthHigh] &&
+                    USB_NUM_CONFIGURATIONS >= packet[USB_wValue]) {
                 // TODO: Support multiple configurations
                 /* Configure endpoints (USB_UEPn - registers) */
                 usb_current_cfg = packet[USB_wValue];
@@ -403,6 +407,14 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
                     user_configured_init();
                 } else {
                     usb_device_state = ADDRESS_STATE;
+                    sof_handler = NULL;
+                    class_setup_handler = NULL;
+                    for (i = 1; i < MAX_CHIP_EP; i++)
+                        USB_UEP[i] = USB_EP_NONE;
+                    for (i = 2; i < (2 + 2 * MAX_EPNUM_USED); i++) {
+                        usb_bdt[i].BDSTAT = 0;
+                        usb_halt_saved[i] = 0;
+                    }
                 }
 
                 usb_ack_dat1(0);

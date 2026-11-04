@@ -350,6 +350,46 @@ int main(void) {
 }
 '''
 
+CONFIG_PREFIX = r'''
+#define MAX_CHIP_EP 16
+#define USB_EP_NONE 0
+#define USB_NUM_CONFIGURATIONS 1
+#define ADDRESS_STATE 0x10
+#define CONFIGURED_STATE 0x20
+static BYTE dev[18] = {[17] = 1}, cfg[9] = {9, 2, 9, 0, 2}, strings[4] = {4, 3, 9, 4};
+static const BYTE *usb_device_descriptor = dev, *usb_config_descriptor = cfg, *usb_string_descriptor = strings;
+static const BYTE *usb_rom_ptr;
+static size_t usb_rom_len;
+static int usb_num_string_descriptors = 1;
+static BYTE usb_addr_pending, usb_device_state;
+static unsigned int usb_current_cfg = 1, usb_device_status;
+static int usbrequesterrorflag;
+#define flag_usb_RequestError() (usbrequesterrorflag = 1)
+static void nothing(void) {}
+static void (*sof_handler)(void) = nothing, (*class_setup_handler)(void) = nothing;
+static void usb_set_address(void) {}
+static void usb_set_in_handler(int ep, void (*handler)(void)) { (void)ep; (void)handler; }
+static void user_configured_init(void) { regs[2] = 0x1d; sof_handler = nothing; class_setup_handler = nothing; }
+static void usb_start_rom_reply(unsigned int n) { (void)n; }
+'''
+
+CONFIG_TEST = r'''
+int main(void) {
+    regs[1] = 5; regs[2] = 0x1d; usb_bdt[4].BDSTAT = 0x88;
+    usb_device_state = CONFIGURED_STATE;
+    packet[1] = USB_REQUEST_SET_CONFIGURATION;
+    usb_handle_StandardDeviceRequest(&reqbd);
+    assert(!error && !usb_current_cfg && usb_device_state == ADDRESS_STATE);
+    assert(!regs[1] && !regs[2] && !usb_bdt[4].BDSTAT && !sof_handler && !class_setup_handler);
+    packet[2] = 1; usb_handle_StandardDeviceRequest(&reqbd);
+    assert(!error && usb_current_cfg == 1 && usb_device_state == CONFIGURED_STATE && regs[2] && sof_handler);
+    packet[3] = 1; usb_handle_StandardDeviceRequest(&reqbd); assert(error);
+    puts("PASS deconfiguration retires data endpoints/SOF, reconfiguration restores them, high value rejected");
+    (void)usb_halt_saved;
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -363,7 +403,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -399,6 +439,11 @@ def main():
         else:
             start = "static void usb_start_rom_reply(unsigned int requested) { (void)requested; usb_send_rom(); usb_set_in_handler(0, usb_send_rom); }"
         compile_run(ROM_PREFIX, start + "\n" + function(stack, "usb_send_rom"), ROM_TEST, "rom")
+    if args.case in ("all", "config"):
+        all_defines = "\n".join(line for line in headers.splitlines()
+                                if re.match(r"#define USB_(b|w|REQUEST_|.*DESCRIPTOR_TYPE)", line))
+        compile_run(EP_PREFIX + "#include <stddef.h>\n" + CONFIG_PREFIX + all_defines + "\n",
+                    function(stack, "usb_handle_StandardDeviceRequest"), CONFIG_TEST, "config")
 
 
 if __name__ == "__main__":

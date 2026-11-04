@@ -763,17 +763,25 @@ static void spi_write_bytes(uint8_t *data, uint16_t length) {
  * CS transition events captured by the change notification interrupt on
  * RD4 (CN13): '[' for a falling edge, ']' for a rising one.  A polled
  * check cannot see a CS pulse only a microsecond wide (issue #141); the
- * CN hardware latches every edge, and the sniffer loop drains the ring
- * in order.
+ * CN notifies software of changes; it is not an edge FIFO. The sniffer
+ * drains captured transitions in order and reports a full software ring.
  */
-static volatile uint8_t cs_edge_ring[8];
+#define SPI_CS_EDGE_RING_SIZE 32
+static volatile uint8_t cs_edge_ring[SPI_CS_EDGE_RING_SIZE];
 static volatile uint8_t cs_edge_head;
 static volatile uint8_t cs_edge_tail;
+static volatile bool cs_edge_overflow;
 
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void) {
   _CNIF = 0;
-  cs_edge_ring[cs_edge_head & 0x07] = (SPICS == HIGH) ? ']' : '[';
-  cs_edge_head++;
+  uint8_t edge = (SPICS == HIGH) ? ']' : '[';
+  uint8_t head = cs_edge_head;
+  if ((uint8_t)(head - cs_edge_tail) >= SPI_CS_EDGE_RING_SIZE) {
+    cs_edge_overflow = true;
+  } else if (!cs_edge_overflow) {
+    cs_edge_ring[head & (SPI_CS_EDGE_RING_SIZE - 1)] = edge;
+    cs_edge_head = head + 1;
+  }
 }
 
 #endif /* BUSPIRATEV4 */
@@ -784,6 +792,11 @@ void spi_sniffer(bool trigger, bool terminal_mode) {
 #endif
 
 restart:
+
+#ifdef BUSPIRATEV4
+  _CNIE = 0;
+  CNEN1bits.CN13IE = 0;
+#endif
 
 #ifndef BUSPIRATEV4
   last_cs_line_state = HIGH;
@@ -796,7 +809,7 @@ restart:
 #ifdef BUSPIRATEV4
   /*
    * Capture CS transitions in hardware: the change notification
-   * interrupt latches every edge, so even the ~1 us CS pulses between
+     * interrupt can capture short CS pulses between
    * back-to-back SPI transactions produce their [ ] markers (#141).
    * Highest interrupt priority: the ISR is a handful of instructions,
    * and the smallest possible latency keeps two edges only ~1 us apart
@@ -804,6 +817,7 @@ restart:
    */
   cs_edge_head = 0;
   cs_edge_tail = 0;
+  cs_edge_overflow = false;
   _CNIF = 0;
   _CNIP = 7;
   CNEN1bits.CN13IE = 1;
@@ -828,10 +842,12 @@ restart:
      * opening marker of its own transaction.  (The exact split between
      * a boundary and the adjacent pair is limited by the loop's serial
      * pass granularity - the same property the polled printer always
-     * had - but no event is ever lost.)
+      * had.) A full ring must not overwrite an unread marker or alias
+      * head/tail after 256 unconsumed transitions.
      */
-    while (cs_edge_tail != cs_edge_head) {
-      user_serial_ringbuffer_append(cs_edge_ring[cs_edge_tail & 0x07]);
+    while (!cs_edge_overflow && cs_edge_tail != cs_edge_head) {
+      user_serial_ringbuffer_append(
+          cs_edge_ring[cs_edge_tail & (SPI_CS_EDGE_RING_SIZE - 1)]);
       cs_edge_tail++;
     }
 #else
@@ -875,7 +891,16 @@ restart:
 
     /* Check for overflows. */
     if ((SPI1STATbits.SPIROV == ON) || (SPI2STATbits.SPIROV == ON) ||
-        (bus_pirate_configuration.overflow == YES)) {
+        (bus_pirate_configuration.overflow == YES)
+#ifdef BUSPIRATEV4
+        || cs_edge_overflow
+#endif
+        ) {
+
+#ifdef BUSPIRATEV4
+      _CNIE = 0;
+      CNEN1bits.CN13IE = 0;
+#endif
 
       /* Was the overflow coming from the serial port? */
       if (bus_pirate_configuration.overflow == NO) {
@@ -912,6 +937,13 @@ restart:
       }
 
       BP_LEDMODE = OFF;
+      /* A zero outside an escaped data pair reports an aborted capture.
+         Stay passive until the host stops it; the external master may
+         still be driving the bus that caused the overflow. */
+      REPORT_IO_FAILURE();
+      user_serial_ringbuffer_flush();
+      while (!user_serial_ready_to_read()) {
+      }
       break;
     }
 

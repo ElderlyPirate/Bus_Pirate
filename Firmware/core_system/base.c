@@ -117,7 +117,7 @@ static void clear_mode_configuration(void);
 /**
  * @brief Prints the given value to the serial port as a decimal number.
  *
- * @warning the denominator *must* be equal to 10^digits.
+ * @warning the denominator must be 10^(digits - 1), the highest position.
  *
  * @param[in] value the value to print.
  * @param[in] denominator the divisor to use when printing the value.

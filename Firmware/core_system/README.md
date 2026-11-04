@@ -62,7 +62,9 @@ The reset path cleans the old protocol and clears power, width, duplex,
 editor/prefix and pending macro state. It does not jump across initialization
 of command-parser locals. SUMP/BBIO engines themselves are not rewritten.
 The combined integration retains existing capability-reset, scripted-mode,
-timer, private-dispatch and protocol batching additions from their families.
+timer, private-dispatch and protocol batching additions. Under owner Option A,
+their accepted core content now also lives on this family branch, with source
+authorship/provenance and minimal dependencies: see [ABSORPTION.md](ABSORPTION.md).
 
 ## Manual and optimization basis
 
@@ -96,8 +98,9 @@ macros, history, v3 ISR bounds and read selectors. `--revision 7c02028 --case
 The durable bench `core_battery.py` exercises terminal/mode entry, formatting,
 state hygiene, editing/history/macros, delays, baud/escape/NUL behavior,
 power/pullups and reset. It never enters SPI or accesses XM64. `cdc_battery.py`
-is rerun as transport regression; enhanced SUMP coverage belongs on combined,
-since the standalone upstream SUMP has no exit. Known old-image hang and
+is rerun as transport regression; enhanced SUMP captures belong on combined.
+The standalone now includes the accepted reset/exit frontend, not that capture
+backend. Known old-image hang and
 memory-corruption probes use source/manual proof rather than a live wedge.
 V3 physical baud/ISR and forced shared-port pin/latch mismatches are not
 available on this v4-only bench; source tests, disassembly and clean v3 builds

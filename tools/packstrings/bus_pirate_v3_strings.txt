@@ -46,7 +46,7 @@ HLP1017	1	" m\tChange mode\t\t\t_\tDAT lo"
 HLP1018	1	" o\tSet output type\t\t\t.\tDAT read"
 HLP1019	1	" p/P\tPullup resistors (off/ON)\t!\tBit read"
 HLP1020	1	" s\tScript engine\t\t\t:\tRepeat e.g. r:10"
-HLP1021	1	" v\tShow volts/states\t\t.\tBits to read/write e.g. 0x55.2"
+HLP1021	1	" v\tShow volts/states\t\t;\tBits to read/write e.g. 0x55;2"
 HLP1022	1	" w/W\tPSU (off/ON)\t\t<x>/<x= >/<0>\tUsermacro x/assign x/list all"
 
 // Post-6.2 strings.

@@ -818,7 +818,7 @@ _HLP1020_str:
 	.section .text.HLP1021, code
 	.global _HLP1021_str
 _HLP1021_str:
-	.pasciz " v\tShow volts/states\t\t.\tBits to read/write e.g. 0x55.2"
+	.pasciz " v\tShow volts/states\t\t;\tBits to read/write e.g. 0x55;2"
 
 	; HLP1022
 	.section .text.HLP1022, code
@@ -1726,4 +1726,3 @@ _MSG_WARNING_HEADER_str:
 	.global _MSG_WARNING_SHORT_OR_NO_PULLUP_str
 _MSG_WARNING_SHORT_OR_NO_PULLUP_str:
 	.pasciz "*Short or no pull-up "
-

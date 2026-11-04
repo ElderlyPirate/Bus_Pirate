@@ -1237,7 +1237,8 @@ bool i2c_write_then_read(void) {
     return false;
   }
 
-  if ((bytes_to_write == 0) && (bytes_to_read == 0)) {
+  /* The payload must include an address, even for a read-only transaction. */
+  if (bytes_to_write == 0) {
     return false;
   }
 

@@ -1052,6 +1052,7 @@ uint8_t change_read_display(void) {
 
   for (index = 0; index < sizeof(READ_DISPLAY_BASE); index++) {
     if (cmdbuf[(cmdstart + 1) & CMDLENMSK] == READ_DISPLAY_BASE[index]) {
+      cmdstart = (cmdstart + 1) & CMDLENMSK;
       return index + 1;
     }
   }

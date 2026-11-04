@@ -254,6 +254,14 @@ int main(void) {
     _U1TXInterrupt(); _U1TXInterrupt(); assert(UART1TXSent==1 && U1TXREG==0x55 && !IEC0bits.U1TXIE);
     puts("PASS v3 UART ISR null/zero/completed transfers never escape their buffers");
 }'''),
+    "read_format": ("proc_menu.c", ["getint", "getrepeat", "getnumbits", "change_read_display"], r'''
+int main(void) {
+    load("rx:2;4",253);
+    assert(change_read_display()==1 && cmdstart==254);
+    assert(getrepeat()==2 && getnumbits()==4 && !mode_configuration.command_error);
+    load("r",255); assert(!change_read_display() && cmdstart==255);
+    puts("PASS read display selector is consumed before repeat/width suffixes");
+}'''),
 }
 
 
@@ -264,6 +272,8 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "read_format":
+        prefix += "static const uint8_t READ_DISPLAY_BASE[]={'x','d','b','w'};\n"
     if name == "uart_isr":
         prefix += "static uint8_t rx[2];\nstatic uint8_t * volatile UART1RXBuf,* volatile UART1TXBuf;\n"
         prefix += "static volatile uint16_t UART1RXToRecv,UART1RXRecvd,UART1TXSent,UART1TXAvailable;\n"

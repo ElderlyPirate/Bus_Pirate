@@ -250,24 +250,27 @@ typedef uint8_t BYTE;
 #define CDC_FLUSH_MS 4
 static volatile BYTE cdc_In_len, cdc_Out_len, cdc_timeout_count, ZLPpending, lock;
 static BYTE buffers[2][64], *InPtr, *OutPtr;
-static int irq = 1, busy, packets, zlps, last_count, active, reset_rx;
+static int fake_irq = 1, busy, packets, zlps, last_count, active, reset_rx, rxready;
 static int irq_state(void) {
     if (reset_rx) { cdc_Out_len = 0; OutPtr = buffers[0]; reset_rx = 0; }
-    return irq;
+    return fake_irq;
 }
 #define TestGlobalUsbInterruptEnable() irq_state()
-#define DisableGlobalUsbInterrupt() (irq = 0)
-#define EnableUsbGlobalInterrupt() (irq = 1)
+#define DisableGlobalUsbInterrupt() (fake_irq = 0)
+#define EnableUsbGlobalInterrupt() (fake_irq = 1)
 static BYTE getInReady(void) { return !busy; }
-static BYTE getOutReady(void) { return 0; }
-static BYTE getda_cdc(void) { assert(irq); cdc_Out_len = 3; OutPtr = buffers[0]; return 3; }
+static BYTE getOutReady(void) { return rxready; }
+static BYTE getda_cdc(void) {
+    if (rxready) assert(!fake_irq);
+    rxready = 0; cdc_Out_len = 3; OutPtr = buffers[0]; return 3;
+}
 static void putda_cdc(BYTE n) {
-    assert(irq && !busy); packets++; last_count = n; active ^= 1; InPtr = buffers[active];
+    assert(fake_irq && !busy); packets++; last_count = n; active ^= 1; InPtr = buffers[active];
 }
 static void SendZLP(void) { assert(!busy && !lock); zlps++; ZLPpending = cdc_timeout_count = 0; }
 BYTE *getoutbuf_cdc(uint16_t *n);
 static void reset(void) {
-    irq = 1; busy = packets = zlps = last_count = active = reset_rx = 0;
+    fake_irq = 1; busy = packets = zlps = last_count = active = reset_rx = rxready = 0;
     cdc_In_len = cdc_Out_len = cdc_timeout_count = ZLPpending = lock = 0;
     InPtr = OutPtr = buffers[0];
 }
@@ -302,8 +305,10 @@ int main(void) {
     cdc_Out_len = 3; OutPtr = buffers[0]; memcpy(buffers[0], "abc", 3);
     assert(peek_getc_cdc(&byte) && byte == 'a' && cdc_Out_len == 3);
     assert(getc_cdc() == 'a' && read_cdc(data, 64) == 2 && !memcmp(data, "bc", 2));
-    assert(read_cdc(data, 0) == 0 && irq);
+    assert(read_cdc(data, 0) == 0 && fake_irq);
     puts("PASS reset interleaving cannot underflow RX count; shared bounded read path");
+    rxready = 1; assert(poll_getc_cdc(&byte) && byte == 'a' && fake_irq && cdc_Out_len == 2);
+    puts("PASS nonblocking readiness-to-consume is one IRQ-excluded operation");
     (void)irq_state;
     return 0;
 }
@@ -422,13 +427,17 @@ typedef struct { BYTE BDCNT, BDSTAT; BYTE *BDADDR; } BDentry;
 static BYTE usb_device_state = CONFIGURED_STATE;
 static BDentry bd, *CDC_Outbdp = &bd;
 static int recycled;
+static int fake_irq = 1;
+#define TestGlobalUsbInterruptEnable() fake_irq
+#define DisableGlobalUsbInterrupt() (fake_irq = 0)
+#define EnableUsbGlobalInterrupt() (fake_irq = 1)
 static BYTE getda_cdc(void) { ++recycled; bd.BDSTAT = UOWN; return 0; }
 '''
 
 READY_TEST = r'''
 int main(void) {
     bd.BDCNT = 0; bd.BDSTAT = 0;
-    assert(!getOutReady() && recycled == 1 && bd.BDSTAT == UOWN);
+    assert(!getOutReady() && recycled == 1 && bd.BDSTAT == UOWN && fake_irq);
     bd.BDCNT = 65; bd.BDSTAT = 0;
     assert(!getOutReady() && recycled == 2 && bd.BDSTAT == UOWN);
     bd.BDCNT = 64; bd.BDSTAT = 0;

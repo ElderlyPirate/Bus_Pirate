@@ -262,14 +262,18 @@ inline void WaitInReady(void) {
 
 /******************************************************************************/
 inline BYTE getOutReady(void) {
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    BYTE ready = 0;
+    DisableGlobalUsbInterrupt();
     if (usb_device_state == CONFIGURED_STATE && !(CDC_Outbdp->BDSTAT & UOWN)) {
         if (CDC_Outbdp->BDCNT && CDC_Outbdp->BDCNT <= CDC_BUFFER_SIZE)
-            return 1;
+            ready = 1;
         /* A ZLP is not an application byte, but must be recycled to avoid NAKing
          * every subsequent OUT. Treat an invalid DMA count the same way. */
-        getda_cdc();
+        else getda_cdc();
     }
-    return 0;
+    if (irq) EnableUsbGlobalInterrupt();
+    return ready;
 }
 
 /******************************************************************************/
@@ -507,11 +511,10 @@ uint16_t read_cdc(BYTE* data, uint16_t len)    // Must be used only in double bu
 // IF no byte is available function returns immediately with a count of zero.
 
 BYTE poll_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
-    BYTE irq;
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
     if (!cdc_Out_len && getOutReady())
         getda_cdc();
-    irq = TestGlobalUsbInterruptEnable();
-    DisableGlobalUsbInterrupt();
     if (cdc_Out_len) { // Do we have a byte waiting?
         *c = *OutPtr; // pass it on and adjust OutPtr and count
         OutPtr++;
@@ -532,11 +535,10 @@ BYTE poll_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
 // IF no byte is available function returns immediately with a count of zero.
 
 BYTE peek_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
-    BYTE irq;
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
     if (!cdc_Out_len && getOutReady())
         getda_cdc();
-    irq = TestGlobalUsbInterruptEnable();
-    DisableGlobalUsbInterrupt();
     if (cdc_Out_len) {
         *c = *OutPtr;
         if (irq) EnableUsbGlobalInterrupt();

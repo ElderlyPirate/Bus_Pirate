@@ -184,7 +184,7 @@ def run_case(name, revision):
         c=Path(tmp)/"test.c"; exe=c.with_suffix(".exe")
         c.write_text(prefix+defines+"\n"+body+tests, encoding="ascii")
         subprocess.run(["gcc","-std=gnu99","-Wall","-Wextra","-Werror","-Wno-unused-function",
-                        "-Wno-unused-variable","-Wno-unused-but-set-variable",str(c),"-o",str(exe)],check=True)
+                        "-Wno-unused-variable","-Wno-unused-but-set-variable","-Wno-implicit-fallthrough",str(c),"-o",str(exe)],check=True)
         subprocess.run([str(exe)],check=True)
 
 

@@ -1674,7 +1674,37 @@ void set_display_mode(void) {
   BPMSG1128;
 }
 
+#ifndef BUSPIRATEV4
+static bool wait_baud_confirmation(void) {
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+  uint32_t remaining = 10000000UL; /* Five seconds at Timer1's 2 MHz clock. */
+  uint16_t start = TMR1;
+  for (;;) {
+    if (user_serial_ready_to_read() && user_serial_read_byte() == ' ') return true;
+    uint16_t now = TMR1;
+    uint16_t elapsed = now - start;
+    if (elapsed >= remaining) return false;
+    remaining -= elapsed;
+    start = now;
+  }
+#else
+  for (uint16_t ms = 0; ms < 5000; ++ms) {
+    if (user_serial_ready_to_read() && user_serial_read_byte() == ' ') return true;
+    bp_delay_ms(1);
+  }
+  return false;
+#endif
+}
+#endif
+
 void set_baud_rate(void) {
+#ifdef BUSPIRATEV4
+  /* This changes no physical UART: CDC line coding belongs to the host. */
+  bp_write_line("USB CDC baud rate is host-controlled.");
+  cmdstart = (cmdend - 1) & CMDLENMSK;
+#else
+  uint8_t previous_speed = bus_pirate_configuration.terminal_speed;
+  uint16_t previous_brg = U1BRG;
   cmdstart = (cmdstart + 1) & CMDLENMSK;
   consumewhitechars();
   int speed = getint();
@@ -1709,12 +1739,13 @@ void set_baud_rate(void) {
   }
   user_serial_initialise();
 
-  /* Wait for space to prove valid baud rate switch. */
-  for (;;) {
-    if (user_serial_read_byte() == ' ') {
-      break;
-    }
+  if (!wait_baud_confirmation()) {
+    bus_pirate_configuration.terminal_speed = previous_speed;
+    user_serial_set_baud_rate(previous_brg);
+    user_serial_initialise();
+    bp_write_line("Baud confirmation timed out; previous rate restored.");
   }
+#endif
 }
 
 void echo_state(const uint16_t value) {

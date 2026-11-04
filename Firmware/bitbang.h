@@ -22,6 +22,14 @@
 #include <stdint.h>
 
 /**
+ * Call bitbang_setup() before any profile-dependent operation, including pin
+ * setters, and again when changing pin count or speed. There is no implicit
+ * default profile: setup is state-only and does not drive any pins. Callers
+ * also own valid numbits (1..16) before value transfers. The terminal parser
+ * validates widths; binary raw entry fixes the width at eight bits.
+ */
+
+/**
  * Waiting-I2C contract (all calls with wait_for_clock_release=true and the
  * _wait / i2c_write_bit signals): high_impedance must be ON, with external
  * pull-ups. Releasing SCL is intentional; push-pull drive is not supported.

@@ -27,6 +27,7 @@ Influence and inspiration taken from http://pe.ece.olin.edu/ece/projects.html
 #endif
 
 static void usb_send_rom(void);
+static void usb_start_rom_reply(unsigned int requested);
 
 ROMPTR const BYTE *usb_device_descriptor;
 ROMPTR const BYTE *usb_config_descriptor;
@@ -87,6 +88,7 @@ BDentry *EP0_Outbdp, *EP0_Inbdp; // Dito
 BYTE IsSuspended = 0;
 ROMPTR const BYTE *usb_rom_ptr;
 size_t usb_rom_len;
+static BYTE usb_rom_need_zlp;
 volatile BYTE usbrequesterrorflag;
 
 void usb_init(ROMPTR const BYTE *device_descriptor,
@@ -375,8 +377,7 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
                     flag_usb_RequestError();
             }
             if (0 == usbrequesterrorflag) {
-                usb_send_rom(); // Send first part of packet right away, the rest is handled by the EP0 IN handler.
-                usb_set_in_handler(0, usb_send_rom);
+                usb_start_rom_reply(packet[USB_wLength] | ((unsigned int)packet[USB_wLengthHigh] << 8));
             } else {
                 usb_RequestError();
             }
@@ -597,6 +598,14 @@ void usb_set_address(void) {
     usb_unset_in_handler(0); // Unregister handler
 }
 
+static void usb_start_rom_reply(unsigned int requested) {
+    /* USB 2.0 5.5.3: terminate early only with a short packet, not an extra
+     * packet after the host's exact wLength or after an already short tail. */
+    usb_rom_need_zlp = usb_rom_len < requested && (usb_rom_len % USB_EP0_BUFFER_SIZE) == 0;
+    usb_set_in_handler(0, usb_send_rom);
+    usb_send_rom();
+}
+
 static void usb_send_rom(void) {
 
     unsigned int i;
@@ -609,7 +618,7 @@ static void usb_send_rom(void) {
         }
     } else {
         packet_len = 0;
-        usb_unset_in_handler(0);
+        usb_rom_need_zlp = 0;
     }
 
     EP0_Inbdp->BDCNT = (BYTE) packet_len;
@@ -617,5 +626,7 @@ static void usb_send_rom(void) {
 
     usb_rom_ptr += packet_len;
     usb_rom_len -= packet_len;
+    if (!usb_rom_len && !usb_rom_need_zlp)
+        usb_unset_in_handler(0);
 }
 

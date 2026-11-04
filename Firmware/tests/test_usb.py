@@ -309,6 +309,47 @@ int main(void) {
 }
 '''
 
+ROM_PREFIX = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stddef.h>
+typedef uint8_t BYTE;
+typedef struct { BYTE BDCNT, BDSTAT; BYTE *BDADDR; } BDentry;
+#define USB_EP0_BUFFER_SIZE 8
+#define DTS 0x40
+#define UOWN 0x80
+#define DTSEN 8
+static BYTE data[32], reply[8];
+static const BYTE *usb_rom_ptr;
+static size_t usb_rom_len;
+static BYTE usb_rom_need_zlp;
+static BDentry inbd = {0, 0, reply}, *EP0_Inbdp = &inbd;
+static void (*in_handler)(void);
+static void usb_send_rom(void);
+static void usb_set_in_handler(int ep, void (*handler)(void)) { (void)ep; in_handler = handler; }
+static void usb_unset_in_handler(int ep) { (void)ep; in_handler = 0; }
+'''
+
+ROM_TEST = r'''
+int main(void) {
+    (void)usb_rom_need_zlp;
+    const unsigned int actual[] = {8, 16, 16, 18};
+    const unsigned int requested[] = {8, 16, 32, 32};
+    const unsigned int expected[] = {1, 2, 3, 3};
+    for (unsigned int i = 0; i < 4; ++i) {
+        unsigned int count = 1;
+        usb_rom_ptr = data; usb_rom_len = actual[i];
+        usb_start_rom_reply(requested[i]);
+        while (in_handler && count < 6) { in_handler(); ++count; }
+        assert(count == expected[i] && !in_handler);
+        assert(inbd.BDCNT == (i == 2 ? 0 : actual[i] % 8 ? actual[i] % 8 : 8));
+    }
+    puts("PASS descriptor exact wLength, short tail, and early full-packet ZLP termination");
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -322,7 +363,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -352,6 +393,12 @@ def main():
         names = ("CDC_Flush_In_Now", "CDCFlushOnTimeout", "setLock", "freeLock", "getinbuf_cdc",
                  "write_cdc", "putc_cdc", "getc_cdc", "getoutbuf_cdc", "read_cdc", "poll_getc_cdc", "peek_getc_cdc")
         compile_run(CDC_PREFIX, "\n".join(function(cdc, n) for n in names), CDC_TEST, "cdc")
+    if args.case in ("all", "rom"):
+        if "static void usb_start_rom_reply(unsigned int requested) {" in stack:
+            start = function(stack, "usb_start_rom_reply")
+        else:
+            start = "static void usb_start_rom_reply(unsigned int requested) { (void)requested; usb_send_rom(); usb_set_in_handler(0, usb_send_rom); }"
+        compile_run(ROM_PREFIX, start + "\n" + function(stack, "usb_send_rom"), ROM_TEST, "rom")
 
 
 if __name__ == "__main__":

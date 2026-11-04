@@ -1129,7 +1129,7 @@ int cmdhistory(void) {
   int historypos[BP_COMMAND_HISTORY_LENGTH];
 
   i = 1;
-  j = (cmdstart - 1) & CMDLENMSK;
+  j = (cmdstart - 2) & CMDLENMSK; /* Do not list the active h command itself. */
 
   while (j != cmdstart) // scroll through the whole buffer
   {
@@ -1154,11 +1154,12 @@ int cmdhistory(void) {
   }
 
   bpBR;
+  if (i == 1) return 1;
   BPMSG1115;
 
-  j = getnumber(0, 1, i, 1);
+  j = getnumber(0, 1, i - 1, 1);
 
-  if (j == -1 || !j) // x is -1, default is 0
+  if (j < 1 || j >= i) // x is -1, default is 0
   {
     bpBR;
     return 1;
@@ -2035,6 +2036,7 @@ void handle_up_arrow(void) {
         menu_state.history_entry_counter++;
 
         refresh_command_line(character_offset);
+        return;
       }
     }
   }
@@ -2061,6 +2063,7 @@ void handle_down_arrow(void) {
       if (history_entry_index == (menu_state.history_entry_counter - 1)) {
         menu_state.history_entry_counter--;
         refresh_command_line(character_offset);
+        return;
       }
     }
   }

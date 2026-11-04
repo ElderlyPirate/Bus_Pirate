@@ -229,6 +229,15 @@ int main(void) {
     for(unsigned i=0;i<8;++i) assert(ring.guard[i]==0xa5);
     puts("PASS macro playback uses the bounded editor and remains editable, not auto-executed");
 }'''),
+    "history": ("proc_menu.c", ["cmdhistory", "handle_up_arrow", "handle_down_arrow"], r'''
+int main(void) {
+    load("h",100); assert(cmdhistory()==1 && !dialogs);
+    load("h",100); cmdbuf[10]='i'; cmdbuf[20]='v';
+    assert(cmdhistory()==1 && dialogs==1 && maximum==2);
+    menu_state.history_entry_counter=0; refreshed=0; handle_up_arrow();
+    assert(refreshed==1 && menu_state.history_entry_counter==1);
+    puts("PASS history excludes current command/uninitialized choice; one arrow recalls one entry");
+}'''),
 }
 
 
@@ -239,6 +248,10 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "history":
+        prefix += "#define BP_COMMAND_HISTORY_LENGTH 15\nstatic int dialogs,maximum,refreshed;\n"
+        prefix += "static int getnumber(int def,int min,int max,int x) {(void)min;(void)x;dialogs++;maximum=max;return def;}\n"
+        prefix += "static void refresh_command_line(uint16_t start) {(void)start;refreshed++;}\nstatic void refresh_mode_prompt(void) {}\n"
     if name == "macro":
         prefix += "#define BP_USER_MACROS_COUNT 2\n#define BP_USER_MACRO_MAX_LENGTH 32\nstatic char user_macros[2][32];\nstatic int user_macro;\n"
     if name == "baud_timeout":

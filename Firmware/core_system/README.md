@@ -54,7 +54,9 @@ Secondary pre-read results:
   3.3 V fixture; the source/MMIO proof covers that leg.
 - Bit-reversal table entries are cast to uint16 before shifting: otherwise
   uint8 promotes to signed 16-bit int and high-byte values overflow that
-  signed shift. Exhaustive word/partial-width reference checks cover it.
+  signed shift. The partial-width path actually compiled to ASR, sign-extending
+  its result; the fixed expression compiles to LSR. `9320f8a` and exhaustive
+  word/partial-width reference checks cover it; v3 code is unchanged.
 
 The reset path cleans the old protocol and clears power, width, duplex,
 editor/prefix and pending macro state. It does not jump across initialization

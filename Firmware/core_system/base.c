@@ -355,6 +355,7 @@ inline uint16_t bp_reverse_word(const uint16_t value) {
 
 uint16_t bp_reverse_integer(const uint16_t value, const uint8_t bits) {
 #ifdef BUSPIRATEV4
+  /* The complete expression must stay unsigned: PIC24 must use LSR, not ASR. */
   return (((uint16_t)REVERSED_BITS_TABLE[value & 0xFF] << 8) |
           REVERSED_BITS_TABLE[value >> 8]) >>
          ((sizeof(uint16_t) * 8) - bits);

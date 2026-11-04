@@ -69,6 +69,8 @@
 #define BP_PULLUP_LAT LATEbits.LATE4
 #define BP_LEDMODE_LAT LATBbits.LATB8
 #define BP_LEDUSB_LAT LATBbits.LATB10
+#define BP_PUVSEL33_LAT LATFbits.LATF4
+#define BP_PUVSEL50_LAT LATFbits.LATF5
 #define BP_PGD PORTBbits.RB7     // PGD pin on programming header
 
 // new in v4
@@ -207,13 +209,13 @@ static inline void bp_adc_pin_setup(void) {
 
 static inline void bp_enable_3v3_pullup(void) {
   BP_PUVSEL50_DIR = INPUT;
-  BP_PUVSEL33 = LOW;
+  BP_PUVSEL33_LAT = LOW;
   BP_PUVSEL33_DIR = OUTPUT;
 }
 
 static inline void bp_disable_3v3_pullup(void) {
   BP_PUVSEL50_DIR = INPUT;
-  BP_PUVSEL33 = LOW;
+  BP_PUVSEL33_LAT = LOW;
   BP_PUVSEL33_DIR = INPUT;
 }
 
@@ -227,7 +229,7 @@ static inline void bp_set_3v3_pullup_state(bool state) {
 
 static inline void bp_enable_5v0_pullup(void) {
   BP_PUVSEL33_DIR = INPUT;
-  BP_PUVSEL50 = LOW;
+  BP_PUVSEL50_LAT = LOW;
   BP_PUVSEL50_DIR = OUTPUT;
 }
 

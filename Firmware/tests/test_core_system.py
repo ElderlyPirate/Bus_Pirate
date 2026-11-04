@@ -274,6 +274,13 @@ int main(void) {
     readpos=0; input="2147483647\r"; assert(getlong(1,0,2147483647,1)==2147483647);
     puts("PASS 32-bit dialog overflow/sign/overlong tokens are rejected without truncation");
 }'''),
+    "vpu_latch": ("hardwarev4.h", ["bp_enable_3v3_pullup", "bp_disable_3v3_pullup", "bp_enable_5v0_pullup"], r'''
+int main(void) {
+    select33=select50=1; bp_enable_3v3_pullup(); assert(!select33 && dir33==0 && dir50==1);
+    bp_enable_5v0_pullup(); assert(!select50 && dir33==1 && dir50==0);
+    bp_disable_3v3_pullup(); assert(dir33==1 && dir50==1);
+    puts("PASS VPU source selection uses LAT and breaks the other source before make");
+}'''),
 }
 
 
@@ -284,6 +291,9 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "vpu_latch":
+        prefix += "#define INPUT 1\n#define OUTPUT 0\n#define LOW 0\nstatic unsigned select33,select50,dir33,dir50,pin33,pin50;\n"
+        prefix += "#define BP_PUVSEL33_LAT select33\n#define BP_PUVSEL50_LAT select50\n#define BP_PUVSEL33_DIR dir33\n#define BP_PUVSEL50_DIR dir50\n#define BP_PUVSEL33 pin33\n#define BP_PUVSEL50 pin50\n"
     if name == "long_dialog": prefix += "#define long int32_t\n"
     if name == "dword":
         prefix = prefix.replace("static void bp_write_dec_dword(uint32_t v) { emit(v); }", "")

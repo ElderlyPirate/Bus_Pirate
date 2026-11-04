@@ -48,6 +48,10 @@ Secondary pre-read results:
   suffixes; otherwise the selector becomes a spurious next command.
 - `d0d8797`: carry the existing #232 / `c3185fa` word-alignment contract on
   the shared terminal/sample allocation into the core-owned declaration.
+- The final context-header sweep also moves both VPU source-selection
+  writes from PORTF to LATF, preserving break-before-make and the low-latch
+  open-drain policy. Five-volt source injection is not used on the attached
+  3.3 V fixture; the source/MMIO proof covers that leg.
 
 The reset path cleans the old protocol and clears power, width, duplex,
 editor/prefix and pending macro state. It does not jump across initialization

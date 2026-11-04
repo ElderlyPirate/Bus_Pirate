@@ -558,6 +558,9 @@ void spi_disable_interface(void) {
  */
 #define SPI_POLL_TIMEOUT 0xFFFF
 
+/* Retain a module fault across all USB/UART chunks of one bulk command. */
+static bool spi_bulk_fault;
+
 /**
  * Waits until there is room to hand a byte to the SPI peripheral.
  *
@@ -632,114 +635,125 @@ static inline uint8_t spi_read_byte(void)
     return result;
 }
 
-#ifdef BUSPIRATEV3
-static void spi_read_bytes_to_uart(uint16_t length)
-{
-#if 1
-    uint16_t sent = length;
-    uint16_t rec = length;
-
-    while(sent || rec)
-    {
-        // PIC24FJ64GA004 Family Errata suggests not to use SPITBF
-        if( (SPI1STATbits.SPIBEC < 7) && SPI1STATbits.SRXMPT && sent ) {
-            SPI1BUF = 0x00;
-            sent--;
-        }
-
-        if( (!SPI1STATbits.SRXMPT) && (!U1STAbits.UTXBF) && rec ) {
-            U1TXREG = SPI1BUF;
-            rec--;
-        }
-    }
-#else
-  /* Writes data to the serial port as soon as read from the SPI bus. */
-
-    while (length--)
-    {
-        while (SPI1STATbits.SPITBF);
-
-        /* Put the value on the bus. */
-        SPI1BUF = 0xff;
-
-        while (U1STAbits.UTXBF || SPI1STATbits.SRXMPT);
-
-        /* read from SPI BUS and write to UART */
-        U1TXREG = SPI1BUF;
-    }
-#endif
+/* DS39897C 15.1 / register 15-1: SRXMPT describes received data;
+ * SPIBEC describes pending transfers. Reset the budget only on progress. */
+static bool spi_bulk_progress(bool progressed, uint32_t *budget) {
+  if (!SPI1STATbits.SPIEN || SPI1STATbits.SPIROV ||
+      (!progressed && --*budget == 0)) {
+    spi_bulk_fault = true;
+    return false;
+  }
+  if (progressed) {
+    *budget = SPI_POLL_TIMEOUT;
+  }
+  return true;
 }
 
-static void spi_write_bytes_from_uart(uint16_t length)
-{
-    uint16_t sent = length;
-    uint16_t rec = length;
-
-    while(sent || rec)
-    {
-        // PIC24FJ64GA004 Family Errata suggests not to use SPITBF
-        if( (SPI1STATbits.SPIBEC < 7) && U1STAbits.URXDA && sent ) {
-            SPI1BUF = LO8(U1RXREG);
-            sent--;
-        }
-
-        if( !SPI1STATbits.SRXMPT && rec ) {
-            SPI1BUF;
-            rec--;
-        }
+#ifdef BUSPIRATEV3
+static void spi_read_bytes_to_uart(uint16_t length) {
+  uint16_t sent = length, rec = length;
+  uint32_t budget = SPI_POLL_TIMEOUT;
+  (void)spi_bulk_progress(true, &budget);
+  while ((sent || rec) && !spi_bulk_fault) {
+    bool progressed = false;
+    if (rec > sent && !SPI1STATbits.SRXMPT && !U1STAbits.UTXBF) {
+      U1TXREG = SPI1BUF;
+      rec--;
+      progressed = true;
     }
+    /* Retain the v3 errata workaround: do not poll SPITBF. */
+    if (sent && SPI1STATbits.SPIBEC < 7 && SPI1STATbits.SRXMPT) {
+      SPI1BUF = 0x00;
+      sent--;
+      progressed = true;
+    }
+    if (!spi_bulk_progress(progressed, &budget)) {
+      break;
+    }
+  }
+  while (rec--) {
+    user_serial_transmit_character(0xFF);
+  }
+}
+
+static void spi_write_bytes_from_uart(uint16_t length) {
+  uint16_t sent = length, rec = length;
+  uint32_t budget = SPI_POLL_TIMEOUT;
+  (void)spi_bulk_progress(true, &budget);
+  while ((sent || rec) && !spi_bulk_fault) {
+    bool progressed = false;
+    if (rec > sent && !SPI1STATbits.SRXMPT) {
+      (void)SPI1BUF;
+      rec--;
+      progressed = true;
+    }
+    if (sent && SPI1STATbits.SPIBEC < 7 && U1STAbits.URXDA) {
+      SPI1BUF = LO8(U1RXREG);
+      sent--;
+      progressed = true;
+    }
+    /* Waiting for a host byte with no SPI transfer pending is not a
+       stalled peripheral. Preserve the existing host-input framing. */
+    if (!progressed && sent == rec && !U1STAbits.URXDA &&
+        SPI1STATbits.SPIEN && !SPI1STATbits.SPIROV) {
+      continue;
+    }
+    if (!spi_bulk_progress(progressed, &budget)) {
+      break;
+    }
+  }
+  /* Consume the request even on fault, so payload cannot become commands. */
+  while (sent--) {
+    (void)user_serial_read_byte();
+  }
 }
 #endif
 
 #ifdef BUSPIRATEV4
-
-static void spi_read_bytes(uint8_t* data, uint16_t length)
-{
-    uint16_t cnt = length;
-    uint16_t rec = 0;
-
-    while(cnt) {
-        if(!(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK|_SPI1STAT_SPIRBF_MASK)))
-            SPI1BUF = 0x00, cnt--;
-
-        if(!SPI1STATbits.SRXMPT)
-            data[rec++] = SPI1BUF;
+static void spi_read_bytes(uint8_t *data, uint16_t length) {
+  uint16_t sent = 0, rec = 0;
+  uint32_t budget = SPI_POLL_TIMEOUT;
+  (void)spi_bulk_progress(true, &budget);
+  while (rec < length && !spi_bulk_fault) {
+    bool progressed = false;
+    if (rec < sent && !SPI1STATbits.SRXMPT) {
+      data[rec++] = SPI1BUF;
+      progressed = true;
     }
-
-    while(rec != length)
-    {
-        if( (!SPI1STATbits.SRXMPT))
-            data[rec++] = SPI1BUF;
+    if (sent < length &&
+        !(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK | _SPI1STAT_SPIRBF_MASK))) {
+      SPI1BUF = 0x00;
+      sent++;
+      progressed = true;
     }
+    if (!spi_bulk_progress(progressed, &budget)) {
+      break;
+    }
+  }
+  /* Keep the promised response length without polling a dead module again. */
+  memset(data + rec, 0xFF, length - rec);
 }
 
-static void spi_write_bytes(uint8_t* data, uint16_t length)
-{
-    uint16_t cnt = length;
-    uint16_t sent = 0;
-
-    while(sent != length)
-    {
-        if(!(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK|_SPI1STAT_SPIRBF_MASK)))
-            SPI1BUF = data[sent++];
-
-        if(!SPI1STATbits.SRXMPT)
-        {
-            /* Discard the byte clocked in while sending. */
-            (void)SPI1BUF;
-            cnt--;
-        }
+static void spi_write_bytes(uint8_t *data, uint16_t length) {
+  uint16_t sent = 0, rec = 0;
+  uint32_t budget = SPI_POLL_TIMEOUT;
+  (void)spi_bulk_progress(true, &budget);
+  while (rec < length && !spi_bulk_fault) {
+    bool progressed = false;
+    if (rec < sent && !SPI1STATbits.SRXMPT) {
+      (void)SPI1BUF;
+      rec++;
+      progressed = true;
     }
-
-    while(cnt)
-    {
-        if( !SPI1STATbits.SRXMPT)
-        {
-            /* Discard the byte clocked in while sending. */
-            (void)SPI1BUF;
-            cnt--;
-        }
+    if (sent < length &&
+        !(SPI1STAT & (_SPI1STAT_SPIBEC2_MASK | _SPI1STAT_SPIRBF_MASK))) {
+      SPI1BUF = data[sent++];
+      progressed = true;
     }
+    if (!spi_bulk_progress(progressed, &budget)) {
+      break;
+    }
+  }
 }
 #endif
 
@@ -1279,6 +1293,7 @@ static void spi_read_to_host(uint16_t bytes_to_read)
 }
 
 void spi_read_write_io(const bool engage_cs) {
+  spi_bulk_fault = false;
 
   /* How many bytes to send to the bus. */
   uint16_t bytes_to_write = user_serial_read_big_endian_word();

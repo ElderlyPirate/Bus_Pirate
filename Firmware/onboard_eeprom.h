@@ -30,7 +30,13 @@
 void eeprom_initialize(void);
 
 /**
- * Tests the on-board 8 kilobytes EEPROM.
+ * Tests the onboard EEPROM using a saved byte and its complement at offset 0.
+ * The original byte is restored and verified before success; a healthy test
+ * uses two write cycles, not a destructive erase/default-value assumption.
+ * Requires an initialized board and an unowned (disabled) I2C1 controller.
+ * I2C1 is disabled afterward. The previous WP latch value is restored unless
+ * rollback cannot be verified, in which case WP stays asserted and false is
+ * returned. Callers must report failure, not assume storage was repaired.
  *
  * @return true if the test passed, false otherwise.
  */

@@ -267,32 +267,39 @@ static bool eeprom_write_byte(uint8_t value, uint16_t address) {
 }
 
 bool eeprom_test(void) {
-  uint8_t value;
-  bool result = false;
+  uint8_t original, value;
+  bool result = false, touched = false, restored = true;
   bool write_protection = EEPROM_WP_LAT;
   /* Do not steal I2C1 from an active protocol owner. */
   if (I2C1CON & _I2C1CON_I2CEN_MASK) {
     return false;
   }
   EEPROM_WP_LAT = HIGH;
-  if (!eeprom_i2c_setup() || !eeprom_ready()) {
+  if (!eeprom_i2c_setup() || !eeprom_ready() || !eeprom_read_byte(0, &original)) {
     goto done;
   }
   EEPROM_WP_LAT = LOW;
-  if (!eeprom_write_byte(0xFF, 0)) {
-    goto done;
+  touched = true;
+  result = eeprom_write_byte((uint8_t)~original, 0) &&
+           eeprom_read_byte(0, &value) && value == (uint8_t)~original;
+
+  /* A failed test is not permission to discard its saved byte. Recover the
+   * internal controller, then make one bounded rollback attempt. */
+  if (eeprom_error) {
+    EEPROM_WP_LAT = HIGH;
+    if (!eeprom_i2c_setup() || !eeprom_ready()) {
+      restored = false;
+      goto done;
+    }
+    EEPROM_WP_LAT = LOW;
   }
-  if (!eeprom_write_byte(0x10, 0)) {
-    goto done;
-  }
-  result = eeprom_read_byte(0, &value) && value == 0x10;
-  if (!eeprom_write_byte(0xFF, 0)) {
-    result = false;
-  }
+  restored = eeprom_write_byte(original, 0) &&
+             eeprom_read_byte(0, &value) && value == original;
 done:
   eeprom_release();
-  EEPROM_WP_LAT = write_protection;
-  return result;
+  /* Fail closed if restoration could not be verified. */
+  EEPROM_WP_LAT = (touched && !restored) ? HIGH : write_protection;
+  return result && restored;
 }
 
 #endif /* BUSPIRATEV4 */

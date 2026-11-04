@@ -1399,8 +1399,10 @@ void handle_extended_avr_command(void) {
     uint32_t address = user_serial_read_big_endian_long_word();
     uint32_t length = user_serial_read_big_endian_long_word();
 
+    /* The host sends a word address but a byte count. Include the final
+       16-bit word and reject only requests that would wrap its address. */
     if ((address > 0xFFFF) || (length > 0xFFFF) ||
-        ((address + length) > 0xFFFF)) {
+        ((address + ((length + 1) / 2)) > 0x10000UL)) {
       REPORT_IO_FAILURE();
       return;
     }

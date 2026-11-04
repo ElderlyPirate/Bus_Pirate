@@ -34,9 +34,13 @@ void CDCFlushOnTimeout(void);
 BYTE poll_getc_cdc(BYTE * c);
 BYTE peek_getc_cdc(BYTE * c);
 void initCDC(void);
+extern volatile BYTE cdc_In_len, cdc_Out_len;
 
 void setLock(void);
+/* Close commits the partial packet before releasing SOF exclusion. */
 void freeLock(void);
+/* Copy at most the advertised span, then commit that count under setLock().
+ * Bus reset invalidates outstanding spans; never retain one across reconnect. */
 void write_cdc(uint16_t);
 BYTE* getinbuf_cdc(uint16_t* bufsize);
 BYTE* getoutbuf_cdc(uint16_t* bufsize);

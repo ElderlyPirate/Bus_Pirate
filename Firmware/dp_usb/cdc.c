@@ -19,6 +19,11 @@ or send a letter to
 #include "../dp_usb/usb_stack_globals.h"    // USB stack only defines Not function related.
 
 #include <string.h>
+#include "../configuration.h"
+
+#ifdef BP_ENABLE_AVRISP_MKII_SUPPORT
+#include "../programmer_avrisp/avrisp_mkii.h"
+#endif
 
 /* CDC PSTN 1.2 Table 17: seven wire bytes, not a native enum/struct ABI. */
 static BYTE line_coding[7];
@@ -45,17 +50,15 @@ BYTE cdc_Out_bufferB[CDC_BUFFER_SIZE];
  */
 volatile BYTE cdc_In_len; // total cdc In length
 volatile BYTE cdc_Out_len; // total cdc out length
-BYTE IsInBufferA;
-BYTE IsOutBufferA;
-BYTE *InPtr;
-BYTE *OutPtr;
+volatile BYTE IsInBufferA;
+volatile BYTE IsOutBufferA;
+BYTE * volatile InPtr;
+BYTE * volatile OutPtr;
 volatile BYTE cdc_timeout_count = 0;
 volatile BYTE ZLPpending = 0;
 volatile BYTE lock = 0;
 
 BDentry *CDC_Outbdp, *CDC_Inbdp;
-
-volatile BYTE cdc_trf_state; // JTR don't see that it is really volatile in current context may be in future.
 
 void initCDC(void) {
 
@@ -76,6 +79,12 @@ void initCDC(void) {
 }
 
 void user_configured_init(void) {
+#ifdef BP_ENABLE_AVRISP_MKII_SUPPORT
+    if (avrisp_usb_personality_active) {
+        avrisp_usb_configure_endpoints();
+        return;
+    }
+#endif
     // JTR NEW FUNCTION
     // After the device is enumerated and configured then we set up non EP0 endpoints.
     // We only enable the endpoints we are using, not all of them.
@@ -103,7 +112,9 @@ void user_configured_init(void) {
 #endif
 
     usb_register_class_setup_handler(cdc_setup);
-    cdc_trf_state = 0;
+    usb_register_sof_handler(CDCFlushOnTimeout);
+    cdc_timeout_count = 0;
+    ZLPpending = 0;
     CDC_Outbdp = &usb_bdt[USB_CALC_BD(2, USB_DIR_OUT, USB_PP_EVEN)];
     CDC_Inbdp = &usb_bdt[USB_CALC_BD(2, USB_DIR_IN, USB_PP_EVEN)];
 
@@ -242,27 +253,34 @@ inline void cdc_set_control_line_state_status(void) {
 }
 
 inline void WaitOutReady(void) {
-    while (CDC_Outbdp->BDSTAT & UOWN) {};
+    while (usb_device_state == CONFIGURED_STATE && (CDC_Outbdp->BDSTAT & UOWN)) {};
 }
 
 inline void WaitInReady(void) {
-    while (CDC_Inbdp->BDSTAT & UOWN) {};
+    while (usb_device_state == CONFIGURED_STATE && (CDC_Inbdp->BDSTAT & UOWN)) {};
 }
 
 /******************************************************************************/
 inline BYTE getOutReady(void) {
-    return !(CDC_Outbdp->BDSTAT & UOWN); // Do we have a packet from host?
+    return usb_device_state == CONFIGURED_STATE && !(CDC_Outbdp->BDSTAT & UOWN);
 }
 
 /******************************************************************************/
 inline BYTE getInReady(void) {
 
-    return !(CDC_Inbdp->BDSTAT & UOWN); // Is the CDC In buffer ready?
+    return usb_device_state == CONFIGURED_STATE && !(CDC_Inbdp->BDSTAT & UOWN);
 }
 
 /******************************************************************************/
 BYTE getda_cdc(void) {
+    BYTE irq;
     WaitOutReady();
+    irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
+    if (usb_device_state != CONFIGURED_STATE || (CDC_Outbdp->BDSTAT & UOWN)) {
+        if (irq) EnableUsbGlobalInterrupt();
+        return 0;
+    }
 
     if ((IsOutBufferA & 1)) {
         OutPtr = &cdc_Out_bufferA[0];
@@ -275,6 +293,7 @@ BYTE getda_cdc(void) {
     cdc_Out_len = CDC_Outbdp->BDCNT;
     CDC_Outbdp->BDCNT = CDC_BUFFER_SIZE;
     CDC_Outbdp->BDSTAT = ((CDC_Outbdp->BDSTAT ^ DTS) & DTS) | UOWN | DTSEN;
+    if (irq) EnableUsbGlobalInterrupt();
 #ifndef USB_INTERRUPTS
     usb_handler();
 #endif
@@ -282,8 +301,14 @@ BYTE getda_cdc(void) {
 }//end getCDC_Out_ArmNext
 
 static void putda_cdc(BYTE count) {
-
+    BYTE irq;
     WaitInReady();
+    irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
+    if (usb_device_state != CONFIGURED_STATE) {
+        if (irq) EnableUsbGlobalInterrupt();
+        return;
+    }
 
     if (IsInBufferA) {
         CDC_Inbdp->BDADDR = cdc_In_bufferA;
@@ -296,6 +321,7 @@ static void putda_cdc(BYTE count) {
     CDC_Inbdp->BDCNT = count;
     CDC_Inbdp->BDSTAT = ((CDC_Inbdp->BDSTAT ^ DTS) & DTS) | UOWN | DTSEN;
     IsInBufferA ^= 0xFF;
+    if (irq) EnableUsbGlobalInterrupt();
 #ifndef USB_INTERRUPTS
     usb_handler();
 #endif
@@ -316,6 +342,7 @@ void SendZLP(void) {
 
 /******************************************************************************/
 void CDC_Flush_In_Now(void) {
+    BYTE was_locked = lock;
     lock = 1;
     if (cdc_In_len > 0) {
         putda_cdc(cdc_In_len);
@@ -327,7 +354,7 @@ void CDC_Flush_In_Now(void) {
         cdc_In_len = 0;
         cdc_timeout_count = 0;
     }
-    lock = 0;
+    lock = was_locked;
 }
 
 /******************************************************************************/
@@ -362,22 +389,31 @@ void setLock(void)
 
 void freeLock(void)
 {
-    if (cdc_In_len == CDC_BUFFER_SIZE)
-        ZLPpending = 1;
-
+    CDC_Flush_In_Now();
     lock = 0;
 }
 
 BYTE* getinbuf_cdc(uint16_t* bufsize)
 {
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    BYTE *ret;
+    DisableGlobalUsbInterrupt();
     *bufsize = CDC_BUFFER_SIZE - cdc_In_len;
-    return InPtr;
+    ret = InPtr;
+    if (irq) EnableUsbGlobalInterrupt();
+    return ret;
 }
 
 void write_cdc(uint16_t count)
 {
-//    lock = 1;
-    if (count == CDC_BUFFER_SIZE || (cdc_In_len + count == CDC_BUFFER_SIZE)) {
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
+    if (count > CDC_BUFFER_SIZE - cdc_In_len) {
+        if (irq) EnableUsbGlobalInterrupt();
+        return; /* The caller may commit only the span returned by getinbuf_cdc. */
+    }
+    if (cdc_In_len + count == CDC_BUFFER_SIZE) {
+        if (irq) EnableUsbGlobalInterrupt();
         putda_cdc(CDC_BUFFER_SIZE); // This will stall tranfers if both buffers are full then return when a buffer is available.
         cdc_In_len = 0;
         /* A full final packet needs a short-packet terminator on timeout. */
@@ -387,23 +423,29 @@ void write_cdc(uint16_t count)
     {
         cdc_In_len += count;
         InPtr += count;
+        if (irq) EnableUsbGlobalInterrupt();
     }
     cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
-//    lock = 0;
 }
 
 /******************************************************************************/
 void putc_cdc(BYTE c) {
+    BYTE irq = TestGlobalUsbInterruptEnable();
+    BYTE count;
+    BYTE was_locked = lock;
+    DisableGlobalUsbInterrupt();
     lock = 1; // Stops CDCFlushOnTimeout() from sending per chance it is on interrupts.
     *InPtr++ = c;
     cdc_In_len++;
-    if (cdc_In_len == CDC_BUFFER_SIZE) {
-        putda_cdc(cdc_In_len); // This will stall tranfers if both buffers are full then return when a buffer is available.
+    count = cdc_In_len;
+    if (irq) EnableUsbGlobalInterrupt();
+    if (count == CDC_BUFFER_SIZE) {
+        putda_cdc(count); // Wait only outside the critical section.
         cdc_In_len = 0;
         ZLPpending = 1; // timeout handled in the SOF handler below.
     }
-    lock = 0;
     cdc_timeout_count = 0; //setup timer to throw data if the buffer doesn't fill
+    lock = was_locked;
 }
 
 /******************************************************************************/
@@ -412,51 +454,39 @@ void putc_cdc(BYTE c) {
 // No return count is required as this function always returns one byte.
 
 BYTE getc_cdc(void) { // Must be used only in double buffer mode.
-    BYTE c = 0;
-
-    if (cdc_Out_len == 0) {
-        do {
-            cdc_Out_len = getda_cdc();
-        } while (cdc_Out_len == 0); // Skip any ZLP
-    }
-    c = *OutPtr;
-    OutPtr++;
-    cdc_Out_len--;
-    return c;
+    uint16_t count = 1;
+    return *getoutbuf_cdc(&count);
 }
 
 BYTE* getoutbuf_cdc(uint16_t* bufsize)
 {
-    while (cdc_Out_len == 0)    // Skip any ZLP
-        cdc_Out_len = getda_cdc();
-
-    BYTE* ret = OutPtr;
-
+    BYTE irq;
+    BYTE *ret;
+    if (*bufsize == 0)
+        return OutPtr;
+    for (;;) {
+        while (cdc_Out_len == 0) /* Skip ZLPs; all waits keep interrupts enabled. */
+            getda_cdc();
+        irq = TestGlobalUsbInterruptEnable();
+        DisableGlobalUsbInterrupt();
+        if (cdc_Out_len)
+            break;
+        if (irq) EnableUsbGlobalInterrupt();
+    }
+    ret = OutPtr;
     if (*bufsize > cdc_Out_len)
         *bufsize = cdc_Out_len;
 
     cdc_Out_len -= *bufsize;
     OutPtr += *bufsize;
-
+    if (irq) EnableUsbGlobalInterrupt();
     return ret;
 }
 
 uint16_t read_cdc(BYTE* data, uint16_t len)    // Must be used only in double buffer mode.
 {
-    if(len)
-    {
-        while (cdc_Out_len == 0)    // Skip any ZLP
-            cdc_Out_len = getda_cdc();
-
-        if (len > cdc_Out_len)
-            len = cdc_Out_len;
-
-        cdc_Out_len -= len;
-
-        memcpy(data, OutPtr, len);
-        OutPtr += len;
-    }
-
+    BYTE *data_in = getoutbuf_cdc(&len);
+    memcpy(data, data_in, len);
     return len;
 }
 
@@ -468,22 +498,19 @@ uint16_t read_cdc(BYTE* data, uint16_t len)    // Must be used only in double bu
 // IF no byte is available function returns immediately with a count of zero.
 
 BYTE poll_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
-
+    BYTE irq;
+    if (!cdc_Out_len && getOutReady())
+        getda_cdc();
+    irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
     if (cdc_Out_len) { // Do we have a byte waiting?
         *c = *OutPtr; // pass it on and adjust OutPtr and count
         OutPtr++;
         cdc_Out_len--;
+        if (irq) EnableUsbGlobalInterrupt();
         return 1; // Return byte count, always one.
     }
-    if (getOutReady()) { // No byte in queue check for new arrivals.
-        cdc_Out_len = getda_cdc();
-        if (cdc_Out_len) {
-            *c = *OutPtr;
-            OutPtr++;
-            cdc_Out_len--;
-            return 1;
-        }
-    }
+    if (irq) EnableUsbGlobalInterrupt();
     return 0;
 }
 
@@ -496,18 +523,17 @@ BYTE poll_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
 // IF no byte is available function returns immediately with a count of zero.
 
 BYTE peek_getc_cdc(BYTE * c) { // Must be used only in double buffer mode.
-
+    BYTE irq;
+    if (!cdc_Out_len && getOutReady())
+        getda_cdc();
+    irq = TestGlobalUsbInterruptEnable();
+    DisableGlobalUsbInterrupt();
     if (cdc_Out_len) {
         *c = *OutPtr;
+        if (irq) EnableUsbGlobalInterrupt();
         return 1;
     }
-    if (getOutReady()) {
-        cdc_Out_len = getda_cdc();
-        if (cdc_Out_len) {
-            *c = *OutPtr;
-            return 1;
-        }
-    }
+    if (irq) EnableUsbGlobalInterrupt();
     return 0;
 }
 

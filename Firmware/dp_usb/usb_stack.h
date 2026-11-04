@@ -132,6 +132,7 @@ typedef struct USB_DEVICE_REQUEST {
 } usb_device_request;
 
 extern BYTE trn_status;
+extern volatile BYTE usb_device_state;
 extern BDentry *EP0_Outbdp, *EP0_Inbdp;
 
 void usb_init(ROMPTR const BYTE *dev_descriptor,

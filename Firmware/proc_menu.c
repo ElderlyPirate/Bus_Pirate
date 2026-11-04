@@ -1037,7 +1037,12 @@ void changemode(void) {
   busmode = 0;
   cmdstart = (cmdstart + 1) & CMDLENMSK;
   consumewhitechars();
+  bool has_argument = cmdbuf[cmdstart] != 0;
   busmode = getint();
+  if (has_argument && mode_configuration.command_error) {
+    cmdstart = (cmdend - 1) & CMDLENMSK;
+    return;
+  }
 
   if (!busmode) // no argument entered
   {
@@ -1071,7 +1076,7 @@ void changemode(void) {
   } else // number entered
   {
     busmode--; // save a couple of programwords to do it here :D
-    if (busmode < ENABLED_PROTOCOLS_COUNT) {
+    if (busmode >= 0 && busmode < ENABLED_PROTOCOLS_COUNT) {
       enabled_protocols[bus_pirate_configuration.bus_mode].cleanup();
       bp_reset_board_state();
       bus_pirate_configuration.bus_mode = busmode;
@@ -1149,7 +1154,6 @@ int cmdhistory(void) {
 
 // gets number from input
 // -1 = abort (x)
-// -2 = input to much
 // 0-max return
 // x=1 exit is enabled (we don't want that in the mode changes ;)
 
@@ -1157,7 +1161,7 @@ int getnumber(int def, int min, int max,
               int x) // default, minimum, maximum, show exit option
 {
   char c;
-  char buf[6]; // max 4 digits;
+  char buf[6]; // five digits cover the positive int16 range
   int i, j, stop, temp, neg;
 
 again: // need to do it proper with whiles and ifs..
@@ -1210,10 +1214,10 @@ again: // need to do it proper with whiles and ifs..
     default:
       if ((c >= 0x30) && (c <= 0x39)) // we got a digit
       {
-        if (i > 3) // 0-9999 should be enough??
+        if (i >= 5)
         {
           user_serial_transmit_character(BELL);
-          i = 4;
+          i = 5;
         } else {
           user_serial_transmit_character(c);
           buf[i] = c; // store user input
@@ -1230,22 +1234,19 @@ again: // need to do it proper with whiles and ifs..
   if (i == 0) {
     return def; // no user input so return default option
   } else {
-    temp = 0;
+    uint32_t magnitude = 0;
     i--;
     j = i;
 
     for (; i >= 0; i--) {
-      temp *= 10;
-      temp += (buf[j - i] - 0x30);
+      magnitude = magnitude * 10u + (buf[j - i] - '0');
     }
 
-    if ((temp >= min) && (temp <= max)) {
-      if (neg) {
-        return -temp;
-      } else {
-        return temp;
-      }
-    } else { // bpWline("\r\nInvalid choice, try again\r\n");
+    if (magnitude <= (neg ? 32768UL : 32767UL)) {
+      temp = (int)(neg ? -(int32_t)magnitude : (int32_t)magnitude);
+      if (temp >= min && temp <= max) return temp;
+    }
+    {
       BPMSG1211;
       goto again;
     }
@@ -1256,7 +1257,6 @@ again: // need to do it proper with whiles and ifs..
 #ifdef BUSPIRATEV4
 // gets number from input
 // -1 = abort (x)
-// -2 = input to much
 // 0-max return
 // x=1 exit is enabled (we don't want that in the mode changes ;)
 
@@ -1338,22 +1338,23 @@ again: // need to do it proper with whiles and ifs..
   if (i == 0) {
     return def; // no user input so return default option
   } else {
-    temp = 0;
+    uint32_t magnitude = 0;
+    bool overflow = false;
     i--;
     j = i;
 
     for (; i >= 0; i--) {
-      temp *= 10;
-      temp += (buf[j - i] - 0x30);
+      uint8_t digit = buf[j - i] - '0';
+      if (magnitude > ((neg ? 2147483648UL : 2147483647UL) - digit) / 10UL)
+        overflow = true;
+      if (!overflow) magnitude = magnitude * 10UL + digit;
     }
 
-    if ((temp >= min) && (temp <= max)) {
-      if (neg) {
-        return -temp;
-      } else {
-        return temp;
-      }
-    } else { // bpWline("\r\nInvalid choice, try again\r\n");
+    if (!overflow) {
+      temp = neg ? (long)(0UL - magnitude) : (long)magnitude;
+      if (temp >= min && temp <= max) return temp;
+    }
+    {
       BPMSG1211;
       goto again;
     }

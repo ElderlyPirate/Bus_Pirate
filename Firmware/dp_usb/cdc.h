@@ -42,13 +42,6 @@ BYTE* getinbuf_cdc(uint16_t* bufsize);
 BYTE* getoutbuf_cdc(uint16_t* bufsize);
 uint16_t read_cdc(BYTE* data, uint16_t count);
 
-struct _cdc_ControlLineState {
-    int DTR : 1;
-    int RTS : 1;
-    int unused1 : 6;
-    BYTE unused2;
-};
-
 // CDC Request Codes
 #define CDC_SEND_ENCAPSULATED_COMMAND                                           0x00
 #define CDC_GET_ENCAPSULATED_RESPONSE                                           0x01

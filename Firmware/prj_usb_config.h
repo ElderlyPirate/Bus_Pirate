@@ -4,8 +4,8 @@
 
 
 #define CLOCK_FREQ 32000000
-#define BAUDCLOCK_FREQ 16000000 
-#define UART_BAUD_setup(x)  U1BRG = x 
+#define BAUDCLOCK_FREQ 16000000
+#define UART_BAUD_setup(x) U1BRG = x
 #define CDC_FLUSH_MS 4 // how many ms timeout before cdc in to host is sent
 
 #define USB_INTERRUPTS 1

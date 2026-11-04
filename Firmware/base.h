@@ -322,12 +322,12 @@ void bp_initialise_delay_timer(void);
 
 #if defined(BUSPIRATEV3)
 
-extern uint8_t *UART1RXBuf;
-extern uint16_t UART1RXToRecv;
-extern uint16_t UART1RXRecvd;
-extern uint8_t *UART1TXBuf;
-extern uint16_t UART1TXSent;
-extern uint16_t UART1TXAvailable;
+extern uint8_t * volatile UART1RXBuf;
+extern volatile uint16_t UART1RXToRecv;
+extern volatile uint16_t UART1RXRecvd;
+extern uint8_t * volatile UART1TXBuf;
+extern volatile uint16_t UART1TXSent;
+extern volatile uint16_t UART1TXAvailable;
 
 #endif /* BUSPIRATEV3 */
 

@@ -854,16 +854,16 @@ bool user_serial_check_overflow(void) { return U1STAbits.OERR; }
 void user_serial_clear_overflow(void) { U1STAbits.OERR = NO; }
 
 /* interrupt transfer related stuff */
-unsigned char __attribute__((section(".bss.filereg"))) * UART1RXBuf;
-unsigned int __attribute__((section(".bss.filereg"))) UART1RXToRecv;
-unsigned int __attribute__((section(".bss.filereg"))) UART1RXRecvd;
-unsigned char __attribute__((section(".bss.filereg"))) * UART1TXBuf;
-unsigned int __attribute__((section(".bss.filereg"))) UART1TXSent;
-unsigned int __attribute__((section(".bss.filereg"))) UART1TXAvailable;
+unsigned char __attribute__((section(".bss.filereg"))) * volatile UART1RXBuf;
+volatile unsigned int __attribute__((section(".bss.filereg"))) UART1RXToRecv;
+volatile unsigned int __attribute__((section(".bss.filereg"))) UART1RXRecvd;
+unsigned char __attribute__((section(".bss.filereg"))) * volatile UART1TXBuf;
+volatile unsigned int __attribute__((section(".bss.filereg"))) UART1TXSent;
+volatile unsigned int __attribute__((section(".bss.filereg"))) UART1TXAvailable;
 
 void user_serial_process_transmission_interrupt() {
   /* Quit early if there is nothing to transmit. */
-  if ((IEC0bits.U1TXIE == ON) || (UART1TXAvailable == UART1TXSent)) {
+  if ((IEC0bits.U1TXIE == ON) || !UART1TXBuf || (UART1TXAvailable <= UART1TXSent)) {
     return;
   }
 
@@ -882,10 +882,11 @@ void user_serial_process_transmission_interrupt() {
 }
 
 void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt(void) {
-  UART1RXBuf[UART1RXRecvd] = U1RXREG;
-  UART1RXRecvd++;
+  uint8_t received = U1RXREG;
+  if (UART1RXBuf && UART1RXRecvd < UART1RXToRecv)
+    UART1RXBuf[UART1RXRecvd++] = received;
 
-  if (UART1RXRecvd == UART1RXToRecv) {
+  if (!UART1RXBuf || UART1RXRecvd >= UART1RXToRecv) {
     IEC0bits.U1RXIE = NO;
   }
 
@@ -893,8 +894,8 @@ void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt(void) {
 }
 
 void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt(void) {
-  UART1TXSent++;
-  if (UART1TXSent == UART1TXAvailable) {
+  if (UART1TXSent < UART1TXAvailable) UART1TXSent++;
+  if (!UART1TXBuf || UART1TXSent >= UART1TXAvailable) {
     IEC0bits.U1TXIE = NO;
   } else {
     U1TXREG = UART1TXBuf[UART1TXSent];

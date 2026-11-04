@@ -24,6 +24,7 @@ def source(name, revision=None):
 
 
 def function(text, name):
+    text = re.sub(r"__attribute__\(\([^)]*\)\)", "", text)
     text = re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.S)
     m = re.search(r"^(?:static |inline )*(?:void|int|long|bool|uint\d+_t)\s+" + name + r"\([^;]*?\)\s*\{", text, re.M)
     assert m, name
@@ -238,6 +239,15 @@ int main(void) {
     assert(refreshed==1 && menu_state.history_entry_counter==1);
     puts("PASS history excludes current command/uninitialized choice; one arrow recalls one entry");
 }'''),
+    "uart_isr": ("base.c", ["_U1RXInterrupt", "_U1TXInterrupt"], r'''
+int main(void) {
+    _U1RXInterrupt(); assert(!IEC0bits.U1RXIE);
+    UART1RXBuf=rx; UART1RXToRecv=1; U1RXREG=0x5a; rx[1]=0xa5;
+    _U1RXInterrupt(); _U1RXInterrupt(); assert(rx[0]==0x5a && rx[1]==0xa5 && UART1RXRecvd==1);
+    UART1TXBuf=rx; UART1TXAvailable=1; UART1TXSent=0; U1TXREG=0x55;
+    _U1TXInterrupt(); _U1TXInterrupt(); assert(UART1TXSent==1 && U1TXREG==0x55 && !IEC0bits.U1TXIE);
+    puts("PASS v3 UART ISR null/zero/completed transfers never escape their buffers");
+}'''),
 }
 
 
@@ -248,6 +258,10 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "uart_isr":
+        prefix += "static uint8_t rx[2];\nstatic uint8_t * volatile UART1RXBuf,* volatile UART1TXBuf;\n"
+        prefix += "static volatile uint16_t UART1RXToRecv,UART1RXRecvd,UART1TXSent,UART1TXAvailable;\n"
+        prefix += "static struct { unsigned U1RXIE,U1TXIE; } IEC0bits;\nstatic struct { unsigned U1RXIF,U1TXIF; } IFS0bits;\nstatic uint16_t U1RXREG,U1TXREG;\n"
     if name == "history":
         prefix += "#define BP_COMMAND_HISTORY_LENGTH 15\nstatic int dialogs,maximum,refreshed;\n"
         prefix += "static int getnumber(int def,int min,int max,int x) {(void)min;(void)x;dialogs++;maximum=max;return def;}\n"
@@ -282,7 +296,7 @@ def run_case(name, revision):
         c=Path(tmp)/"test.c"; exe=c.with_suffix(".exe")
         c.write_text(prefix+defines+"\n"+body+tests, encoding="ascii")
         subprocess.run(["gcc","-std=gnu99","-Wall","-Wextra","-Werror","-Wno-unused-function",
-                        "-Wno-unused-variable","-Wno-unused-but-set-variable","-Wno-implicit-fallthrough",str(c),"-o",str(exe)],check=True)
+                        "-Wno-unused-variable","-Wno-unused-but-set-variable","-Wno-implicit-fallthrough","-Wno-sign-compare",str(c),"-o",str(exe)],check=True)
         subprocess.run([str(exe)],check=True)
 
 

@@ -57,7 +57,7 @@ void bp_message_write_line(unsigned long strptr) {
   bpBR;
 }
 
-/* @todo Check if merging all the strings can save some space or not. */
+/* Individual sections let the linker discard messages for unused features. */
 void print_help(void) {
   HLP1000;
   HLP1001;

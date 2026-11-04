@@ -37,18 +37,24 @@
 void print_help(void);
 
 /**
- * Prints a given byte array range from the packed string buffer to the serial
- * port.
+ * Prints one NUL-terminated .pasciz message from program memory.
+ * The address is an even PIC24 table address, not a RAM byte pointer. Three
+ * payload bytes occupy each 24-bit program word; the reader advances by two
+ * table-address units per word (DS70000157G, TBLRDL/TBLRDH). TBLPAG is restored.
  *
- * @param[in] strptr pointer to the string.
+ * There is no length parameter: callers must supply a valid, terminated
+ * message. Generated catalogs enforce non-NUL payload bytes before the
+ * assembler appends the terminator; this is not an arbitrary flash-range API.
+ *
+ * @param[in] strptr packed-message table address, normally __builtin_tbladdress.
  */
 void bp_message_write_buffer(unsigned long strptr);
 
 /**
- * Prints a given byte array range from the packed string buffer to the serial
- * port, appending a CRLF pair at the end.
+ * Prints a valid packed message under the same preconditions as the buffer
+ * writer, then appends exactly one CRLF pair.
  *
- * @param[in] strptr pointer to the string.
+ * @param[in] strptr packed-message table address.
  */
 void bp_message_write_line(unsigned long strptr);
 

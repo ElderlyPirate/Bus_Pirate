@@ -128,7 +128,7 @@ static bool eeprom_i2c_get_ack(void);
  *
  * @warning The operation will be performed synchronously.
  */
-static void eeprom_start(void);
+static void eeprom_start(bool repeated);
 
 /**
  * Sets up a stop condition on the I2C bus, preparing the bus for shutdown.
@@ -216,13 +216,14 @@ bool eeprom_test(void) {
   return result;
 }
 
-void eeprom_start(void) {
+void eeprom_start(bool repeated) {
 
   /* Initiate a start condition on the I2C bus. */
-  I2C1CONbits.SEN = ON;
+  uint16_t sequence = repeated ? _I2C1CON_RSEN_MASK : _I2C1CON_SEN_MASK;
+  I2C1CON |= sequence;
 
   /* Wait until start condition has been set. */
-  while (I2C1CONbits.SEN == ON) {
+  while (I2C1CON & sequence) {
   }
 }
 
@@ -309,15 +310,15 @@ void eeprom_i2c_setup(void) {
 uint8_t eeprom_read_byte(const uint16_t address) {
 
   /* Start data transmission on the bus. */
-  eeprom_start();
+  eeprom_start(false);
 
   /* Send a dummy write to the bus with the requested read address. */
   eeprom_i2c_write(EEPROM_I2C_WRITE_ADDRESS);
   eeprom_i2c_write(address >> 8);
   eeprom_i2c_write(address);
 
-  /* Start data transmission on the bus. */
-  eeprom_start();
+  /* DS39897C 16.1/16-1: a random read requires RSEN, not another SEN. */
+  eeprom_start(true);
 
   /* Send to the bus a read request. */
   eeprom_i2c_write(EEPROM_I2C_READ_ADDRESS);
@@ -337,7 +338,7 @@ uint8_t eeprom_read_byte(const uint16_t address) {
 bool eeprom_write_byte(const uint8_t value, const uint16_t address) {
 
   /* Start data transmission on the bus. */
-  eeprom_start();
+  eeprom_start(false);
 
   /* Send a write request containing the target address to the bus. */
   eeprom_i2c_write(EEPROM_I2C_WRITE_ADDRESS);

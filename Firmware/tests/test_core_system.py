@@ -142,6 +142,12 @@ int main(void) {
         assert(!memcmp(saved,cmdbuf,256));
     }
     const char *bad[]={"65536","0x10000","0b11111111111111111","0x","0b"};
+    for (unsigned n=0;n<=65535;++n) {
+        char token[16]; snprintf(token,sizeof(token),"%u",n); load(token,0);
+        assert((uint16_t)getint()==n && !mode_configuration.command_error);
+        snprintf(token,sizeof(token),"0X%X",n); load(token,0);
+        assert((uint16_t)getint()==n && !mode_configuration.command_error);
+    }
     for(unsigned i=0;i<5;++i) { load(bad[i],253); getint(); assert(mode_configuration.command_error); }
     load("r:0",0); assert(getrepeat()==0 && mode_configuration.command_error);
     load("r:65535",0); assert(getrepeat()==0 && mode_configuration.command_error);

@@ -586,16 +586,9 @@ void bp_initialise_delay_timer(void) {
 #ifdef BP_USE_HARDWARE_DELAY_TIMER
 
   /*
-   * T1CON
-   *
-   * MSB
-   * 1-0------010-0-
-   * | |      ||| |
-   * | |      ||| +--- TCS:   External clock from pin.
-   * | |      ||+----- T32:   TIMER1 is not bound with TIMER2 for 32 bit mode.
-   * | |      ++------ TCKPS: 1:8 Prescaler.
-   * | +-------------- TSIDL: Continue module operation in idle mode.
-   * +---------------- TON:   Timer OFF.
+   * DS39897C 11.0: TCS=0 selects internal FOSC/2, TCKPS=01 divides by 8.
+   * At FCY=16 MHz this is two ticks/us. TON=0 initially; TSIDL, TGATE
+   * and TSYNC are clear. Timer1 has no T32 bit.
    */
   T1CON = 0x0010;
 

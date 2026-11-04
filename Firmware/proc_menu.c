@@ -980,11 +980,16 @@ void serviceuser(void) {
 int getint(void) {
   uint16_t number = 0, i = 0, digits = 0;
   uint8_t radix = 10;
+  uint16_t limit = 6553;
+  uint8_t last_digit = 5;
   bool overflow = false;
   if (cmdbuf[cmdstart] == '0') {
     char prefix = cmdbuf[(cmdstart + 1) & CMDLENMSK];
-    if (prefix == 'x' || prefix == 'X') { radix = 16; i = 2; }
-    else if (prefix == 'b' || prefix == 'B') { radix = 2; i = 2; }
+    if (prefix == 'x' || prefix == 'X') {
+      radix = 16; limit = 4095; last_digit = 15; i = 2;
+    } else if (prefix == 'b' || prefix == 'B') {
+      radix = 2; limit = 32767; last_digit = 1; i = 2;
+    }
   }
   for (; i < BP_COMMAND_BUFFER_SIZE; ++i) {
     uint8_t c = cmdbuf[(cmdstart + i) & CMDLENMSK];
@@ -994,7 +999,7 @@ int getint(void) {
     else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
     else break;
     if (digit >= radix) break;
-    if (number > (65535u - digit) / radix) overflow = true;
+    if (number > limit || (number == limit && digit > last_digit)) overflow = true;
     if (!overflow) number = number * radix + digit;
     ++digits;
   }

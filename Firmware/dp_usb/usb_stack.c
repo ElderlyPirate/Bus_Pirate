@@ -85,7 +85,6 @@ volatile BYTE usb_device_state;
 BYTE usb_addr_pending;
 BYTE trn_status; // Global since it is needed everywere
 BDentry *EP0_Outbdp, *EP0_Inbdp; // Dito
-BYTE IsSuspended = 0;
 ROMPTR const BYTE *usb_rom_ptr;
 size_t usb_rom_len;
 static BYTE usb_rom_need_zlp;
@@ -302,6 +301,23 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
     BYTE *packet = bdp->BDADDR;
     int i;
 
+    if ((packet[USB_bRequest] == USB_REQUEST_GET_STATUS ||
+            packet[USB_bRequest] == USB_REQUEST_GET_CONFIGURATION) &&
+            (packet[USB_bmRequestType] != 0x80 || packet[USB_wValue] || packet[USB_wValueHigh] ||
+             packet[USB_wIndex] || packet[USB_wIndexHigh] || packet[USB_wLengthHigh] ||
+             packet[USB_wLength] != (packet[USB_bRequest] == USB_REQUEST_GET_STATUS ? 2 : 1))) {
+        usb_RequestError();
+        return;
+    }
+    if ((packet[USB_bRequest] == USB_REQUEST_SET_ADDRESS ||
+            packet[USB_bRequest] == USB_REQUEST_SET_FEATURE ||
+            packet[USB_bRequest] == USB_REQUEST_CLEAR_FEATURE) &&
+            (packet[USB_bmRequestType] != 0 || packet[USB_wValueHigh] ||
+             packet[USB_wIndex] || packet[USB_wIndexHigh] || packet[USB_wLength] || packet[USB_wLengthHigh])) {
+        usb_RequestError();
+        return;
+    }
+
     switch (packet[USB_bRequest]) {
         case USB_REQUEST_GET_STATUS:
             EP0_Inbdp->BDADDR[0] = usb_device_status & 0xFF;
@@ -309,14 +325,14 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
             usb_ack_dat1(2);
             break;
         case USB_REQUEST_CLEAR_FEATURE:
-            if (0x01u == packet[USB_wValue]) { // TODO: Remove magic (REMOTE_WAKEUP_FEATURE)
+            if (0x01u == packet[USB_wValue] && (usb_config_descriptor[7] & 0x20)) {
                 usb_device_status &= ~0x0002;
                 usb_ack_dat1(0);
             } else
                 usb_RequestError();
             break;
         case USB_REQUEST_SET_FEATURE:
-            if (0x01u == packet[USB_wValue]) { // TODO: Remove magic (REMOTE_WAKEUP_FEATURE)
+            if (0x01u == packet[USB_wValue] && (usb_config_descriptor[7] & 0x20)) {
                 usb_device_status |= 0x0002;
                 usb_ack_dat1(0);
             } else
@@ -333,6 +349,10 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
 
 
         case USB_REQUEST_GET_DESCRIPTOR:
+            if (packet[USB_bmRequestType] != 0x80) {
+                usb_RequestError();
+                break;
+            }
             switch (packet[USB_bDescriptorType]) {
                 case USB_DEVICE_DESCRIPTOR_TYPE: // There is only every one in pratice.
                     usb_rom_ptr = usb_device_descriptor;
@@ -432,6 +452,16 @@ void usb_handle_StandardDeviceRequest(BDentry *bdp) {
 void usb_handle_StandardInterfaceRequest(BDentry *bdp) {
     BYTE *packet = bdp->BDADDR;
 
+    if (usb_device_state != CONFIGURED_STATE || packet[USB_wIndexHigh] ||
+            packet[USB_wIndex] >= usb_config_descriptor[4] ||
+            packet[USB_wValue] || packet[USB_wValueHigh] || packet[USB_wLengthHigh] ||
+            packet[USB_bmRequestType] != (packet[USB_bRequest] == USB_REQUEST_SET_INTERFACE ? 0x01 : 0x81) ||
+            packet[USB_wLength] != (packet[USB_bRequest] == USB_REQUEST_GET_STATUS ? 2 :
+                    packet[USB_bRequest] == USB_REQUEST_GET_INTERFACE ? 1 : 0)) {
+        usb_RequestError();
+        return;
+    }
+
     switch (packet[USB_bRequest]) {
         case USB_REQUEST_GET_STATUS:
             EP0_Inbdp->BDADDR[0] = 0x00;
@@ -439,7 +469,7 @@ void usb_handle_StandardInterfaceRequest(BDentry *bdp) {
             usb_ack_dat1(2);
             break;
         case USB_REQUEST_GET_INTERFACE:
-            if (USB_NUM_INTERFACES > packet[USB_bInterface]) {
+            if (usb_config_descriptor[4] > packet[USB_bInterface]) {
                 // TODO: Implement alternative interfaces, or move responsibility to class/vendor functions.
                 EP0_Inbdp->BDADDR[0] = 0;
                 usb_ack_dat1(1);
@@ -447,7 +477,7 @@ void usb_handle_StandardInterfaceRequest(BDentry *bdp) {
                 usb_RequestError();
             break;
         case USB_REQUEST_SET_INTERFACE:
-            if (USB_NUM_INTERFACES > packet[USB_bInterface] && 0u == packet[USB_wValue]) {
+            if (usb_config_descriptor[4] > packet[USB_bInterface] && 0u == packet[USB_wValue]) {
                 // TODO: Implement alternative interfaces...
                 usb_ack_dat1(0);
             } else

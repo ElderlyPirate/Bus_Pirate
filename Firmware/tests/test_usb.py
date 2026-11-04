@@ -354,6 +354,7 @@ CONFIG_PREFIX = r'''
 #define MAX_CHIP_EP 16
 #define USB_EP_NONE 0
 #define USB_NUM_CONFIGURATIONS 1
+#define USB_NUM_INTERFACES 2
 #define ADDRESS_STATE 0x10
 #define CONFIGURED_STATE 0x20
 static BYTE dev[18] = {[17] = 1}, cfg[9] = {9, 2, 9, 0, 2}, strings[4] = {4, 3, 9, 4};
@@ -390,6 +391,25 @@ int main(void) {
 }
 '''
 
+CONTROL_TEST = r'''
+int main(void) {
+    cfg[4] = 1; usb_device_state = CONFIGURED_STATE;
+    packet[0] = 0x81; packet[1] = USB_REQUEST_GET_INTERFACE; packet[4] = 1; packet[6] = 1;
+    usb_handle_StandardInterfaceRequest(&reqbd); assert(error);
+    error = 0; packet[4] = 0; usb_handle_StandardInterfaceRequest(&reqbd); assert(!error && ack == 1);
+    usb_device_state = ADDRESS_STATE; usb_handle_StandardInterfaceRequest(&reqbd); assert(error);
+    error = 0; memset(packet, 0, 8); packet[1] = USB_REQUEST_SET_FEATURE; packet[2] = 1;
+    usb_handle_StandardDeviceRequest(&reqbd); assert(error && !usb_device_status);
+    error = 0; memset(packet, 0, 8); packet[1] = USB_REQUEST_SET_ADDRESS; packet[2] = 7; packet[6] = 1;
+    usb_handle_StandardDeviceRequest(&reqbd); assert(error);
+    error = 0; memset(packet, 0, 8); packet[1] = USB_REQUEST_GET_STATUS; packet[6] = 2;
+    usb_handle_StandardDeviceRequest(&reqbd); assert(error);
+    puts("PASS active-descriptor interface bounds, configuration state, standard lengths/directions and advertised wakeup capability");
+    (void)usb_halt_saved;
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -403,7 +423,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "halt", "setup", "cdc", "rom", "config", "control"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -439,11 +459,16 @@ def main():
         else:
             start = "static void usb_start_rom_reply(unsigned int requested) { (void)requested; usb_send_rom(); usb_set_in_handler(0, usb_send_rom); }"
         compile_run(ROM_PREFIX, start + "\n" + function(stack, "usb_send_rom"), ROM_TEST, "rom")
-    if args.case in ("all", "config"):
+    if args.case in ("all", "config", "control"):
         all_defines = "\n".join(line for line in headers.splitlines()
                                 if re.match(r"#define USB_(b|w|REQUEST_|.*DESCRIPTOR_TYPE)", line))
-        compile_run(EP_PREFIX + "#include <stddef.h>\n" + CONFIG_PREFIX + all_defines + "\n",
-                    function(stack, "usb_handle_StandardDeviceRequest"), CONFIG_TEST, "config")
+        for name, tests in (("config", CONFIG_TEST), ("control", CONTROL_TEST)):
+            if args.case in ("all", name):
+                body = function(stack, "usb_handle_StandardDeviceRequest")
+                if name == "control":
+                    body += "\n" + function(stack, "usb_handle_StandardInterfaceRequest")
+                compile_run(EP_PREFIX + "#include <stddef.h>\n" + CONFIG_PREFIX + all_defines + "\n",
+                            body, tests, name)
 
 
 if __name__ == "__main__":

@@ -89,6 +89,19 @@ int main(void) {
 }
 '''
 
+BAUD_TEST = r'''
+int main(void) {
+    initCDC();
+    memset(outbuf, 0, sizeof(outbuf)); outbuf[6] = 8; outbd.BDCNT = 7;
+    U1BRG = 1234;
+    cdc_set_line_coding_data();
+    assert(!error && ack == 0 && U1BRG == 1234);
+    puts("PASS zero baud is virtual metadata, no division or UART register change");
+    cdc_setup();
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -102,6 +115,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
+    parser.add_argument("--case", choices=("all", "line", "baud"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -113,7 +127,9 @@ def main():
     else:
         decl = "static BYTE line_coding[7];\n"
     body = "\n".join(function(cdc, n) for n in ("initCDC", "cdc_setup", "cdc_set_line_coding_data"))
-    compile_run(PREFIX + defines + "\n" + decl, body, LINE_TEST, "line_coding")
+    for name, tests in (("line", LINE_TEST), ("baud", BAUD_TEST)):
+        if args.case in ("all", name):
+            compile_run(PREFIX + defines + "\n" + decl, body, tests, name)
 
 
 if __name__ == "__main__":

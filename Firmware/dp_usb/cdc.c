@@ -211,16 +211,8 @@ void cdc_set_line_coding_data(void) { // JTR handling an OUT token In the CDC st
         usb_RequestError();
         return;
     }
+    /* Virtual COM metadata must not divide by a host value or touch UART1. */
     memcpy(line_coding, data, sizeof(line_coding));
-    {
-        unsigned long rate = (unsigned long)data[0] | ((unsigned long)data[1] << 8) |
-                ((unsigned long)data[2] << 16) | ((unsigned long)data[3] << 24);
-        unsigned long baud = BAUDCLOCK_FREQ / rate;
-        unsigned long rem = BAUDCLOCK_FREQ % rate;
-        if (rate > (rem << 1))
-            baud--;
-        UART_BAUD_setup(baud);
-    }
 
     usb_unset_out_handler(0); // Unregister OUT handler; JTR serious bug fix in macro!
     usb_set_in_handler(0, cdc_set_line_coding_status); // JTR why bother?

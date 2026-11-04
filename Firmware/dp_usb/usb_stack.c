@@ -38,6 +38,7 @@ usb_handler_t class_setup_handler, vendor_setup_handler;
 
 
 usb_ep_t endpoints[MAX_CHIP_EP]; // JTR change. MAX_CHIP_EP is the number of hardware endpoints on the silicon. See picusb.h
+static BYTE usb_halt_saved[2 + 2 * MAX_EPNUM_USED];
 
 /* Allocate buffers for buffer description table and the actual buffers */
 // CvD: linkscript puts it in the right memory location
@@ -149,6 +150,7 @@ void ClearUSBtoDefault(void) {
 
     for (i = 0; i < (2 + 2 * MAX_EPNUM_USED); i++) {
         usb_bdt[i].BDSTAT = 0;
+        usb_halt_saved[i] = 0;
     }
 
     USB_UEP0 = USB_EP_CONTROL; // Configure Only ep0 At this point.
@@ -493,43 +495,24 @@ void usb_handle_StandardEndpointRequest(BDentry *bdp) {
             break;
 
         case USB_REQUEST_CLEAR_FEATURE:
-            // As this is really is an application event and there
-            // should be a call back and protocol for handling the
-            // possible lost of a data packet.
-            // TODO: ping-ping support.
-
-            epnum = packet[USB_wIndex] & 0x0F; // JTR Added V0.2 after microchip stuff up with their documentation.
             pUEP = USB_UEP;
             pUEP += epnum;
             *pUEP &= ~USB_UEP_EPSTALL;
-
-            dir = packet[USB_wIndex] >> 7;
             epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_EVEN)];
-            epbd->BDSTAT &= ~BSTALL;
-            if (dir) epbd->BDSTAT |= DTS; // JTR added IN EP set DTS as it will be toggled to zero next transfer
-            if (0 == dir) epbd->BDSTAT &= ~DTS; // JTR added
-
-            // JTR this pointless ATM. If ping-pong is enabled then you need to track PPBI
-            // and set up ODD and EVEN BDs in respect to this. See complicated system in
-            // microchip stack >= 2.8
-
-            //		epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_ODD)];
-            //		epbd->BDSTAT &= ~BSTALL;
-            //		if (dir) epbd->BDSTAT |= DTS;		// JTR added
-            //		if (0 == dir) epbd->BDSTAT &= ~DTS;	// JTR added
-
-
+            if ((epbd->BDSTAT & (UOWN | BSTALL)) == (UOWN | BSTALL))
+                epbd->BDSTAT = usb_halt_saved[USB_CALC_BD(epnum, dir, USB_PP_EVEN)];
+            /* Queued packet resumes at DATA0; a free BD toggles on submission. */
+            epbd->BDSTAT = (epbd->BDSTAT & UOWN) ? (UOWN | DTSEN) : (DTS | DTSEN);
             usb_ack_dat1(0);
             break;
 
 
         case USB_REQUEST_SET_FEATURE:
-            epnum = packet[USB_wIndex] & 0x0F;
-            dir = packet[USB_wIndex] >> 7;
             epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_EVEN)];
-            epbd->BDSTAT |= BSTALL;
-            //epbd = &usb_bdt[USB_CALC_BD(epnum, dir, USB_PP_ODD)];
-            //epbd->BDSTAT |= BSTALL;
+            if ((epbd->BDSTAT & (UOWN | BSTALL)) != (UOWN | BSTALL))
+                usb_halt_saved[USB_CALC_BD(epnum, dir, USB_PP_EVEN)] = epbd->BDSTAT;
+            /* SETUP holds PKTDIS: reclaim safely, then publish a STALL BD. */
+            epbd->BDSTAT = UOWN | BSTALL;
             usb_ack_dat1(0);
             break;
         case USB_REQUEST_SYNCH_FRAME:

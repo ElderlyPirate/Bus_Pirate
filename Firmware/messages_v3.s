@@ -650,7 +650,7 @@ _BPMSG1228_str:
 	.section .text.BPMSG1233, code
 	.global _BPMSG1233_str
 _BPMSG1233_str:
-	.pasciz "1.(BR)\t2.(RD)\t3.(OR)\t4.(YW)\t5.(GN)\t6.(BL)\t7.(PU)\t8.(GR)\t9.(WT)\t0.(Blk)"
+	.pasciz "1.(Br)\t2.(Rd)\t3.(Or)\t4.(Yw)\t5.(Gn)\t6.(Bu)\t7.(Pu)\t8.(Gy)\t9.(Wt)\t0.(Bk)"
 
 	; BPMSG1234
 	.section .text.BPMSG1234, code

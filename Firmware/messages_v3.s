@@ -1725,4 +1725,3 @@ _MSG_WARNING_HEADER_str:
 	.global _MSG_WARNING_SHORT_OR_NO_PULLUP_str
 _MSG_WARNING_SHORT_OR_NO_PULLUP_str:
 	.pasciz "*Short or no pull-up "
-

@@ -649,7 +649,10 @@ void delay_short(uint16_t microseconds) {
   } while (ticks_delta < ticks);
 }
 
-void bp_delay_ms(uint16_t milliseconds) { delay_long(milliseconds * 1000); }
+void bp_delay_ms(uint16_t milliseconds) {
+  /* Carry the existing #208/a94ebc7 fix: PIC24 int arithmetic is 16-bit. */
+  delay_long((uint32_t)milliseconds * 1000UL);
+}
 
 void bp_delay_us(uint16_t microseconds) {
   if (microseconds < 0x3FFF) {

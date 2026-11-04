@@ -29,6 +29,11 @@
 
 #include "base.h"
 
+/* Dedicated v4 EEPROM pins; PORT remains readback, LAT owns output state. */
+#define EEPROM_SDA_LAT LATDbits.LATD9
+#define EEPROM_SCL_LAT LATDbits.LATD10
+#define EEPROM_WP_LAT LATDbits.LATD11
+
 /**
  * On-board EEPROM I2C address for write operations.
  *
@@ -169,17 +174,15 @@ void eeprom_initialize(void) {
   /* I2C clock line set as INPUT. */
   BP_EE_SCL_DIR = INPUT;
 
-  /* EEPROM Write Protect line set as OUTPUT. */
-  BP_EE_WP_DIR = OUTPUT;
-
   /* I2C clock line LOW. */
-  BP_EE_SCL = LOW;
+  EEPROM_SCL_LAT = LOW;
 
   /* I2C data line LOW. */
-  BP_EE_SDA = LOW;
+  EEPROM_SDA_LAT = LOW;
 
   /* EEPROM Write Protect line HIGH. */
-  BP_EE_WP = HIGH;
+  EEPROM_WP_LAT = HIGH;
+  BP_EE_WP_DIR = OUTPUT;
 }
 
 bool eeprom_test(void) {
@@ -188,10 +191,10 @@ bool eeprom_test(void) {
   eeprom_i2c_setup();
 
   /* Get the current write protection flag state. */
-  bool write_protection = BP_EE_WP;
+  bool write_protection = EEPROM_WP_LAT;
 
   /* Enable writing to the EEPROM. */
-  BP_EE_WP = LOW;
+  EEPROM_WP_LAT = LOW;
 
   /* Write 0xFF (the default value) to offset 0. */
   eeprom_write_byte(0xFF, 0);
@@ -208,7 +211,7 @@ bool eeprom_test(void) {
   eeprom_write_byte(0xFF, 0);
 
   /* Restore the old write protection flag state. */
-  BP_EE_WP = write_protection;
+  EEPROM_WP_LAT = write_protection;
 
   return result;
 }

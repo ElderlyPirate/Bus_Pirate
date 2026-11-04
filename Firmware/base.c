@@ -575,7 +575,8 @@ uint16_t bp_read_from_flash(const uint16_t page, const uint16_t address) {
   uint16_t word;
 
   TBLPAG = page;
-  word = (__builtin_tblrdh(address) << 8) | __builtin_tblrdl(address);
+  /* TBLRDL already returns bits 15:0; TBLRDH is the separate upper byte. */
+  word = __builtin_tblrdl(address);
   TBLPAG = old_page;
 
   return word;

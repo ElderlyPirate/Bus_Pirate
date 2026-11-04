@@ -343,7 +343,7 @@ void spi_setup_prepare(void) {
   consumewhitechars();
   spi_enabled = getint();
 
-  user_prompt = !(((spi_speed > 0) && (spi_speed <= 4)) &&
+  user_prompt = !(((spi_speed > 0) && (spi_speed <= sizeof(spi_bus_speed))) &&
                   ((spi_clock_polarity > 0) && (spi_clock_polarity <= 2)) &&
                   ((spi_clock_edge > 0) && (spi_clock_edge <= 2)) &&
                   ((spi_data_sampling > 0) && (spi_data_sampling <= 2)) &&

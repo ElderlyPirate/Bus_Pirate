@@ -240,9 +240,17 @@ void usb_handle_transaction(void) {
 
 void usb_handle_setup(void) {
 
+    /* A SETUP aborts the previous control transfer (USB 2.0 8.5.3). */
+    usb_unset_in_handler(0);
+    usb_unset_out_handler(0);
+    usbrequesterrorflag = 0;
     EP0_Inbdp->BDSTAT = DTSEN; // Reclaim reply buffer
-
-    EnablePacketTransfer(); // JTR this is placed here to overcome a errate issue with early PIC18 USB pics.
+    USB_UEP0 &= ~USB_UEP_EPSTALL;
+    if (EP0_Outbdp->BDCNT != 8) {
+        usb_RequestError();
+        EnablePacketTransfer();
+        return;
+    }
 
     switch (EP0_Outbdp->BDADDR[USB_bmRequestType] & USB_bmRequestType_TypeMask) {
         case USB_bmRequestType_Standard:
@@ -262,27 +270,27 @@ void usb_handle_setup(void) {
             break;
         case USB_bmRequestType_Class:
             if (class_setup_handler) class_setup_handler();
+            else usb_RequestError();
             break;
         case USB_bmRequestType_Vendor:
 			//ROBOTS FIX: http://dangerousprototypes.com/forum/viewtopic.php?f=39&t=3849&view=unread#unread
 			// did call class_setup_handler();
             if (vendor_setup_handler) vendor_setup_handler();
+            else usb_RequestError();
             break;
         default:
             usb_RequestError();
     }
     /* Prepare endpoint for new reception */
 
-    EP0_Outbdp->BDCNT = USB_EP0_BUFFER_SIZE; // Size  of EP0, should always be ep0?
-
-    // JTR, is the next OUT transfer to be a setup packet (DAT0) or a DATA packet (DAT1)?
-    // note that this is not an entirely robust way of doing things. See the microchip stack for
-    // further comments and a better system as this does not account for errors and retries
-    // and it results in the SIE not accepting the final out ZLP status packet for IN transfers
-    // with a data stage. However it works but it is not anything to be proud of...
-
-    EP0_Outbdp->BDSTAT = (!(EP0_Outbdp->BDADDR[USB_bmRequestType] & USB_bmRequestType_PhaseMask) &&
-            (EP0_Outbdp->BDADDR[USB_wLength] || EP0_Outbdp->BDADDR[USB_wLengthHigh])) ? UOWN + DTS + DTSEN : UOWN + DTSEN;
+    if (!usbrequesterrorflag) {
+        EP0_Outbdp->BDCNT = USB_EP0_BUFFER_SIZE;
+        /* DATA or status OUT starts at DATA1; a SETUP always resynchronizes. */
+        EP0_Outbdp->BDSTAT = UOWN | DTSEN |
+                ((EP0_Outbdp->BDADDR[USB_wLength] || EP0_Outbdp->BDADDR[USB_wLengthHigh]) ? DTS : 0);
+    }
+    /* DS39897C p.226: keep PKTDIS set until all control BDs are ready. */
+    EnablePacketTransfer();
 }
 
 void usb_handle_StandardDeviceRequest(BDentry *bdp) {
@@ -539,6 +547,10 @@ void usb_handle_in(void) {
 void usb_handle_out(void) {
     if (endpoints[USB_STAT2EP(trn_status)].out_handler) {
         endpoints[USB_STAT2EP(trn_status)].out_handler();
+    } else if (USB_STAT2EP(trn_status) == 0) {
+        /* Completed control-read status ZLP: receive the next SETUP. */
+        EP0_Outbdp->BDCNT = USB_EP0_BUFFER_SIZE;
+        EP0_Outbdp->BDSTAT = UOWN | DTSEN;
     }
 }
 
@@ -574,6 +586,10 @@ void usb_ack_dat1(int bdcnt) {
 }
 
 void usb_RequestError(void) {
+
+    usbrequesterrorflag = 1;
+    usb_unset_in_handler(0);
+    usb_unset_out_handler(0);
 
     usb_bdt[USB_CALC_BD(0, USB_DIR_OUT, USB_PP_EVEN)].BDCNT = USB_EP0_BUFFER_SIZE;
     //usb_bdt[USB_CALC_BD(0, USB_DIR_OUT, USB_PP_ODD)].BDCNT = USB_EP0_BUFFER_SIZE;

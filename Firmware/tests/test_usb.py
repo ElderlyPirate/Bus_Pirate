@@ -168,6 +168,54 @@ int main(void) {
 }
 '''
 
+SETUP_PREFIX = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+typedef uint8_t BYTE;
+typedef struct { BYTE BDCNT, BDSTAT; BYTE *BDADDR; } BDentry;
+#define DTSEN 8
+#define DTS 0x40
+#define UOWN 0x80
+#define BSTALL 4
+#define USB_EP0_BUFFER_SIZE 8
+#define USB_UEP_EPSTALL 2
+static unsigned int USB_UEP0;
+static BYTE packet[8], reply[8];
+static BDentry outbd = {8, 0, packet}, inbd = {0, 0, reply};
+static BDentry *EP0_Outbdp = &outbd, *EP0_Inbdp = &inbd;
+static int usbrequesterrorflag, pktdis = 1, pending_in = 1, pending_out = 1;
+static void (*class_setup_handler)(void), (*vendor_setup_handler)(void);
+#define EnablePacketTransfer() (pktdis = 0)
+static void usb_unset_in_handler(int ep) { (void)ep; pending_in = 0; }
+static void usb_unset_out_handler(int ep) { (void)ep; pending_out = 0; }
+static void usb_RequestError(void) {
+    usbrequesterrorflag = 1; inbd.BDSTAT = outbd.BDSTAT = UOWN | BSTALL;
+}
+static void handled(void) { assert(pktdis); }
+static void usb_handle_StandardDeviceRequest(BDentry *p) { (void)p; handled(); }
+static void usb_handle_StandardInterfaceRequest(BDentry *p) { (void)p; handled(); }
+static void usb_handle_StandardEndpointRequest(BDentry *p) { (void)p; handled(); }
+'''
+
+SETUP_TEST = r'''
+int main(void) {
+    (void)USB_UEP0; (void)usb_unset_in_handler; (void)usb_unset_out_handler;
+    packet[0] = 0xa1; packet[6] = 7; class_setup_handler = handled;
+    usb_handle_setup();
+    assert(!pending_in && !pending_out && !pktdis && !usbrequesterrorflag);
+    assert(outbd.BDSTAT == (UOWN | DTS | DTSEN));
+    puts("PASS new SETUP aborts callbacks, arms DATA1 status, releases PKTDIS last");
+    pktdis = 1; outbd.BDCNT = 8; class_setup_handler = 0;
+    usb_handle_setup();
+    assert(usbrequesterrorflag && outbd.BDSTAT == (UOWN | BSTALL) && !pktdis);
+    pktdis = 1; outbd.BDCNT = 7; usb_handle_setup();
+    assert(usbrequesterrorflag && !pktdis);
+    puts("PASS unsupported/malformed SETUP stalls and does not overwrite OUT STALL");
+    return 0;
+}
+'''
+
 
 def compile_run(prefix, body, tests, name):
     with tempfile.TemporaryDirectory(prefix="bp-usb-", dir=str(Path.home() / "AppData/Local/Temp/opencode")) as tmp:
@@ -181,7 +229,7 @@ def compile_run(prefix, body, tests, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds"), default="all")
+    parser.add_argument("--case", choices=("all", "line", "baud", "endpoint", "bounds", "setup"), default="all")
     args = parser.parse_args()
     cdc = source("dp_usb/cdc.c", args.revision)
     headers = source("dp_usb/usb_stack.h", args.revision) + source("dp_usb/cdc.h", args.revision)
@@ -203,6 +251,10 @@ def main():
         if args.case in ("all", name):
             compile_run(EP_PREFIX + ep_defines + "\n",
                         function(stack, "usb_handle_StandardEndpointRequest"), tests, name)
+    if args.case in ("all", "setup"):
+        setup_defines = "\n".join(line for line in headers.splitlines()
+                                  if re.match(r"#define USB_(bm|b|w)", line))
+        compile_run(SETUP_PREFIX + setup_defines + "\n", function(stack, "usb_handle_setup"), SETUP_TEST, "setup")
 
 
 if __name__ == "__main__":

@@ -68,7 +68,7 @@ or send a letter to
 #define USB_bmRequestType_Standard              0b00000000
 #define USB_bmRequestType_Class                 0b00100000
 #define USB_bmRequestType_Vendor                0b01000000
-#define USB_bmRequestType_RecipientMask         0b00000011
+#define USB_bmRequestType_RecipientMask         0b00011111
 #define USB_bmRequestType_Device                0b00000000
 #define USB_bmRequestType_Interface             0b00000001
 #define USB_bmRequestType_Endpoint              0b00000010

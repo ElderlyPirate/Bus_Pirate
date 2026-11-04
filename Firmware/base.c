@@ -154,6 +154,10 @@ static inline void delay_short(uint16_t microseconds);
 #endif /* BP_USE_HARDWARE_DELAY_TIMER */
 
 void clear_mode_configuration(void) {
+  mode_configuration.numbits = 8;
+  mode_configuration.int16 = NO;
+  mode_configuration.write_with_read = NO;
+  mode_configuration.command_error = NO;
   mode_configuration.high_impedance = OFF;
   mode_configuration.speed = 0;
   mode_configuration.periodicService = OFF;

@@ -1097,7 +1097,7 @@ void changemode(void) {
       enabled_protocols[bus_pirate_configuration.bus_mode].setup_prepare();
       MSG_CLUTCH_DISENGAGED;
       if (busmode) {
-        BP_LEDMODE = 1; // mode led is on when proto >0
+        bp_enable_mode_led();
         MSG_FINISH_SETUP_PROMPT;
       }
       // bpWmessage(MSG_READY);
@@ -1112,7 +1112,7 @@ void changemode(void) {
       bus_pirate_configuration.bus_mode = busmode;
       enabled_protocols[bus_pirate_configuration.bus_mode].setup_prepare();
       if (busmode)
-        BP_LEDMODE = 1; // mode led is on when proto >0
+        bp_enable_mode_led();
       // bpWmessage(MSG_READY);
       BPMSG1085;
     } else { // bpWline("Nonexistent protocol!!");

@@ -808,7 +808,7 @@ void user_serial_ringbuffer_flush(void) {
 
 void user_serial_ringbuffer_append(const char character) {
   if (user_serial_ringbuffer_write == user_serial_ringbuffer_read) {
-    BP_LEDMODE = LOW;
+    BP_LEDMODE_LAT = LOW;
     bus_pirate_configuration.overflow = YES;
     return;
   }

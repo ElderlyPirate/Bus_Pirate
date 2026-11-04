@@ -65,6 +65,10 @@
 #define BP_LEDMODE PORTBbits.RB8 // single MODE led on v2a
 #define BP_VREGEN PORTBbits.RB9  // single vreg enable pin on v2a
 #define BP_PULLUP PORTEbits.RE4  // Pull-up pin on V2a
+#define BP_VREGEN_LAT LATBbits.LATB9
+#define BP_PULLUP_LAT LATEbits.LATE4
+#define BP_LEDMODE_LAT LATBbits.LATB8
+#define BP_LEDUSB_LAT LATBbits.LATB10
 #define BP_PGD PORTBbits.RB7     // PGD pin on programming header
 
 // new in v4
@@ -179,18 +183,18 @@
 #define PIC_REV_A6 0x0004
 
 static inline void bp_enable_usb_led(void) {
+  BP_LEDUSB_LAT = ON;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB = ON;
 }
 
 static inline void bp_disable_usb_led(void) {
+  BP_LEDUSB_LAT = OFF;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB = OFF;
 }
 
 static inline void bp_toggle_usb_led(void) {
+  BP_LEDUSB_LAT ^= ON;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB ^= ON;
 }
 
 static inline void bp_adc_pin_setup(void) {

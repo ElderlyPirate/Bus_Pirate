@@ -70,12 +70,12 @@
 #define DEV_ADDR_REV 0x0002
 
 static inline void bp_enable_pullup(void) {
+  BP_PULLUP_LAT = LOW;
   BP_PULLUP_DIR = INPUT;
-  BP_PULLUP = LOW;
 }
 
 static inline void bp_disable_pullup(void) {
-  BP_PULLUP = LOW;
+  BP_PULLUP_LAT = LOW;
   BP_PULLUP_DIR = OUTPUT;
 }
 
@@ -88,13 +88,13 @@ static inline void bp_set_pullup_state(bool state) {
 }
 
 static inline void bp_enable_voltage_regulator(void) {
+  BP_VREGEN_LAT = ON;
   BP_VREGEN_DIR = OUTPUT;
-  BP_VREGEN = ON;
 }
 
 static inline void bp_disable_voltage_regulator(void) {
+  BP_VREGEN_LAT = OFF;
   BP_VREGEN_DIR = OUTPUT;
-  BP_VREGEN = OFF;
 }
 
 static inline bool bp_get_voltage_regulator_state(void) {
@@ -127,13 +127,13 @@ static inline void bp_set_adc_state(bool state) {
 }
 
 static inline void bp_enable_mode_led(void) {
+  BP_LEDMODE_LAT = ON;
   BP_LEDMODE_DIR = OUTPUT;
-  BP_LEDMODE = ON;
 }
 
 static inline void bp_disable_mode_led(void) {
+  BP_LEDMODE_LAT = OFF;
   BP_LEDMODE_DIR = OUTPUT;
-  BP_LEDMODE = OFF;
 }
 
 static inline void bp_set_mode_led_state(const bool state) {
@@ -145,8 +145,8 @@ static inline void bp_set_mode_led_state(const bool state) {
 }
 
 static inline void bp_toggle_mode_led(void) {
+  BP_LEDMODE_LAT ^= ON;
   BP_LEDMODE_DIR = OUTPUT;
-  BP_LEDMODE ^= ON;
 }
 
 #endif /* !BP_HARDWARE_H */

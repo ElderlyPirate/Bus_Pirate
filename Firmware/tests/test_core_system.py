@@ -196,6 +196,14 @@ int main(void) {
     assert(menu_state.cursor_position==37 && !menu_state.escape_state && !menu_state.binary_mode_counter && !menu_state.command_present);
     puts("PASS simulated reset clears protocol/editor state without jumping into parser locals");
 }'''),
+    "latch": ("hardware.h", ["bp_enable_pullup", "bp_disable_pullup", "bp_enable_voltage_regulator", "bp_disable_voltage_regulator"], r'''
+int main(void) {
+    vreg_pin=0; vreg_lat=0; bp_enable_voltage_regulator(); assert(vreg_lat==1 && vreg_pin==0 && vreg_dir==0);
+    bp_disable_voltage_regulator(); assert(!vreg_lat && !vreg_pin);
+    pullup_lat=1; bp_enable_pullup(); assert(!pullup_lat && pullup_dir==1);
+    bp_disable_pullup(); assert(!pullup_lat && !pullup_dir);
+    puts("PASS power/pullup writes target LAT before TRIS, leaving PORT readback separate");
+}'''),
 }
 
 
@@ -206,6 +214,9 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "latch":
+        prefix += "#define INPUT 1\n#define OUTPUT 0\n#define LOW 0\nstatic unsigned vreg_pin,vreg_lat,vreg_dir,pullup_pin,pullup_lat,pullup_dir;\n"
+        prefix += "#define BP_VREGEN vreg_pin\n#define BP_VREGEN_LAT vreg_lat\n#define BP_VREGEN_DIR vreg_dir\n#define BP_PULLUP pullup_pin\n#define BP_PULLUP_LAT pullup_lat\n#define BP_PULLUP_DIR pullup_dir\n"
     if name == "reset":
         prefix += "static int cleaned, reset_board, user_macro;\nstatic void cleanup(void) {cleaned++;}\n"
         prefix += "static struct { void (*cleanup)(void); } enabled_protocols[1] = {{cleanup}};\n"

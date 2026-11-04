@@ -17,343 +17,254 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-
+#include <stdint.h>
 #include "onboard_eeprom.h"
 
 #ifdef BUSPIRATEV4
-
-/**
- * How many milliseconds to wait after a I2C flash write.
- */
-#define I2C_WRITE_DELAY_TIME 10
-
 #include "base.h"
 
-/* Dedicated v4 EEPROM pins; PORT remains readback, LAT owns output state. */
+#define I2C_WRITE_DELAY_TIME 10
+#define EEPROM_I2C_WRITE_ADDRESS 0xA0
+#define EEPROM_I2C_READ_ADDRESS 0xA1
+#define EEPROM_I2C_CLOCK_RATE 37
+#define EEPROM_POLL_LIMIT 25000u
+#define EEPROM_SEQUENCES 0x001Fu
+#define EEPROM_ERRORS (_I2C1STAT_BCL_MASK | _I2C1STAT_IWCOL_MASK | _I2C1STAT_I2COV_MASK)
+#define EEPROM_TX_BUSY (_I2C1STAT_TRSTAT_MASK | _I2C1STAT_TBF_MASK)
+#define EEPROM_SDA (1u << 9)
+#define EEPROM_SCL (1u << 10)
 #define EEPROM_SDA_LAT LATDbits.LATD9
 #define EEPROM_SCL_LAT LATDbits.LATD10
 #define EEPROM_WP_LAT LATDbits.LATD11
 
-/**
- * On-board EEPROM I2C address for write operations.
- *
- * 0xA0 = 10100000
- *        ||||||||
- *        |||||||+--- R/W (0: Write, 1: Read) = 0
- *        ||||||+---- A0 = 0
- *        |||||+----- A1 = 0
- *        ||||+------ A2 = 0
- *        ++++------- A7-A3 = 1010
- */
-#define EEPROM_I2C_WRITE_ADDRESS 0xA0
+static bool eeprom_error;
 
-/**
- * On-board EEPROM I2C address for read operations.
- *
- * 0xA1 = 10100001
- *        ||||||||
- *        |||||||+--- R/W (0: Write, 1: Read) = 1
- *        ||||||+---- A0 = 0
- *        |||||+----- A1 = 0
- *        ||||+------ A2 = 0
- *        ++++------- A7-A3 = 1010
- */
-#define EEPROM_I2C_READ_ADDRESS 0xA1
-
-/**
- * Send an ACK response during I2C acknowledge.
- */
-#define EEPROM_I2C_ACK false
-
-/**
- * Send a NACK response during I2C acknowledge.
- */
-#define EEPROM_I2C_NACK true
-
-/**
- * The I2C clock rate.
- *
- * Calculated on a 400kHz clock rate at 16MHz Fcy.
- */
-#define EEPROM_I2C_CLOCK_RATE 37
-
-/**
- * Sets up the I2C communication channel with the on-board EEPROM.
- */
-static void eeprom_i2c_setup(void);
-
-/**
- * Reads a byte from the I2C bus.
- *
- * @warning The operation will be performed synchronously.
- *
- * @return a byte read from the I2C bus.
- */
-static uint8_t eeprom_i2c_read(void);
-
-/**
- * Writes a byte to the I2C bus.
- *
- * @warning The operation will be performed synchronously.
- *
- * @param[in] value the byte to write to the bus.
- */
-static void eeprom_i2c_write(uint8_t value);
-
-/**
- * Sends either an ACK or a NACK on the I2C bus on data acknowledgement.
- *
- * @param[in] ack true if a NACK needs to be sent, false if an ACK ought to be
- *                sent otherwise.
- *
- * @see EEPROM_I2C_ACK
- * @see EEPROM_I2C_NACK
- */
-static void eeprom_i2c_send_ack(bool ack);
-
-/**
- * Gets the last seen acknowledgement status bit from the I2C bus.
- *
- * @return true if a NACK was detected last, false if an ACK was detected
- *              instead.
- *
- * @see EEPROM_I2C_ACK
- * @see EEPROM_I2C_NACK
- */
-static bool eeprom_i2c_get_ack(void);
-
-/**
- * Sets up a start condition on the I2C bus, preparing the bus for data
- * transfer.
- *
- * @warning The operation will be performed synchronously.
- */
-static void eeprom_start(bool repeated);
-
-/**
- * Sets up a stop condition on the I2C bus, preparing the bus for shutdown.
- *
- * @warning The operation will be performed synchronously.
- */
-static void eeprom_stop(void);
-
-/**
- * Reads a byte from the on-board EEPROM at the given address.
- *
- * @warning This function can only read bytes located in the first 64 kilobytes
- *          of the chip in use - keep in mind that the Bus Pirate v4 ships with
- *          a 8 kilobytes I2C flash chip.  Reading past the 8 kilobyte mark will
- *          yield an undefined condition.
- * @warning The operation will be performed synchronously.
- *
- * @param[in] address the address to read the byte from.
- * @return the byte read from the EEPROM.
- */
-static uint8_t eeprom_read_byte(uint16_t address);
-
-/**
- * Writes a byte on the on-board EEPROM at the given address.
- *
- * @warning This function can only write bytes located in the first 64 kilobytes
- *          of the chip in use - keep in mind that the Bus Pirate v4 ships with
- *          a 8 kilobytes I2C flash chip.  Writing past the 8 kilobyte mark will
- *          yield an undefined condition.
- * @warning The operation will be performed synchronously.
- *
- * @param[in] value the byte to write.
- * @param[in] address the address to write the byte to.
- * @return the byte read from the EEPROM.
- */
+static bool eeprom_i2c_setup(void);
+static bool eeprom_read_byte(uint16_t address, uint8_t *value);
 static bool eeprom_write_byte(uint8_t value, uint16_t address);
 
-void eeprom_initialize(void) {
-
-  /* I2C data line set as INPUT. */
+static void eeprom_release(void) {
+  I2C1CON = 0;
+  (void)I2C1RCV;
+  I2C1STAT = 0;
   BP_EE_SDA_DIR = INPUT;
-
-  /* I2C clock line set as INPUT. */
   BP_EE_SCL_DIR = INPUT;
+}
 
-  /* I2C clock line LOW. */
-  EEPROM_SCL_LAT = LOW;
+static void eeprom_abort(void) {
+  eeprom_error = true;
+  EEPROM_WP_LAT = HIGH;
+  eeprom_release();
+}
 
-  /* I2C data line LOW. */
+/* DS39897C 16-1/16-2: completion precedes ACKSTAT or receive-buffer use.
+ * The poll count is finite; interrupts remain enabled during every wait. */
+static bool eeprom_wait(uint16_t con_busy, uint16_t stat_busy,
+                        uint16_t stat_required) {
+  uint16_t waited;
+  if (eeprom_error) {
+    return false;
+  }
+  for (waited = 0; waited < EEPROM_POLL_LIMIT; waited++) {
+    uint16_t status = I2C1STAT;
+    uint16_t control = I2C1CON;
+    if ((status & EEPROM_ERRORS) || !(control & _I2C1CON_I2CEN_MASK)) {
+      break;
+    }
+    if (!(control & con_busy) && !(status & stat_busy) &&
+        (status & stat_required) == stat_required) {
+      return true;
+    }
+    delay_short_inline(1);
+  }
+  eeprom_abort();
+  return false;
+}
+
+static bool eeprom_gpio_high(uint16_t pins) {
+  uint16_t waited;
+  for (waited = 0; waited < EEPROM_POLL_LIMIT; waited++) {
+    if ((IOPOR & pins) == pins) {
+      return true;
+    }
+    delay_short_inline(1);
+  }
+  eeprom_abort();
+  return false;
+}
+
+/* Recover only this single-master internal bus. WP is asserted by the caller
+ * so the recovery STOP cannot commit an interrupted, unverified write. */
+static bool eeprom_bus_clear(void) {
+  uint8_t pulse;
+  BP_EE_SDA_DIR = INPUT;
+  BP_EE_SCL_DIR = INPUT;
   EEPROM_SDA_LAT = LOW;
+  EEPROM_SCL_LAT = LOW;
+  if (!eeprom_gpio_high(EEPROM_SCL)) {
+    return false;
+  }
+  if (IOPOR & EEPROM_SDA) {
+    return true;
+  }
+  for (pulse = 0; pulse < 9; pulse++) {
+    BP_EE_SCL_DIR = OUTPUT;
+    delay_short_inline(5);
+    BP_EE_SCL_DIR = INPUT;
+    if (!eeprom_gpio_high(EEPROM_SCL)) {
+      return false;
+    }
+    delay_short_inline(5);
+  }
+  if (!(IOPOR & EEPROM_SDA)) {
+    eeprom_abort();
+    return false;
+  }
+  BP_EE_SCL_DIR = OUTPUT;
+  BP_EE_SDA_DIR = OUTPUT;
+  delay_short_inline(5);
+  BP_EE_SCL_DIR = INPUT;
+  if (!eeprom_gpio_high(EEPROM_SCL)) {
+    return false;
+  }
+  delay_short_inline(5);
+  BP_EE_SDA_DIR = INPUT;
+  delay_short_inline(5);
+  return eeprom_gpio_high(EEPROM_SCL | EEPROM_SDA);
+}
 
-  /* EEPROM Write Protect line HIGH. */
+void eeprom_initialize(void) {
+  /* Protect before releasing a previously active peripheral or output. */
   EEPROM_WP_LAT = HIGH;
   BP_EE_WP_DIR = OUTPUT;
+  eeprom_release();
+  EEPROM_SDA_LAT = LOW;
+  EEPROM_SCL_LAT = LOW;
+}
+
+static bool eeprom_i2c_setup(void) {
+  eeprom_error = false;
+  eeprom_release();
+  if (!eeprom_bus_clear()) {
+    return false;
+  }
+  /* SCLREL is slave-only. DISSLW=0 enables the 400 kHz slew control;
+   * SMEN/A10M and all stale sequencing controls are deliberately clear. */
+  I2C1CON = _I2C1CON_SCLREL_MASK;
+  I2C1ADD = 0;
+  I2C1MSK = 0;
+  I2C1BRG = EEPROM_I2C_CLOCK_RATE;
+  I2C1CON |= _I2C1CON_I2CEN_MASK;
+  return true;
+}
+
+static bool eeprom_start(bool repeated) {
+  if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
+    return false;
+  }
+  if (!repeated && !eeprom_gpio_high(EEPROM_SCL | EEPROM_SDA)) {
+    return false;
+  }
+  I2C1CON |= repeated ? _I2C1CON_RSEN_MASK : _I2C1CON_SEN_MASK;
+  return eeprom_wait(EEPROM_SEQUENCES, 0, 0);
+}
+
+static bool eeprom_stop(void) {
+  if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
+    return false;
+  }
+  I2C1CON |= _I2C1CON_PEN_MASK;
+  return eeprom_wait(_I2C1CON_PEN_MASK, 0, 0);
+}
+
+static bool eeprom_i2c_get_ack(void) {
+  return (I2C1STAT & _I2C1STAT_ACKSTAT_MASK) != 0;
+}
+
+static bool eeprom_i2c_write(uint8_t value) {
+  if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
+    return false;
+  }
+  I2C1TRN = value;
+  return eeprom_wait(0, EEPROM_TX_BUSY, 0);
+}
+
+static bool eeprom_checked_write(uint8_t value) {
+  return eeprom_i2c_write(value) && !eeprom_i2c_get_ack();
+}
+
+static bool eeprom_i2c_read(uint8_t *value) {
+  if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
+    return false;
+  }
+  I2C1CON |= _I2C1CON_RCEN_MASK;
+  if (!eeprom_wait(_I2C1CON_RCEN_MASK, 0, _I2C1STAT_RBF_MASK)) {
+    return false;
+  }
+  *value = LO8(I2C1RCV);
+  return true;
+}
+
+static bool eeprom_i2c_send_ack(bool nack) {
+  if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
+    return false;
+  }
+  I2C1CON = (I2C1CON & ~_I2C1CON_ACKDT_MASK) |
+            (nack ? _I2C1CON_ACKDT_MASK : 0) | _I2C1CON_ACKEN_MASK;
+  return eeprom_wait(_I2C1CON_ACKEN_MASK, 0, 0);
+}
+
+static bool eeprom_read_byte(uint16_t address, uint8_t *value) {
+  uint8_t byte;
+  if (!eeprom_start(false) || !eeprom_checked_write(EEPROM_I2C_WRITE_ADDRESS) ||
+      !eeprom_checked_write(address >> 8) || !eeprom_checked_write(address) ||
+      !eeprom_start(true) || !eeprom_checked_write(EEPROM_I2C_READ_ADDRESS) ||
+      !eeprom_i2c_read(&byte) || !eeprom_i2c_send_ack(true) || !eeprom_stop()) {
+    (void)eeprom_stop();
+    return false;
+  }
+  *value = byte;
+  return true;
+}
+
+static bool eeprom_write_byte(uint8_t value, uint16_t address) {
+  if (!eeprom_start(false) || !eeprom_checked_write(EEPROM_I2C_WRITE_ADDRESS) ||
+      !eeprom_checked_write(address >> 8) || !eeprom_checked_write(address) ||
+      !eeprom_checked_write(value) || !eeprom_stop()) {
+    (void)eeprom_stop();
+    return false;
+  }
+  return true;
 }
 
 bool eeprom_test(void) {
-
-  /* Set up I2C access to the EEPROM. */
-  eeprom_i2c_setup();
-
-  /* Get the current write protection flag state. */
+  uint8_t value;
+  bool result = false;
   bool write_protection = EEPROM_WP_LAT;
-
-  /* Enable writing to the EEPROM. */
+  /* Do not steal I2C1 from an active protocol owner. */
+  if (I2C1CON & _I2C1CON_I2CEN_MASK) {
+    return false;
+  }
+  EEPROM_WP_LAT = HIGH;
+  if (!eeprom_i2c_setup()) {
+    goto done;
+  }
   EEPROM_WP_LAT = LOW;
-
-  /* Write 0xFF (the default value) to offset 0. */
-  eeprom_write_byte(0xFF, 0);
+  if (!eeprom_write_byte(0xFF, 0)) {
+    goto done;
+  }
   bp_delay_ms(I2C_WRITE_DELAY_TIME);
-
-  /* Write 0x10 to offset 0. */
-  eeprom_write_byte(0x10, 0);
+  if (!eeprom_write_byte(0x10, 0)) {
+    goto done;
+  }
   bp_delay_ms(I2C_WRITE_DELAY_TIME);
-
-  /* Checks if writing 0x10 actually succeeded. */
-  bool result = (eeprom_read_byte(0) == 0x10);
-
-  /* Set offset 0 to the appropriate value. */
-  eeprom_write_byte(0xFF, 0);
-
-  /* Restore the old write protection flag state. */
+  result = eeprom_read_byte(0, &value) && value == 0x10;
+  if (!eeprom_write_byte(0xFF, 0)) {
+    result = false;
+  }
+done:
+  eeprom_release();
   EEPROM_WP_LAT = write_protection;
-
-  return result;
-}
-
-void eeprom_start(bool repeated) {
-
-  /* Initiate a start condition on the I2C bus. */
-  uint16_t sequence = repeated ? _I2C1CON_RSEN_MASK : _I2C1CON_SEN_MASK;
-  I2C1CON |= sequence;
-
-  /* Wait until start condition has been set. */
-  while (I2C1CON & sequence) {
-  }
-}
-
-void eeprom_stop(void) {
-
-  /* Initiate a stop condition on the I2C bus. */
-  I2C1CONbits.PEN = ON;
-
-  /* Wait until stop condition has been set. */
-  while (I2C1CONbits.PEN == ON) {
-  }
-}
-
-inline bool eeprom_i2c_get_ack(void) {
-
-  /* Return last seen I2C acknowledge bit. */
-  return I2C1STATbits.ACKSTAT;
-}
-
-void eeprom_i2c_send_ack(bool ack) {
-
-  /* Set I2C acknowledge data bit. */
-  I2C1CONbits.ACKDT = ack;
-
-  /* Set I2C acknowledge sequence data bit. */
-  I2C1CONbits.ACKEN = ON;
-
-  /* Wait for acknowledgement. */
-  while (I2C1CONbits.ACKEN == ON) {
-  }
-}
-
-void eeprom_i2c_write(uint8_t value) {
-
-  /* Shifts in the value to send on the bus. */
-  I2C1TRN = value;
-
-  /* Waits for the transmission to be over. */
-  while (I2C1STATbits.TRSTAT == ON) {
-  }
-}
-
-uint8_t eeprom_i2c_read(void) {
-
-  /* Starts receiving data from the I2C bus. */
-  I2C1CONbits.RCEN = ON;
-
-  /* Waits until a full byte has been received. */
-  while (I2C1CONbits.RCEN == ON) {
-  }
-
-  /* Returns the byte that has just been read. */
-  return LO8(I2C1RCV);
-}
-
-void eeprom_i2c_setup(void) {
-
-  /*
-   * I2C1CON: I2C1 CONTROL REGISTER
-   *
-   * MSB
-   * x-x0x0x0xxxxxxxx
-   *    | | |
-   *    | | +------------ SMEN:  Disable SMBus support.
-   *    | +-------------- A10M:  Use 7-bit slave addresses.
-   *    +---------------- SCREL: Enable clock stretching.
-   *
-   */
-  I2C1CON &= ~(_I2C1CON_A10M_MASK | _I2C1CON_SCLREL_MASK | _I2C1CON_SMEN_MASK);
-
-  /* Clear I2C address register. */
-  I2C1ADD = 0x0000;
-
-  /* Clear I2C address mask register. */
-  I2C1MSK = 0x0000;
-
-  /* Set I2C baud rate (400kHz). */
-  I2C1BRG = EEPROM_I2C_CLOCK_RATE;
-
-  /* Enable I2C. */
-  I2C1CONbits.I2CEN = ON;
-}
-
-uint8_t eeprom_read_byte(const uint16_t address) {
-
-  /* Start data transmission on the bus. */
-  eeprom_start(false);
-
-  /* Send a dummy write to the bus with the requested read address. */
-  eeprom_i2c_write(EEPROM_I2C_WRITE_ADDRESS);
-  eeprom_i2c_write(address >> 8);
-  eeprom_i2c_write(address);
-
-  /* DS39897C 16.1/16-1: a random read requires RSEN, not another SEN. */
-  eeprom_start(true);
-
-  /* Send to the bus a read request. */
-  eeprom_i2c_write(EEPROM_I2C_READ_ADDRESS);
-
-  /* Read the byte from the EEPROM. */
-  uint8_t byte = eeprom_i2c_read();
-
-  /* Return a NACK for acknowledgement. */
-  eeprom_i2c_send_ack(EEPROM_I2C_NACK);
-
-  /* Stop data transmission on the bus. */
-  eeprom_stop();
-
-  return byte;
-}
-
-bool eeprom_write_byte(const uint8_t value, const uint16_t address) {
-
-  /* Start data transmission on the bus. */
-  eeprom_start(false);
-
-  /* Send a write request containing the target address to the bus. */
-  eeprom_i2c_write(EEPROM_I2C_WRITE_ADDRESS);
-  eeprom_i2c_write(address >> 8);
-  eeprom_i2c_write(address);
-
-  /* Send the byte to write to the bus. */
-  eeprom_i2c_write(value);
-
-  /* Read the acknowledgement result from the operation. */
-  bool result = eeprom_i2c_get_ack();
-
-  /* Stop data transmission on the bus. */
-  eeprom_stop();
-
   return result;
 }
 

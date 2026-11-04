@@ -71,6 +71,7 @@ static const char *input = "";
 static unsigned readpos;
 static char output[4096];
 static unsigned outlen;
+static bool setup_defaults_mode;
 static void user_serial_transmit_character(char c) { output[outlen++] = c; values[used++ % 32] = (uint8_t)c; }
 static uint8_t user_serial_read_byte(void) { assert(input[readpos]); ++serial_reads; return input[readpos++]; }
 static bool user_serial_ready_to_read(void) { return input[readpos] != 0; }
@@ -83,6 +84,7 @@ static void bp_write_hex_byte(uint8_t v) { emit(v); }
 static void bp_write_dec_word(uint16_t v) { emit(v); }
 static void bp_write_dec_byte(uint8_t v) { emit(v); }
 static void bp_write_bin_byte(uint8_t v) { emit(v); }
+static void bp_write_dec_dword(uint32_t v) { emit(v); }
 static void bp_write_string(const char *s) { while (*s) { assert(outlen < sizeof(output)-1); output[outlen++]=*s++; } }
 static void bp_write_line(const char *s) { bp_write_string(s); bp_write_string("\n"); }
 #define bpSP ((void)0)
@@ -159,6 +161,7 @@ int main(void) {
 int main(void) {
     input="-2\r2\r"; assert(getnumber(1,1,10,1)==2);
     readpos=0; input="32767\r"; assert(getnumber(1,0,32767,1)==32767);
+    readpos=0; input="327670\r123\r"; assert(getnumber(1,0,32767,1)==123);
     puts("PASS signed dialog range checked after sign; full int16 positive range accepted");
 }'''),
     "baud": ("proc_menu.c", ["getint", "set_baud_rate"], r'''
@@ -262,6 +265,14 @@ int main(void) {
     load("r",255); assert(!change_read_display() && cmdstart==255);
     puts("PASS read display selector is consumed before repeat/width suffixes");
 }'''),
+    "long_dialog": ("proc_menu.c", ["getlong"], r'''
+int main(void) {
+    input="9999999999\r12\r"; assert(getlong(1,0,2147483647,1)==12);
+    readpos=0; input="12345678901\r12\r"; assert(getlong(1,0,2147483647,1)==12);
+    readpos=0; input="-2\r12\r"; assert(getlong(1,0,2147483647,1)==12);
+    readpos=0; input="2147483647\r"; assert(getlong(1,0,2147483647,1)==2147483647);
+    puts("PASS 32-bit dialog overflow/sign/overlong tokens are rejected without truncation");
+}'''),
 }
 
 
@@ -272,6 +283,9 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "long_dialog": prefix += "#define long int32_t\n"
+    if name == "dword":
+        prefix = prefix.replace("static void bp_write_dec_dword(uint32_t v) { emit(v); }", "")
     if name == "read_format":
         prefix += "static const uint8_t READ_DISPLAY_BASE[]={'x','d','b','w'};\n"
     if name == "uart_isr":
@@ -291,7 +305,7 @@ def run_case(name, revision):
         prefix += "#define BP_VREGEN vreg_pin\n#define BP_VREGEN_LAT vreg_lat\n#define BP_VREGEN_DIR vreg_dir\n#define BP_PULLUP pullup_pin\n#define BP_PULLUP_LAT pullup_lat\n#define BP_PULLUP_DIR pullup_dir\n"
     if name == "reset":
         prefix += "static int cleaned, reset_board, user_macro;\nstatic void cleanup(void) {cleaned++;}\n"
-        prefix += "static struct { void (*cleanup)(void); } enabled_protocols[1] = {{cleanup}};\n"
+        prefix += "typedef struct { void (*cleanup)(void); } FakeProto;\nstatic FakeProto enabled_protocols[1] = {{cleanup}};\nstatic const FakeProto *bp_current_protocol(void) {return &enabled_protocols[0];}\n"
         prefix += "static void bp_reset_board_state(void) { reset_board++; }\nstatic void bp_disable_usb_led(void) {}\n"
     if name == "escape":
         prefix += "static unsigned keys[7];\n"

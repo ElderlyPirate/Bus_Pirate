@@ -1199,6 +1199,7 @@ int getnumber(int def, int min, int max,
   char c;
   char buf[6]; // five digits cover the positive int16 range
   int i, j, stop, temp, neg;
+  bool too_long;
 
 again: // need to do it proper with whiles and ifs..
 
@@ -1206,6 +1207,7 @@ again: // need to do it proper with whiles and ifs..
   stop = 0;
   temp = 0;
   neg = 0;
+  too_long = false;
 
   bp_write_string("\r\n(");
   if (def < 0) {
@@ -1252,6 +1254,7 @@ again: // need to do it proper with whiles and ifs..
       {
         if (i >= 5)
         {
+          too_long = true;
           user_serial_transmit_character(BELL);
           i = 5;
         } else {
@@ -1267,6 +1270,7 @@ again: // need to do it proper with whiles and ifs..
   }
   bpBR;
 
+  if (too_long) { BPMSG1211; goto again; }
   if (i == 0) {
     return def; // no user input so return default option
   } else {
@@ -1303,6 +1307,7 @@ long getlong(long def, int min, long max,
   char buf[12]; // max long = 2147483647 so 10
   int i, j, stop, neg;
   long temp;
+  bool too_long;
 
 again: // need to do it proper with whiles and ifs..
 
@@ -1310,6 +1315,7 @@ again: // need to do it proper with whiles and ifs..
   stop = 0;
   temp = 0;
   neg = 0;
+  too_long = false;
 
   bp_write_string("\r\n(");
   if (def < 0) {
@@ -1356,6 +1362,7 @@ again: // need to do it proper with whiles and ifs..
       {
         if (i > 9) // 0-9999 should be enough??
         {
+          too_long = true;
           user_serial_transmit_character(BELL);
           i = 10;
         } else {
@@ -1371,6 +1378,7 @@ again: // need to do it proper with whiles and ifs..
   }
   bpBR;
 
+  if (too_long) { BPMSG1211; goto again; }
   if (i == 0) {
     return def; // no user input so return default option
   } else {

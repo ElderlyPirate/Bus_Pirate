@@ -204,6 +204,22 @@ int main(void) {
     bp_disable_pullup(); assert(!pullup_lat && !pullup_dir);
     puts("PASS power/pullup writes target LAT before TRIS, leaving PORT readback separate");
 }'''),
+    "dword": ("base.c", ["print_decimal", "bp_write_dec_dword"], r'''
+int main(void) {
+    const uint32_t numbers[]={0,1,99999999,100000000,2147483647UL,4294967295UL};
+    for (unsigned i=0;i<sizeof(numbers)/sizeof(numbers[0]);++i) {
+        char expected[16]; snprintf(expected,sizeof(expected),"%lu",(unsigned long)numbers[i]);
+        outlen=0; memset(output,0,sizeof(output)); bp_write_dec_dword(numbers[i]);
+        assert(!strcmp(output,expected));
+    }
+    puts("PASS decimal dword printing covers the complete uint32 range");
+}'''),
+    "baud_timeout": ("proc_menu.c", ["wait_baud_confirmation"], r'''
+int main(void) {
+    assert(!wait_baud_confirmation() && timer_reads>=10000 && timer_reads<=10002 && !serial_reads);
+    input=" "; assert(wait_baud_confirmation() && serial_reads==1);
+    puts("PASS five-second UART deadline across Timer1 wraps; no blocking read when empty");
+}'''),
 }
 
 
@@ -214,6 +230,8 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "baud_timeout":
+        prefix += "#define BP_USE_HARDWARE_DELAY_TIMER\nstatic unsigned timer_reads;\nstatic uint16_t timer(void) { ++timer_reads; return (uint16_t)(timer_reads*1000u); }\n#define TMR1 timer()\n"
     if name == "latch":
         prefix += "#define INPUT 1\n#define OUTPUT 0\n#define LOW 0\nstatic unsigned vreg_pin,vreg_lat,vreg_dir,pullup_pin,pullup_lat,pullup_dir;\n"
         prefix += "#define BP_VREGEN vreg_pin\n#define BP_VREGEN_LAT vreg_lat\n#define BP_VREGEN_DIR vreg_dir\n#define BP_PULLUP pullup_pin\n#define BP_PULLUP_LAT pullup_lat\n#define BP_PULLUP_DIR pullup_dir\n"

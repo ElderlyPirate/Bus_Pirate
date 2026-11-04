@@ -517,7 +517,7 @@ void print_decimal(const uint32_t value, const uint32_t denominator,
 }
 
 void bp_write_dec_dword(const uint32_t value) {
-  print_decimal(value, 10000000, 8);
+  print_decimal(value, 1000000000UL, 10);
 }
 
 void bp_write_dec_word(const uint16_t value) { print_decimal(value, 10000, 5); }

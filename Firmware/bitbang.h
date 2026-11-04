@@ -22,6 +22,16 @@
 #include <stdint.h>
 
 /**
+ * Waiting-I2C contract (all calls with wait_for_clock_release=true and the
+ * _wait / i2c_write_bit signals): high_impedance must be ON, with external
+ * pull-ups. Releasing SCL is intentional; push-pull drive is not supported.
+ * On failure both lines are released and the sticky i2c_error is set. Clear
+ * that status before a new operation, not between signals of one operation.
+ * Raw/non-waiting primitives neither wait for SCL nor consume that status.
+ * See DS39897C 10.1/10.1.1 for input/released versus driven pin behavior.
+ */
+
+/**
  * Timing profiles for bit-banging operations. Enum names are legacy nominal
  * rates, not frequency guarantees. At FCY=16 MHz the raw tick path is roughly
  * 6/60/150 kHz for the first three profiles; data setup, sampling, open-drain

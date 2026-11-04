@@ -14,14 +14,16 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def source(name, revision=None):
     if revision:
-        for directory in ("core_system/", ""):
+        for directory in ("core_system/", "capability_aux/", "protocol_dio/", ""):
             r = subprocess.run(["git", "show", revision + ":Firmware/" + directory + name], cwd=ROOT,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             if r.returncode == 0:
                 return r.stdout
         raise RuntimeError(name + " absent at " + revision)
-    path = ROOT / "Firmware/core_system" / name
-    return (path if path.exists() else ROOT / "Firmware" / name).read_text()
+    for directory in ("core_system", "capability_aux", "protocol_dio", ""):
+        path = ROOT / "Firmware" / directory / name
+        if path.exists(): return path.read_text()
+    raise RuntimeError("Missing source: " + name)
 
 
 def function(text, name):
@@ -291,7 +293,46 @@ int main(void) {
     }
     puts("PASS 65536 word reversals and 1048576 partial-width reversals");
 }'''),
+    "decimal_voltage": ("base.c", ["print_decimal", "bp_write_dec_word", "bp_write_dec_byte", "bp_write_voltage"], r'''
+int main(void) {
+    for (unsigned n=0;n<=65535;++n) {
+        char expected[16]; snprintf(expected,sizeof(expected),"%u",n);
+        outlen=used=0; memset(output,0,sizeof(output)); bp_write_dec_word(n);
+        assert(!strcmp(output,expected));
+    }
+    for (unsigned adc=0;adc<=1023;++adc) {
+        unsigned cv=adc*29/45; char expected[16];
+        snprintf(expected,sizeof(expected),"%u.%02u",cv/100,cv%100);
+        outlen=used=0; memset(output,0,sizeof(output)); bp_write_voltage(adc);
+        assert(!strcmp(output,expected));
+    }
+    puts("PASS accepted uint16 decimal engine and all 1024 exact ADC conversions");
+}'''),
+    "aux_reset": ("aux_pin.c", ["bp_aux_pin_reset_state"], r'''
+int main(void) {
+    aux_output=18; state.mode=7; bp_aux_pin_reset_state();
+    assert(!aux_output && state.mode==AUX_MODE_IO);
+    puts("PASS accepted AUX reset clears output binding and phantom PWM/servo mode");
+}'''),
+    "dio_setup": ("dio.c", ["dio_setup_prepare"], r'''
+int main(void) {
+    mode_configuration.write_with_read=1; dio_setup_prepare();
+    assert(!mode_configuration.write_with_read);
+    puts("PASS accepted DIO entry pins write-with-read off");
+}'''),
+    "defaults": ("proc_menu.c", ["getint", "getnumber", "consumewhitechars", "getint_with_spaces"], r'''
+int main(void) {
+    load("   123",253); char saved[256]; memcpy(saved,cmdbuf,256);
+    setup_defaults_mode=true;
+    assert(getint()==0 && !mode_configuration.command_error);
+    consumewhitechars(); assert(cmdstart==253 && !memcmp(saved,cmdbuf,256));
+    assert(getnumber(7,1,9,1)==7 && !serial_reads);
+    assert(getint_with_spaces()==0 && cmdstart==253 && !memcmp(saved,cmdbuf,256));
+    puts("PASS accepted scripted defaults do not block, mutate or consume command input");
+}'''),
 }
+
+CASES["reverse_v3"] = CASES["reverse"]
 
 
 def run_case(name, revision):
@@ -300,10 +341,19 @@ def run_case(name, revision):
     if name == "escape" and "static bool handle_escape_sequence(uint8_t character) {" in src:
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
-    if name == "reverse": body = body.replace("inline ", "")
+    if name in ("reverse", "reverse_v3"): body = body.replace("inline ", "")
     prefix = PREFIX
-    if name == "reverse":
+    if name == "defaults":
+        prefix = prefix.replace("static void consumewhitechars(void) { while (cmdbuf[cmdstart]==' ') cmdstart=(cmdstart+1)&CMDLENMSK; }", "")
+    if name in ("reverse", "reverse_v3"):
         prefix += re.search(r"static const uint8_t REVERSED_BITS_TABLE\[\] = \{.*?\};",src,re.S)[0]+"\n"
+        prefix += "uint16_t bp_reverse_integer(uint16_t value,uint8_t bits);\n"
+    if name == "reverse_v3": prefix += "#undef BUSPIRATEV4\n"
+    if name == "decimal_voltage":
+        prefix = prefix.replace("static void bp_write_dec_word(uint16_t v) { emit(v); }", "")
+        prefix = prefix.replace("static void bp_write_dec_byte(uint8_t v) { emit(v); }", "")
+    if name == "aux_reset":
+        prefix += "static unsigned aux_output;\n#define AUXPIN_RPOUT aux_output\n#define AUX_MODE_IO 0\nstatic struct {unsigned mode;} state;\n"
     if name == "vpu_latch":
         prefix += "#define INPUT 1\n#define OUTPUT 0\n#define LOW 0\nstatic unsigned select33,select50,dir33,dir50,pin33,pin50;\n"
         prefix += "#define BP_PUVSEL33_LAT select33\n#define BP_PUVSEL50_LAT select50\n#define BP_PUVSEL33_DIR dir33\n#define BP_PUVSEL50_DIR dir50\n#define BP_PUVSEL33 pin33\n#define BP_PUVSEL50 pin50\n"

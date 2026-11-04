@@ -23,7 +23,8 @@
 #ifdef BUSPIRATEV4
 #include "base.h"
 
-#define I2C_WRITE_DELAY_TIME 10
+#define EEPROM_WRITE_TIMEOUT_US 10000UL
+#define EEPROM_READY_POLLS 1024u
 #define EEPROM_I2C_WRITE_ADDRESS 0xA0
 #define EEPROM_I2C_READ_ADDRESS 0xA1
 #define EEPROM_I2C_CLOCK_RATE 37
@@ -42,6 +43,7 @@ static bool eeprom_error;
 static bool eeprom_i2c_setup(void);
 static bool eeprom_read_byte(uint16_t address, uint8_t *value);
 static bool eeprom_write_byte(uint8_t value, uint16_t address);
+static bool eeprom_ready(void);
 
 static void eeprom_release(void) {
   I2C1CON = 0;
@@ -193,6 +195,33 @@ static bool eeprom_checked_write(uint8_t value) {
   return eeprom_i2c_write(value) && !eeprom_i2c_get_ack();
 }
 
+/* DS20001189 7.0: address-only ACK polling after STOP, never replay data.
+ * The shared timestamp wraps at 31 bits; the finite poll budget is also a
+ * bound if a test clock does not advance. No fixed write-cycle sleep. */
+static bool eeprom_ready(void) {
+  uint32_t started = bp_timer_microseconds();
+  uint16_t poll;
+  for (poll = 0; poll < EEPROM_READY_POLLS; poll++) {
+    bool acknowledged;
+    if (!eeprom_start(false) || !eeprom_i2c_write(EEPROM_I2C_WRITE_ADDRESS)) {
+      return false;
+    }
+    acknowledged = !eeprom_i2c_get_ack();
+    if (!eeprom_stop()) {
+      return false;
+    }
+    if (acknowledged) {
+      return true;
+    }
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >=
+        EEPROM_WRITE_TIMEOUT_US) {
+      break;
+    }
+  }
+  eeprom_abort();
+  return false;
+}
+
 static bool eeprom_i2c_read(uint8_t *value) {
   if (!eeprom_wait(EEPROM_SEQUENCES, EEPROM_TX_BUSY, 0)) {
     return false;
@@ -234,7 +263,7 @@ static bool eeprom_write_byte(uint8_t value, uint16_t address) {
     (void)eeprom_stop();
     return false;
   }
-  return true;
+  return eeprom_ready();
 }
 
 bool eeprom_test(void) {
@@ -246,18 +275,16 @@ bool eeprom_test(void) {
     return false;
   }
   EEPROM_WP_LAT = HIGH;
-  if (!eeprom_i2c_setup()) {
+  if (!eeprom_i2c_setup() || !eeprom_ready()) {
     goto done;
   }
   EEPROM_WP_LAT = LOW;
   if (!eeprom_write_byte(0xFF, 0)) {
     goto done;
   }
-  bp_delay_ms(I2C_WRITE_DELAY_TIME);
   if (!eeprom_write_byte(0x10, 0)) {
     goto done;
   }
-  bp_delay_ms(I2C_WRITE_DELAY_TIME);
   result = eeprom_read_byte(0, &value) && value == 0x10;
   if (!eeprom_write_byte(0xFF, 0)) {
     result = false;

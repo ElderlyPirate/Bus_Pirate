@@ -7,6 +7,7 @@ import argparse
 import re
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -337,6 +338,13 @@ def main():
     args=parser.parse_args()
     for name in CASES if args.case=="all" else [args.case]:
         run_case(name,args.revision)
+    if args.case=="all" and not args.revision and (ROOT/"Firmware/core_system/base.c").exists():
+        project=ROOT/"Firmware/busPirate.X/nbproject/configurations.xml"
+        xml=ET.parse(project); listed={n.text for n in xml.findall(".//itemPath")}
+        for name in ("base.c","base.h","core.c","core.h","proc_menu.c","proc_menu.h","main.c"):
+            ref="../core_system/"+name
+            assert ref in listed and (project.parents[1]/ref).is_file(),ref
+        print("PASS MPLAB lists all seven core_system files at existing paths")
 
 
 if __name__=="__main__":

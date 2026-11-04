@@ -5,7 +5,7 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>../1wire.h</itemPath>
-      <itemPath>../base.h</itemPath>
+      <itemPath>../core_system/base.h</itemPath>
       <itemPath>../basic.h</itemPath>
       <itemPath>../bitbang.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
@@ -35,8 +35,8 @@
       <itemPath>../messages_v4.h</itemPath>
       <itemPath>../messages.h</itemPath>
       <itemPath>../binary_io.h</itemPath>
-      <itemPath>../proc_menu.h</itemPath>
-      <itemPath>../core.h</itemPath>
+      <itemPath>../core_system/proc_menu.h</itemPath>
+      <itemPath>../core_system/core.h</itemPath>
       <itemPath>../uart2.h</itemPath>
       <itemPath>../aux_pin.h</itemPath>
       <itemPath>../raw_common.h</itemPath>
@@ -67,7 +67,7 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>../1wire.c</itemPath>
-      <itemPath>../base.c</itemPath>
+      <itemPath>../core_system/base.c</itemPath>
       <itemPath>../basic.c</itemPath>
       <itemPath>../bitbang.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
@@ -76,7 +76,7 @@
       <itemPath>../jtag/lenval.c</itemPath>
       <itemPath>../jtag/micro.c</itemPath>
       <itemPath>../jtag/ports.c</itemPath>
-      <itemPath>../main.c</itemPath>
+      <itemPath>../core_system/main.c</itemPath>
       <itemPath>../pc_at_keyboard.c</itemPath>
       <itemPath>../pic.c</itemPath>
       <itemPath>../raw2wire.c</itemPath>
@@ -96,8 +96,8 @@
       <itemPath>../messages_v4.s</itemPath>
       <itemPath>../messages.c</itemPath>
       <itemPath>../binary_io.c</itemPath>
-      <itemPath>../proc_menu.c</itemPath>
-      <itemPath>../core.c</itemPath>
+      <itemPath>../core_system/proc_menu.c</itemPath>
+      <itemPath>../core_system/core.c</itemPath>
       <itemPath>../uart2.c</itemPath>
       <itemPath>../aux_pin.c</itemPath>
     </logicalFolder>
@@ -317,7 +317,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value=""/>
+        <property key="extra-include-directories" value="..;../core_system"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -558,7 +558,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value=""/>
+        <property key="extra-include-directories" value="..;../core_system"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

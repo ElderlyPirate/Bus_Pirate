@@ -21,6 +21,7 @@
 #include "configuration.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Protocol definition.

@@ -100,7 +100,9 @@ typedef enum {
 void bitbang_setup(unsigned char pins, const bp_bitbang_speed_t speed);
 
 /**
- * Writes a value to the bus then reads a value back, used by 3-wire protocols.
+ * Writes MOSI and samples the fixed MISO pin, used by 3-wire protocols.
+ * This primitive requires three-wire setup; it does not use the selected
+ * single-bit input pin.
  *
  * @warning The amount of bits to read and write is set in the numbits field in
  * the mode configuration structure (up to 16).
@@ -112,7 +114,7 @@ void bitbang_setup(unsigned char pins, const bp_bitbang_speed_t speed);
 uint16_t bitbang_read_with_write(const uint16_t value);
 
 /**
- * Writes a value to the bus, used by 2-wire protocols.
+ * Writes a value on MOSI, used by 2-wire protocols.
  *
  * @warning The amount of bits to write is set in the numbits field in the mode
  * configuration structure (up to 16).
@@ -127,7 +129,7 @@ void bitbang_write_value(const uint16_t value,
                          const bool wait_for_clock_release);
 
 /**
- * Reads a value from the bus, used by 2-wire protocols.
+ * Reads a value from the fixed MOSI/SDA pin, used by 2-wire protocols.
  *
  * @warning The output size is dependent on the numbits field in the mode
  * configuration structure, with said number being the amount of bits to read
@@ -143,7 +145,7 @@ void bitbang_write_value(const uint16_t value,
 uint16_t bitbang_read_value(const bool wait_for_clock_release);
 
 /**
- * Reads a single bit from the MISO pin.
+ * Reads a single bit from the setup-selected input (2 pins: MOSI; 3: MISO).
  *
  * @param[in] wait_for_clock_release whether to wait for a slave to release the
  *            clock line before sampling, which I2C devices may do to stretch
@@ -154,10 +156,11 @@ uint16_t bitbang_read_value(const bool wait_for_clock_release);
 bool bitbang_read_bit(const bool wait_for_clock_release);
 
 /**
- * Number of clock-stretch waits that have timed out since reset.  A
+ * Saturating number of clock-stretch waits that have timed out since reset. A
  * non-zero count means some operation gave up waiting for a slave to
  * release the clock line, so its result may be invalid; the count lets
- * callers and diagnostics distinguish that from a valid transfer.
+ * callers and diagnostics distinguish that from a valid transfer. Setup and
+ * clearing the sticky operation status do not clear this diagnostic counter.
  */
 uint16_t bitbang_clock_stretch_timeouts(void);
 
@@ -213,8 +216,9 @@ void bitbang_set_cs(const bool state);
 bool bitbang_read_miso(void);
 
 /**
- * Sets the pins indicated by the given bitmask to HIGH state and OUTPUT
- * direction, then spins for the given amount of microseconds.
+ * Sets the pins HIGH (driven output, or released input in high-impedance
+ * mode), then waits using the short-delay helper.
+ * Delay must be within the helper's 0..16384 microsecond input range.
  *
  * @param[in] pins the bitmask of the pins to set HIGH.
  * @param[in] delay the amount of microseconds to wait after setting the pins
@@ -228,18 +232,18 @@ void bitbang_set_pins_high(const uint16_t pins_bitmask, const uint16_t delay);
  *
  * @param[in] pins the bitmask of the pins to set LOW.
  * @param[in] delay the amount of microseconds to wait after setting the pins
- * LOW.
+ * LOW (short-delay helper input range 0..16384 microseconds).
  */
 void bitbang_set_pins_low(const uint16_t pins_bitmask, const uint16_t delay);
 
 /**
- * Sets the pins indicated by the given bitmask to the given state and OUTPUT
- * direction, then spins for the given amount of microseconds.
+ * Sets the selected pins to the given state (HIGH is released when
+ * high_impedance is ON), then waits using the short-delay helper.
  *
  * @param[in] state the state to set the selected pins to.
  * @param[in] pins the bitmask of the pins to set.
  * @param[in] delay the amount of microseconds to wait after setting the pins
- * LOW.
+ * to the requested state (helper input range 0..16384 microseconds).
  */
 void bitbang_set_pins(const bool state, const uint16_t pins_mask,
                       const uint16_t delay);
@@ -269,13 +273,15 @@ bool bitbang_read_pin(const uint16_t pin_bit);
  * @param[in] type the start signal type.
  *
  * @return true if an error occurred, false otherwise.
+ * This legacy raw primitive never waits for SCL; its return convention is
+ * the opposite of bitbang_i2c_start_wait(), which returns true on success.
  *
  * @see bp_bitbang_i2c_start_type_t
  */
 bool bitbang_i2c_start(bp_bitbang_i2c_start_type_t type);
 
 /**
- * Sends the appropriate signals to indicate an I2C transmission stop frame.
+ * Sends a legacy raw STOP without waiting for SCL or checking sticky status.
  */
 void bitbang_i2c_stop(void);
 

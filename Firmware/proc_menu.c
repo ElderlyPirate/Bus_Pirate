@@ -204,6 +204,7 @@ static void handle_end_key(void);
  * Handles the escape key being sent to the user menu.
  */
 static void handle_escape_key(void);
+static bool handle_escape_sequence(uint8_t character);
 
 /**
  * Refreshes the current mode prompt.
@@ -261,6 +262,7 @@ typedef struct {
 
   /** Binary mode entering sequence counter. */
   uint8_t binary_mode_counter;
+  uint8_t escape_state;
 
   /** Flag indicating if a potentially valid command has been entered. */
   bool command_present;
@@ -352,6 +354,9 @@ void serviceuser(void) {
       /* Process incoming byte. */
 
       uint8_t user_byte = user_serial_read_byte();
+
+      if (menu_state.escape_state && user_byte != ASCII_ESCAPE &&
+          handle_escape_sequence(user_byte)) continue;
 
       switch (user_byte) {
 
@@ -2081,42 +2086,38 @@ void handle_end_key(void) {
 }
 
 void handle_escape_key(void) {
-  if (user_serial_read_byte() != '[') {
-    return;
-  }
+  menu_state.escape_state = 1;
+}
 
-  switch (user_serial_read_byte()) {
-  case 'D':
-    handle_left_arrow();
-    break;
-
-  case 'C':
-    handle_right_arrow();
-    break;
-
-  case 'A':
-    handle_up_arrow();
-    break;
-
-  case 'B':
-    handle_down_arrow();
-    break;
-
-  case '1':
-    if (user_serial_read_byte() == '~') {
-      handle_home_key();
+static bool handle_escape_sequence(uint8_t character) {
+  uint8_t state = menu_state.escape_state;
+  menu_state.escape_state = 0;
+  if (state == 1) {
+    if (character == '[' || character == 'O') {
+      menu_state.escape_state = 2;
+      return true;
     }
-    break;
-
-  case '4':
-    if (user_serial_read_byte() == '~') {
-      handle_end_key();
-    }
-    break;
-
-  default:
-    break;
+    return false;
   }
+  if (state == 2) {
+    switch (character) {
+    case 'A': handle_up_arrow(); return true;
+    case 'B': handle_down_arrow(); return true;
+    case 'C': handle_right_arrow(); return true;
+    case 'D': handle_left_arrow(); return true;
+    case 'H': handle_home_key(); return true;
+    case 'F': handle_end_key(); return true;
+    case '1': case '7': menu_state.escape_state = 3; return true;
+    case '4': case '8': menu_state.escape_state = 4; return true;
+    case '3': menu_state.escape_state = 5; return true;
+    default: return false;
+    }
+  }
+  if (character != '~') return false;
+  if (state == 3) handle_home_key();
+  else if (state == 4) handle_end_key();
+  else if (state == 5) handle_delete();
+  return true;
 }
 
 void handle_enter_key(void) {

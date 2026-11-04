@@ -162,14 +162,33 @@ int main(void) {
 int main(void) { TBLPAG=5; assert(bp_read_from_flash(2,0x100)==0x1234 && TBLPAG==5);
     puts("PASS flash low-word read excludes upper program byte and restores TBLPAG"); }
 '''),
+    "escape": ("proc_menu.c", ["handle_escape_key"], r'''
+int main(void) {
+    handle_escape_key(); assert(!serial_reads);
+#ifdef TEST_ESCAPE_FSM
+    assert(!handle_escape_sequence('i') && !menu_state.escape_state);
+    handle_escape_key(); assert(handle_escape_sequence('['));
+    assert(handle_escape_sequence('D') && keys[0]==1 && !menu_state.escape_state);
+    handle_escape_key(); assert(handle_escape_sequence('[')); assert(handle_escape_sequence('1'));
+    assert(!handle_escape_sequence('i') && !menu_state.escape_state && !serial_reads);
+#endif
+    puts("PASS lone/truncated ESC never blocks; complete sequences and normal input survive");
+}'''),
 }
 
 
 def run_case(name, revision):
     filename, names, tests = CASES[name]
     src = source(filename, revision)
+    if name == "escape" and "static bool handle_escape_sequence(uint8_t character) {" in src:
+        names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "escape":
+        prefix += "static unsigned keys[7];\n"
+        for i, key in enumerate(("left_arrow", "right_arrow", "up_arrow", "down_arrow", "home_key", "end_key", "delete")):
+            prefix += "static void handle_" + key + "(void) { keys[" + str(i) + "]++; }\n"
+        if len(names) > 1: prefix += "#define TEST_ESCAPE_FSM\n"
     if name == "flash":
         prefix += "static uint16_t TBLPAG;\n#define __builtin_tblrdh(a) ((void)(a),0xab)\n#define __builtin_tblrdl(a) ((void)(a),0x1234)\n"
     # Host mocks deliberately include only the selected production routines.

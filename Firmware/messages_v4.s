@@ -704,7 +704,7 @@ _BPMSG1255_str:
 	.section .text.BPMSG1256, code
 	.global _BPMSG1256_str
 _BPMSG1256_str:
-	.pasciz "12.(Bk)\t11.(Wt)\t10.(Gy)\t9.(Pu)\t8.(Bu)\t7.(Gn)\t6.(Yw)\t5.(Or)\t4.(Rd)\t3.(Br)\t2.(Bk)\1.(Wt)"
+	.pasciz "12.(Bk)\t11.(Wt)\t10.(Gy)\t9.(Pu)\t8.(Bu)\t7.(Gn)\t6.(Yw)\t5.(Or)\t4.(Rd)\t3.(Br)\t2.(Bk)\t1.(Wt)"
 
 	; BPMSG1257
 	.section .text.BPMSG1257, code

@@ -275,7 +275,7 @@ void serviceuser(void) {
   int newstart;
   int oldstart;
   unsigned int sendw, received;
-  int repeat;
+  uint16_t repeat;
   int temp;
   int numbits;
   unsigned char oldDmode; // temporarily holds the default display mode, while a
@@ -793,6 +793,7 @@ void serviceuser(void) {
         cmdstart &= CMDLENMSK;
         repeat = getrepeat() + 1;
         numbits = getnumbits();
+        if (mode_configuration.command_error) break;
         if (numbits) {
           mode_configuration.numbits = numbits;
           mode_configuration.int16 = numbits > 8 ? YES : NO;
@@ -830,6 +831,7 @@ void serviceuser(void) {
         newDmode = change_read_display();
         repeat = getrepeat() + 1;
         numbits = getnumbits();
+        if (mode_configuration.command_error) break;
         if (numbits) {
           mode_configuration.numbits = numbits;
           mode_configuration.int16 = (numbits > 8) ? YES : NO;
@@ -946,81 +948,35 @@ void serviceuser(void) {
   }
 }
 
-int getint(void) // get int from user (accept decimal, hex (0x) or binairy (0b)
-{
-  int i;
-  int number;
-
-  i = 0;
-  number = 0;
-
-  if ((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 0x31) &&
-      (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) // 1-9 is for sure decimal
-  {
-    number = cmdbuf[(cmdstart + i) & CMDLENMSK] - 0x30;
-    i++;
-    while ((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 0x30) &&
-           (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) // consume all digits
-    {
-      number *= 10;
-      number += cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x30;
-      i++;
-    }
-  } else if (cmdbuf[((cmdstart + i) & CMDLENMSK)] ==
-             0x30) // 0 could be anything
-  {
-    i++;
-    if ((cmdbuf[((cmdstart + i) & CMDLENMSK)] == 'b') ||
-        (cmdbuf[((cmdstart + i) & CMDLENMSK)] == 'B')) {
-      i++;
-      while ((cmdbuf[((cmdstart + i) & CMDLENMSK)] == '1') ||
-             (cmdbuf[((cmdstart + i) & CMDLENMSK)] == '0')) {
-        number <<= 1;
-        number += cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x30;
-        i++;
-      }
-    } else if ((cmdbuf[((cmdstart + i) & CMDLENMSK)] == 'x') ||
-               (cmdbuf[((cmdstart + i) & CMDLENMSK)] == 'X')) {
-      i++;
-      while (((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 0x30) &&
-              (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) ||
-             ((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 'A') &&
-              (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 'F')) ||
-             ((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 'a') &&
-              (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 'f'))) {
-        number <<= 4;
-        if ((cmdbuf[(cmdstart + i) & CMDLENMSK] >= 0x30) &&
-            (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) {
-          number += cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x30;
-        } else {
-          cmdbuf[((cmdstart + i) & CMDLENMSK)] |= 0x20; // make it lowercase
-          number +=
-              cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x57; // 'a'-0x61+0x0a
-        }
-        i++;
-      }
-    } else if ((cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 0x30) &&
-               (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) {
-      number = cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x30;
-      while (
-          (cmdbuf[((cmdstart + i) & CMDLENMSK)] >= 0x30) &&
-          (cmdbuf[((cmdstart + i) & CMDLENMSK)] <= 0x39)) // consume all digits
-      {
-        number *= 10;
-        number += cmdbuf[((cmdstart + i) & CMDLENMSK)] - 0x30;
-        i++;
-      }
-    }
-  } else // how did we come here??
-  {
+int getint(void) {
+  uint16_t number = 0, i = 0, digits = 0;
+  uint8_t radix = 10;
+  bool overflow = false;
+  if (cmdbuf[cmdstart] == '0') {
+    char prefix = cmdbuf[(cmdstart + 1) & CMDLENMSK];
+    if (prefix == 'x' || prefix == 'X') { radix = 16; i = 2; }
+    else if (prefix == 'b' || prefix == 'B') { radix = 2; i = 2; }
+  }
+  for (; i < BP_COMMAND_BUFFER_SIZE; ++i) {
+    uint8_t c = cmdbuf[(cmdstart + i) & CMDLENMSK];
+    uint8_t digit;
+    if (c >= '0' && c <= '9') digit = c - '0';
+    else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+    else break;
+    if (digit >= radix) break;
+    if (number > (65535u - digit) / radix) overflow = true;
+    if (!overflow) number = number * radix + digit;
+    ++digits;
+  }
+  cmdstart = (cmdstart + i) & CMDLENMSK;
+  if (!digits || overflow || i == BP_COMMAND_BUFFER_SIZE) {
     mode_configuration.command_error = YES;
     return 0;
   }
-
-  cmdstart += i; // we used i chars
-  cmdstart &= CMDLENMSK;
-  return number;
-} // getint(void)
+  /* The existing API carries a 16-bit data pattern in int; counts validate it. */
+  return (int)number;
+}
 
 int getrepeat(void) {
   int temp;
@@ -1031,6 +987,10 @@ int getrepeat(void) {
     temp = getint();
     cmdstart--; // to allow [6:10] (start send 6 10 times stop)
     cmdstart &= CMDLENMSK;
+    if ((uint16_t)temp == 0 || (uint16_t)temp > 32767u) {
+      mode_configuration.command_error = YES;
+      return 0;
+    }
     return temp;
   }
   return 1; // no repeat count=1
@@ -1044,6 +1004,10 @@ int getnumbits(void) {
     temp = getint();
     cmdstart = (cmdstart - 1) &
                CMDLENMSK; // to allow [6:10] (start send 6 10 times stop)
+    if ((uint16_t)temp < 1 || (uint16_t)temp > 16) {
+      mode_configuration.command_error = YES;
+      return 0;
+    }
     return temp;
   }
   return 0; // no numbits=0;
@@ -1826,6 +1790,7 @@ void convert_value(const bool reversed) {
   cmdstart = (cmdstart + 1) & CMDLENMSK;
   consumewhitechars();
   int value = getint();
+  if (mode_configuration.command_error) return;
   if (reversed) {
     value = bp_reverse_integer(value, mode_configuration.numbits);
   }

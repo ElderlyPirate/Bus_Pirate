@@ -433,7 +433,6 @@ void i2c_cleanup(void) {
   i2c_state.acknowledgment_pending = false;
 
 #ifdef BP_I2C_USE_HW_BUS
-  if (i2c_state.mode == I2C_TYPE_HARDWARE) {
 
 #ifdef BUSPIRATEV4
 
@@ -449,7 +448,6 @@ void i2c_cleanup(void) {
     I2C1CONbits.I2CEN = OFF;
 
 #endif /* BUSPIRATEV4 */
-  }
 #endif /* BP_I2C_USE_HW_BUS */
 }
 
@@ -550,6 +548,11 @@ void i2c_macro(unsigned int c) {
 #if defined(BUSPIRATEV4)
 
   case 3: {
+    if (i2c_state.mode != I2C_TYPE_HARDWARE) {
+      bp_write_line("Onboard EEPROM requires hardware I2C");
+      mode_configuration.command_error = YES;
+      break;
+    }
     MSG_USING_ONBOARD_I2C_EEPROM;
 
     i2c_state.to_eeprom = true;

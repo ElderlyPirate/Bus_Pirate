@@ -294,6 +294,14 @@ static void update_binary_prefix(uint8_t character) {
     menu_state.binary_mode_counter = 0;
 }
 
+static void load_user_macro(void) {
+  int index = user_macro - 1;
+  user_macro = 0;
+  if (index < 0 || index >= BP_USER_MACROS_COUNT) return;
+  for (uint16_t i = 0; i < BP_USER_MACRO_MAX_LENGTH && user_macros[index][i]; ++i)
+    handle_character(user_macros[index][i]);
+}
+
 void serviceuser(void) {
   int newstart;
   int oldstart;
@@ -333,16 +341,7 @@ void serviceuser(void) {
     bp_write_string(">");
     while (!menu_state.command_present) {
       if (user_macro) {
-        user_macro--;
-        temp = 0;
-        while (user_macros[user_macro][temp]) {
-          cmdbuf[cmdend] = user_macros[user_macro][temp];
-          user_serial_transmit_character(user_macros[user_macro][temp]);
-          cmdend++;
-          temp++;
-          cmdend &= CMDLENMSK;
-        }
-        user_macro = 0;
+        load_user_macro();
       }
 
       /* Handle periodic service callbacks if needed. */

@@ -220,6 +220,15 @@ int main(void) {
     input=" "; assert(wait_baud_confirmation() && serial_reads==1);
     puts("PASS five-second UART deadline across Timer1 wraps; no blocking read when empty");
 }'''),
+    "macro": ("proc_menu.c", ["remove_current_character_from_command_line", "handle_character", "handle_backspace", "load_user_macro"], r'''
+int main(void) {
+    load("",253); menu_state.cursor_position=cmdend; strcpy(user_macros[0],"=12"); user_macro=1;
+    load_user_macro(); assert(!user_macro && !menu_state.command_present && menu_state.cursor_position==0);
+    handle_backspace(); handle_character('3');
+    assert(cmdbuf[253]=='=' && cmdbuf[254]=='1' && cmdbuf[255]=='3' && !cmdbuf[0]);
+    for(unsigned i=0;i<8;++i) assert(ring.guard[i]==0xa5);
+    puts("PASS macro playback uses the bounded editor and remains editable, not auto-executed");
+}'''),
 }
 
 
@@ -230,6 +239,8 @@ def run_case(name, revision):
         names = names + ["handle_escape_sequence"]
     body = "\n".join(function(src, n) for n in names)
     prefix = PREFIX
+    if name == "macro":
+        prefix += "#define BP_USER_MACROS_COUNT 2\n#define BP_USER_MACRO_MAX_LENGTH 32\nstatic char user_macros[2][32];\nstatic int user_macro;\n"
     if name == "baud_timeout":
         prefix += "#define BP_USE_HARDWARE_DELAY_TIMER\nstatic unsigned timer_reads;\nstatic uint16_t timer(void) { ++timer_reads; return (uint16_t)(timer_reads*1000u); }\n#define TMR1 timer()\n"
     if name == "latch":

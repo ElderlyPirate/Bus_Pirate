@@ -26,7 +26,7 @@
       <itemPath>../i2c.h</itemPath>
       <itemPath>../configuration.h</itemPath>
       <itemPath>../hd44780.h</itemPath>
-      <itemPath>../spi.h</itemPath>
+      <itemPath>../protocol_spi/spi.h</itemPath>
       <itemPath>../uart.h</itemPath>
       <itemPath>../jtag.h</itemPath>
       <itemPath>../smps.h</itemPath>
@@ -88,7 +88,7 @@
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
       <itemPath>../i2c.c</itemPath>
       <itemPath>../hd44780.c</itemPath>
-      <itemPath>../spi.c</itemPath>
+      <itemPath>../protocol_spi/spi.c</itemPath>
       <itemPath>../uart.c</itemPath>
       <itemPath>../openocd.c</itemPath>
       <itemPath>../openocd_asm.s</itemPath>

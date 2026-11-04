@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -522,6 +523,15 @@ def main():
         assert re.search(r"#define ClearUsbInterruptFlag\(x\)\s+U1IR = x", pic)
         assert "volatile unsigned char BDCNT" in pic
         print("PASS PIC24 resume uses a word W1C acknowledgement, not bit-clear polling")
+        if not args.revision:
+            project = ROOT / "Firmware/busPirate.X/nbproject/configurations.xml"
+            xml = ET.parse(project)
+            listed = {node.text for node in xml.findall(".//itemPath")}
+            for name in ("cdc.c", "cdc.h", "usb_stack.c", "usb_stack.h", "usb_stack_globals.h",
+                         "picusb.h", "prj_usb_config.h", "descriptors.h"):
+                ref = "../core_usb/" + name
+                assert ref in listed and (project.parents[1] / ref).is_file(), ref
+            print("PASS MPLAB lists every grouped USB source/header at an existing path")
     if args.case in ("all", "ready"):
         compile_run(READY_PREFIX, function(cdc, "getOutReady").replace("inline ", ""), READY_TEST, "ready")
 

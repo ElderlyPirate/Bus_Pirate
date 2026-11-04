@@ -14,7 +14,7 @@
       <itemPath>../hardwarev3.h</itemPath>
       <itemPath>../pc_at_keyboard.h</itemPath>
       <itemPath>../pic.h</itemPath>
-      <itemPath>picusb.h</itemPath>
+      <itemPath>../core_usb/picusb.h</itemPath>
       <itemPath>../raw2wire.h</itemPath>
       <itemPath>../raw3wire.h</itemPath>
       <itemPath>../selftest.h</itemPath>
@@ -176,7 +176,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="picusb.h" ex="true" overriding="false">
+      <item path="../core_usb/picusb.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>

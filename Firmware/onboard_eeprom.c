@@ -85,6 +85,8 @@ static bool eeprom_wait(uint16_t con_busy, uint16_t stat_busy,
 
 static bool eeprom_gpio_high(uint16_t pins) {
   uint16_t waited;
+  /* DS39897C 10.2.1: separate a caller's TRIS change from PORT readback. */
+  Nop();
   for (waited = 0; waited < EEPROM_POLL_LIMIT; waited++) {
     if ((IOPOR & pins) == pins) {
       return true;

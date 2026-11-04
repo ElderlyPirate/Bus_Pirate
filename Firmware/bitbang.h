@@ -22,26 +22,29 @@
 #include <stdint.h>
 
 /**
- * The possible bus speeds for bit-banging operations.
+ * Timing profiles for bit-banging operations. Enum names are legacy nominal
+ * rates, not frequency guarantees. At FCY=16 MHz the raw tick path is roughly
+ * 6/60/150 kHz for the first three profiles; data setup, sampling, open-drain
+ * rise time and protocol/transport gaps reduce the effective transfer rate.
  */
 typedef enum {
   /**
-   * Selects a bus speed of 5kHz.
+   * Slow profile (raw ticks approximately 6 kHz).
    */
   BITBANG_SPEED_5KHZ = 0,
 
   /**
-   * Selects a bus speed of 50kHz.
+   * Medium profile (raw ticks approximately 60 kHz).
    */
   BITBANG_SPEED_50KHZ,
 
   /**
-   * Selects a bus speed of 100kHz.
+   * Fast profile (raw ticks approximately 150 kHz).
    */
   BITBANG_SPEED_100KHZ,
 
   /**
-   * Selects the maximum bus speed, which is around 400kHz.
+   * No deliberate phase delay; the maximum rate depends on the primitive.
    */
   BITBANG_SPEED_MAXIMUM
 } bp_bitbang_speed_t;

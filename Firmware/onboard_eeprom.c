@@ -245,6 +245,9 @@ static bool eeprom_i2c_send_ack(bool nack) {
 
 static bool eeprom_read_byte(uint16_t address, uint8_t *value) {
   uint8_t byte;
+  if (address >= ONBOARD_EEPROM_CAPACITY || value == NULL) {
+    return false;
+  }
   if (!eeprom_start(false) || !eeprom_checked_write(EEPROM_I2C_WRITE_ADDRESS) ||
       !eeprom_checked_write(address >> 8) || !eeprom_checked_write(address) ||
       !eeprom_start(true) || !eeprom_checked_write(EEPROM_I2C_READ_ADDRESS) ||
@@ -257,6 +260,9 @@ static bool eeprom_read_byte(uint16_t address, uint8_t *value) {
 }
 
 static bool eeprom_write_byte(uint8_t value, uint16_t address) {
+  if (address >= ONBOARD_EEPROM_CAPACITY) {
+    return false;
+  }
   if (!eeprom_start(false) || !eeprom_checked_write(EEPROM_I2C_WRITE_ADDRESS) ||
       !eeprom_checked_write(address >> 8) || !eeprom_checked_write(address) ||
       !eeprom_checked_write(value) || !eeprom_stop()) {

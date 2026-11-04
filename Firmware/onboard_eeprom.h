@@ -24,6 +24,10 @@
 
 #include <stdbool.h>
 
+/* BPv4 IC3 is a 24xx64: 8K x 8, addresses 0x0000..0x1FFF.
+ * This is opaque storage, not the disabled BASIC filesystem's 24LC256 layout. */
+#define ONBOARD_EEPROM_CAPACITY 8192u
+
 /**
  * Initializes the I/O port for communication with the on-board EEPROM.
  */

@@ -1640,13 +1640,13 @@ _MSG_SPI_SPEED_PROMPT_str:
 	.section .text.MSG_UART_BAUD_CALCULATED, code
 	.global _MSG_UART_BAUD_CALCULATED_str
 _MSG_UART_BAUD_CALCULATED_str:
-	.pasciz "\n\rCalculated: \t"
+	.pasciz "\r\nCalculated: \t"
 
 	; MSG_UART_BAUD_ESTIMATED
 	.section .text.MSG_UART_BAUD_ESTIMATED, code
 	.global _MSG_UART_BAUD_ESTIMATED_str
 _MSG_UART_BAUD_ESTIMATED_str:
-	.pasciz "\n\rEstimated:  \t"
+	.pasciz "\r\nEstimated:  \t"
 
 	; MSG_UART_BAUD_OVERFLOW
 	.section .text.MSG_UART_BAUD_OVERFLOW, code
@@ -1730,7 +1730,7 @@ _MSG_UART_LIVE_DISPLAY_STOP_str:
 	.section .text.MSG_UART_MACRO_MENU, code
 	.global _MSG_UART_MACRO_MENU_str
 _MSG_UART_MACRO_MENU_str:
-	.pasciz " 0.Macro menu\r\n 1.Transparent bridge\r\n 2.Live monitor\r\n 3.Bridge with flow control\n\r 4.Auto Baud Detection (Activity Needed)"
+	.pasciz " 0.Macro menu\r\n 1.Transparent bridge\r\n 2.Live monitor\r\n 3.Bridge with flow control\r\n 4.Auto Baud Detection (Activity Needed)"
 
 	; MSG_UART_MODE_HEADER
 	.section .text.MSG_UART_MODE_HEADER, code

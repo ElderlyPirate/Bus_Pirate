@@ -68,6 +68,8 @@ Command Syntax
       * Read one bit with clock.
   * .
       * Read current data state setting from last - or _ command, no actual bus change.
+  * O
+      * Toggle the 1-Wire speed in place between standard (~16.3kbps) and overdrive (~160kbps) without turning off the power supplies or the pull-up resistors, and print the speed that is now active. This lets a device be put into overdrive with `0x3C` (Overdrive Skip ROM) at standard speed and then be driven at overdrive speed without leaving the mode. Only valid in 1-Wire mode.
 
 Macros
 ------------------

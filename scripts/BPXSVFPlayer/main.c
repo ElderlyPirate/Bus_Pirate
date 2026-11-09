@@ -185,6 +185,17 @@ int main(int argc, char** argv)
 	//setup port and speed
 	serial_setup(fd,(speed_t) atoi(param_speed)); 
 
+	res = BP_EnableBinary(fd); // Activate binary mode (sends NULs until BBIO1)
+	if (res == ERR) {
+		fprintf(stderr, " Unable to activate the BP binary mode\n");
+		return -1;
+	}
+	res = BP_EnableMode(fd, JTAG); // Activate the XSVF player sub-mode (0x18, replies XSV1)
+	if (res == ERR) {
+		fprintf(stderr, " Unable to activate the XSVF player mode\n");
+		return -1;
+	}
+
 	if (jtag_reset==TRUE){
         printf(" Performing Reset..\n");
         temp[0]=0x01;
@@ -258,8 +269,7 @@ int main(int argc, char** argv)
 	}
 	printf(" Opening Bus Pirate on %s at %sbps, using XSVF file %s \n", param_port, param_speed,param_XSVF);
 
-	// Enter XSVF Player Mode
-	//Open the port and send 0x03 to enter XSVF player mode
+	// Start the player (0x03) inside the JTAG sub-mode entered above
 	printf(" Entering XSVF Player Mode\n");
 	temp[0]=0x03;
 	serial_write( fd, (char *)temp, 1 );

@@ -1250,7 +1250,14 @@ void list(void) {
       basic_program_counter += 2;
       bp_write_dec_word(lineno);
       bpSP;
-    } else if (c <= TOK_RESTORE) {
+    } else if (c <= (TOKENS + NUMTOKEN - 1)) {
+      /*
+       * Any byte below the length marker is a token, but only the ones the
+       * table actually defines may index it.  TOKENS + NUMTOKEN - 1 is the
+       * last defined token whatever it happens to be, so `LIST` cannot drift
+       * behind the table (it used to stop at RESTORE and silently dropped
+       * every later token, MODE and TIME included).
+       */
       bpSP;
       bp_write_string(tokens[c - TOKENS]);
       bpSP;

@@ -97,6 +97,11 @@ Commands at the BASIC prompt (not stored as program lines):
 | `MACRO n` | run a mode macro |
 | `MODE [n]` | switch to the mode the menu numbers `n` (with that mode's default settings), or report the active mode's name |
 
+`SEND` and `RECEIVE` follow the terminal's byte-order setting: after `L` at
+the normal prompt the value is bit-reversed over the configured width (the
+same rule the interactive send/read commands use), after `l` it is sent or
+read as-is.
+
 ## Expressions
 
 Values in an expression are:
@@ -105,8 +110,10 @@ Values in an expression are:
   stored programs),
 * variables `A`..`Z` (signed 16-bit),
 * the special tokens `RECEIVE`, `AUX`, `DAT`, `BITREAD`, `PSU`, `PULLUP` and
-  `ADC`, which read from the hardware as described above, and `MODE`, which
-  yields the active mode's number,
+  `ADC`, which read from the hardware as described above, `MODE`, which
+  yields the active mode's number, and `TIME`, which yields the microsecond
+  timestamp timer divided by 64 (one unit is 64 us; the 16-bit value wraps
+  every ~4.19 s, so measure an interval by subtracting two readings),
 * parenthesised expressions.
 
 Operators, in binding order:
@@ -255,6 +262,25 @@ stops the program with error 3 and leaves the current mode alone. The switch
 also runs the new mode's setup callback (the step the interactive flow
 performs on power-on), so the statements that follow can use the bus right
 away.
+
+Measuring elapsed time:
+
+```
+HiZ(BASIC)> 10 LET A=TIME
+Ready
+HiZ(BASIC)> 20 DELAY 500
+Ready
+HiZ(BASIC)> 30 PRINT TIME-A;
+Ready
+HiZ(BASIC)> RUN
+7812
+Ready
+```
+
+`TIME` reads the same microsecond counter as the terminal's `t` command,
+in units of 64 us, so the 500 ms `DELAY` shows up as about 7812 units. It
+is a value rather than a statement, so use it inside `LET`/`PRINT`; the
+counter itself is not changed by reading it.
 
 ## Notes for maintainers: the stored program format
 

@@ -390,6 +390,46 @@ static void load(void);
 static void waiteeprom(void);
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
+/**
+ * @brief Sends a value to the bus, honouring the current LSb/MSb setting.
+ *
+ * Mirrors the interactive `8` command in proc_menu.c: when the terminal has
+ * selected least-significant-bit-first, the value is bit-reversed over the
+ * configured width before it reaches the protocol.  Both the `SEND`
+ * statement and the `SEND` expression go through here, so a script cannot
+ * get a different byte order depending on how the token is used (issue
+ * #129).
+ *
+ * @param[in] value the value to send.
+ *
+ * @return the value returned by the protocol's send callback.
+ */
+static uint16_t basic_send(uint16_t value) {
+  if (mode_configuration.little_endian == YES) {
+    value = bp_reverse_integer(value, mode_configuration.numbits);
+  }
+
+  return bp_current_protocol()->send(value);
+}
+
+/**
+ * @brief Reads a value from the bus, honouring the current LSb/MSb setting.
+ *
+ * Mirrors the interactive `r` command in proc_menu.c (issue #129).
+ *
+ * @return the value the protocol's read callback returned, bit-reversed over
+ * the configured width when least-significant-bit-first is selected.
+ */
+static uint16_t basic_receive(void) {
+  uint16_t received = bp_current_protocol()->read();
+
+  if (mode_configuration.little_endian == YES) {
+    received = bp_reverse_integer(received, mode_configuration.numbits);
+  }
+
+  return received;
+}
+
 void handle_else_statement(void) {
   if (basic_program_area[basic_program_counter] != TOK_ELSE) {
     return;
@@ -435,34 +475,11 @@ bool search_line_number(const uint16_t line, uint16_t *result) {
 uint16_t handle_special_token(const uint8_t token) {
   switch (token) {
 
-  case TOK_RECEIVE: {
-    uint16_t received = bp_current_protocol()->read();
+  case TOK_RECEIVE:
+    return basic_receive();
 
-    /*
-     * Honour the LSb/MSb setting, exactly as the interactive 'r' command
-     * does in proc_menu.c.  Without this the byte order is silently ignored
-     * in script mode (issue #129).
-     */
-    if (mode_configuration.little_endian == YES) {
-      received = bp_reverse_integer(received, mode_configuration.numbits);
-    }
-
-    return received;
-  }
-
-  case TOK_SEND: {
-    uint16_t value = (uint16_t)assign();
-
-    /*
-     * Honour the LSb/MSb setting, exactly as the interactive '8' command
-     * does in proc_menu.c (issue #129).
-     */
-    if (mode_configuration.little_endian == YES) {
-      value = bp_reverse_integer(value, mode_configuration.numbits);
-    }
-
-    return bp_current_protocol()->send(value);
-  }
+  case TOK_SEND:
+    return basic_send((uint16_t)assign());
 
   case TOK_AUX:
     return bp_aux_pin_read();
@@ -1039,7 +1056,7 @@ void interpreter(void) {
     case TOK_SEND:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      bp_current_protocol()->send((int)assign());
+      basic_send((uint16_t)assign());
       handle_else_statement();
       break;
 

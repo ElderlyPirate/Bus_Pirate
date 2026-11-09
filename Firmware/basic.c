@@ -973,14 +973,23 @@ void interpreter(void) {
 
       if (basic_data_read_pointer == 0) {
         i = 0;
+        /*
+         * Walk line headers only.  A header is a length marker > TOK_LEN
+         * whose length is marker - TOK_LEN; reading `> TOK_LEN` as the stop
+         * condition (instead of merely `!= 0`) keeps a corrupted byte below
+         * the marker from turning the step into a negative stride that would
+         * walk behind the program area - the address-error trap class of
+         * #130.  A byte <= TOK_LEN ends the scan, exactly like the other
+         * walks in this file.
+         */
         while ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
-               (basic_program_area[i + 3] != TOK_DATA) &&
-               (basic_program_area[i] != 0x00)) {
+               (basic_program_area[i] > TOK_LEN) &&
+               (basic_program_area[i + 3] != TOK_DATA)) {
           i += (basic_program_area[i] - TOK_LEN) + 3;
         }
 
         if ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
-            (basic_program_area[i] != 0x00) &&
+            (basic_program_area[i] > TOK_LEN) &&
             (basic_program_area[i + 3] == TOK_DATA)) {
           basic_data_read_pointer = i + 4;
         } else {

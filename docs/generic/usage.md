@@ -253,9 +253,11 @@ http://github.com/ElderlyPirate
 HiZ>
 ```
 
-It returns to HiZ and resets the board state: the I/O pins become inputs, the
-pull-ups are released, the supplies switch off, the AUX assignment returns to
-`A0`, the display format returns to HEX, and BASIC is left.  The binary return
+It returns to HiZ and resets the board state: the bus lines, `CS` and `AUX`
+become inputs, the pull-ups are released, the supplies switch off, the AUX
+assignment returns to `A0`, the display format returns to HEX, and BASIC is
+left.  A driven `AUX1` / `AUX2` keeps its direction and level; the detail is in
+[the AUX capability](../capabilities/auxiliary/README.md).  The binary return
 byte (`0x0F`) and the exit from SUMP run the same terminal reset and land in
 HiZ with the banner.
 
@@ -263,7 +265,9 @@ On v3 `#` performs a real hardware reset/reboot.
 
 `m1` returns to HiZ and runs the same board-state reset (pins, pull-ups,
 supplies, AUX assignment) but does not restore the display format or leave
-BASIC; it prints `Ready`, not the banner.  Both paths leave the board safe.
+BASIC; it prints `Ready`, not the banner.  Both paths release the bus lines,
+`CS` and `AUX`; a driven `AUX1` / `AUX2` keeps its direction and level
+([AUX capability](../capabilities/auxiliary/README.md)).
 
 ### Bootloader jump — `$`
 

@@ -14,7 +14,7 @@ explanations live in [commands.md](commands.md) and [usage.md](usage.md).
 | `O` outside 1-Wire | `Command not used in this mode` | `O` is the 1-Wire speed toggle; it is refused in HiZ and in every other non-1-Wire mode |
 | `~` in any non-HiZ mode | `Self-test in HiZ mode only` | refused; return to HiZ (`m1` or `#`) and run `~` again |
 | a bus operation in HiZ (`r`, `[`, `]`, `^`, `!`, a value, `(n)`) | `ERROR: command has no effect here` plus a syntax error | nothing is sent; use a bus mode for bus traffic |
-| `a` / `A` in HiZ | `AUX LOW` / `AUX HIGH`, and the selected AUX pin is driven | expected; `@` returns it to input, and `m1`/`#` re-impedes it |
+| `a` / `A` in HiZ | `AUX LOW` / `AUX HIGH`, and the selected AUX pin is driven | expected; `@` returns it to input, and `m1` / `#` re-impedes `AUX` and `CS` (a driven `AUX1` / `AUX2` keeps its direction and level — see [AUX](../capabilities/auxiliary/README.md)) |
 | `v` in HiZ with nothing connected | direction `I` on every I/O pin, with a mix of `H`/`L` states | floating inputs, not driven levels — see [usage.md](usage.md#v-in-hiz) |
 
 ## Power and pull-ups

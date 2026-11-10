@@ -196,8 +196,8 @@ detail: [the self-test binary page](../../capabilities/selftest/binary.md).
 `0x0F` does not clear the PWM timer setup, but on v4 the terminal reset
 detaches the AUX output source, so the target stops being driven.  On v3
 `0x0F` is a hardware reset.  Send `0x13` before leaving if you want the module
-idle.  The full PWM behaviour is a capability topic
-([the AUX capability page](../../capabilities/auxiliary/README.md), pending).
+idle.  The full PWM behaviour is in the
+[AUX capability page](../../capabilities/auxiliary/README.md).
 
 ### ADC voltage probe (`0x14`, `0x15`)
 
@@ -217,8 +217,9 @@ Takes a frequency measurement on the **`A0`** pin and returns 4 bytes, most
 significant byte first, in **Hz**.  The command forces `A0` to an input (it
 does not follow the selected alternate AUX target) and uses a **one-second
 gate**; it returns `0` when no edges are counted.  If the first gate counts
-255 edges or fewer, the measurement is repeated at the finer 1:1 prescaler, so
-allow about two seconds.
+255 edges or fewer, the measurement is repeated at the finer 1:1 prescaler.
+Allow about one second above about 65.28 kHz and about two seconds when the
+rerun runs.
 
 `0x16` **stops a running PWM**: the timers are shut down and `A0` becomes an
 input.  The terminal `f` command refuses while PWM is active instead, so send
@@ -262,9 +263,9 @@ the moment the wait finished.
 **Direction contract.**  The wait does **not** change the selected pin's
 direction.  Configure it as an input first — a BBIO1 direction byte such as
 `0x5B` (all inputs except CLK), or the mode's equivalent — then send the wait.
-The BBIO1 direction bits cover `A0` and `CS` only; if the selected AUX is
-`A1`/`A2`, set it input in the terminal before entering (the selection
-persists), or use `A0`/`CS`.
+Of the AUX targets, the BBIO1 direction byte has bits only for `AUX` and `CS`;
+if the selected AUX is `A1`/`A2`, set it input in the terminal before entering
+(the selection persists), or use `A0`/`CS`.
 The firmware reads the pin level without switching direction and arms change
 notification on the selected pin; change notification on a pin the firmware is
 driving as an output is not confirmed, so treat an output-pin wait as
@@ -293,6 +294,6 @@ The v3 column is **not verified** (v3 is build-only here).
 - [examples.md](examples.md) — worked exchanges.
 - [edge-cases.md](edge-cases.md) — failure modes.
 - [the AUX capability page](../../capabilities/auxiliary/README.md) — PWM,
-  frequency and edge-wait units and limits (pending).
+  frequency and edge-wait units and limits.
 - [the ADC page](../../capabilities/adc/README.md) — probe and continuous
   sampling, scale, wiring and limits.

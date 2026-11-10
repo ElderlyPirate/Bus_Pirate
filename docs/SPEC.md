@@ -88,8 +88,8 @@ custom-baud form are v4-only (confirmed in the UART round).
 |---|---|---|---|---|
 | SUMP protocol | x | x | client: sigrok / PulseView | ✓ [sump/](protocol/sump/README.md) |
 | · regular capture | x | x | — | ✓ |
-| · extended (enhanced LA, #32) | x | x | 2k–32k samples, 1/2/4/8/16 MHz engines, trigger position | ✓ |
-| entry sequence | x | x | hidden: ≥5× `0x00` then LEFT ARROW | ✓ |
+| · extended (enhanced LA, #32) | x | x | 2k–32k samples, 1/2/4/8/16 MHz engines, trigger position; v3 unverified | ✓ |
+| entry sequence | x | x | hidden: ≥5× `0x00` then raw STX (`0x02`) | ✓ |
 
 ## 5. Script engine — BASIC
 

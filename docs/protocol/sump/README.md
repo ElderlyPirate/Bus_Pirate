@@ -10,16 +10,16 @@ This README is a map, not the manual — the details live in the files below.
 
 | File | Covers |
 |---|---|
-| [capture.md](capture.md) | entry/exit, channels and pin mapping, client setup, sample rates, capture depth, trigger, the command reference, a worked exchange |
-| [extended.md](extended.md) | the enhanced logic analyzer: 2k–32k samples, 2/4/8/16 MHz engines, trigger position |
-| [edge-cases.md](edge-cases.md) | entry/exit mistakes, unsupported options, buffer limits, client mismatch |
+| [capture.md](capture.md) | entry/exit, channels and pin mapping, client setup, sample rates, capture depth, trigger, the command reference, a worked exchange, the enhanced engines, readout |
+| [edge-cases.md](edge-cases.md) | entry/exit mistakes, NUL-prefix resets, unsupported options, buffer limits, client mismatch, capture aborts |
 
 ## The five-minute version
 
 - Enter: the host client sends a hidden byte sequence on the serial port —
-  **at least five `0x00` (NUL) bytes**, fewer than twenty, then a
-  **left-arrow** (`0x02`, or the `ESC [ D` a keyboard sends). A keyboard
-  cannot type a NUL, so this is always sent by the client or a script.
+  **at least five `0x00` (NUL) bytes**, fewer than twenty, then the **raw
+  `0x02` (STX) byte**. Typing it at the terminal is not the entry path;
+  the client or a script sends it. Any other byte resets the NUL count, so
+  the NULs must come immediately before the `0x02`.
 - The device answers with its four-byte identification, `1ALS`, and then
   waits for the SUMP client.
 - Open sigrok / PulseView, choose the SUMP / "Openbench Logic Sniffer & SUMP
@@ -47,9 +47,10 @@ Full per-item detail and the exact wording are in the topic files.
 
 - Flow control (XON/XOFF), the SUMP flags byte, trigger values/stages and the
   external clock are accepted or ignored, not implemented.
-- Above 1 MHz the trigger always marks the start of the captured window.
-- Larger captures trade channels for depth: 8k samples keep four channels,
-  16k keep two and 32k keep one.
+- Above 1 MHz the trigger always marks the start of the captured window, and
+  a fast capture is capped at 2048 samples (v4) with every channel recorded.
+- Larger timer-paced captures trade channels for depth: 8k samples keep four
+  channels, 16k keep two and 32k keep one.
 - No host client ships with the firmware; the SUMP client is external.
 - Shared prompt grammar (`#`, `$`, `W`, `P`, `e`) lives in
   [the generic layer](../../generic/README.md) and is not repeated here.

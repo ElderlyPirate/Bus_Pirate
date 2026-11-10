@@ -1,9 +1,12 @@
 # SUMP logic analyzer — capture
 
-Part of the SUMP documentation set (`docs/sump/`). This page covers the
-regular capture: how the analyzer is entered and left, what it records, the
-protocol a SUMP client speaks, and a worked exchange. The larger capture
-sizes and faster engines are described in [extended.md](extended.md).
+Part of the SUMP documentation set (`docs/protocol/sump/`). This page covers
+the whole capture protocol: how the analyzer is entered and left, what it
+records, the sample rates and their precision, capture depth and the
+channel trade-off, triggers, the command reference, a worked exchange, and
+the enhanced engines that unlock faster rates and larger captures. There is
+no separate "extended mode": the enhancement is part of the same protocol
+and command set.
 
 The shared prompt grammar and the terminal reset/bootloader commands live in
 [the generic layer](../../generic/README.md) and are not repeated here.
@@ -12,28 +15,35 @@ The shared prompt grammar and the terminal reset/bootloader commands live in
 
 This page covers the SUMP protocol as the Bus Pirate implements it, driven
 from an external host. It does not cover the host program's own user
-interface, and it does not cover the enhanced capture tiers, which are in
-[extended.md](extended.md).
+interface.
 
 ## Entry and exit
 
 SUMP is **not on the mode menu**. It is entered when the serial port receives
 a hidden byte sequence. The firmware counts the NUL bytes as they arrive;
-once five or more have been seen, the next left-arrow enters SUMP instead of
-moving the cursor. The sequence is:
+once five or more have been seen, the next raw STX byte enters SUMP. The
+sequence is:
 
 1. **At least five `0x00` (NUL) bytes**, but **fewer than twenty**.
-2. A **left-arrow**: either the raw byte `0x02` (ASCII STX), or the
-   three-byte sequence a real keyboard produces, `ESC [ D` (`0x1B 0x5B
-   0x44`). Both reach the same handler.
+2. The **raw `0x02` (STX) byte**.
+
+Only the raw `0x02` enters. A keyboard's left-arrow sends the three-byte
+sequence `ESC [ D` (`0x1B 0x5B 0x44`); that does **not** enter SUMP. The
+firmware checks for a non-NUL/non-STX byte before it decodes escape
+sequences, so the `ESC` resets the NUL count first and the sequence just
+moves the cursor.
+
+The NUL count survives further NUL bytes, but **any other byte resets it** —
+Enter, a typed command, `ESC`, or anything else. Send the NULs immediately
+before the raw `0x02`. With fewer than five NULs, the `0x02` also just moves
+the cursor (or beeps at the start of the line).
 
 At twenty NULs the firmware enters the binary bitbang layer (`BBIO1`)
-instead of SUMP, so the entry window is five to nineteen NULs. The NUL count
-persists until it is used, so a later left-arrow can complete the entry.
+instead of SUMP, so the entry window is five to nineteen NULs.
 
-No keyboard can produce a NUL, so this sequence is always sent by a program:
-a SUMP client as it opens the port, or a script driving the port by hand (the
-raw form is five `0x00` then `0x02`). The terminal is **not** the entry path.
+Typing the sequence at the terminal is **not** the entry path; it is always
+sent by a program — a SUMP client as it opens the port, or a script driving
+the port by hand (the raw form is five `0x00` then `0x02`).
 
 On entry the firmware:
 
@@ -74,7 +84,7 @@ v4 (advertises eight probe slots; seven are wired):
 | 2 | CLK | |
 | 3 | MISO | |
 | 4 | CS | |
-| 5 | AUX0 | the pin printed `AUX` |
+| 5 | AUX | |
 | 6 | — | no pin behind it; always the alternating pattern |
 | 7 | AUX1 | soft-wired in firmware |
 
@@ -89,16 +99,22 @@ v3 (five channels):
 | 4 | AUX |
 | 5–7 | —; always the alternating pattern |
 
-The name mapping used throughout this set: the v4 auxiliary pins are AUX0
-(the reassignable pin printed `AUX`), AUX1 and AUX2; the v3 auxiliary pin is
-`AUX`. The v4 firmware advertises eight probes while only seven signals are
-wired — bit 6 carries no pin and is always filled with the alternating
-pattern, so clients show it as a channel with no activity.
+The generic layer names the AUX target `A0` and prints the pin as `AUX`;
+v4 adds `AUX1` and `AUX2`. This set uses the pin-name form (`AUX`, `AUX1`,
+`AUX2`) throughout (see
+[generic commands.md](../../generic/commands.md#aux-targets-and-pin-names)).
+The v4 firmware advertises eight probes while only seven signals are wired —
+bit 6 carries no pin and is always filled with the alternating `0x55` /
+`0xAA` pattern, so clients show a regular alternating pattern that marks the
+bit as unrecorded, not a signal.
 
 Wiring: connect the probe pins to the signals to observe and share a common
-ground with the target. **No pull-up and no supply are required** — the
-analyzer pins are inputs and the on-board pull-ups are switched off on entry.
-Keep every input within the Bus Pirate's input range (0–5.5 V).
+ground with the target. The v4 header labels are the signal names —
+`GND 5.0V 3.3V VPU ADC AUX2 AUX1 AUX CS MISO CLK MOSI` (pin 1 is `MOSI`,
+pin 12 `GND`; see [generic usage.md](../../generic/usage.md#v-in-hiz)).
+**No pull-up and no supply are required** — the analyzer pins are inputs and
+the on-board pull-ups are switched off on entry. Keep every input within the
+Bus Pirate's input range (0–5.5 V).
 
 ## Client programs
 
@@ -123,7 +139,7 @@ sample-order/reverse setting at its SUMP-profile default; if it is changed,
 the captured trace is displayed backwards.
 
 The client owns the serial port and sends the hidden entry sequence itself
-(the firmware side of that contract is fixed: ≥5× `0x00` bytes + left-arrow).
+(the firmware side of that contract is fixed: ≥5× `0x00` bytes + raw `0x02`).
 Only the client-side driver name/profile label varies between releases and
 is **unverified**.
 
@@ -136,16 +152,25 @@ engines:
 | Nominal rate | Engine | Notes |
 |---|---|---|
 | ≤ 1 MHz | timer-paced | exact tick pacing |
-| 2 MHz | cycle-counted polling loop | 8 cycles per sample |
-| 4 MHz | cycle-counted polling loop | 4 cycles per sample |
-| 8 MHz | cycle-counted polling loop | 2 cycles per sample |
-| 16 MHz | cycle-counted polling loop | 1 cycle per sample; the top rate |
+| 2 MHz | cycle-counted polling loop | 8 cycles per sample; exact |
+| 4 MHz | cycle-counted polling loop | 4 cycles per sample; one cycle of per-pass jitter, exact long-term |
+| 8 MHz | cycle-counted polling loop | 2 cycles per sample; one cycle of per-pass jitter, exact long-term |
+| 16 MHz | cycle-counted polling loop | 1 cycle per sample; exact; the top rate |
 
 The maximum advertised rate is **16 000 000 Hz**. The published SUMP divider
 formula (`100 MHz ÷ (x + 1)`) is the nominal label the host asks for; the
-actual pace follows from the 16 MHz core, which is why 1 MHz and the four
-fast rates come out exact. The 16 MHz rate leaves no headroom on the
-16 MIPs core, so the timer-paced rates are the reliable ones.
+actual pace follows from the 16 MHz core: 1 MHz and 16 MHz are exact, 2 MHz
+is exact per sample, and 4 MHz and 8 MHz have one cycle of per-pass jitter
+(exact long-term). The 16 MHz rate leaves no headroom on the 16 MIPs core, so
+the timer-paced rates are the reliable ones.
+
+The 4 MHz and 8 MHz loops unroll four samples per pass; 2 MHz and 16 MHz use
+their own loop shapes, so do not assume the same grouping there.  All fast
+loops end with a decrement-and-branch (the 16 MHz loop uses a repeat).
+
+At the timer-paced rates the sampler works in short bursts of a few
+milliseconds' worth of samples (at least 16); the per-burst bookkeeping is
+amortised, so the window stays effectively tick-exact.
 
 ## Capture depth and channels
 
@@ -165,7 +190,7 @@ version:
 
 | Captured | v4 channels kept | v3 channels kept |
 |---|---|---|
-| 4096 | AUX2, MOSI, CLK, MISO, CS, AUX0, AUX1 | CS, MISO, CLK, MOSI, AUX |
+| 4096 | AUX2, MOSI, CLK, MISO, CS, AUX, AUX1 | CS, MISO, CLK, MOSI, AUX |
 | 8192 | AUX2, MOSI, CLK, MISO | CS, MISO, CLK, MOSI |
 | 16384 | AUX2, MOSI | CS, MISO |
 | 32768 | AUX2 | CS |
@@ -175,13 +200,22 @@ Channel bits that are not recorded are filled with an alternating `0x55` /
 sent the number of sample bytes it asked for; short captures are padded the
 same way.
 
-The v4 sample buffer is 4096 bytes; the v3 buffer is 2048 bytes (half),
-so the v3 8k/16k/32k tiers exceed the v3 buffer and are unverified.
+At the fast rates the capture always records every channel and is capped by
+the fast buffer (2048 samples on v4, one 16-bit storage word each); the depth
+tiers above apply to the timer-paced rates.
+
+The v4 sample buffer is 4096 bytes; the v3 buffer is 2048 bytes (half). On
+v3, any capture above 2048 samples — the 4096-sample tier, the 8k/16k/32k
+tiers and the fast paths — exceeds the v3 buffer and is unverified. The v3
+fast-capture capacity is therefore **2048 bytes**, matching the buffer;
+treat larger v3 fast requests as unavailable.
 
 ## Trigger
 
 - The trigger-mask command selects **which channels** to watch. A trigger is
-  an **edge** on any selected channel, not a level match.
+  an **edge** on any selected channel, not a level match. The mask is
+  independent of the recorded-channel set, so a trigger on a channel the
+  depth drops still fires; bit 6 has no pin and is ignored.
 - At the **timer-paced rates** (≤ 1 MHz) the trigger can sit anywhere in the
   window: the sampler keeps a rolling pre-trigger ring and stops once the
   requested number of post-trigger samples is captured. The delay count in
@@ -249,14 +283,14 @@ marker is what lets enhanced client profiles match the device.
 ## Worked exchange
 
 ```
-host -> 00 00 00 00 00 02      hidden entry: five NULs + left-arrow
+host -> 00 00 00 00 00 02      hidden entry: five NULs + raw STX
 host <- "1ALS"                 identification, sent on entry
 host -> 02                     request ID
 host <- "1ALS"
 host -> 04                     request metadata
 host <- <keys/values, ending 00>
-host -> 80 63 00 00 00         set divider  (rate)
-host -> 81 ff 07 ff 00         read/delay   (samples, post-trigger)
+host -> 80 63 00 00 00         set divider  (1 MHz)
+host -> 81 ff 03 ff 00         read/delay   (4096 samples, post-trigger)
 host -> c0 10 00 00 00         trigger mask (watch CS)
 host -> 01                     run
 host <- <samples, newest-first>
@@ -265,8 +299,22 @@ host -> 0f                     leave for the terminal
 host <- <version banner and prompt>
 ```
 
+The read count `ff 03` encodes 4096 samples and `ff 00` encodes 1024
+post-trigger samples. A 4096-sample capture keeps every channel, so the CS
+trigger channel is recorded. At 8192 samples and above CS is dropped from the
+capture; a trigger mask on it would then fire on a channel that is not in
+the result.
+
 The host is sent exactly the number of sample bytes it asked for in the
 read/delay command.
+
+## Readout
+
+Readout is a plain byte stream in the same newest-first order on both
+boards; the bulk transfer path is internal to the device and adds no
+host-side framing or flow control. A host that stops reading applies
+back-pressure (the device waits for buffer space) rather than losing
+samples.
 
 ## Using it
 
@@ -279,8 +327,8 @@ SUMP or to recover the board.
    owns the port for the session: it opens the port and sends the hidden
    entry sequence itself, so the firmware leaves the terminal, enters SUMP
    and replies `1ALS`. You do **not** pre-enter SUMP from a terminal — a COM
-   port cannot be open in two programs at once, and none of the sequence can
-   be typed by hand anyway (see §Entry and exit).
+   port cannot be open in two programs at once, and the hidden sequence is
+   not meant to be typed at the prompt (see §Entry and exit).
 2. Choose a sample rate and a sample count (the count drives the depth and
    channel negotiation above), set any channel trigger mask, and capture.
 3. Leave SUMP with `0x0F`, `#` or `$`; the board returns to the terminal in
@@ -297,9 +345,11 @@ opens the port is **unverified**.
 | build | present (build-only) | present (default image) |
 | probes | 5 | 8 advertised / 7 wired |
 | sample memory | 2048 bytes | 4096 bytes |
-| channel order (low bits) | CS, MISO, CLK, MOSI, AUX | AUX2, MOSI, CLK, MISO, CS, AUX0, AUX1 |
-| capture tiers ≥ 8k | unverified | present |
+| channel order (low bits) | CS, MISO, CLK, MOSI, AUX | AUX2, MOSI, CLK, MISO, CS, AUX, —, AUX1 |
+| capture tiers above 2048 samples | unverified | present |
+| fast captures | 2048-byte buffer, unverified | up to 2048 samples |
 | entry, exit, command set | same | same |
 
 The v3 build is not verified; the entry/exit bytes and command set are the
-same in both builds, but the v3 depth/speed tiers are unverified.
+same in both builds, but the v3 depth/speed tiers and fast engines are
+unverified.

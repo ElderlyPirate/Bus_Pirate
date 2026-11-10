@@ -1,9 +1,9 @@
 # UART — entry & setup
 
-Part of the UART documentation set (`docs/uart/`).  How the mode is entered,
-what each setup prompt asks, and what the one-line settings form accepts.
-Wiring is in [wiring.md](wiring.md); the half-duplex choice is covered in
-full in [hduart.md](hduart.md).
+Part of the UART documentation set (`docs/protocol/uart/`).  How the mode is
+entered, what each setup prompt asks, and what the one-line settings form
+accepts.  Wiring is in [wiring.md](wiring.md); the half-duplex choice is
+covered in full in [hduart.md](hduart.md).
 
 ## Entering UART
 
@@ -15,7 +15,7 @@ menu).  The full menu, for reference:
 | Option | Mode |
 |---|---|
 | `1` | HiZ |
-| `2` | 1-WIRE |
+| `2` | 1WIRE |
 | `3` | UART |
 | `4` | I2C |
 | `5` | SPI |
@@ -25,6 +25,12 @@ menu).  The full menu, for reference:
 | `9` | PIC |
 | `10` | DIO |
 | `x` | exit (without change) |
+
+The firmware's mode string is `1WIRE`; prose in these docs may write
+`1-Wire`.  The menu is dynamic and owned by
+[navigation.md](../../generic/navigation.md) §Mode menu; the copy above is
+the default v4 build — use the device's own `m` output if the enabled set
+differs.
 
 Entering UART asks six questions in order: **speed**, **data bits and
 parity**, **stop bits**, **receive polarity**, **output type**, and
@@ -59,8 +65,6 @@ is a raw divider instead of a rate:
 | `Set serial port speed: (bps)` | `1`–`9` | `300` … `115200` (same as above) |
 | | `10` | `BRG raw value` |
 
-The v3 column is **not verified**.
-
 ### Custom baud (option 10)
 
 - **v4** prompts `Input a custom BAUD rate:` and accepts a rate from `1` to
@@ -78,14 +82,16 @@ speed operand (see [binary.md](binary.md)).
 
 ### Entry-time auto-baud (v4, option 11)
 
-Choosing `11` prints `Baud detection selected..` and starts listening on the
-MISO receive input (the hardware RX pin).  Once activity arrives it measures
-the bit period and prints an estimated and a nearest-common rate
-(`Waiting activity...`, then
+Choosing `11` only **records** the choice and prints
+`Baud detection selected..`; the measurement itself runs when `W` starts the
+supplies — after the remaining five prompts.  At that point the mode listens
+on the MISO receive input (the hardware RX pin), measures the bit period, and
+prints an estimated and a nearest-common rate (`Waiting activity...`, then
 `Estimated:  <n> bps` / `Calculated: <n> bps`), and configures the port to
-that rate.  Pressing a key during the wait aborts with `** Early Exit!` and
-leaves the mode at the default rate.  This entry-time option is **v4 only**;
-the `(4)` macro is the portable way to measure a rate (see
+that rate.  Pressing a key during the wait aborts with `** Early Exit!`.  An
+early exit or a reading that yields no match leaves the port at **115200
+bps**, not at the 300 bps menu default.  This entry-time option is **v4
+only**; the `(4)` macro is the portable way to measure a rate (see
 [macros.md](macros.md)).
 
 ### Data bits, stop bits, polarity, output type, duplex
@@ -112,10 +118,20 @@ half-duplex the output is forced open-drain regardless of this answer.
 
 ## Settings header and the one-line form
 
-After setup the mode prints a header followed by the current values, then
-`Ready` and the prompt:
+The settings header appears in exactly three homes:
+
+| Trigger | Where the header prints |
+|---|---|
+| a complete one-line entry (`m3 …`) | before `Ready`, right after the command |
+| the info command `i` | after the `Pinstates:` pin table, before the closing separator |
+| the interactive prompt chain (`m` → `3`) | not printed at all |
+
+`v` prints the pin table only; it does not append the settings header.
+
+A complete one-line entry:
 
 ```
+m3 5 1 1 1 1 1
 UART (spd brg dbp sb rxp hiz dup)=( 4 416 0 0 0 1 0 )
 Ready
 UART>
@@ -143,13 +159,20 @@ after the mode number, in the same order as the header:
 m3 spd [brg] dbp sb rxp output duplex
 ```
 
-`brg` is only read when `spd` is `10` (the custom-baud/raw-BRG entry).  The
-values are the **menu** numbers, not the zero-based header values: `spd`
-1–11 on v4 (1–10 on v3), `output` 1 = open drain / 2 = normal, `duplex`
-1 = full / 2 = half.  A `duplex` of `0` (omitted) means full duplex, so
-older parameter lists stay valid.  **The list must be complete**: if any
-field is missing or out of range the firmware falls back to the full prompt
-chain and asks everything.
+The `brg` field is read only when `spd` is `10` (the custom-baud entry); it
+is **required** in that form — the firmware divides by it, so a missing or
+zero `brg` is a divide-by-zero, not a default.  In the one-line form the
+`brg` value is a **baud rate in bps on both builds**, including v3, where the
+interactive option `10` instead asks for a raw divider.  So `m3 10 9600 …`
+means 9600 bps even on v3; do not type a raw BRG there.
+
+The other values are the **menu** numbers, not the zero-based header values:
+`spd` 1–10 in the one-line form on **both** builds (option `11`, auto-baud,
+is prompt-only and cannot be selected here), `output` 1 = open drain /
+2 = normal, `duplex` 1 = full / 2 = half.  A `duplex` of `0` (omitted) means
+full duplex, so older parameter lists stay valid.  **The list must be
+complete**: if any field is missing or out of range the firmware falls back
+to the full prompt chain and asks everything.
 
 Example: `m3 5 1 1 1 1 1` = 9600 bps, 8/NONE, one stop bit, idle 1, open
 drain, full duplex.
@@ -161,7 +184,7 @@ The setup prompts are shown in full; `<<<` marks what was typed:
 ```
 HiZ>m
 1. HiZ
-2. 1-WIRE
+2. 1WIRE
 3. UART
 4. I2C
 …
@@ -201,9 +224,11 @@ Ready
 UART>
 ```
 
-The `Clutch disengaged!!!` block is printed until `W` starts the supplies
-(v4).  A full-duplex session differs only in the last answer (`1`) and skips
-the clutch warning once `W` has been sent.
+The menu form (`m` → `3`) prints `Clutch disengaged!!!` and the `W` reminder
+(`To finish setup, start up the power supplies with command 'W'`) **once**, at
+the mode change.  The direct `m3` form does not print either line.  `W` then
+prints `Clutch engaged!!!`.  A full-duplex session differs only in the last
+answer (`1`).
 
 ## v3 / v4
 
@@ -215,5 +240,3 @@ the clutch warning once `W` has been sent.
 | option 11 auto-baud | — | present |
 | output-type prompt | asked | asked |
 | duplex prompt | asked | asked |
-
-The v3 column is **not verified**.

@@ -1,8 +1,8 @@
 # UART — parity, framing and overrun
 
-Part of the UART documentation set (`docs/uart/`).  How the three receive
-faults are detected and reported, and how to recover.  Buffer behaviour is
-introduced in [terminal-usage.md](terminal-usage.md).
+Part of the UART documentation set (`docs/protocol/uart/`).  How the three
+receive faults are detected and reported, and how to recover.  Buffer
+behaviour is introduced in [terminal-usage.md](terminal-usage.md).
 
 ## Parity and framing flags
 
@@ -34,23 +34,28 @@ noise.
 ## Overruns
 
 The receiver path is a small hardware FIFO backed by a **128-byte software
-buffer**.  When that buffer fills before the host reads it:
+ring**.  Two distinct events exist:
 
-- the new byte is **dropped**;
-- an internal drop counter is incremented;
-- **no terminal message is printed.**
+- **Hardware FIFO overrun** — the FIFO was full before the interrupt could
+  drain it.  The firmware clears it, increments the counter and keeps
+  running.  In a bridge the MODE LED turns **off** as the only visible signal.
+- **Full software ring** — the 128-byte ring is full.  The new byte is
+  **dropped**, the counter is incremented, and **no message is printed** and
+  no LED changes: the drop is silent.
 
-This is a change from older firmware: the `*Bytes dropped*` line and the
-immediate overrun check no longer exist.  Overruns are cleared so the
-port keeps running, but they are silent outside the bridge.
+Outside a bridge neither event prints anything; the old `*Bytes dropped*`
+line and the immediate overrun check no longer exist.  On **v3** a target
+rate above the terminal link additionally prints
+`WARNING: Possible buffer overflow` at setup; slow the target or raise the
+terminal rate.
 
 **Recovery / avoidance:**
 
 - Use a **transparent bridge `(1)`** or the **raw live monitor `(2)`**, which
   stream bytes straight to the host and survive rates the formatted display
   cannot (see [macros.md](macros.md)).
-- In the bridge, an overrun turns the **MODE LED off** as the only visible
-  signal (see [bridge.md](bridge.md)).
+- In the bridge, a hardware FIFO overrun turns the **MODE LED off**; a full
+  ring is silent (see [bridge.md](bridge.md)).
 - Reduce the host-side polling interval, or slow the sender.
 
 ## Failed reads
@@ -97,6 +102,5 @@ See [macros.md](macros.md).
 |---|---|---|
 | `-f` / `-p` reporting | same | same |
 | overrun message | none (silent) | none (silent) |
-| receiving buffer | 128-byte software buffer | 128-byte software buffer |
-
-The v3 column is **not verified**.
+| receiving buffer | 128-byte software ring | 128-byte software ring |
+| rate above the terminal link | `WARNING: Possible buffer overflow` | — |

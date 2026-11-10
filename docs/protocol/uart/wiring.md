@@ -1,8 +1,9 @@
 # UART — wiring and electrical requirements
 
-Part of the UART documentation set (`docs/uart/`).  This page owns the full
-wiring tables and the pull-up statement; the README carries the headline
-only.  The half-duplex variant is described in [hduart.md](hduart.md).
+Part of the UART documentation set (`docs/protocol/uart/`).  This page owns
+the full wiring tables and the pull-up statement; the README carries the
+headline only.  The half-duplex variant's behaviour is described in
+[hduart.md](hduart.md).
 
 ## Pick your wiring
 
@@ -80,11 +81,12 @@ then wire:
 The bus is **open drain by definition** (the mode forces it, whatever the
 output-type answer was): idle is defined solely by an external pull-up.
 
-**A pull-up resistor to 3.3 V is required — stated explicitly.**  The bus
-needs **both** the Bus Pirate's two signal lines tied into one node **and**
-a discrete pull-up: a **1 kΩ to 3.3 V** is suitable, as is any value in the
-**1 kΩ – 10 kΩ** range.  The Bus Pirate's own pull-ups (`P`, with a VPU
-source) can serve in place of the discrete resistor.
+**A pull-up resistor to 3.3 V is required — stated explicitly.**  The
+receiver is mapped internally to the **MOSI** pin, so wire **MOSI, GND and
+the pull-up only; MISO is unused** (do not jumper MOSI to MISO).  A **1 kΩ to
+3.3 V** is suitable, as is any value in the **1 kΩ – 10 kΩ** range.  The Bus
+Pirate's own pull-ups (`P`, with a VPU source) can serve in place of the
+discrete resistor.
 
 Both ends must be single-wire / open-drain capable — another Bus Pirate, or
 a target running its USART with a wired-AND/open-drain TX.  In this mode
@@ -106,7 +108,8 @@ no flow control and behaves exactly like `(1)` — see [bridge.md](bridge.md).
 ## Voltage limit
 
 The UART interface is 5 V safe; do not exceed **5.5 V** on the data line.
-The Bus Pirate's own pull-up source is at most the on-board 5.0 V rail.
+The limit is board-level, not enforced by the firmware.  The Bus Pirate's own
+pull-up source is at most the on-board 5.0 V rail.
 
 ## v3 / v4
 
@@ -118,5 +121,3 @@ The Bus Pirate's own pull-up source is at most the on-board 5.0 V rail.
 | HDUART pull-up required | yes | yes |
 | VPU source selection | none — feed externally | `e1` / `e2` / `e3` |
 | flow-control pins (macro 3) | CS = CTS, CLK = RTS | not wired |
-
-The v3 column is **not verified**.

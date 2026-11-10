@@ -1,9 +1,8 @@
 # UART — half-duplex single wire (HDUART)
 
-Part of the UART documentation set (`docs/uart/`).  This is the headline
-feature of the current UART engine: a half-duplex, single-wire, open-drain
-serial link.  Wiring basics are in [wiring.md](wiring.md); this page owns
-the behaviour.
+Part of the UART documentation set (`docs/protocol/uart/`).  A half-duplex,
+single-wire, open-drain serial link.  Wiring is owned by
+[wiring.md](wiring.md); this page owns the behaviour.
 
 ## What it is
 
@@ -32,18 +31,16 @@ definition.
 
 ## Wiring, and the pull-up is required
 
-| Bus Pirate pin | Direction | Signal | Notes |
-|---|---|---|---|
-| MOSI | ↔ | the shared data line | TX drives it; RX listens to the same pin |
-| GND | ⏚ | ground | common ground with the peer |
-| MISO | — | not used | the receive input is mapped onto MOSI |
+The full pin table is in
+[wiring.md §Half-duplex single wire](wiring.md#half-duplex-single-wire-hduart).
+Briefly: **MOSI** is the shared data line, **GND** is ground, and **MISO is
+unused** — the receiver is mapped internally to MOSI, so do not jumper the
+two signal pins.
 
 **A pull-up to 3.3 V is required — stated explicitly.**  Both ends must be
-single-wire / open-drain capable.  Beyond the data and ground wires the
-bus needs **two** things: the Bus Pirate's two signal lines tied into
-**one node**, and a **discrete pull-up to 3.3 V** (any value in the
-**1 kΩ – 10 kΩ** range is suitable).  The Bus Pirate's own pull-ups (`P`
-with a VPU source) can serve in place of the discrete resistor.
+single-wire / open-drain capable.  A discrete **1 kΩ – 10 kΩ** pull-up is
+suitable; the Bus Pirate's own pull-ups (`P` with a VPU source) can serve in
+place of the discrete resistor.
 
 With no pull-up there is no idle-high, and the line reads as continuously
 low — see [edge-cases.md](edge-cases.md).
@@ -75,21 +72,16 @@ divider truncates to ≈ 125 kbaud against the Bus Pirate's preset
 (≈ 114.3 kbaud), an ≈ 9 % mismatch that produces `-f` framing errors on a
 shared wire.  Use a peer whose baud generator hits 115200 exactly.
 
-## What the current engine fixes
+## Behaviour of this engine
 
-Earlier versions treated the four-deep hardware receive FIFO as the whole
-buffer, which lost data as soon as the main loop stalled.  The current
-engine:
-
-- drains the FIFO into a **128-byte software receive ring** from an
-  interrupt, so short bursts survive a stalled loop;
-- **records the parity/framing status per byte** in that ring, so those
-  flags are still reported correctly when the byte is read;
-- **clears and counts oversaturations** internally (a hardware overrun or a
-  full ring) rather than stopping the port;
-- **suppresses the self-echo** as described above;
-- leaves the transparent bridge, live monitor and binary protocol working
-  unchanged.
+- The receive path keeps a **128-byte software receive ring** filled from an
+  interrupt, so short bursts survive a stalled main loop.
+- Each byte carries its **parity/framing status** in the ring, so those flags
+  are still reported correctly when the byte is read.
+- Oversaturation is **cleared and counted** internally (a hardware overrun or
+  a full ring) rather than stopping the port.
+- The **self-echo is suppressed** as described above.
+- The transparent bridge, live monitor and binary protocol work unchanged.
 
 ## Bridge and monitor use
 
@@ -120,5 +112,3 @@ bridge, `(2)` live monitor, `(3)` flow-control bridge.  Two caveats:
 | half-duplex single wire | present | present |
 | pull-up required | yes | yes |
 | speed menu | same | same |
-
-The v3 column is **not verified**.

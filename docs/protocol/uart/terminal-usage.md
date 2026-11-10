@@ -1,8 +1,8 @@
 # UART — on the bus (sending, reading, the live display)
 
-Part of the UART documentation set (`docs/uart/`).  How bytes go out, how
-they are read, and how the buffered live display works.  The shared prompt
-grammar for entering values, `r`, wrappers and formatting lives in
+Part of the UART documentation set (`docs/protocol/uart/`).  How bytes go
+out, how they are read, and how the buffered live display works.  The shared
+prompt grammar for entering values, `r`, wrappers and formatting lives in
 `docs/generic/` — see [commands.md](../../generic/commands.md) — and is not
 repeated here.  Error flags are covered in [errors.md](errors.md).
 
@@ -32,8 +32,11 @@ UART>r
 READ: 0x55
 ```
 
-`r:N` reads N bytes; `r;bits` sets the width for the read.  A read with
-nothing waiting is not an error condition on the bus — it prints:
+`r:N` reads N bytes; `r;bits` sets the width for the read.  A counted read
+prints **one** `READ:` line with the values space-separated — `r:4` gives
+`READ: 0x42 0x43 0x44 0x45`.  Only the live display repeats the `READ:`
+prefix per byte.  A read with nothing waiting is not an error condition on
+the bus — it prints:
 
 ```
 UART>r
@@ -76,10 +79,10 @@ which forwards raw bytes with no `READ:` formatting — see
 ## Receive buffer and overruns
 
 The Bus Pirate has a small hardware receive FIFO backed by a **128-byte
-software buffer** that an interrupt keeps filled.  This absorbs short bursts
-at any speed; sustained traffic faster than the host drains it eventually
-fills the buffer, and further bytes are dropped silently (the firmware
-counts the drops but does not print a message — see [errors.md](errors.md)).
+software ring** that an interrupt keeps filled.  This absorbs short bursts at
+any speed; sustained traffic faster than the host drains it eventually fills
+the ring, and further bytes are dropped silently (the firmware counts the
+drops but does not print a message — see [errors.md](errors.md)).
 
 To move a lot of data without loss, use a transparent bridge (`(1)`) or the
 raw live monitor (`(2)`), which hand bytes straight to the host in a 1:1
@@ -93,6 +96,8 @@ setup prompts are abridged (`…`); the terminal is 8N1.
 ```
 HiZ>m
 … (select 3, speed 5, data 1, stop 1, polarity 1, output 1, duplex 1)
+Clutch disengaged!!!
+To finish setup, start up the power supplies with command 'W'
 Ready
 UART>W
 POWER SUPPLIES ON
@@ -110,10 +115,7 @@ WRITE: 0x41
 UART>r
 READ: 0x41
 UART>r:4
-READ: 0x42
-READ: 0x43
-READ: 0x44
-READ: 0x45
+READ: 0x42 0x43 0x44 0x45
 
 UART>
 ```
@@ -130,5 +132,3 @@ echo and the `READ:` lines are the firmware's wording.  A loopback
 | `[`/`{` open, `]`/`}` stop | same | same |
 | live-display wording | `UART LIVE DISPLAY, } TO STOP` | same |
 | receive buffer | 128-byte software buffer | 128-byte software buffer |
-
-The v3 column is **not verified**.

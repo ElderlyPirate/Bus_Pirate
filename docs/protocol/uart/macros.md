@@ -1,8 +1,8 @@
 # UART — macros
 
-Part of the UART documentation set (`docs/uart/`).  The mode macro list, the
-live monitor `(2)`, and auto-baud detection `(4)`.  The two bridges are
-covered in [bridge.md](bridge.md).
+Part of the UART documentation set (`docs/protocol/uart/`).  The mode macro
+list, the live monitor `(2)`, and auto-baud detection `(4)`.  The two bridges
+are covered in [bridge.md](bridge.md).
 
 The split is deliberate, not duplication: **use the bridge `(1)`/`(3)` or the
 raw monitor `(2)` to move bulk data faster than the `[`/`{` display.**
@@ -99,5 +99,3 @@ The auto-baud macro itself is not build-specific:
 | `(3)` flow-control bridge | yes (CTS/RTS wired) | yes (no flow control — same as `(1)`) |
 | `(4)` auto-baud macro | listed + handled (build-only) | listed + handled |
 | entry-time auto-baud | — | speed option `11` |
-
-The v3 column is **not verified**.

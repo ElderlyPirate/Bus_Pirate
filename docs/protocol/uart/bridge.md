@@ -1,8 +1,8 @@
 # UART — the transparent bridge
 
-Part of the UART documentation set (`docs/uart/`).  The two bridge macros,
-their entry/exit rules, and the host-side baud caveat.  Macros `(2)` and
-`(4)` are in [macros.md](macros.md).
+Part of the UART documentation set (`docs/protocol/uart/`).  The two bridge
+macros, their entry/exit rules, and the host-side baud caveat.  Macros `(2)`
+and `(4)` are in [macros.md](macros.md).
 
 This page is separate from [macros.md](macros.md) on purpose: **use the
 bridge `(1)`/`(3)` to move bulk data faster than the `[`/`{` display.**
@@ -39,10 +39,11 @@ On exit a blank line is printed and the `UART>` prompt returns.
 
 ### Overruns during the bridge
 
-If the target sends faster than the host drains, the bridge **clears the
-overrun automatically** and continues; the **MODE LED turns off** to signal
-that a byte was dropped.  The link itself does not stop — see
-[errors.md](errors.md).
+If the target sends faster than the host drains, two things can happen.  A
+**hardware FIFO overrun** is cleared automatically and turns the **MODE LED
+off** — the only visible signal.  A full **128-byte software ring** also
+drops bytes, but **silently**: no LED change, no message.  Neither stops the
+link — see [errors.md](errors.md).
 
 ## `(3)` — bridge with flow control
 
@@ -58,17 +59,22 @@ On **v4** those pins are not wired to the host serial path, so `(3)` sets
 **no flow control** and behaves exactly like `(1)`.  Treat `(3)` as a v3
 feature; on v4 use `(1)`.
 
-## Host-side baud (important)
+## Host-side baud (v3 only)
 
-The bridge's speed applies to the **target UART only**.  The Bus Pirate's
-**USB-side** serial link keeps its own setting — the default **115200 bps**
-— unless you change it with the `b` menu.
+The bridge's speed applies to the **target UART only**.  How the USB-side
+link behaves depends on the build:
 
-If the host program opens the virtual serial port at a different rate (say
-9600) while expecting to talk to the bridge, the exchange is **garbled**,
-because the Bus Pirate still expects 115200 from the computer.  Adjust the
-computer-side rate first (`b`), then start the bridge at the target speed.
-See [commands.md](../../generic/commands.md) for the `b` menu.
+- **v3 — FTDI serial link.**  The link keeps its own rate — default
+  **115200 bps** — unless you change it with the `b` menu.  If the host
+  opens the virtual serial port at a different rate (say 9600) while
+  expecting to talk to the bridge, the exchange is **garbled**, because the
+  Bus Pirate still expects 115200 from the computer.  Adjust the
+  computer-side rate first (`b`), then start the bridge at the target speed.
+  See [commands.md](../../generic/commands.md) for the `b` menu.
+- **v4 — USB CDC link.**  The rate is **host-controlled metadata**: the
+  firmware does not reconfigure the link, and `b` prints
+  `USB CDC baud rate is host-controlled.`  Opening the port at any rate does
+  not garble the bridge — only the target UART speed matters.
 
 ## v3 / v4
 
@@ -78,6 +84,5 @@ See [commands.md](../../generic/commands.md) for the `b` menu.
 | `(3)` flow-control bridge | relays CTS/RTS on CS/CLK | no flow control (same as `(1)`) |
 | entry confirmation | `y`/`Y` | `y`/`Y` |
 | exit | hardware reset | NORMAL button |
-| overrun handling | clears, MODE LED off | clears, MODE LED off |
-
-The v3 column is **not verified**.
+| host-side link | FTDI; `b` sets the rate | CDC; host-controlled (`b` no-op) |
+| overrun handling | FIFO overrun clears + MODE LED off; full ring silent | same |

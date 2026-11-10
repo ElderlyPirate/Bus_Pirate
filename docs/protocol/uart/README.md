@@ -1,6 +1,6 @@
 # UART
 
-**Status:** draft — v3 is build-only (unverified).
+**Status:** v4 supported; v3 build-only (unverified).
 
 UART is asynchronous serial: start/stop-framed bytes on a data line.  This
 mode is a full-duplex UART (**TX** + **RX** + ground), a half-duplex
@@ -43,7 +43,7 @@ This README is a map, not the manual — the details live in the files below.
 
 | Feature | v3 | v4 |
 |---|---|---|
-| build | present (build-only, unverified) | present (default image) |
+| build | present (build-only) | present (default image) |
 | full duplex | yes | yes |
 | half-duplex single-wire (HDUART) | yes | yes |
 | speed 300 … 115200 | yes | yes |
@@ -53,6 +53,7 @@ This README is a map, not the manual — the details live in the files below.
 | bridge `(1)` / live monitor `(2)` / flow bridge `(3)` | yes | yes |
 | bridge exit | reset only | NORMAL button |
 | flow-control signals (macro 3) | CTS on CS, RTS on CLK | not wired (macro 3 = macro 1) |
+| USB link / host baud | FTDI link, set with `b` | CDC, host-controlled (`b` is a no-op) |
 | binary `ART1` | yes | yes (pull-up feed `0x5x` is v4 only) |
 
 Full per-item detail and the exact wording are in the topic files.
@@ -63,12 +64,12 @@ Full per-item detail and the exact wording are in the topic files.
   address/checksum handling.  UART is a manual byte bus and a bridge.
 - The half-duplex variant has **no collision detection**: bytes the peer
   sends while the Bus Pirate is transmitting are not kept.
-- Overruns are absorbed by a software receive buffer (128 bytes) and
-  counted, but are **not reported** to the terminal by this firmware — the
-  old "*Bytes dropped*" line is not printed (see [errors.md](errors.md)).
+- Overruns are absorbed by a software receive ring (128 bytes) and counted,
+  but are **not reported** to the terminal by this firmware — the old
+  "*Bytes dropped*" line is not printed (see [errors.md](errors.md)).
 - MIDI is not a menu entry; 31250 bps is reachable through the binary speed
   operand or a custom baud value — see
   [entry-and-setup.md](entry-and-setup.md).
 - Shared prompt grammar (`r`, `W`, `P`, `n`, `(n)`, wrappers, bit ops, safe
-  reset `#`, bootloader `$`) lives in `docs/generic/` and is not repeated
-  here.
+  reset `#`, bootloader `$`) lives in
+  [docs/generic/](../../generic/README.md) and is not repeated here.

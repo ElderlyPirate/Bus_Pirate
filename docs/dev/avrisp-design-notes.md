@@ -18,7 +18,7 @@ AVRISP-MKII project.  It is written at the behaviour level.
 - Two transports share one engine: the **USB mkII personality** (bulk
   endpoint 2) and the **framed STK500v2 serial route** (USB CDC).  They
   differ only in framing and identity (see
-  [protocol.md](../avrisp/protocol.md)).
+  [protocol.md](../programmers/avrisp/protocol.md)).
 
 ## USB transport design
 

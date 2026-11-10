@@ -177,7 +177,7 @@ A short session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
 | `O` | 1-Wire standard/overdrive toggle, in place (1-WIRE only) |
 
 `s` sets the BASIC flag; the interpreter launches on the next command line and
-prints `Ready`.  Full behaviour: [docs/basic/](../basic/README.md).
+prints `Ready`.  Full behaviour: [docs/basic/](../tools/basic/README.md).
 `O` is dispatched by the base layer but is owned by `docs/1wire/`.
 
 ## Leaving the CLI — binary / SUMP entry
@@ -187,11 +187,11 @@ Two terminal byte sequences leave the CLI instead of acting as commands:
 1. **Binary bitbang:** 20× `0x00` (NUL bytes) → enters the binary bitbang
    layer and prints `BBIO1`.  On v4 the NUL count is reset and a simulated
    reset is performed on return; send `0x0F` to return to the terminal.
-   Page: [../binary/README.md](../binary/README.md) — see
-   [../binary/commands.md](../binary/commands.md) for the byte map.
+   Page: [../binary/README.md](../protocol/binary/README.md) — see
+   [../binary/commands.md](../protocol/binary/commands.md) for the byte map.
 2. **SUMP logic analyzer:** ≥ 5× `0x00` followed by a Left-arrow byte
    (`0x02`) → enters the SUMP logic-analyzer mode.  Page:
-   [docs/sump/](../sump/README.md).
+   [docs/sump/](../protocol/sump/README.md).
 
 Neither is a "command"; both are documented here only so the generic page is
 complete.  The NUL counter is visible in the prompt logic but not to the user.

@@ -6,7 +6,7 @@
                    projectFiles="true">
       <itemPath>../1wire.h</itemPath>
       <itemPath>../core_system/base.h</itemPath>
-      <itemPath>../basic.h</itemPath>
+      <itemPath>../tool_basic/basic.h</itemPath>
       <itemPath>../core_bitbang/bitbang.h</itemPath>
       <itemPath>../capability_adc/adc.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
@@ -69,7 +69,7 @@
                    projectFiles="true">
       <itemPath>../1wire.c</itemPath>
       <itemPath>../core_system/base.c</itemPath>
-      <itemPath>../basic.c</itemPath>
+      <itemPath>../tool_basic/basic.c</itemPath>
       <itemPath>../core_bitbang/bitbang.c</itemPath>
       <itemPath>../capability_adc/adc.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
@@ -319,7 +319,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780;../tool_basic"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -560,7 +560,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780;../tool_basic"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

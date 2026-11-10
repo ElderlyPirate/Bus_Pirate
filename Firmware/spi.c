@@ -25,7 +25,7 @@
 #include "proc_menu.h"
 
 #ifdef BUSPIRATEV4
-#include "dp_usb/cdc.h"
+#include "core_usb/cdc.h"
 #endif
 
 /* Pin assignments. */

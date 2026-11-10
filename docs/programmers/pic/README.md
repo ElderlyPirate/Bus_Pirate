@@ -1,6 +1,6 @@
 # PIC programmer (PIC mode)
 
-**Status:** draft — available on v3 and v4; v3 is build-only and unverified.
+**Applies to:** v4 (documented); v3 is build-only (unverified).
 
 The **PIC** mode turns the Bus Pirate into the ICSP "programmer" half of a
 Microchip PIC programming link.  It drives the two In-Circuit Serial

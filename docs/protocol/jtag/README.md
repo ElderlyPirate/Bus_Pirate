@@ -1,7 +1,7 @@
 # JTAG
 
-**Status:** draft — the v3 column is build-only (unverified); the XSVF player
-is v4-only.
+**Applies to:** v4 (documented); v3 is build-only (unverified).  The XSVF
+player is v4-only.
 
 JTAG is a four-signal debug/configuration bus (TDI, TDO, TCK, TMS, plus an
 optional reset).  The Bus Pirate drives JTAG **only from its binary layer**:
@@ -95,7 +95,8 @@ The v3 column is **not verified** (build-only).
   entry sequence.
 - [binary/README.md](../binary/README.md) — the binary bitbang layer.
 - [SPEC.md](../../SPEC.md) — the capability matrix.
-- Tool sets (stubs — their writing rounds own the host-side detail):
-  - [tools/xsvf/README.md](../../tools/xsvf/README.md) — the XSVF host player.
+- Tool sets (the host-side detail lives there):
+  - [tools/xsvf/README.md](../../tools/xsvf/README.md) — the XSVF host player
+    and the SVF→XSVF converter.
   - [tools/openocd/README.md](../../tools/openocd/README.md) — the OpenOCD
     adapter.

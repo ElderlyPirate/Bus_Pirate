@@ -11,7 +11,7 @@ Stated for every element command:
 
 | Command | Wiring / electrical requirement |
 |---|---|
-| `W` / `w` | `W` enables the on-board VREG; target VCC is sourced on the VCC pin.  Aborts with `VREG too low, is there a short?` if the rails do not come up.  `w` disables VREG and re-parks the bus (`Clutch disengaged!!!`).  Both are refused in HiZ. |
+| `W` / `w` | `W` enables the on-board VREG; target VCC is sourced on the VCC pin.  Aborts with `VREG too low, is there a short?` if the rails do not come up.  `w` disables VREG and re-parks the bus (`Clutch disengaged!!!`); in **DIO** it only stops the supply and resets the 8-bit width ([DIO](../protocol/dio/README.md)).  Both are refused in HiZ. |
 | `P` / `p` | `P` ties the I/O lines to VPU through the pull-up resistors.  A voltage must already be present on the physical **Vpullup** pin or the firmware prints `Warning: no voltage on Vpullup pin`.  `p` releases the pull-ups.  Both are refused in HiZ. |
 | `e` | (v4) selects the VPU pull-up source: 1 External/none, 2 on-board 3.3 V, 3 on-board 5.0 V.  Refused in HiZ, in a mode whose output type is not open drain, and when a voltage is already on VPU.  There is no `e` on v3. |
 | `a` / `A` / `@` | drive / read the currently selected AUX pin (see `c`/`C`/`k`/`K`). |
@@ -195,8 +195,8 @@ A short session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
 | `s` | enter the BASIC interpreter (prompt becomes `HiZ(BASIC)>`) |
 | `O` | 1-Wire standard/overdrive toggle, in place (1-Wire only) |
 
-`s` sets the BASIC flag; the interpreter launches on the next command line and
-prints `Ready`.  Full behaviour: [../tools/basic/](../tools/basic/README.md).
+`s` sets the BASIC flag; the interpreter starts on the next line and prints
+`Ready`.  Full behaviour: [../tools/basic/](../tools/basic/README.md).
 `O` is dispatched by the base layer but is owned by
 [../protocol/wire/1wire/](../protocol/wire/1wire/README.md); outside 1-Wire it
 prints `Command not used in this mode`.

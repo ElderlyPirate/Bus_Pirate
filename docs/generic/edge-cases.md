@@ -22,7 +22,7 @@ explanations live in [commands.md](commands.md) and [usage.md](usage.md).
 | Trigger | Observable symptom | Behaviour / recovery |
 |---|---|---|
 | `P` with no pull-up voltage | `Pull-up resistors ON` then `Warning: no voltage on Vpullup pin` | pull-ups stay enabled; supply Vpullup (`e2`/`e3` in a non-HiZ open-drain mode on v4, external on v3) |
-| `P` in push-pull mode | `WARNING: pins not open drain (HiZ)` before enabling | informational; choose open drain in the mode setup |
+| `P` in push-pull mode | `WARNING: pins not open drain (HiZ)` before enabling | informational; choose open drain in the mode setup — [DIO](../protocol/dio/README.md) has no output-type choice (push-pull only), so the advice does not apply there |
 | `W` with a faulted rail | `VREG too low, is there a short?` then `POWER SUPPLIES OFF` | VREG disabled again; check the target and the rails |
 | `e` while VPU already powered | `Warning: already a voltage on Vpullup pin` plus a syntax error | refuses to change source; remove the external voltage or keep the current source |
 | `f` while PWM is running | `ERROR: PWM active, g to disable` | stop PWM with `g` first; `f` itself works in HiZ |

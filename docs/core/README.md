@@ -87,13 +87,11 @@ Boundary rules that matter in practice:
 
 ## Module map
 
-| Page | Source group | Key symbols |
-|---|---|---|
-| [system.md](system.md) | `core_system/` (`main.c`, `core.c/h`, `base.c/h`, `proc_menu.c/h`) | `main`, `initialize_board`, `serviceuser`, `changemode`, `bp_change_mode`, `getint`, `getrepeat`, `getnumbits`, `getnumber`, `getlong`, `cmdhistory`, `bus_pirate_protocol_t`, `bp_current_protocol`, `bp_protocol_by_index`, `bp_reset_board_state`, `bp_write_formatted_integer`, `bp_delay_ms`, `bp_delay_us`, `bp_timer_microseconds`, the `user_serial_*` layer |
-| [usb.md](usb.md) | `core_usb/` (`cdc.c/h`, `usb_stack.c/h`, `descriptors.h`, `picusb.h`, `prj_usb_config.h`) | `initCDC`, `usb_init`, `usb_start`, `usb_handler`, `usb_handle_setup`, `user_configured_init`, `getinbuf_cdc`, `write_cdc`, `putc_cdc`, `getc_cdc`, `CDC_Flush_In_Now`, `CDCFlushOnTimeout`, `usb_device_state` |
-| [bitbang.md](bitbang.md) | `core_bitbang/` (`bitbang.c/h`) | public: `bitbang_setup`, `bitbang_write_value`, `bitbang_read_value`, `bitbang_read_with_write`, `bitbang_i2c_start_wait`, `bitbang_i2c_stop_wait`, `bitbang_i2c_write_bit`, `bitbang_clock_stretch_timeouts`; static: `bitbang_wait_for_clock_release`, `BITBANG_DELAYS` |
-| [messages.md](messages.md) | `core_messages/` (`messages.c/h`, `messages_v3/v4.h/.s`) | `bp_message_write_buffer`, `bp_message_write_line`, `print_help`, `agree`, `BPMSGxxxx`, `MSG_*`, `HLP10xx` |
-| [eeprom.md](eeprom.md) | `core_eeprom/` (`onboard_eeprom.c/h`) | public: `eeprom_initialize`, `eeprom_test`; static: `eeprom_i2c_setup`, `eeprom_read_byte`, `eeprom_write_byte`, `eeprom_ready`, `eeprom_bus_clear` |
+The per-group file-and-symbol map — every `core_*`, `protocol_*`,
+`capability_*`, `tool_*` and `programmer_*` group with its source files and key
+symbols — lives in [the maintainer code map](../dev/code-map.md).  This page
+keeps the architecture and boundary rules that the map alone does not explain;
+use the code map to find where a symbol is implemented.
 
 ## Native test coverage
 

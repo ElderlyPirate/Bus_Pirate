@@ -1,7 +1,6 @@
 # DIO
 
-**Status:** draft — v4 is the documented target; v3 is build-only
-(unverified).
+**Applies to:** v4 (documented); v3 is build-only (unverified).
 
 DIO is direct pin control: the terminal sends the same pin values as the
 binary bitbang layer to set each I/O pin's **direction** and **state** by

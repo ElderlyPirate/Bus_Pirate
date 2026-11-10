@@ -9,8 +9,8 @@ is in [wiring.md](wiring.md); the binary-layer basics are in
 There is no terminal JTAG mode — this byte is the only way to reach the JTAG
 hardware for the debug path.  Host-side OpenOCD setup (interface and config,
 adapter options) is a separate tool set:
-[tools/openocd](../../tools/openocd/README.md) — a stub whose writing round
-owns it.  This page owns the in-mode command set only.
+[tools/openocd](../../tools/openocd/README.md) — it owns that setup.  This page
+owns the in-mode command set only.
 
 ## Entry and exit
 
@@ -172,4 +172,5 @@ above so the exchange stays aligned.
   open-drain mode.
 - [xsvf.md](xsvf.md) — the file-driven XSVF path.
 - [edge-cases.md](edge-cases.md) — failure modes and recovery.
-- [tools/openocd](../../tools/openocd/README.md) — host-side setup (stub).
+- [tools/openocd](../../tools/openocd/README.md) — host-side setup and
+  configuration.

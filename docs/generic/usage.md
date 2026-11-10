@@ -259,7 +259,8 @@ assignment returns to `A0`, the display format returns to HEX, and BASIC is
 left.  A driven `AUX1` / `AUX2` keeps its direction and level; the detail is in
 [the AUX capability](../capabilities/auxiliary/README.md).  The binary return
 byte (`0x0F`) and the exit from SUMP run the same terminal reset and land in
-HiZ with the banner.
+HiZ with the banner.  While BASIC is active every line is intercepted by the
+interpreter, so `#`, `$` and `m` are unreachable until you leave with `EXIT`.
 
 On v3 `#` performs a real hardware reset/reboot.
 

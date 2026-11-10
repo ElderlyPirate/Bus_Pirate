@@ -127,9 +127,23 @@ documented above.)
 
 ### AUX (`0x09`)
 
-After `0x09` the host sends one sub-command byte; the reply is **two bytes**:
-`0x01` (success) and then the sub-result.  An unknown sub-command returns
-`0x01 0x00`; the setters return `0x01 0x01`.  No text line is printed.
+After `0x09` the host sends one sub-command byte.  The reply is always **two
+bytes**: `0x01` (success) and then the sub-result.
+
+| Sub-command | Action | Sub-result |
+|---|---|---|
+| `0x00` | drive the selected pin low | `0x01` |
+| `0x01` | drive the selected pin high | `0x01` |
+| `0x02` | release the selected pin to high-Z | `0x01` |
+| `0x03` | read the selected pin | the level (`0x00` / `0x01`) |
+| `0x10` | select `AUX` as the target | `0x01` |
+| `0x20` | select `CS` as the target | `0x01` |
+| other | ignored; the result stays `0x01` | `0x01` |
+
+The selected pin is the current AUX target (`AUX` by default).  `0x10`
+switches the extended-AUX control and the shared `0x7x` wait-for-edge command
+to `AUX`; `0x20` switches both to `CS`.  These two sub-commands only change the
+target — they do not drive the pin.  No text line is printed.
 
 ## Sniffer in binary mode (`0x0F`)
 

@@ -1,7 +1,7 @@
 # ADC probe and continuous sampling
 
-**Status:** draft — the board's analogue probe input, read one sample at a
-time or streamed continuously.
+**Scope:** the board's analogue probe input, read one sample at a time or
+streamed continuously.
 
 The Bus Pirate has a dedicated analogue input on the pin it labels **`ADC`**.
 An on-board 2:1 divider scales the input into the 10-bit converter, so full

@@ -129,10 +129,10 @@ above so the exchange stays aligned.
 ## Host workflow
 
 The XSVF host player and the SVF→XSVF converter are documented in
-[tools/xsvf](../../tools/xsvf/README.md) — a stub whose writing round owns the
-players, converter options and examples.  Both shipped players enter `BBIO1`
-and `XSV1` themselves; do not pre-enter the player.  This page owns the in-mode
-protocol only.
+[tools/xsvf](../../tools/xsvf/README.md) — it owns the players, converter
+options and examples.  Both shipped players enter `BBIO1` and `XSV1`
+themselves; do not pre-enter the player.  This page owns the in-mode protocol
+only.
 
 ## Limits
 
@@ -158,4 +158,5 @@ protocol only.
   use SRST/TRST, and its entry enables the regulator.
 - [openocd.md](openocd.md) — the host-driven `0x06` TAP shifter.
 - [edge-cases.md](edge-cases.md) — failure modes and recovery.
-- [tools/xsvf](../../tools/xsvf/README.md) — the XSVF host player (stub).
+- [tools/xsvf](../../tools/xsvf/README.md) — the XSVF host player and the
+  SVF→XSVF converter.

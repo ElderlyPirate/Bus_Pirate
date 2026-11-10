@@ -1,7 +1,6 @@
 # Self-test
 
-**Status:** draft — the device self-test.  v4 is the documented target; v3 is
-build-only (unverified).
+**Applies to:** v4 (documented); v3 is build-only (unverified).
 
 The self-test is the firmware's own bring-up and fault-finding check.  It
 drives each board element in turn — the control lines, the on-board EEPROM

@@ -1,7 +1,7 @@
 # AUX pin, PWM, servo, frequency and edge wait
 
-**Status:** draft — the header AUX pin, its target assignment, the PWM and
-servo generator, the frequency counter, and the binary wait-for-edge command.
+**Scope:** the header AUX pin, its target assignment, the PWM and servo
+generator, the frequency counter, and the binary wait-for-edge command.
 
 The Bus Pirate has an auxiliary digital I/O pin, printed **`AUX`** in the pin
 table.  From the prompt you can drive it low or high, read it, or reassign the

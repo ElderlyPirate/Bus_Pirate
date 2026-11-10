@@ -1,7 +1,8 @@
 # SMPS (switched-mode power supply board)
 
-**Status:** draft — v4-only and an optional build.  The board and its legacy
-design are not available, so the electrical behaviour is `unverified`.
+**Availability:** optional build — v4 only, off in the default image.  The
+board and its legacy design are not available, so the electrical behaviour is
+`unverified`.
 
 SMPS drives a legacy Dangerous Prototypes switched-mode power-supply add-on
 board over the binary raw-wire command group `0b1111xxxx` (`0xF0`–`0xFF`).

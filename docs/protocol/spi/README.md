@@ -1,7 +1,6 @@
 # SPI
 
-**Status:** draft — v4 is the documented target; v3 is build-only
-(unverified).
+**Applies to:** v4 (documented); v3 is build-only (unverified).
 
 SPI is a four-wire synchronous bus (CS, MOSI, MISO, CLK) plus ground. This mode
 is a master: it asserts chip select, clocks bytes out and in, changes the clock

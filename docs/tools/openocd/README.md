@@ -1,6 +1,6 @@
 # OpenOCD adapter
 
-**Status:** draft — host-side setup for the JTAG OpenOCD path (binary `0x06`).
+**Scope:** host-side setup for the JTAG OpenOCD path (binary `0x06`).
 
 The OpenOCD adapter is the host half of the Bus Pirate's JTAG debug path.  The
 firmware's `0x06` mode is a **raw TAP shifter**: the host debugger walks the

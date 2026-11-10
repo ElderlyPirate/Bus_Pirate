@@ -67,33 +67,16 @@ instead of a result byte.
 These mirror the terminal bitwise controls: start/stop map to `[`/`]`, and the
 CS/clock/data commands map to `/`, `\`, `-`, `_`, `^`, `.` and `!`.
 
-### Peripherals (`0x4x`)
+### Shared groups (`0x4x`–`0x7x`)
 
-The low nibble of `0x4x` selects what to switch; the reply is `0x01`.
+The peripheral (`0x4x`), pull-up-feed (`0x5x`), speed (`0x6x`) and
+wait-for-edge (`0x7x`) groups are shared by every nibble-group sub-protocol.
+Their bit tables, operands and reply rules are owned once by
+[protocol/binary/sub-protocols.md](../binary/sub-protocols.md) §Shared command
+groups; this page does not repeat them.
 
-| Bit | Mask | When set | When clear |
-|---|---|---|---|
-| 3 | `0x08` | target supply on | supply off |
-| 2 | `0x04` | pull-up resistors on | pull-ups off |
-| 1 | `0x02` | AUX high | AUX low |
-| 0 | `0x01` | CS high (released) | CS low (asserted) |
-
-So `0x4C` = bits 3 and 2 = supply on + pull-ups on, with bit 0 clear = CS low.
-
-### Pull-up feed (`0x5x`, v4 only)
-
-The low nibble selects the on-board source feeding the pull-up voltage (VPU):
-
-| Operand | Source |
-|---|---|
-| `0x51` | on-board **+3.3 V** |
-| `0x52` | on-board **+5.0 V** |
-| any other | both off |
-
-The reply is `0x01` when the request was applied and `0x00` when it was
-refused: the pins are not open-drain HiZ, or a voltage is already present on
-VPU.  On v3 the pull-up-feed handler is not built, so the request is answered
-with `0x00`.
+`RAW1` speed (`0x6x`) uses the same four bit-bang profiles as the terminal:
+`0` (about 6 kHz) through `3` (maximum).
 
 ### Configure (`0x8x`)
 
@@ -107,14 +90,6 @@ The low bits of the configuration byte set the mode flags:
 
 `0x88` is open drain + 2 wires + MSB-first; `0x8C` is open drain + 3 wires +
 MSB-first; `0x84` is normal output + 3 wires + MSB-first.
-
-### Speed and edge wait
-
-- **Set speed (`0x6x`)** selects the same four bit-bang profiles as the
-  terminal (`0` ≈ 6 kHz … `3` maximum).
-- **Wait for an edge (`0x7x`)** is the shared AUX edge-wait command: the host
-  sends the edge selector and a timeout after the request, and receives a
-  success/failure byte followed by the pin level.
 
 The PIC (`0xAx`) and SMPS (`0xFx`) groups share this mode with both wire
 counts and belong to the PIC and SMPS topics; they are not raw-wire features.

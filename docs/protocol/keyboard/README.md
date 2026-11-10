@@ -1,6 +1,6 @@
 # PC keyboard (KEYB)
 
-**Status:** draft — **v4 only**; not built on v3.
+**Applies to:** v4 only; not built on v3.
 
 KEYB is a PC/AT keyboard mode.  It drives a PS/2 (PC/AT) keyboard's clock/data
 interface and offers a live input monitor that streams the raw scancodes as you

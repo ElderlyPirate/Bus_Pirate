@@ -1,7 +1,7 @@
 # BASIC (script engine)
 
-**Status:** draft — the on-board BASIC interpreter; available on v3 and v4.
-v3 is included in the build but not verified on hardware.
+**Applies to:** v3 and v4; v3 is included in the build but not verified on
+hardware.
 
 BASIC lets the Bus Pirate run a small program by itself, so a bus sequence
 can be replayed without a PC driving every step.  A program lives in the

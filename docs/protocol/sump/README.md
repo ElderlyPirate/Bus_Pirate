@@ -1,6 +1,6 @@
 # SUMP logic analyzer
 
-**Status:** draft — available on v3 and v4; v3 is build-only and unverified.
+**Applies to:** v4 (documented); v3 is build-only (unverified).
 
 The Bus Pirate can act as a small SUMP-compatible logic analyzer: it samples
 its signal pins into a buffer and streams the capture to a SUMP host program

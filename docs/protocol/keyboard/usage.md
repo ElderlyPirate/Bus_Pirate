@@ -1,7 +1,8 @@
 # PC keyboard (KEYB) — using the mode
 
-Part of the KEYB documentation set (`docs/keyboard/`).  This page owns the live
-input monitor, byte reads and writes, and the macro reference.
+Part of the KEYB documentation set (`docs/protocol/keyboard/`).  This page owns
+the frame/handshake, the live input monitor, byte reads and writes, the macro
+reference and the mode's limits.
 
 ## Scope
 
@@ -22,6 +23,37 @@ with the high bit set on release (for example `1e` then `9e` for the `A` key).
 The firmware prints byte values in the active display format — **HEX by
 default**; `o` changes it ([commands.md](../../generic/commands.md)).
 
+## Frame and handshake
+
+The Bus Pirate is the host; the keyboard drives the interface in both
+directions and generates the clock.  One byte is eleven bit slots, least
+significant bit first, plus the keyboard's acknowledge slot on a host write:
+
+| Slot | Device → host (a scancode) | Host → device (a command) |
+|---|---|---|
+| 1 | start bit — DATA low | start bit — DATA low |
+| 2–9 | eight data bits, LSB first | eight data bits, LSB first |
+| 10 | parity — odd | parity — odd, computed by the firmware |
+| 11 | stop bit — DATA high | stop bit — DATA high (DATA released) |
+| 12 | — | acknowledge, from the keyboard |
+
+**Parity** is odd in both directions: the eight data bits plus the parity bit
+contain an odd number of 1s.  On a read the mode checks the parity bit and
+reports `*parity error` when the frame does not match.  On a write the firmware
+works the parity bit out from the value and sends it; you do not supply it.
+
+**Acknowledge.**  After a host byte the keyboard answers in a twelfth slot:
+DATA low is `ACK`, DATA high is `NACK`.  The firmware samples the frame's
+stop-bit slot and then the acknowledge slot; only the acknowledge slot decides
+the reported result.  If the keyboard stops clocking before those slots, the
+write reports `TIMEOUT`.
+
+**Bus state.**  Between exchanges the mode holds CLOCK low (the host inhibit);
+each read or write releases the line for the keyboard's clocks.  A read checks
+the frame's start, parity and stop bits and prints the error word for the first
+check that fails — the words are listed under
+[Reading with `r`](#reading-with-r).
+
 ## The live input monitor — `(1)`
 
 `(1)` runs the monitor.  It prints two header lines and then streams a value
@@ -40,6 +72,8 @@ KEYB>
   serial connection), not a key on the keyboard being monitored.
 - Each scancode is printed as it arrives, separated by spaces, with no line
   breaks — the stream is live and unbuffered.
+- A frame that fails its checks prints nothing in the monitor; only successful
+  scancodes appear (the error words belong to `r`).
 - Typing on the keyboard being monitored keeps printing scancodes; a single
   character on the serial/terminal connection ends the monitor and returns to
   `KEYB>`.
@@ -50,53 +84,91 @@ KEYB>
 
 ## Reading with `r`
 
-`r` reads one scancode; `r:N` reads up to N.  The read waits for the keyboard's
-clock; each attempt scans briefly for activity and gives up if the keyboard is
-idle.  A successful read prints the value:
+`r` reads one scancode.  `r:N` performs exactly N reads — N independent
+attempts, one read window each; it does not stop early on an error.  The
+`READ: ` header is printed once for the whole command.  Each attempt waits
+briefly for the keyboard to start a frame and gives up if it stays idle.
+
+A successful read prints the value:
 
 ```
 KEYB>r
 READ: 0x1e
 ```
 
-A read that finds a malformed frame prints one of the mode's error words:
+A failed read prints the mode's error word **and then the value the read
+returned**.  That value is always zero, so every failure prints `0x00` (HEX
+default) after the error word — it is a sentinel, not a scancode.  The
+line-printing errors put the value on the next line:
+
+```
+KEYB>r
+READ:  *parity error
+0x00
+```
+
+`TIMEOUT` is the exception: the firmware prints it without a newline, so the
+sentinel is appended to the same line:
+
+```
+KEYB>r
+READ:  TIMEOUT0x00
+```
+
+**Footnote:** `READ:  TIMEOUT0x00` is the firmware's own formatting — read it
+as the `TIMEOUT` error word followed by the `0x00` value.  The other five
+error words are line messages and put `0x00` on its own line.  With `r:N` the
+error/value pairs repeat, separated by the dispatcher's space:
+`TIMEOUT0x00 TIMEOUT0x00 …`.
 
 | Error word | Meaning |
 |---|---|
-| `NONE` | no keyboard activity within the read window |
-| `TIMEOUT` | the clock line did not change when expected |
-| `*startbit error` | the data line was not low at the start of the frame |
-| `*parity error` | the frame's parity bit did not match the data |
+| `NONE` | no frame started within the read window |
+| `TIMEOUT` | the clock stopped changing while a frame or a bit was expected |
+| `*startbit error` | the clock line showed a frame start but DATA was not low — no start bit |
+| `*parity error` | the eight data bits and the parity bit are not odd parity — a bit was misread |
 | `*stopbit error` | the frame did not end with the stop bit high |
-| `UNKNOWN ERROR` | any other read result |
+| `UNKNOWN ERROR` | defensive default label; the current read path does not produce it |
 
-**Note:** `TIMEOUT` is reported for both reads and writes; its meaning depends
-on direction — on a read the clock line did not change when expected, on a
-write the keyboard did not answer.  See [edge-cases.md](edge-cases.md) for the
-failure modes behind each error word.
-
-**Unverified:** the exact placement of the error word relative to the printed
-value.
+**Note:** `TIMEOUT` is also a write result, with a different cause — see
+[Writing to the keyboard](#writing-to-the-keyboard).  The failure modes behind
+each word are in [edge-cases.md](edge-cases.md).
 
 ## Writing to the keyboard
 
 A value (`0xNN`, `0b…`, or decimal) sends one byte to the keyboard — a host
-command.  The keyboard answers with one bit, reported as:
+command.  The keyboard answers with the acknowledge bit, reported as:
 
 | Result | Meaning |
 |---|---|
 | `ACK` | the keyboard accepted the byte |
 | `NACK` | the keyboard rejected the byte |
-| `TIMEOUT` | the keyboard did not answer |
+| `TIMEOUT` | the keyboard did not clock the byte or its answer |
+
+A one-byte command:
+
+```
+KEYB>0xEE
+WRITE: 0xEEACK
+```
+
+A two-byte command — `0xED` (Set LEDs) needs a bit-mask byte after it:
 
 ```
 KEYB>0xED
 WRITE: 0xEDACK
+KEYB>0x01
+WRITE: 0x01ACK
 ```
 
-**Footnote:** the response word follows the value with no separating space
-(`WRITE: 0xEDACK`) — a firmware formatting quirk; read it as the value
-followed by `ACK` / `NACK` / `TIMEOUT`.
+**Footnote (spacing):** `ACK` and `NACK` follow the value with no separating
+space (`WRITE: 0xEDACK`); `TIMEOUT` carries a leading space
+(`WRITE: 0xED TIMEOUT`).  Every write line ends with a space before the
+newline.  This is firmware formatting, not part of the value.
+
+**Two-byte commands:** the keyboard acknowledges the command byte and then
+waits for the data byte, so a lone `KEYB>0xED` leaves the command open.  Send
+the mask byte as the next value.
 
 ## Background (keyboard protocol — unverified)
 
@@ -138,9 +210,11 @@ A number that is not a macro prints `Unknown macro, try ? or (0) for help`.
 
 ## Limits
 
-- No key-to-character decoding and no make/break interpretation.
+- No key-to-character decoding and no make/break interpretation: the mode
+  moves raw scancodes only.
 - The monitor is a live stream with no buffer; if you need to keep it, capture
   the terminal.
-- The interface always moves one 8-bit byte per exchange; the base `;N` width
-  and `l` / `L` bit-order settings are generic prompt features and do not change
-  the keyboard's two-wire framing.
+- No binary (BBIO) sub-protocol — KEYB is a prompt-only mode.
+- The interface always moves one 8-bit byte per exchange with its own start,
+  parity and stop bits; the base `;N` width and `l` / `L` bit-order settings do
+  not change the keyboard framing.

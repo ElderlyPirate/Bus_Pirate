@@ -10,7 +10,8 @@ page that owns its command set.  Entry, replies and framing are in
 ## Entry bytes
 
 Send the entry byte to the bitbang layer (after `BBIO1`).  The mode prints its
-identifier and starts its own command loop; `0x00` returns to `BBIO1`.
+identifier and starts its own command loop; `0x00` returns to `BBIO1`.  The
+XSVF player is the exception: it ignores `0x00` and leaves with `0x0F`.
 
 | Entry byte | Sub-protocol | Identifier | Command set owned by |
 |---|---|---|---|

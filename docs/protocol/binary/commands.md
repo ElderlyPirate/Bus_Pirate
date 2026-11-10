@@ -121,7 +121,8 @@ Reserved or unrecognised commands are answered with `0x00`; these include
 ### Entering the sub-protocols (`0x01`–`0x09`)
 
 Each of these switches the layer to a protocol command loop and prints the
-protocol's identifier.  Send `0x00` to the sub-protocol to return to `BBIO1`.
+protocol's identifier.  Send `0x00` to the sub-protocol to return to `BBIO1`;
+the XSVF player is the exception — it ignores `0x00`, so use `0x0F`.
 The command sets and links are in [sub-protocols.md](sub-protocols.md); the
 `0x08`/`0x09` AVRISP personalities are in
 [the AVRISP-MKII set](../../programmers/avrisp/README.md).  The AVRISP entries

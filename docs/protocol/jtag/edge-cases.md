@@ -1,57 +1,60 @@
 # JTAG — edge cases & failure modes
 
-Part of the JTAG documentation set (`docs/jtag/`).  Each entry is a concrete
-trigger, the observable symptom, and the recovery.
+Part of the JTAG documentation set.  Each entry is a concrete trigger, the
+observable symptom, and the recovery.
 
 ## Entry and mode
 
 | Trigger | Observable symptom | Behaviour / recovery |
 |---|---|---|
-| Looking for a JTAG entry on the mode menu | there is none | JTAG is binary-only: 20 × `0x00` → `BBIO1`, then `0x06` or `0x18` |
-| `0x18` sent on a v3 build | a failure byte, not `XSV1` | the XSVF player is v4 only; use the `0x06` OpenOCD path on v3 |
-| Sending a JTAG signal byte at the terminal prompt | nothing JTAG happens | there is no terminal JTAG command set; use a host program |
-| Trapped in the XSVF player after a host abort | no terminal prompt returns | send `0x0F` (leave the player), then `0x0F` again (leave bitbang), or reset the board |
+| Mode menu JTAG entry | none | binary-only: `20 × 0x00` → `BBIO1`, then `0x06`/`0x18` |
+| `0x18` on a v3 build | `0x00`, not `XSV1` | XSVF is v4 only; use `0x06` on v3 |
+| JTAG byte at the terminal prompt | nothing happens | no terminal commands; use a host |
+| `0x00` to leave the XSVF player | player ignores it | send `0x0F` instead |
 
 ## Wiring and electrical
 
 | Trigger | Observable symptom | Behaviour / recovery |
 |---|---|---|
-| OpenOCD path, open-drain mode, no pull-ups | lines never reach high; TDO/TAP stuck low | fit 2 kΩ–10 kΩ pull-ups on TDI/TMS/TCK to the target rail; see [wiring.md](wiring.md) |
-| OpenOCD path entered, no pin mode set | no clock or data appears | pins default to high-impedance inputs; send `0x01` with mode `1` or `2` first |
-| Push-pull output into a lower-voltage chain | contention / possible target damage | use open-drain mode with pull-ups to the target's logic voltage |
-| TDI and TDO swapped, or TCK/TMS swapped | every run fails (TDO mismatch) | check TDI→MOSI, TDO→MISO, TCK→CLK, TMS→CS, and common ground |
-| Target not powered | TDO floats or stays low; no IDCODE | power the target chain before probing or playing |
-| SRST or TRST left asserted (feature on) | chain held in reset; TDO idle | turn the feature off (`0x02 0x08 0x00` / `0x02 0x04 0x00`) |
-| Applied voltage above the limit | risk of damage | the interface is 5 V safe, maximum **5.5 V** |
+| OpenOCD open-drain, no pull-ups | lines never high | fit 2–10 kΩ on TDI/TMS/TCK |
+| OpenOCD entry, no pin mode | no clock or data | pins high-Z; send `0x01 0x01` first |
+| Push-pull into a lower-voltage chain | contention, damage | use open-drain + pull-ups |
+| TDI/TDO or TCK/TMS swapped | TDO mismatch every run | check the signal map and ground |
+| Target not powered | TDO low or floating; no IDCODE | power the target before probing |
+| SRST/TRST left asserted | chain held in reset | `0x02 0x08 0x00` / `0x02 0x04 0x00` |
+| Applied voltage above the limit | damage risk | 5 V safe, maximum 5.5 V |
+| Target powered externally during XSVF | regulator back-driven | remove the external supply |
 
 ## OpenOCD path
 
 | Trigger | Observable symptom | Behaviour / recovery |
 |---|---|---|
-| Host does not follow the `0x05` handshake | stream desyncs | the 3-byte header response is the echo; then send TDI/TMS bytes; read the 1–2 TDO bytes |
-| Shift count larger than the limit | only 8192 bits are shifted | split the shift into commands of ≤ `0x2000` bits |
-| Link speed raised, confirm bytes wrong | link reverts to normal speed | send `0x07` with the correct `0xAA 0x55` confirm; see [openocd.md](openocd.md) |
-| Expected standard JTAG-over-serial | it is a custom `OCD1` command set | use a host that speaks this protocol |
-| Unknown command byte | a single `0x00` byte is returned | check the command table in [openocd.md](openocd.md) |
+| `0x05` handshake not followed | stream desyncs | read the 3-byte echo, then TDI/TMS; read TDO |
+| Shift count above the limit | only 8192 bits shift | split into ≤ `0x2000`-bit commands |
+| `0x07` fast on v3, bad confirm | reverts to normal | resend `0xAA 0x55`; v4 is host-set |
+| Expected standard JTAG-over-serial | custom `OCD1` set | use a compatible host |
+| Unknown command byte | single `0x00` | check the table in [openocd.md](openocd.md) |
 
 ## XSVF player
 
 | Trigger | Observable symptom | Behaviour / recovery |
 |---|---|---|
-| File's longest shift exceeds 400 bits | result byte `0x06` (data overflow) | use a smaller device/file, or a different programmer; see [xsvf.md](xsvf.md) |
-| Wrong or corrupted file, or bad wiring | result byte `0x02` / `0x03` (TDO mismatch / max retries) | re-check the file, TDI/TDO, TCK/TMS, ground, and target power |
-| A single chunk larger than 4096 bytes | the run corrupts (extra bytes drained) | keep chunks ≤ 4096 |
-| Host stops answering the `0xFF` ready byte | the port hangs in the player | always answer each `0xFF` with a length-prefixed chunk, or reset |
-| A chunk length byte is lost/reordered | stream desyncs; mismatches or nonsense commands | re-sync by resetting the board and replaying the file |
-| More than 63 devices on the chain | the probe count byte wraps | probe in smaller chains or read IDCODEs another way |
-| Expecting a terminal reply from `0x18` | you get the byte protocol, not text | read the result byte; see [xsvf.md](xsvf.md) |
+| Longest shift > 400 bits | `0x06` data overflow | smaller file/device, or another tool |
+| Wrong file or bad wiring | `0x02`/`0x03` TDO mismatch | check file, wiring, ground, power |
+| Chunk larger than 4096 bytes | run corrupts (extra drained) | keep chunks ≤ 4096 |
+| Host stops during a chunk wait | ~5 s, result `0x04`; loop returns | `0x0F` leaves |
+| Byte sent while busy (`XWAIT`/`XRUNTEST`) | run aborts with `0x01` | send only the next chunk |
+| Zero-length chunk | ignored and re-requested | answer `0xFF` with a non-zero length |
+| Chunk length lost/reordered | stream desyncs | reset and replay the file |
+| More than 63 devices | count clamped to 63 (`0xFC`) | first 63 reported; not wrapped |
+| TDO stuck low (unpowered/miswired) | 63-device cap and garbage IDCODEs | check power and TDO |
+| Expecting a terminal reply from `0x18` | byte protocol, not text | read the result byte |
 
 ## Self-test
 
-| Trigger | Observable symptom | Behaviour / recovery |
-|---|---|---|
-| Running the generic self-test to check JTAG | JTAG is not exercised | the self-test covers power, ADC, EEPROM and header pins only; there is no JTAG self-test |
-| Expecting a JTAG pin test in the binary self-test | none | same as above — no JTAG-specific self-test exists |
+There is no JTAG self-test, terminal or binary.  The generic self-test (`~`,
+binary `0x10`/`0x11`) covers power, ADC, EEPROM and the header pins only; it
+does not drive or probe a JTAG chain.
 
 ## Unverified / v3
 

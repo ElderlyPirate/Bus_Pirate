@@ -113,11 +113,12 @@ the host is the USB serial connection; its settings are in
   terminal reset prints the banner directly on the same link.
 - **Leaving a sub-protocol.**  Send `0x00` to the active sub-protocol; it
   returns to the bitbang layer and prints `BBIO1`.  Then send `0x0F` to leave
-  for the terminal.  (The XSVF player is the exception: its `0x0F` returns to
-  the bitbang loop without re-printing `BBIO1` — see
-  [../jtag/xsvf.md](../jtag/xsvf.md).)  The AVRISP entries (`0x08` / `0x09`)
-  have no command loop at all: they hand the link to the personality, which
-  ends after about five seconds without host traffic or on a reset.
+  for the terminal.  (The XSVF player is the exception: it ignores `0x00`;
+  leave it with `0x0F`, which returns to the bitbang loop without re-printing
+  `BBIO1` — see [../jtag/xsvf.md](../jtag/xsvf.md).)  The AVRISP entries
+  (`0x08` / `0x09`) have no command loop at all: they hand the link to the
+  personality, which ends after about five seconds without host traffic or on
+  a reset.
 
 ## Availability
 

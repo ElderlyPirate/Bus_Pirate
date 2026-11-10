@@ -49,7 +49,8 @@ the recovery.  Entry and framing are in
 - **Recovery:** send `0x00` to force a return to `BBIO1` (it re-prints
   `BBIO1`), then `0x0F` to reset to the terminal, and re-enter.  Inside UART,
   `0x0F` is the bridge command — send `0x00` first to leave UART, and only
-  then `0x0F`.
+  then `0x0F`.  The XSVF player is the exception: it ignores `0x00`; leave it
+  with `0x0F`.
 
 ## A `0x4x` / `0x5x` byte sent in BBIO1 changes pin directions
 
@@ -137,16 +138,18 @@ the recovery.  Entry and framing are in
   write-then-read path does not apply this terminal-buffer check.)
 - **Recovery:** split the transfer into chunks within the limit.
 
-## XSVF player blocks with no timeout
+## XSVF player aborts a stalled stream
 
 - **Trigger:** starting an XSVF run (`0x18`, then `0x03`) and stopping the
   host mid-stream.
-- **Symptom:** the Bus Pirate waits for the next length-prefixed chunk and
-  does not answer.
-- **Behaviour:** the player has no timeout; it blocks until the host answers
-  its ready byte or the board is reset.
-- **Recovery:** reset the board, then re-enter the binary layer.  See
-  [../jtag/xsvf.md](../jtag/xsvf.md).
+- **Symptom:** the Bus Pirate waits about five seconds during a chunk wait,
+  then sends result byte `0x04` (illegal command — the forced `0xFF` is read
+  as the next command) and returns to the player loop.
+- **Behaviour:** the player aborts the run instead of parking the port.  A byte
+  sent while it is in a timed wait (`XWAIT`/`XRUNTEST`) aborts with `0x01`
+  (unknown error); a zero-length chunk is re-requested.
+- **Recovery:** send `0x0F` to leave the player, then `0x0F` again for the
+  terminal.  See [../jtag/xsvf.md](../jtag/xsvf.md).
 
 ## AVRISP mode ends by itself
 

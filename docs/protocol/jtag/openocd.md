@@ -1,26 +1,33 @@
 # JTAG — OpenOCD path (`0x06`)
 
-Part of the JTAG documentation set (`docs/jtag/`).  This page documents the
-binary bitbang command `0x06`, a raw JTAG TAP shifter intended to be driven by
-an OpenOCD host (or any host that speaks the same binary command set).  The
-physical pin map is in [wiring.md](wiring.md); the binary-layer basics are in
+Part of the JTAG documentation set.  This page documents the binary bitbang
+command `0x06`, a raw JTAG TAP shifter intended to be driven by an OpenOCD host
+(or any host that speaks the same binary command set).  The physical pin map
+is in [wiring.md](wiring.md); the binary-layer basics are in
 [binary/README.md](../binary/README.md).
 
 There is no terminal JTAG mode — this byte is the only way to reach the JTAG
-hardware for the debug path.
+hardware for the debug path.  Host-side OpenOCD setup (interface and config,
+adapter options) is a separate tool set:
+[tools/openocd](../../tools/openocd/README.md) — a stub whose writing round
+owns it.  This page owns the in-mode command set only.
 
 ## Entry and exit
 
 1. Enter the binary bitbang layer from the terminal by sending 20 × `0x00`;
    it prints `BBIO1`.
 2. Send `0x06`; the mode prints `OCD1` and the OpenOCD command loop starts.
-   On entry the pins are **high-impedance inputs** — send a pin mode (below)
-   before expecting any output.
-3. Send `0x00` to leave the mode; the bitbang layer prints `BBIO1` again.
-   From BBIO, `0x0F` returns to the interactive terminal.
-4. Inside the mode, `0x06` re-prints the identifier `OCD1`.
+   On entry the pins are **high-impedance inputs** (`0x00` Hi-Z) — send a pin
+   mode (below) before expecting any output.
+3. Send `0x00` to leave the mode; the pins and the regulator are reset and the
+   bitbang layer prints `BBIO1` again.
+4. From BBIO, `0x0F` replies `0x01` and returns to the interactive terminal
+   (terminal reset).
+5. Inside the mode, `0x06` re-prints the identifier `OCD1`.
 
-The identifier `OCD1` stands for OpenOCD protocol version 1.
+The identifier `OCD1` stands for OpenOCD protocol version 1.  The exit rules
+for both JTAG paths are summarised in [README.md](README.md) §Leaving the
+modes.
 
 ## Commands
 
@@ -42,10 +49,12 @@ The identifier `OCD1` stands for OpenOCD protocol version 1.
 |---|---|
 | `0x00` | Hi-Z — all pins are inputs |
 | `0x01` | JTAG — TDI/TMS/TCK/SRST/TRST are push-pull outputs, TDO is an input |
-| `0x02` | JTAG open-drain — the same outputs become open-drain; **pull-ups required** (see [wiring.md](wiring.md)) |
+| `0x02` | JTAG open-drain — outputs open-drain; **pull-ups required** |
 
-The mode byte resets the five output pins low before applying the direction,
-so a mode change parks the chain cleanly.
+There is no default output mode: entry is `0x00` Hi-Z.  Send `0x01 0x01`
+(push-pull) or `0x01 0x02` (open-drain) before a shift.  The mode byte resets
+the five output pins low before applying the direction, so a mode change parks
+the chain cleanly.
 
 ### Features (`0x02`)
 
@@ -56,9 +65,15 @@ on/high).
 |---|---|
 | `0x01` | mode LED |
 | `0x02` | on-board voltage regulator |
-| `0x04` | TRST — drive the test reset line to the action level |
-| `0x08` | SRST — drive the system reset line to the action level |
-| `0x10` | on-board pull-up resistors |
+| `0x04` | TRST — drive test reset to the action level (after `0x01`) |
+| `0x08` | SRST — drive system reset to the action level (after `0x01`) |
+| `0x10` | on-board pull-up resistors — needs Vpullup voltage |
+
+The reset features only drive after `0x01` has set the pin mode; on entry
+SRST/TRST are inputs.  Feature `0x10` enables the pull-up resistors, which tie
+the lines to Vpullup; a voltage must be present there (feed it externally —
+the on-board v4 source is not selectable from the JTAG path).  See
+[wiring.md](wiring.md) §Pull-ups.
 
 ### ADC read (`0x03`)
 
@@ -73,14 +88,16 @@ with the host supplying both TDI and TMS per bit and reading TDO back.
 1. The count is a **16-bit big-endian** number of bit sequences; it is clamped
    to `0x2000` (8192) bits per command.
 2. The Bus Pirate echoes the three header bytes (`0x05`, count-high,
-   count-low).
+   count-low).  The echo repeats the **requested** count even when it was
+   clamped.
 3. The host then sends the bit data in groups of up to 16 bits, **low byte
    first**:
    - for a group of **9–16** bits: one TDI byte, one TMS byte, then a second
      TDI byte and a second TMS byte (the high 8 bits);
    - for a group of **≤ 8** bits: one TDI byte and one TMS byte.
 4. For each bit the Bus Pirate sets TDI and TMS, pulses TCK, and samples TDO.
-   It replies with one TDO byte, or **two** when the group is 9–16 bits.
+   It replies with one TDO byte, or **two** when the group is 9–16 bits.  TDO
+   is returned **low byte first**.
 
 There are no state-transition shortcuts: the host is responsible for walking
 the TAP (including any TMS reset pattern).  `0x05` carries no persistent state
@@ -88,16 +105,25 @@ between commands beyond the current pin levels.
 
 ### Link speed (`0x07`)
 
-One speed byte follows (`0x00` = normal, other = fast), then the host must send
-`0xAA` and `0x55`.  The reply is `0x07` plus a result byte.  If the two confirm
-bytes are not `0xAA 0x55`, the firmware reverts the link to normal speed.
-A host uses this when it needs to raise the CDC/serial rate for a faster run.
+One speed byte follows: `0x01` selects **fast**; any other value selects
+**normal**.  The host then sends `0xAA` and `0x55`; if either is wrong the link
+is forced back to normal.  The reply is `0x07` plus the selector value
+(`0x00` = normal, `0x01` = fast; `0x00` after a bad confirm) — this is not a
+success code.
+
+On v3 the command changes the physical UART rate.  On v4 the CDC rate is
+controlled by the host and the call is a no-op, so the reply reflects the
+requested selector but the rate does not change.
 
 ### JTAG clock delay (`0x08`)
 
 Two bytes set the inter-bit delay as a 16-bit big-endian value; a larger value
-means a **slower** TCK.  There is no reply.  The default at entry is the
-smallest delay.
+means a **slower** TCK.  There is no reply.  The default at entry is `1`;
+`0x00` is accepted.
+
+Both builds apply the delay: v3 moves the bits with an interrupt-driven
+assembly loop, v4 with a polling loop.  The delay is repeated before and after
+each TCK edge in both.
 
 ## Worked exchange
 
@@ -119,16 +145,21 @@ host <- 0x3C 0x81         TDO (two bytes for a 9-16 bit group)
 host -> 0x00              leave OpenOCD
 host <- "BBIO1"
 host -> 0x0F              leave bitbang
-host <- "HiZ>"
+host <- 0x01              return-to-terminal ack
+host <- "HiZ>"            (banner omitted here)
 ```
+
+The v4 terminal reset prints the version banner before `HiZ>`; it is omitted
+above so the exchange stays aligned.
 
 ## Limits and notes
 
 - **TAP shifter, not a JTAG engine.**  No IR/DR descriptions, no scan-chain or
   IDCODE handling, no automatic TMS sequences.  The host does all of it.
-- Shift count is 16-bit and clamped to 8192 bits per command.
+- Shift count is 16-bit and clamped to 8192 bits per command; the echo reports
+  the requested count.
 - The OpenOCD path is present on **both v3 and v4**.  On v3 the shift is
-  interrupt-driven; on v4 it is a polling loop with the `0x08`-tunable delay.
+  interrupt-driven; on v4 it is a polling loop.  Both apply the `0x08` delay.
   The wire protocol is the same.  (The v3 behaviours here are **not
   verified** — build-only.)
 - The pin mode must be set before a shift; until then the pins are inputs.
@@ -141,3 +172,4 @@ host <- "HiZ>"
   open-drain mode.
 - [xsvf.md](xsvf.md) — the file-driven XSVF path.
 - [edge-cases.md](edge-cases.md) — failure modes and recovery.
+- [tools/openocd](../../tools/openocd/README.md) — host-side setup (stub).

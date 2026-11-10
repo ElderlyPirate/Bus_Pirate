@@ -1175,3 +1175,11 @@ void stop_timers(void) {
    */
   T2CON = 0x0000;
 }
+
+
+void bp_aux_pin_reset_state(void) {
+  /* Detach any output source and clear the matching mode flag, so a board
+     reset leaves a consistent idle AUX state instead of a phantom PWM. */
+  AUXPIN_RPOUT = OFF;
+  state.mode = AUX_MODE_IO;
+}

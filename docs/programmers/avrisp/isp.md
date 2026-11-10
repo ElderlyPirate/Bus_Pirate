@@ -1,28 +1,24 @@
 # AVRISP-MKII — ISP path (ATtiny / ATmega)
 
-Part of the AVRISP-MKII documentation set (`docs/avrisp/`).  This page
-covers the **ISP** target interface; wiring is in [wiring.md](wiring.md),
-the command set in [protocol.md](protocol.md).
+Part of the AVRISP-MKII documentation set (`docs/programmers/avrisp/`).  This
+page covers the **ISP** target interface; wiring is in [wiring.md](wiring.md),
+the command set in [protocol.md](protocol.md), and the entry/exit lifecycle in
+[entry.md](entry.md).
 
 ## Scope
 
-- Covers: entering the programmer, the `avrdude` ISP flow, the clock-speed
-  ladder, and ISP-specific limits.
+- Covers: the `avrdude` ISP flow, host driver setup, fuses/lock bits,
+  erase and verification, the clock-speed ladder, and ISP-specific limits.
 - Does not cover: PDI ([pdi.md](pdi.md)), TPI ([tpi.md](tpi.md)), the CDC
   serial route ([serial-route.md](serial-route.md)), or the rescue clock
   ([rescue-clock-osccal.md](rescue-clock-osccal.md)).
 
 ## Entry
 
-The personality has no terminal menu entry.  Enter it from binary bitbang
-mode (BBIO1) — see `docs/generic/` for reaching BBIO1 — then send the
-**USB** entry byte:
-
-1. Send `0x00` repeatedly until the reply `BBIO1` appears.
-2. Send byte **`0x08`** — mkII USB personality.
-3. The CDC serial port disappears; the device re-enumerates as a vendor
-   device with product string `AVRISP mkII` (VID/PID `03EB:2104`).
-4. Run `avrdude` against that device.
+Send the USB entry byte `0x08` from `BBIO1`; the device re-enumerates as
+`AVRISP mkII`.  The host-side snippet, the five-second deadline and the way
+back out are owned by [entry.md](entry.md) — do not enter the mode and then
+look up a command.
 
 The USB route is the only route that can reach PDI and TPI.  The serial
 route ([serial-route.md](serial-route.md)) is ISP-only.
@@ -30,29 +26,76 @@ route ([serial-route.md](serial-route.md)) is ISP-only.
 ## Use with avrdude
 
 ```
-avrdude -c avrispmkII -P usb -p <part> -U flash:w:<file>.hex:i
+avrdude -c avrispmkII -P usb -p m328p -U flash:w:app.hex:i
 ```
 
-For example, an ATmega328P is `-p m328p`.
+`-p m328p` is the part (an ATmega328P); use the host tool's own name for the
+target.  A command line that shows `<part>` or `<file>` is using
+placeholders: replace them with real names, and in PowerShell drop the angle
+brackets or the shell treats them as redirection.
 
 A read-only signature check:
 
 ```
-avrdude -c avrispmkII -P usb -p <part> -n -U signature:r:-:h
+avrdude -c avrispmkII -P usb -p m328p -n -U signature:r:-:h
 ```
 
-- **On Windows** the `03EB:2104` device needs a libusb/WinUSB style driver
-  bound to it once (for example with the Zadig tool, choosing the
-  `AVRISP mkII` interface).  The normal Bus Pirate serial driver is not
-  touched.  The serial route needs no extra driver.
-- The programmer reports the target **VTARGET** and a firmware version to
-  the host as part of the normal mkII handshake.
+### Host driver and permissions
+
+| Host | What the USB route needs |
+|---|---|
+| Windows | a libusb/WinUSB style driver bound to `03EB:2104` once (for example with the Zadig tool, choosing the `AVRISP mkII` interface).  The normal Bus Pirate serial driver is not touched. |
+| Linux | a udev rule for `03EB:2104`, or permission to open the device (for example running as a user in the group the rule grants).  The repository's Bus Pirate rules cover the terminal device (`04d8:fb00`, plus the v3 FTDI `0403:6001`), so they do not apply here. |
+| macOS | nothing extra — the device is opened through the system's USB stack. |
+
+A udev rule that grants access to the mkII identity:
+
+```
+# /etc/udev/rules.d/99-avrisp-mkii.rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="03eb", ATTR{idProduct}=="2104", MODE="0666"
+```
+
+Reload the rules (`sudo udevadm control -R`) and re-plug the board.  The
+serial route needs no extra driver on any host.
+
+The programmer reports the target **VTARGET** and a firmware version to the
+host as part of the normal mkII handshake.  VTARGET is measured on the ADC
+pin and is informational — it does not set the I/O voltage.
+
+## Fuses, lock bits, erase and verify
+
+All of these use the same `avrdude` mechanisms as flash; the personality
+executes the ISP commands the host sends and has no fuse table of its own.
+
+| Task | Command | Notes |
+|---|---|---|
+| write a fuse | `avrdude -c avrispmkII -P usb -p m328p -U lfuse:w:0x62:m` | `lfuse`, `hfuse`, `efuse` name the low/mid/high fuse byte; the value is the part's, not a universal one |
+| read a fuse | `… -U hfuse:r:-:h` | reads and prints, writes nothing |
+| write the lock bits | `… -U lock:w:0xFF:m` | `0xFF` is unlocked; locking is the last step of a production flow |
+| chip erase | `avrdude -c avrispmkII -P usb -p m328p -e` | erases flash and EEPROM and clears the lock bits on parts that allow it |
+| read back | `… -U flash:r:readback.hex:i` | writes the target's flash into a file |
+| verify | `… -U flash:w:app.hex:i` | a `:w:` write is **verified** after writing; add `-V` to skip the check |
+
+- **A wrong fuse can lock you out.**  Changing the clock source or disabling
+  the reset pin can make the part stop answering ISP.  Read the fuse bytes
+  first, change only the bit you mean, and keep a note of the original
+  value.  A part whose reset pin is disabled needs a high-voltage programmer,
+  which this personality is not.
+- **`-e` is not an undo for a wrong fuse.**  Chip erase clears the memory and
+  (on parts that allow it) the lock bits; it does not restore a fuse that
+  disables ISP.
+- **`-V` disables the automatic verify**, so `:w:` no longer proves the
+  written image.  Use it only when you verify separately.
+- **EEPROM** uses the same form with the `eeprom` memory name instead of
+  `flash`.
 
 ## Speed
 
 The host selects the ISP SCK period through the STK500v2 `SCK_DURATION`
 parameter (`0x98`).  The programmer implements the full AVR069 speed
-ladder (indices 0–163):
+ladder (indices 0–163); the table below is the complete mapping, so the
+AVR069 document is provenance for the numbering rather than a required
+lookup.
 
 | Index | SCK frequency | Clock engine |
 |---|---|---|
@@ -90,6 +133,10 @@ ladder (indices 0–163):
   host-selected polarity and tristated on release; a target that needs a
   driven reset release must have its own pull-up.
 - **No target power.**  See [wiring.md](wiring.md).
+- **No stated minimum `avrdude` version.**  The personality implements the
+  mkII command surface; whether the host knows a particular part is the
+  host's own device database, not this personality.  A host that refuses a
+  part or an XPROG target needs a newer host, not different wiring.
 
 ## ISP vs. the ordinary SPI mode
 
@@ -98,3 +145,12 @@ and the poll values, and the personality executes them.  It is unrelated to
 the Bus Pirate's interactive SPI mode and to the host-side `buspirate` and
 `buspirate_bb` interfaces, which remain available and are not changed by
 this personality.
+
+## Related docs
+
+- [entry.md](entry.md) — entry, deadline and the return to `BBIO1`.
+- [wiring.md](wiring.md) — the ISP table and the electrical contract.
+- [protocol.md](protocol.md) — commands, status codes, transports.
+- [rescue-clock-osccal.md](rescue-clock-osccal.md) — a target with no
+  running clock, and AVR053 calibration.
+- [edge-cases.md](edge-cases.md) — failure modes.

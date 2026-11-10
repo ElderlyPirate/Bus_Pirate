@@ -1,13 +1,14 @@
 # AVRISP-MKII — PDI path (XMEGA)
 
-Part of the AVRISP-MKII documentation set (`docs/avrisp/`).  This page
-covers the **PDI** target interface (XMEGA devices); wiring is in
-[wiring.md](wiring.md), the command set in [protocol.md](protocol.md).
+Part of the AVRISP-MKII documentation set (`docs/programmers/avrisp/`).  This
+page covers the **PDI** target interface (XMEGA devices); wiring is in
+[wiring.md](wiring.md), the command set in [protocol.md](protocol.md), and the
+entry/exit lifecycle in [entry.md](entry.md).
 
 ## Scope
 
-- Covers: entering the programmer, the `avrdude` PDI flow, PDI wiring
-  notes and PDI-specific limits.
+- Covers: the `avrdude` PDI flow, PDI wiring notes, fuses/lock bits, and
+  PDI-specific limits.
 - Does not cover: ISP ([isp.md](isp.md)), TPI ([tpi.md](tpi.md)), or the
   CDC serial route ([serial-route.md](serial-route.md)).
 - **PDI is reachable only over the USB route** (`-c avrispmkII -P usb`).
@@ -24,30 +25,42 @@ firmware.  See [protocol.md](protocol.md) for the command numbering.
 
 ## Entry
 
-1. Enter binary bitbang mode (BBIO1) and send byte **`0x08`**
-   ([isp.md](isp.md) §Entry) — same entry as ISP.
-2. The device re-enumerates as `AVRISP mkII`.
-3. Program the XMEGA:
+Send the USB entry byte `0x08` from `BBIO1` ([entry.md](entry.md)); the
+device re-enumerates as `AVRISP mkII`.  Then program the XMEGA:
 
 ```
-avrdude -c avrispmkII -P usb -p <part> -U flash:w:<file>.hex:i
+avrdude -c avrispmkII -P usb -p x128a3u -U flash:w:app.hex:i
 ```
 
-For an XMEGA128A3U use `-p x128a3u`.
-
-Read-only signature check:
+`-p x128a3u` is an XMEGA128A3U; use the host tool's name for the target.
+A read-only signature check:
 
 ```
-avrdude -c avrispmkII -P usb -p <part> -n -U signature:r:-:h
+avrdude -c avrispmkII -P usb -p x128a3u -n -U signature:r:-:h
 ```
 
 ## PDI wiring notes
 
-- The PDI clock is the XMEGA's **RESET/PDI_CLK** pin.  Do not wire `AUX0`
+- The PDI clock is the XMEGA's **RESET/PDI_CLK** pin.  Do not wire `AUX`
   and do not press the target's reset button while programming.
 - Data is a single half-duplex node formed by joining MOSI and MISO
   through resistors — see [wiring.md](wiring.md).
 - All XMEGA logic is 3.3 V; the programmer does not power the target.
+
+## Fuses, lock bits and erase
+
+Fuses and lock bits are ordinary `-U` operations with the XMEGA memory
+names (`fuse0` … `fuse5`, `lock`); they go through the same XPROG path as
+flash.  Read before writing, because the values are part-specific:
+
+```
+avrdude -c avrispmkII -P usb -p x128a3u -U fuse0:r:-:h -U lock:r:-:h
+avrdude -c avrispmkII -P usb -p x128a3u -e
+```
+
+`-e` is a chip erase.  A `:w:` flash write is verified after writing unless
+`-V` is given.  Protected or locked devices behave per the target's own
+protection settings; the personality adds no shortcut and no bypass.
 
 ## Operational notes
 
@@ -74,7 +87,12 @@ avrdude -c avrispmkII -P usb -p <part> -n -U signature:r:-:h
   intended page is cleared and its neighbours are preserved.
 - **CRC reply byte order** is high byte, low byte, middle byte — LUFA's
   order preserved deliberately, not a normalised ordering.
-- **No fuse/lock shortcut.**  Fuse and lock writes go through the normal
-  XPROG path; protected or locked devices behave per the target's own
-  protection settings.
 - **Not verified for every XMEGA part.**
+
+## Related docs
+
+- [entry.md](entry.md) — entry, deadline and the return to `BBIO1`.
+- [wiring.md](wiring.md) — the PDI table and the DATA join.
+- [protocol.md](protocol.md) — XPROG subcommands and parameter ids.
+- [isp.md](isp.md) / [tpi.md](tpi.md) — the other target interfaces.
+- [edge-cases.md](edge-cases.md) — failure modes.

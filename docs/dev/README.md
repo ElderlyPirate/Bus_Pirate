@@ -72,4 +72,4 @@ This README is a map, not the manual — the details live in the files below.
 ## Related docs
 
 - `docs/generic/README.md` — using the terminal prompt.
-- `docs/avrisp/README.md` — the AVRISP-MKII personality.
+- `docs/programmers/avrisp/README.md` — the AVRISP-MKII personality.

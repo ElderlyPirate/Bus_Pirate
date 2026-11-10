@@ -1,7 +1,7 @@
 # AVRISP-MKII — design notes and deviations (maintainer summary)
 
 **Status:** maintainer record for the AVRISP-MKII user set
-(`docs/avrisp/`); the user pages carry no code references.
+(`docs/programmers/avrisp/`); the user pages carry no code references.
 
 This page is a maintainer-oriented summary of *why* the implementation
 behaves as it does and where it deliberately differs from LUFA's

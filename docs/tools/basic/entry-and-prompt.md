@@ -1,8 +1,8 @@
 # BASIC — entry & prompt
 
-Part of the BASIC documentation set (`docs/basic/`).  This page owns entering
-the interpreter, the prompt, and the line-entry/editing model.  The language
-itself is in [language.md](language.md).
+Part of the BASIC documentation set (`docs/tools/basic/`).  This page owns
+entering the interpreter, the prompt, and the line-entry/editing model.  The
+language itself is in [language.md](language.md).
 
 ## Scope
 
@@ -23,15 +23,19 @@ HiZ(BASIC)>
 ```
 
 - `s` does not change the active mode.  The interpreter runs in whatever mode
-  was active when `s` was typed — `HiZ` in the example above.  Select the
-  mode **first** (with `m`/`MODE`), or switch later from inside the program
-  with the `MODE` statement.
+  was active when `s` was typed — `HiZ` in the example above.  Select the mode
+  **first** at the terminal (with `m`), or switch later from inside the
+  program with the `MODE` statement.
 - The prompt keeps the mode name and appends `(BASIC)` before the `>`:
   `HiZ(BASIC)>`, `SPI(BASIC)>`, `I2C(BASIC)>`, and so on.
 - Every line typed at the `(BASIC)>` prompt is handled by the interpreter,
-  not by the normal command set.  Typing `s` again, or `w`, or `#`, is not a
-  prompt command here — it is a BASIC line, and most such lines answer
+  not by the normal command set.  Typing `s` again, `w`, `#`, `m` or `$` is
+  not a prompt command here — it is a BASIC line, and most such lines answer
   `Syntax error`.
+- The interpreter is not completely sealed off, though: the input layer still
+  watches for the 20-NUL binary-entry sequence and the SUMP entry sequence
+  (NUL bytes plus Left arrow).  Either one is handled before BASIC and leaves
+  the interpreter; see §Leaving.
 
 `s` itself prints no acknowledgement: the `(BASIC)>` prompt is the only sign
 you are in.  The `Ready` line is the interpreter's acknowledgement for each
@@ -61,10 +65,12 @@ what a line means from its **first character**:
 - One line holds a single statement.  `IF ... THEN` takes one statement,
   optionally followed by `ELSE` and one more statement.
 - A line may hold up to 31 **statement bytes**; a longer line is rejected
-  with `Too long!` and is not stored.  A statement byte is one byte of the
-  stored line: a keyword is stored as a single byte however it is spelled
-  (`PRINT` is one byte, not five), and every other character — digit,
-  punctuation or quoted text — counts as one byte.
+  with `Too long!` and the new line is not stored.  If you were replacing an
+  existing line, that old line is removed too, so shorten the line and retype
+  it.  A statement byte is one byte of the stored line: a keyword is stored as
+  a single byte however it is spelled (`PRINT` is one byte, not five), and
+  every other character — digit, punctuation or quoted text — counts as one
+  byte.
 
 The interpreter does not echo a stored line beyond the `Ready`; the terminal
 itself echoes what was typed.
@@ -84,12 +90,11 @@ These are not stored as program lines:
 | `LIST` | print the stored program |
 | `NEW` | erase the stored program |
 | `EXIT` | leave the BASIC interpreter and return to the normal prompt |
-| `DEBUG` | hex-dump the program area (only in a build that enables it; off by default) |
 
-`FORMAT`, `SAVE` and `LOAD` exist only in a v4 build that enables the
-interpreter's on-board EEPROM file system; they are off by default and
-unsupported on v3, so their use is out of scope here — see
-[limits-and-variants.md](limits-and-variants.md) for their syntax.
+`DEBUG` (a raw program dump) and the on-board EEPROM commands
+`SAVE`/`LOAD`/`FORMAT` are build-time options that are off by default and do
+not build in the current tree.  Treat them as unavailable; see
+[limits-and-variants.md](limits-and-variants.md).
 
 ### What `LIST` prints
 
@@ -112,13 +117,14 @@ Ready
   before the first stored line.
 - The last printed line, `65535  END`, is the interpreter's own
   **end-of-program marker**; it is not a line you typed.
-- The number before `bytes.` is how much of the program area the stored
-  program uses.
+- The number before `bytes.` is the number of stored bytes before the final
+  terminator.  The sample's `15` is a 16-byte program: two stored lines plus
+  the four-byte `65535 END` marker.
 
 ### Running a program
 
-`RUN` executes the stored program from its first line.  Each interpreter line
-is followed by `Ready`:
+`RUN` executes the stored program from its first line and prints `Ready` when
+it finishes:
 
 ```
 HiZ(BASIC)> RUN
@@ -136,7 +142,9 @@ HiZ(BASIC)>
 - **Ctrl-C** pressed while a program is running stops it between statements
   and prints an interrupted-status error line.  This is the way to break a
   runaway loop, because the interpreter otherwise ignores the terminal until
-  the program ends.
+  the program ends.  It is not serviced inside `INPUT`, `DELAY` or a mode
+  macro: a program waiting there finishes that step before the interruption
+  takes effect.
 
 ## Program lifetime
 
@@ -146,9 +154,9 @@ HiZ(BASIC)>
   program.
 - `EXIT` leaves the interpreter but **keeps** the program; type `s` again to
   resume with the same program in memory.
-- Changing mode with the normal `m` command does not clear a stored program;
-  a program loaded with `RUN` in one mode can be run again after a mode
-  change (its `MODE` statements, if any, run on each `RUN`).
+- Changing mode is a terminal action: `EXIT`, change mode with `m`, then type
+  `s` again.  The program is kept, and `RUN` starts from the top (its `MODE`
+  statements, if any, run again).
 
 ## Leaving
 
@@ -161,13 +169,23 @@ HiZ>
 ```
 
 `Ready` is the normal end-of-line acknowledgement; after it the prompt is the
-ordinary mode prompt again.  A board reset also leaves the interpreter.
+ordinary mode prompt again.
+
+`EXIT` is the only command that leaves the interpreter at the `(BASIC)>`
+prompt.  A board reset also leaves it.  `$` (bootloader), `#`, `w`, `m` and
+`s` are not interpreted as commands while the `(BASIC)>` prompt is up — they
+are BASIC lines and answer `Syntax error`.
+
+Two input sequences are handled by the terminal layer before the interpreter:
+20 consecutive NUL bytes enter the binary bitbang layer, and five or more NUL
+bytes followed by the Left-arrow byte enter the logic-analyzer (SUMP) mode.
+Either leaves BASIC and resets the board state; see
+[the generic commands page](../../generic/commands.md), the
+[binary set](../../protocol/binary/README.md) and the
+[SUMP set](../../protocol/sump/README.md).
 
 ## v3 / v4
 
 Entry, prompt, line model, `RUN`/`LIST`/`NEW`/`EXIT` and the byte-count line
-are the same in both builds.  The differences that touch this page — mode
-numbers used by `MODE`, the default-off `DEBUG` dump, and the v4-only EEPROM
-file system — are tabulated in
-[limits-and-variants.md](limits-and-variants.md).  v3 behaviour is **not
-verified**.
+are the same in both builds.  The build differences are tabulated in
+[limits-and-variants.md](limits-and-variants.md).

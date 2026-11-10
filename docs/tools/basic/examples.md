@@ -1,6 +1,6 @@
 # BASIC — worked sessions
 
-Part of the BASIC documentation set (`docs/basic/`).  Each session is an
+Part of the BASIC documentation set (`docs/tools/basic/`).  Each session is an
 example that shows the entry sequence, the program, and the interpreter's
 output.  They illustrate the engine's format and behaviour.
 
@@ -62,6 +62,53 @@ but stops with a syntax error when run.
 
 `RUN` prints `123`.  The loop variable runs from the start value up to and
 including the end value.
+
+## Reading a number with `INPUT`
+
+`INPUT` always needs the comma, even when there is no prompt text.  The
+interpreter then prints its own value prompt, `(0)>`, where `0` is the default:
+
+```
+HiZ(BASIC)> 10 INPUT "VALUE", A
+Ready
+HiZ(BASIC)> 20 PRINT A;
+Ready
+HiZ(BASIC)> 30 END
+Ready
+HiZ(BASIC)> RUN
+VALUE
+(0)> 12
+12
+Ready
+HiZ(BASIC)>
+```
+
+A bare Enter at the value prompt selects `0`:
+
+```
+HiZ(BASIC)> RUN
+VALUE
+(0)>
+0
+Ready
+```
+
+A value outside `0`..`32767` is not clamped; the prompt comes back:
+
+```
+HiZ(BASIC)> RUN
+VALUE
+(0)> 40000
+
+Invalid choice, try again
+
+(0)> 12
+12
+Ready
+```
+
+With no prompt text, write `INPUT , A`: the comma is still required.  `INPUT A`
+stores, but stops with `Error(3)` when run.
 
 ## DATA and READ
 
@@ -126,9 +173,9 @@ Ready
 SPI(BASIC)>
 ```
 
-`MODE 5` switches to the mode the menu numbers `5` — `SPI` on a v4 —
-applying that mode's default settings, and prints the new name.  `PRINT
-MODE;` then prints the active mode's number.  The prompt now shows
+`MODE 5` switches to the mode the menu numbers `5` — `SPI` in both default
+builds — applying that mode's default settings, and prints the new name.
+`PRINT MODE;` then prints the active mode's number.  The prompt now shows
 `SPI(BASIC)>`.  See [bus-access.md](bus-access.md) for the mode-number table.
 
 ## Driving an I2C bus (illustration)
@@ -139,6 +186,8 @@ device you are talking to.
 
 ```
 HiZ(BASIC)> 10 MODE 4
+Ready
+HiZ(BASIC)> 15 PULLUP 1
 Ready
 HiZ(BASIC)> 20 START
 Ready
@@ -156,25 +205,56 @@ I2C(BASIC)>
 ```
 
 - `MODE 4` selects I2C and prints `I2C`, so the prompt becomes `I2C(BASIC)>`.
+- `PULLUP 1` ties the I/O lines to the voltage on the **Vpullup** pin.  That
+  pin must be fed: `MODE 4` runs the board-state reset, and on v4 that turns
+  the on-board VPU source off.  Either feed Vpullup externally, or complete the
+  I2C setup at the terminal (open-drain output, VPU source with `e`, pull-ups
+  with `P`, bus on with `W`), enter `s`, and do not use `MODE` in the program.
+  Without a pull-up source the idle read is undefined — often `0`, not `255`.
 - `START` issues the I2C start condition and `STOP` the stop condition.
 - `SEND 161` writes one byte — here `161`, the read address `0xA1`.
 - `RECEIVE` is an expression, so it must be printed (or assigned) to be seen.
   `PRINT RECEIVE;` clocks in one byte and prints it; the example prints `255`,
-  the all-ones value an idle bus reads.  An attached device returns its own
-  data.
+  the all-ones value a pulled-up idle bus reads.  An attached device returns
+  its own data.
+- A 2-Wire program has the same pull-up and `MODE`-reset caveat: `MODE 6`
+  clears the VPU source and bit order just as `MODE 4` does.
 
-## Driving an AUX pin
+## Supply, pull-ups and an AUX pin
+
+The board-level statements work in every mode, including HiZ:
 
 ```
-10 AUX 1
-20 PRINT AUX;
-30 AUX 0
-40 PRINT AUX;
-50 END
+HiZ(BASIC)> 10 PSU 1
+Ready
+HiZ(BASIC)> 20 PULLUP 1
+Ready
+HiZ(BASIC)> 30 AUX 1
+Ready
+HiZ(BASIC)> 40 PRINT AUX;
+Ready
+HiZ(BASIC)> 50 AUX 0
+Ready
+HiZ(BASIC)> 55 PRINT AUX;
+Ready
+HiZ(BASIC)> 60 PSU 0
+Ready
+HiZ(BASIC)> 70 PULLUP 0
+Ready
+HiZ(BASIC)> 80 END
+Ready
+HiZ(BASIC)> RUN
+10
+Ready
+HiZ(BASIC)>
 ```
 
-`RUN` prints `10`: the first `AUX 1` drives the pin high, `PRINT AUX;` reads
-it back, and the second pair drives it low and reads it back.
+`PSU 1` switches the on-board regulator on, `PULLUP 1` enables the pull-up
+resistors (they need a voltage on the Vpullup pin), and `AUX 1` drives the
+selected AUX target high; `PRINT AUX;` reads it back as `1`, and the second
+read after `AUX 0` prints `0`.  The closing `AUX 0`, `PSU 0` and `PULLUP 0`
+return the board to a safe state.  These statements are not refused in HiZ the
+way the terminal `W`, `P` and `g` are.
 
 ## A timed pause
 
@@ -190,6 +270,6 @@ delay.  Subtract two `TIME` readings because the counter wraps.
 
 ## v3 / v4
 
-The examples use only the shared language and the v4 mode numbers shown in
-[bus-access.md](bus-access.md).  On v3 the interpreter behaves the same; v3
-is **not verified**.
+The examples use only the shared language and the mode numbers shown in
+[bus-access.md](bus-access.md).  The build differences are in
+[limits-and-variants.md](limits-and-variants.md).

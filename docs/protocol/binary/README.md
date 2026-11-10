@@ -60,10 +60,11 @@ The v3 column is **not verified** (v3 is build-only here).
 
 - This set documents the **binary layer itself**: entry, framing, the reply
   conventions, and the BBIO1 core command map. It owns the byte values, reply
-  shapes, framing and v3/v4 availability. The capability pages will own the
-  units, ranges, wiring, side effects and limits of PWM, ADC, frequency and
-  self-test; until those pages are written, this set carries the working units
-  and formulas (see [commands.md](commands.md)).
+  shapes, framing and v3/v4 availability. The capability pages own the units,
+  ranges, wiring, side effects and limits of PWM, ADC, frequency and
+  self-test. The ADC page is in place; the AUX page (PWM, frequency,
+  edge-wait) is still pending, so its working units remain in
+  [commands.md](commands.md).
 - The per-protocol command maps are owned by each mode's `binary.md`.
 - The SUMP logic analyzer is a separate mode with its own entry sequence — see
   [../sump/README.md](../sump/README.md).

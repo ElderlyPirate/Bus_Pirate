@@ -197,22 +197,19 @@ detail: [the self-test binary page](../../capabilities/selftest/binary.md).
 detaches the AUX output source, so the target stops being driven.  On v3
 `0x0F` is a hardware reset.  Send `0x13` before leaving if you want the module
 idle.  The full PWM behaviour is a capability topic
-([the AUX capability page](../../capabilities/auxiliary/README.md), to be
-written).
+([the AUX capability page](../../capabilities/auxiliary/README.md), pending).
 
 ### ADC voltage probe (`0x14`, `0x15`)
 
-- `0x14` — one-shot reading: 2 bytes, high byte first.  The probe voltage is
-  `(ADC / 1024) × 6.6 V`; the probe pin accepts 0–6.6 V through the on-board
-  divider.
-- `0x15` — continuous readings: sends 2-byte samples as fast as the link
-  allows.  There is **no leading `0x01` acknowledgement** — the first bytes on
-  the wire are samples.  A new reading is not started until the previous one
-  has been sent, to keep the sample spacing even.  The stream stops when the
-  host sends any byte (that byte is consumed).
+- `0x14` — one-shot reading: 2 bytes, high byte first, the raw 10-bit count.
+- `0x15` — continuous readings: one sample per loop — sample, transmit; the
+  stream pauses if the host falls behind.  There is **no leading `0x01`
+  acknowledgement** — the first bytes on the wire are samples.  Any byte from
+  the host stops the stream and is consumed; keep reading until no sample
+  arrives within your timeout before sending the next command.
 
-ADC detail is a capability topic
-([the ADC page](../../capabilities/adc/README.md), to be written).
+The scale, limits and wiring are in
+[the ADC capability page](../../capabilities/adc/README.md).
 
 ### Frequency count (`0x16`)
 
@@ -296,6 +293,6 @@ The v3 column is **not verified** (v3 is build-only here).
 - [examples.md](examples.md) — worked exchanges.
 - [edge-cases.md](edge-cases.md) — failure modes.
 - [the AUX capability page](../../capabilities/auxiliary/README.md) — PWM,
-  frequency and edge-wait units and limits (stub; details to follow).
+  frequency and edge-wait units and limits (pending).
 - [the ADC page](../../capabilities/adc/README.md) — probe and continuous
-  sampling (stub; details to follow).
+  sampling, scale, wiring and limits.

@@ -104,9 +104,12 @@ the recovery.  Entry and framing are in
   finish.
 - **Symptom:** an open-ended stream of 2-byte samples.
 - **Behaviour:** the stream runs until the host sends a byte; that byte is
-  consumed to stop it (it is not a command).
-- **Recovery:** send one byte to stop; then continue with the next real
-  command.
+  consumed to stop it (it is not a command).  Samples already generated and
+  buffered are still delivered, and the board checks for the stop only at the
+  loop boundary.
+- **Recovery:** send one byte, keep reading until no sample arrives within
+  your timeout, then send the next real command.  See
+  [the ADC continuous section](../../capabilities/adc/binary.md#stopping-the-stream).
 
 ## Wait-for-edge returns "no edge" immediately
 

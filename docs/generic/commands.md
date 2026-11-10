@@ -16,7 +16,7 @@ Stated for every element command:
 | `e` | (v4) selects the VPU pull-up source: 1 External/none, 2 on-board 3.3 V, 3 on-board 5.0 V.  Refused in HiZ, in a mode whose output type is not open drain, and when a voltage is already on VPU.  There is no `e` on v3. |
 | `a` / `A` / `@` | drive / read the currently selected AUX pin (see `c`/`C`/`k`/`K`). |
 | `f`, `g`, `S` | use the AUX pin as input (frequency) or output (PWM/servo).  `g`/`S` are refused in HiZ. |
-| `d`, `D` | sample the dedicated ADC/probe pin. |
+| `d`, `D` | sample the dedicated ADC/probe pin (see [ADC capability](../capabilities/adc/README.md)). |
 | `v` | samples the 5 V, 3.3 V, VPU and ADC rails and reads the pin states. |
 
 ### Feeding the VPU pin
@@ -107,7 +107,7 @@ for `|5`.
 | `a` / `A` / `@` | AUX pin low / high / read | `@` prints `AUX INPUT/HI-Z, READ:` then `0` or `1`; `@:N` samples N times |
 | `c` / `C` (`k`/`K` v4) | AUX assignment: targets `A0` / `CS` / `A1` / `A2` | prints `a/A/@ controls <pin> pin`; the pins show as `AUX` / `CS` / `AUX1` / `AUX2` (see below) |
 | `l` / `L` | bit order MSB-first / LSB-first | `l` → `MSB set: MOST sig bit first`; `L` → `LSB set: LEAST sig bit first` |
-| `d` / `D` | ADC one-shot / continuous voltmeter | `d:N` takes N readings; `D` exits on any key |
+| `d` / `D` | ADC one-shot / continuous voltmeter | `d:N` takes N readings; `D` exits on any key.  Scale and wiring: [ADC capability](../capabilities/adc/README.md) |
 | `f` | frequency counter (AUX pin) | errors if PWM is currently active |
 | `g` / `S` | PWM / servo generator (AUX pin) | refused in HiZ |
 | `t` / `T` | elapsed timer read (µs) / reset | no help entry; read is not reset by reading |

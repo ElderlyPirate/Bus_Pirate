@@ -28,7 +28,7 @@ control are listed here.
 | AUX pin control | x | x | `a` / `A` / `@` low / high / read | ✓ [generic/](generic/README.md) |
 | AUX assignment | x | x | `c`/`C`; v4 adds `k`/`K` (four targets) | ✓ [generic/](generic/README.md) |
 | Bit order | x | x | `l` / `L` LSB-first / MSB-first | ✓ [generic/](generic/README.md) |
-| ADC probe | x | x | `d` / `D` one-shot / continuous; `d:N` repeats | ✓ [generic/](generic/README.md) |
+| ADC probe | x | x | `d` / `D` one-shot / continuous; `d:N` repeats | ✓ [adc/](capabilities/adc/README.md) |
 | Frequency counter | x | x | `f` on the AUX pin | ✓ [generic/](generic/README.md) |
 | PWM / servo output | x | x | `g` / `S` on the AUX pin (not in HiZ) | ✓ [generic/](generic/README.md) |
 | Elapsed timer | x | x | `t` / `T` read / reset (µs) | ✓ [generic/](generic/README.md) |

@@ -65,7 +65,7 @@ control are listed here.
 | **PIC** | x | x | command/data `[`/`]`, devID macro; host tool `picprog` | ✓ [pic/](programmers/pic/README.md) |
 | **DIO** | x | x | 100% pin control | ✓ [protocol/dio/](protocol/dio/README.md) |
 | **HD44780 LCD** | off | off | optional build (not in default image) | ✓ [lcd/](capabilities/lcd/README.md) |
-| **SMPS** | off | off | optional **v4** build; legacy external board; binary commands `0xF0`–`0xF2` | ✓ [smps/](capabilities/smps/README.md) |
+| **SMPS** | off | off | optional **v4** build; legacy external board; binary commands `0xF0`/`0xF1` get/stop, `0xF2`–`0xFF` start | ✓ [smps/](capabilities/smps/README.md) |
 
 ⓐ The v3 macro menu lists auto-baud; the macro itself is handled on both
 builds — only the settings field behind the entry-time option and the bps

@@ -1,7 +1,11 @@
 # Shared Firmware Machinery
 
-This is a standalone cross-mode consolidation on upstream/master 44574ce.
-It does not import the combined bench image or its other feature branches.
+The cross-mode consolidation of the live protocol descriptors, the
+spaced command-token parse, and the 16-bit decimal output. It is stacked on
+the **core starter** (#209, base `e94e0f0`); the accessors, the shared token
+wrapper and the decimal engine it builds on are carried by that core starter,
+so this note and the remaining `getint_with_spaces()` caller cleanup ride the
+`perf` family fold on top of it.
 
 ## Scope
 
@@ -12,40 +16,25 @@ It does not import the combined bench image or its other feature branches.
 - `getint_with_spaces()` implements the existing consume-spaces/getint pair
   once for mode/tool setup. Parsing grammar, buffer position and errors are
   unchanged. Existing modes, callbacks, strings and feature flags are retained.
+- The byte/word decimal displays share one 16-bit formatter
+  (`bp_write_dec_word()`; `bp_write_dec_byte()` delegates) whose literal
+  `/10` and `%10` fold to multiply+shift on the PIC24 (no hardware divide,
+  DS70000157G). Only the rare 32-bit paths keep the runtime division helper.
 
-The changes adapt combined-pass commits d407820 and 54ae464. Context from
-combined-only BASIC MODE/default setup, BASIC bit-order fixes and batched clock
-pulses is deliberately NOT carried onto upstream. Those are separate changes;
-the accessors work with the original upstream descriptor structure too.
-
-## Decimal Sharing Dependency
-
-The decimal hunk of original 54ae464 factors duplicate `print_decimal16`
-implementations introduced by sibling PR #237 (`perf/base-number-math`,
-e13e801). Upstream does not have that helper: its byte/word APIs already use
-one generic `print_decimal` implementation. **Firmware/base.c is unchanged
-in this standalone branch.** No #237 algorithm or other sibling fix is
-silently pulled into this PR, and its additional 84-byte gain is not claimed.
-Merely redirecting upstream byte output through its word API would run a
-five-digit 32-bit division loop instead of the existing three-digit loop;
-that is not used as a slower substitute for the missing #237 helper.
-
-The adapted cherry-pick retains its original commit title/provenance, but
-ports only the applicable token-sharing production changes and tests.
-The descriptor/token changes can be reviewed directly against upstream now.
-After #237 lands, the decimal-sharing delta can be a small follow-up. If the
-entire original pair must be submitted together, explicitly stack this work
-on #237 instead; do not fold this cross-mode scope into #237 itself.
-When integrating separately added BASIC MODE or clock-batching callbacks,
-migrate their added table accesses to these accessors as well. That is merge
-integration work, not a reason to import those features into this branch.
+The descriptor and decimal bodies, plus the `getint_with_spaces()` wrapper,
+are absorbed by the core starter (#209). What remains here is the caller
+cleanup that replaces the ten mode modules' `consumewhitechars(); getint();`
+pairs with the shared wrapper. Context from combined-only BASIC MODE/default
+setup, BASIC bit-order fixes and batched clock pulses is deliberately NOT
+carried.
 
 ## Building
 
-The branch includes the existing canonical command-line Makefile and build
-ignore rules from cb1fb95. Upstream lacked that Makefile; carrying these two
-build-only files makes a fresh checkout self-contained, unlike relying on
-an untracked local support file. No configuration or terminal-buffer changes
+The core starter does not track the command-line Makefile; that build-only
+file is the `#203` CLI-Makefile work and is kept as an untracked local support
+file here (the house pattern for a family worktree), adapted to the core
+source layout (`core_system/`, `core_bitbang/`, `core_messages/`,
+`core_eeprom/`, `core_usb/`). No configuration or terminal-buffer changes
 from the later build branch are included.
 
 ```sh
@@ -74,9 +63,6 @@ scripted setup defaults actually exist rather than importing that feature
 just to satisfy a combined-tree fixture.
 It requires Python 3 and a host GCC in addition to XC16 for the ROM builds.
 
-AVRISP sources, its native battery, v3 mkII UART simulator and mkII/CDC gate
-are absent from this upstream-base branch and are not silently imported.
-The PDI/TPI NVM-sharing commit is owned by the separate AVRISP-MKII PR.
 These host tests do not emulate MCU timing or claim a new hardware bench of
 upstream firmware. No board flashing or target operations are needed to run
 this branch's native tests.

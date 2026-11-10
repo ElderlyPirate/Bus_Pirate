@@ -155,5 +155,4 @@ The v3 column is **not verified** here.
 - [checks.md](checks.md) — every check and what it verifies.
 - [binary.md](binary.md) — the scriptable `0x10` / `0x11` variants.
 - [edge-cases.md](edge-cases.md) — failure modes and recovery.
-- `docs/hiz/` — HiZ, the mode the test requires.
-- `docs/generic/` — the shared prompt.
+- [docs/generic/](../../generic/README.md) — the shared prompt; its "Idle mode (HiZ)" section covers the mode the test requires.

@@ -62,8 +62,7 @@ The full per-check table is in [checks.md](checks.md).
 
 ## Related docs
 
-- `docs/generic/` — the shared prompt and the binary-entry sequence.
-- `docs/hiz/` — HiZ, the mode in which the self-test runs.
+- [docs/generic/](../../generic/README.md) — the shared prompt and the binary-entry sequence; its "Idle mode (HiZ)" section covers the mode in which the self-test runs.
 - [docs/binary/](../../protocol/binary/README.md) — the binary bitbang layer that carries
   `0x10` / `0x11`.
 - `docs/SPEC.md` — the capability index.

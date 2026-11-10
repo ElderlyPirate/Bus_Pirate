@@ -38,7 +38,7 @@ control are listed here.
 
 | Function | v3 | v4 | Notes | Docs |
 |---|---|---|---|---|
-| **HiZ** | x | x | default; self-test reachable | ✓ [hiz/](generic/hiz/README.md) |
+| **HiZ** | x | x | default; self-test reachable | ✓ [generic/](generic/README.md#idle-mode-hiz) |
 | **1-WIRE** | x | x | DS2404, DS2431, … | ✓ [1wire/](protocol/wire/1wire/README.md) |
 | · standard / overdrive | x | x | `O` in-place toggle | ✓ |
 | · ROM search macros 51/85/204/236/240 | x | x | — | ✓ |

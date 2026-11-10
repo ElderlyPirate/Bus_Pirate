@@ -11,13 +11,11 @@ Stated for every element command:
 
 | Command | Wiring / electrical requirement |
 |---|---|
-| `W` | enables the on-board VREG; target VCC is sourced on the VCC pin. Aborts with `VREG too low, is there a short?` if the rails do not come up. |
-| `w` | disables VREG and re-parks the bus (`Clutch disengaged!!!`). |
-| `P` | ties the I/O lines to VPU through the pull-up resistors. A voltage must already be present on the physical **Vpullup** pin or the firmware prints `Warning: no voltage on Vpullup pin`. |
-| `p` | releases the pull-ups. |
-| `e` | (v4) selects the VPU pull-up source: External/none, on-board 3.3 V, or on-board 5.0 V. Refuses while the bus is not open-drain HiZ, or if a voltage is already on VPU. There is no `e` on v3. |
+| `W` / `w` | `W` enables the on-board VREG; target VCC is sourced on the VCC pin.  Aborts with `VREG too low, is there a short?` if the rails do not come up.  `w` disables VREG and re-parks the bus (`Clutch disengaged!!!`).  Both are refused in HiZ. |
+| `P` / `p` | `P` ties the I/O lines to VPU through the pull-up resistors.  A voltage must already be present on the physical **Vpullup** pin or the firmware prints `Warning: no voltage on Vpullup pin`.  `p` releases the pull-ups.  Both are refused in HiZ. |
+| `e` | (v4) selects the VPU pull-up source: 1 External/none, 2 on-board 3.3 V, 3 on-board 5.0 V.  Refused in HiZ, in a mode whose output type is not open drain, and when a voltage is already on VPU.  There is no `e` on v3. |
 | `a` / `A` / `@` | drive / read the currently selected AUX pin (see `c`/`C`/`k`/`K`). |
-| `f`, `g`, `S` | use the AUX pin as input (frequency) or output (PWM/servo). |
+| `f`, `g`, `S` | use the AUX pin as input (frequency) or output (PWM/servo).  `g`/`S` are refused in HiZ. |
 | `d`, `D` | sample the dedicated ADC/probe pin. |
 | `v` | samples the 5 V, 3.3 V, VPU and ADC rails and reads the pin states. |
 
@@ -30,9 +28,10 @@ route is:
 
 - **v4** — the pin can be fed by an on-board source.  `e1` selects
   **External (or None)**, `e2` routes the on-board **3.3 V** rail to VPU, and
-  `e3` routes the on-board **5.0 V** rail.  The selection is only allowed while
-  the bus is in open-drain HiZ and no voltage is already on VPU; otherwise the
-  command is refused.
+  `e3` routes the on-board **5.0 V** rail.  `e` is only accepted in a non-HiZ
+  mode whose output type is open drain, with no voltage already on VPU; enter
+  a mode (e.g. `m3`), answer its output-type prompt with open drain, then issue
+  `e2`/`e3`.  From the `HiZ>` prompt the command is refused.
 - **v3** — there is no `e` command, and the v3 firmware does not switch any
   on-board source onto VPU.  The Vpullup pin must be fed from an external
   0-5 V supply.  (v3 routing is not verified.)
@@ -50,15 +49,15 @@ effects are called out in the tables.
 
 | Input | Action | v3/v4 |
 | --- | --- | --- |
-| `i` | version + chip info; `+status` when not HiZ | banner at boot only on v3 |
-| `?` | help screen (23 lines) | help text differs |
+| `i` | version + chip info; `+status` when not HiZ | v3 prints the banner at boot; v4 does not |
+| `?` | help screen (23 lines) | help text differs (see [navigation.md](navigation.md)) |
 | `m` / `m<N>` | mode menu / direct change | — |
 | `h` | command history list + recall prompt `(x. exit)` | 7 vs 15 entries |
-| `b` / `b<N>` | terminal baud rate | — |
+| `b` / `b<N>` | terminal baud rate | v4 prints one line (host-controlled); v3 opens the rate menu |
 | `o` / `o<N>` | display format HEX/DEC/BIN/RAW | — |
-| `v` | pin states + rail voltages | pin set differs |
+| `v` | pin states + rail voltages | pin set differs (10 vs 12 columns) |
 | `t` / `T` | elapsed timer: read (µs) / reset | — |
-| `~` | self-test (HiZ only) | — |
+| `~` | self-test | HiZ only |
 
 ### Value entry grammar
 
@@ -88,17 +87,15 @@ for `|5`.
 
 - `:N` is read only when the character immediately after the command is `:`.
   A bare command repeats once.
-- `;N` is read only immediately after the value/repeat; it sets the number of
-  bits and the 16-bit flag for subsequent formatted I/O.
-- `r` takes an optional display-letter attempt: the character after `r` is
-  peeked for `x`/`d`/`b`/`w` to temporarily override the display for that
-  read.  The letter is **not** consumed, so typing `rx` performs the read and
-  then reports a syntax error on the leftover `x`.  In HiZ, `rx`
-  prints `READ: ERROR: command has no effect here`, `0x00`, then
-  `Syntax error at char 1`.  Treat the one-shot display override as
-  non-functional in this build; the exact behaviour in a mode where the read
-  succeeds is not verified.  See [edge-cases.md](edge-cases.md) for the `rx`
-  symptom row.
+- `;N` is read only immediately after the value/repeat; it sets the width for
+  subsequent reads and writes on that line.
+- `r` takes an optional display letter: `rx` hex, `rd` decimal, `rb` binary,
+  `rw` raw (the `w` here is the raw format, not supplies-off).  The letter is
+  part of the command, so a one-shot display override works and combines with
+  the suffixes — `rx:4` is four hex reads, `rd;16` one 16-bit decimal read.
+  The override applies to that command only; the format set with `o` is
+  unchanged.  In a mode where the read has no handler (HiZ), the read reports
+  `ERROR: command has no effect here`.
 
 ### Elements
 
@@ -108,7 +105,7 @@ for `|5`.
 | `P` / `p` | pull-up resistors on / off | `P` warns `Warning: no voltage on Vpullup pin` if VPU is unpowered; warns `WARNING: pins not open drain (HiZ)` in push-pull mode; refused in HiZ |
 | `e` | (v4) VPU pull-up source menu | `e1` External/none, `e2` 3.3 V, `e3` 5.0 V; refused in HiZ / non-open-drain / VPU already powered |
 | `a` / `A` / `@` | AUX pin low / high / read | `@` prints `AUX INPUT/HI-Z, READ:` then `0` or `1`; `@:N` samples N times |
-| `c` / `C` (`k`/`K` v4) | AUX assignment: targets `A0` / `CS` / `A1` / `A2` | prints `a/A/@ controls <pin> pin`; the pins show as `AUX` / `CS` / `AUX1` / `AUX2` |
+| `c` / `C` (`k`/`K` v4) | AUX assignment: targets `A0` / `CS` / `A1` / `A2` | prints `a/A/@ controls <pin> pin`; the pins show as `AUX` / `CS` / `AUX1` / `AUX2` (see below) |
 | `l` / `L` | bit order MSB-first / LSB-first | `l` → `MSB set: MOST sig bit first`; `L` → `LSB set: LEAST sig bit first` |
 | `d` / `D` | ADC one-shot / continuous voltmeter | `d:N` takes N readings; `D` exits on any key |
 | `f` | frequency counter (AUX pin) | errors if PWM is currently active |
@@ -120,6 +117,26 @@ for `|5`.
 `l`/`L` values are reversed from intuition but match the help line
 `l/L  Bitorder (msb/LSB)`: lowercase `l` selects MSB-first.
 
+#### AUX targets and pin names
+
+`c`/`C` (and `k`/`K` on v4) choose which pin the `a`/`A`/`@` commands act
+on.  The firmware names the same target two ways: the `?` help lists the
+assignment tokens `A0`/`CS`/`A1`/`A2`, while the confirmation message and the
+`v` table use the pin name.  Both name the same pin:
+
+| `?`-help token | Select with | Confirmation message | Pin name in the `v` table |
+|---|---|---|---|
+| `A0` (`aux` on v3) | `c` | `a/A/@ controls AUX pin` | `AUX` |
+| `CS` | `C` | `a/A/@ controls CS pin` | `CS` |
+| `A1` (v4) | `k` | `a/A/@ controls AUX1 pin` | `AUX1` |
+| `A2` (v4) | `K` | `a/A/@ controls AUX2 pin` | `AUX2` |
+
+After a board reset (`#`, `m`/`m1`, the binary return or the SUMP exit) the
+default target is `A0` — the pin shown as `AUX`.  v3 offers only the first
+two targets (`A0`/`AUX` and `CS`), and its help prints the pair as
+`aux/CS`.  This set uses the pin-name form (`AUX`, `CS`, `AUX1`, `AUX2`)
+throughout.
+
 ### Macros
 
 | Input | Action |
@@ -130,10 +147,12 @@ for `|5`.
 | `(0)` | list the current mode's macros |
 | `(n)` | run mode macro n |
 
-User macro count/width: v4 5 × 32 B, v3 3 × 24 B.  A macro body longer than
-the slot, or an out-of-range slot, is a syntax error.  Running `<n>` replays the
-stored body as if typed.  `(n)` in a mode with no macros (HiZ, 3WIRE, DIO)
-prints `ERROR: command has no effect here` plus a syntax error.
+User macro count/width: v4 5 slots, v3 3 slots.  The whole `<n=…>` command
+must fit the slot, so the usable body is about **22 bytes (v3) / 30 bytes
+(v4)**; a longer line or an out-of-range slot is a syntax error.  Running
+`<n>` replays the stored body as if typed.  `(n)` in a mode with no macros
+(HiZ, 3WIRE, DIO) prints `ERROR: command has no effect here` plus a syntax
+error.
 
 **Note —** assignment syntax: `<n=` + body + `>` —
 the trailing `>` terminates the body.  `<1=0x55>` stores `0x55`; `<0>` then
@@ -151,7 +170,7 @@ per-mode; the grammar is shared.
 | `{` | start with read |
 | `]` | stop |
 | `}` | stop-from-read / finish a read |
-| `r` | read a value (`r:N`, `r;bits`) |
+| `r` | read a value (`r:N`, `r;bits`, optional `x`/`d`/`b`/`w` display letter) |
 | `/` | clock high (`CLOCK, 1`) |
 | `\` | clock low (`CLOCK, 0`) |
 | `^` | clock tick(s) (`^:N`) |
@@ -171,27 +190,41 @@ A short session showing `[ / - _ ^ \ ]` in 2WIRE mode is in
 
 | Input | Action |
 | --- | --- |
-| `#` | reset (v3 real reboot; v4 simulated to HiZ + banner) |
+| `#` | reset: v3 real reboot; v4 full terminal reset to HiZ + banner (see [usage.md](usage.md#reset-and-the-idle-state)) |
 | `$` | confirm then jump to bootloader |
 | `s` | enter the BASIC interpreter (prompt becomes `HiZ(BASIC)>`) |
-| `O` | 1-Wire standard/overdrive toggle, in place (1-WIRE only) |
+| `O` | 1-Wire standard/overdrive toggle, in place (1-Wire only) |
 
 `s` sets the BASIC flag; the interpreter launches on the next command line and
-prints `Ready`.  Full behaviour: [docs/basic/](../tools/basic/README.md).
-`O` is dispatched by the base layer but is owned by `docs/1wire/`.
+prints `Ready`.  Full behaviour: [../tools/basic/](../tools/basic/README.md).
+`O` is dispatched by the base layer but is owned by
+[../protocol/wire/1wire/](../protocol/wire/1wire/README.md); outside 1-Wire it
+prints `Command not used in this mode`.
+
+### Commands in HiZ
+
+HiZ is the idle mode (see [README.md](README.md#idle-mode-hiz)).  The elements
+that need a bus - `W`/`w`, `P`/`p`, `g`/`S` - and `O` (needs 1-Wire) print
+`Command not used in this mode` and take no action.  `e` prints the same line
+and, because it raises an error, is followed by `Syntax error at char 1`.
+`~` runs only in HiZ; elsewhere it prints `Self-test in HiZ mode only`.  The
+bus operations (`[` `{` `]` `}` `r` `/` `\` `^` `-` `_` `.` `!`, values and
+`(n)`) print `ERROR: command has no effect here` and set a syntax error.  The
+AUX pin is the one exception: `a`/`A` drive it and `@` reads it in HiZ.
 
 ## Leaving the CLI — binary / SUMP entry
 
 Two terminal byte sequences leave the CLI instead of acting as commands:
 
 1. **Binary bitbang:** 20× `0x00` (NUL bytes) → enters the binary bitbang
-   layer and prints `BBIO1`.  On v4 the NUL count is reset and a simulated
-   reset is performed on return; send `0x0F` to return to the terminal.
-   Page: [../binary/README.md](../protocol/binary/README.md) — see
-   [../binary/commands.md](../protocol/binary/commands.md) for the byte map.
+   layer and prints `BBIO1`.  Send `0x0F` to return to the terminal; on v4 the
+   return runs the terminal reset and prints the banner, on v3 it is a real
+   hardware reset.  Page: [../protocol/binary/README.md](../protocol/binary/README.md)
+   — see [../protocol/binary/commands.md](../protocol/binary/commands.md) for
+   the byte map.
 2. **SUMP logic analyzer:** ≥ 5× `0x00` followed by a Left-arrow byte
-   (`0x02`) → enters the SUMP logic-analyzer mode.  Page:
-   [docs/sump/](../protocol/sump/README.md).
+   (`0x02`) → enters the SUMP logic-analyzer mode.  Leaving SUMP returns to
+   HiZ with the banner.  Page: [../protocol/sump/README.md](../protocol/sump/README.md).
 
 Neither is a "command"; both are documented here only so the generic page is
-complete.  The NUL counter is visible in the prompt logic but not to the user.
+complete.

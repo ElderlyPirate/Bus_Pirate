@@ -10,15 +10,15 @@ v3/v4 delta table.
 | Feature | v3 | v4 |
 |---|---|---|
 | prompt / CLI | present | present |
-| startup banner printed by firmware | yes | no — the banner only appears from `i`, reset `#`, or after leaving the binary layer |
+| startup banner printed by firmware | yes, with ` Bootloader v<major>.<minor>` after the mode list | no — the banner appears from `i`, reset `#`, leaving the binary layer, or leaving SUMP |
 | command history `h` | 7 entries | 15 entries |
 | user macros `<n>` | 3 slots × 24 bytes | 5 slots × 32 bytes |
 | terminal command buffer | 128 B | 256 B |
 | VPU source `e` | — (no such command) | present |
 | AUX assignment `c`/`C` (`k`/`K`) | A0 / CS only | A0 / CS / A1 / A2 |
-| reset `#` | hardware reset (reboot) | simulated reset to HiZ + banner |
-| bit-word separator example in help | `.` | `;` |
-| `#` documented in `?` help | yes | no — the help slot is taken by `o`/`e` |
+| reset `#` | real reboot | returns to HiZ, runs the board-state reset, prints the banner |
+| `v` pin table | 10 columns | 12 columns |
+| `#` documented in `?` help | yes | no — the help slot is taken by `o` |
 
 The command dispatcher is the same for both builds; the differences above
 depend only on the board version.
@@ -55,27 +55,29 @@ The firmware supports cursor editing and history directly on the command line:
 ### Banner / version info — `i`
 
 `i` prints the version block and, when **not** in HiZ, also a status block.
-In HiZ the exact output is (the git hash in
-the firmware line is baked in at build time, so your build's hash will differ):
+In HiZ the exact output is (the git hash in the firmware line is baked in at
+build time, so your build's hash will differ):
 
 ```
 i
 Bus Pirate v4
 ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - af1f827 
-[HiZ 1-WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
+[HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
 DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)
 http://github.com/ElderlyPirate
 HiZ>
 ```
 
-- `Bus Pirate v4` — the board name (on v3 this line reads `Bus Pirate v3`).
+- `Bus Pirate v4` — the board name.  On v3 this line reads
+  `Bus Pirate v3.<hardware revision>`.
 - `ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> ` — the firmware
   string;
   `<hash>` is the git short hash baked in at build time, so the trailing space
   is part of the string.
 - `[ ... ]` — the enabled mode list, in mode-menu order.  The width of this
   list is build-dependent; the example is the v4 default build, which has no
-  LCD/SMPS and where AVRISP-MKII is a personality, not a menu mode.
+  LCD/SMPS and where AVRISP-MKII is a personality, not a menu mode.  On v3
+  the firmware appends ` Bootloader v<major>.<minor>` to this line.
 - `DEVID:` / ` REVID:` — chip device-type and revision words read from flash;
   the values are chip-specific.
 - ` (24FJ256GB106 A6)` — chip family + revision string.
@@ -114,20 +116,21 @@ m        Change mode                   _               DAT lo
 e        Set Pullup Method             .               DAT read
 p/P      Pullup resistors (off/ON)     !               Bit read
 s        Script engine                 :               Repeat e.g. r:10
-v        Show volts/states             ;               Bits to read/write
-w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign/list
+v        Show volts/states             ;               Bits to read/write e.g. 0x55;2
+w/W      PSU (off/ON)                  <x>/<x= >/<0>   Usermacro x/assign x/list all
 ```
 
 `;` — bits to read/write, e.g. `0x55;2`; `<x>` / `<x= >` / `<0>` —
 user macro x / assign x / list all.
 
-Two firmware string defects (wording, not behaviour):
+The `o` line is a firmware string misnomer: `o` selects the **display
+format** (see §Display format), not the per-mode output type.
 
-- the `o` line says `Set output type`; `o` actually selects the **display
-  format** (see §Display format);
-- on v3 the help line for `v` shows the bit separator as `.`, and three further
-  help lines differ (`#` reset present, `c/C` only AUX/CS, `e` present only on
-  v4).
+The v3 help screen differs: it has no `e`; `#  Reset the BP` takes the row
+where v4 shows `o`, and `o` takes the row where v4 shows `e`; it prints the
+AUX assignment as `aux/CS`; and its right-hand column is shorter (`123` and
+`0x123` carry no annotation, and the binary line says `Send value`).  Compare
+both screens.
 
 ### Mode menu — `m`
 
@@ -136,7 +139,7 @@ Two firmware string defects (wording, not behaviour):
 ```
 m
 1. HiZ
-2. 1-WIRE
+2. 1WIRE
 3. UART
 4. I2C
 5. SPI
@@ -153,6 +156,10 @@ x. exit(without change)
 The list is dynamic — it follows the enabled modes, so it changes with the
 build's feature set (LCD/SMPS are off in the default v4 build).
 
+The firmware's mode string is `1WIRE`: the menu, the banner, the `[ ... ]`
+list and the prompt all use it.  Bus messages about the same mode say
+`1-WIRE speed: …`; this documentation writes `1-Wire` in prose.
+
 | Input | Result |
 |---|---|
 | `m`, then a number | the new mode's setup prompts run, then `Clutch disengaged!!!` + (non-HiZ) `To finish setup, start up the power supplies with command 'W'` + `Ready` |
@@ -161,37 +168,40 @@ build's feature set (LCD/SMPS are off in the default v4 build).
 | `x` | leaves the current mode unchanged (`no mode change`) |
 | out-of-range number | `Nonexistent protocol!` |
 
-A direct `m<N>` still runs the setup prompts — answer each one (the default
-is `1`); the bus can be engaged with `W` only after the setup chain has run.
+A direct `m<N>` also accepts the setup answers on the same line (`m6 2 1`,
+`m3 5 1 1 1 1 2`): a complete answer set runs the setup non-interactively,
+prints the mode's settings summary, then `Ready`; an incomplete or invalid
+set falls back to the mode's prompts.  The answer order belongs to the mode's
+page.
 
-The mode's setup prompts (speed, output type, and any mode-specific settings)
-belong to that mode's page.  "Clutch disengaged" is explained in
+`m1` and the menu choice `1` return to HiZ.  `m1` prints `Ready`; the menu
+form prints `Clutch disengaged!!!` then `Ready`.  Both run the board-state
+reset described in [usage.md](usage.md#reset-and-the-idle-state).  `#` also
+returns to HiZ on v4, but additionally restores the display format and leaves
+BASIC.  "Clutch disengaged" is explained in
 [README.md](README.md#glossary).
 
 ### Terminal baud — `b`
 
-`b` sets the **terminal/link** baud rate.
-
-- `b<N>` with `N` = 1…10 selects the corresponding rate from the port-speed
-  menu directly.
-- `b` with no/invalid argument prints `Set serial port speed: (bps)` and
-  prompts `(9)>`.
-
-The menu then lists:
+On v3, `b` changes the physical UART rate.  `b<N>` with `N` = 1…10 selects an
+option directly; a bare or invalid `b` prints `Set serial port speed: (bps)`
+and prompts `(9)>`:
 
 | Option | Selection |
 |---|---|
 | 1–9 | 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 bps |
-| 10 | Input Custom BAUD |
-| 11 | Auto-Baud Detection (listed; not selectable here — see below) |
+| 10 | `BRG raw value` |
 
-- Option 10 asks for a raw BRG value (`Enter raw value for BRG`, default 34),
-  then applies it.
-- After selecting, the firmware prints `Adjust your terminal` + `Space to
-  continue` and waits for a space before re-initialising the port.
-- The menu text also lists option `11. Auto-Baud Detection`, but `b` limits
-  the choice to 1…10, so option 11 is **not** selectable through `b` — it
-  is only offered inside UART mode setup.
+Option 10 asks for a raw BRG value (`Enter raw value for BRG`, default 34),
+then applies it.  The default is 9 (115200), the rate the firmware boots at.
+After selecting, the firmware prints `Adjust your terminal` + `Space to
+continue` and waits for a space before re-initialising the port; if no space
+arrives within five seconds it restores the previous rate and prints `Baud
+confirmation timed out; previous rate restored.`
+
+**v4:** the USB CDC link's rate belongs to the host.  `b` (with or without an
+argument) prints `USB CDC baud rate is host-controlled.` and returns; there
+is no rate menu and no `b<N>` selection.
 
 ### Display format — `o`
 

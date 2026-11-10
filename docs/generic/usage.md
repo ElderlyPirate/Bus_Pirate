@@ -62,22 +62,20 @@ UART>o1
 Display format set
 UART>v
 Pinstates:
-12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)*
+12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)
 GND      5.0V     3.3V     VPU     ADC     AUX2    AUX1    AUX     -       RxD     -       TxD
 P        P        P        I       I       I       I       I       I       I       I       O
 GND      4.98V    3.29V    2.19V   0.00V   L       L       L       H       H       H       H
 UART>
 ```
 
-(* the `1.` label in the pin legend is garbled by the known string
-defect — see [edge-cases.md](edge-cases.md).)
-
 The `m3` setup prompts are UART-mode territory (speed, framing, polarity,
 output type, duplex); the base layer only contributes `Clutch disengaged!!!` /
 `Ready` at the end of the chain and the `UART>` prompt.  `W` starts the on-board
 supplies and prints `Clutch engaged!!!`; `P` enables the pull-ups and warns when
 nothing is on the Vpullup pin; `o1` selects HEX and prints `Display format
-set`; `v` prints the pin/rail table (the `v` table is described below).
+set`; `v` prints the pin/rail table (the table format is described under
+[`v` in HiZ](#v-in-hiz)).
 
 A reader might notice that `P` warns about no voltage while the following `v`
 shows a small voltage on VPU.  They are two separate samples of the same pin:
@@ -212,83 +210,64 @@ READ: 0x00 0x00
 the read-framed start and its matching `]` is the stop.  With nothing on the bus
 the read is a static `0x00`, not a device value.
 
-### `W` in a mode (supplies)
-
-```
-W
-POWER SUPPLIES ON
-Clutch engaged!!!
-1-WIRE>
-```
-
-### `P` with no VPU voltage present
-
-```
-P
-Pull-up resistors ON
-Warning: no voltage on Vpullup pin
-PIC>
-```
-
-Recovery: supply the Vpullup pin.  On v4 use `e` to route the on-board 3.3 V or
-5.0 V rail; on v3 feed the pin externally (see
-[commands.md](commands.md) §Feeding the VPU pin).  The warning alone does not
-disable the pull-ups.
-
-### `p`
-
-```
-p
-Pull-up resistors OFF
-```
-
-### `e` in HiZ (v4) — refused with a syntax error
-
-```
-e2
-Command not used in this mode
-Syntax error at char 1
-HiZ>
-```
-
-`e` is only accepted in a non-HiZ mode whose pins are open drain.  On v3 there
-is no `e` command at all.
-
 ### `v` in HiZ
 
-Transcribed with the columns aligned (`*`: the `1.` label of pin 1 is garbled
-by a known string defect — a stray byte eats it; see
-[edge-cases.md](edge-cases.md)):
+`v` draws the same table in every mode, with the mode's own signal names and
+pin directions.  At the `HiZ>` prompt the firmware has no bus mode, so the
+signal names are the default/SPI names and every I/O pin is an input:
 
 ```
 v
 Pinstates:
-12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)*
+12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)  8.(Bu)  7.(Gn)  6.(Yw)  5.(Or)  4.(Rd)  3.(Br)  2.(Bk)  1.(Wt)
 GND      5.0V     3.3V     VPU     ADC     AUX2    AUX1    AUX     CS      MISO    CLK     MOSI
 P        P        P        I       I       I       I       I       I       I       I       I
 GND      0.00V    0.00V    0.00V   0.00V   L       L       H       L       H       H       H
 HiZ>
 ```
 
-`v` draws the pin table: row 1 is the pin colour/name legend, row 2
-the signal names, row 3 the pin *dir*ections (`P` = power/analogue fixed,
-`I` input, `O` output), row 4 the measured voltages then the pin *state*s
-(`H`/`L`).  The last two rows are filled in by the active mode.  The signal
-names in row 2 differ per mode (compare the UART session above, where the last
-columns read `RxD`/`TxD`).  A `-` in row 2 marks a pin that has no signal name
-in the current mode.
+`v` draws the pin table: row 1 is the pin colour/name legend, row 2 the signal
+names, row 3 the pin *dir*ections (`P` = power/analogue fixed, `I` input,
+`O` output), row 4 the measured voltages then the pin *state*s (`H`/`L`).  The
+last two rows are filled in by the active mode.  The signal names in row 2
+differ per mode (compare the UART session above, where the last columns read
+`RxD`/`TxD`).  A `-` in row 2 marks a pin that has no signal name in the
+current mode.
+
+In HiZ every I/O pin shows direction `I` — none is driven.  With nothing
+connected the pins float, so the `H`/`L` state row shows whatever each pin
+happens to settle at; a state reading here is **not** a driven level.
+
+### Reset and the idle state
+
+On v4 `#` is a full terminal reset:
+
+```
+#
+RESET
+Bus Pirate v4
+ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> 
+[HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
+DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)
+http://github.com/ElderlyPirate
+HiZ>
+```
+
+It returns to HiZ and resets the board state: the I/O pins become inputs, the
+pull-ups are released, the supplies switch off, the AUX assignment returns to
+`A0`, the display format returns to HEX, and BASIC is left.  The binary return
+byte (`0x0F`) and the exit from SUMP run the same terminal reset and land in
+HiZ with the banner.
+
+On v3 `#` performs a real hardware reset/reboot.
+
+`m1` returns to HiZ and runs the same board-state reset (pins, pull-ups,
+supplies, AUX assignment) but does not restore the display format or leave
+BASIC; it prints `Ready`, not the banner.  Both paths leave the board safe.
 
 ### Bootloader jump — `$`
 
 `$` asks for confirmation (prompt `Are you sure? `), then sets the
 persistent skip flag, prints `BOOTLOADER`, and resets into the bootloader.
-`y`/`Y` proceeds; echoed with a newline.  Flashing procedure: `docs/dev/`
-(stub).
-
-### Reset — `#`
-
-- v4: prints `RESET`, forces HiZ, prints the `i` banner.  Tools such as flashrom
-  wait for the `HiZ>` prompt after a reset byte.
-- v3: prints `RESET` then performs a real hardware reset/reboot.
-
-`#` is **not** in the v4 `?` help; it *is* in v3 help.
+`y`/`Y` proceeds; echoed with a newline.  Flashing procedure:
+[../dev/flashing.md](../dev/flashing.md) (index: [../dev/README.md](../dev/README.md)).

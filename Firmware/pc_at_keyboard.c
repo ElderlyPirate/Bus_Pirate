@@ -238,6 +238,12 @@ keyboard_scancode_read_result_t read_byte(uint8_t *result) {
   uint8_t counter;
   keyboard_scancode_read_result_t read = KEYBOARD_SCANCODE_READ_NO_DATA;
 
+  /* Define the output on every path: read_scancode() only writes it on a
+     fully-valid frame, and the caller (pc_at_keyboard_read) would otherwise
+     return, and the interactive 'r' command print, an uninitialised value
+     whenever no frame is captured. */
+  *result = 0;
+
   KBDIO_TRIS = INPUT;
   KBCLK_TRIS = INPUT;
 

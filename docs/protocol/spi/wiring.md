@@ -1,7 +1,8 @@
 # SPI — wiring and electrical requirements
 
-Part of the SPI documentation set (`docs/spi/`). This page owns the wiring
-table and the pull-up/supply statement; the README carries the headline only.
+Part of the SPI documentation set (`docs/protocol/spi/`). This page owns the
+wiring table and the pull-up/supply statement; the README carries the headline
+only.
 
 ## Wiring
 
@@ -46,8 +47,11 @@ is the way to interface a target that runs at a different voltage, because
 the Bus Pirate only pulls lines low.
 
 The Bus Pirate's own pull-up resistors are connected to the physical
-**Vpullup** pin (`Vpu`). They are switched with `P`/`p`, and a voltage must
-already be present on that pin:
+**Vpullup** pin (`Vpu`). They are switched with `P`/`p`; a voltage must be
+present on that pin for them to pull high. Without one, `P` still enables the
+resistors and prints `Warning: no voltage on Vpullup pin`.
+
+The source that feeds VPU is selected per build:
 
 - **v4** — `e2` selects the on-board **3.3 V** source and `e3` the on-board
   **5.0 V** source; `e1` is External (or None). Selecting a source is only
@@ -56,13 +60,15 @@ already be present on that pin:
   supply.
 
 The target's own supply (VCC) is separate from VPU: `W` enables the Bus
-Pirate's programmable supply on the VCC pin to power the target, while VPU only
-sets the pull-up reference.
+Pirate's programmable supply on the VCC pin to power the target, while VPU
+only sets the pull-up reference. `W` also runs the mode's pin and module
+setup — the bus is not configured until `W` succeeds, so `W` is required
+even when the target is self-powered (leave VCC disconnected in that case).
 
 The `P`/`e` commands and the VPU routing are base-layer behaviour owned by
-`docs/generic/` (see [commands.md](../../generic/commands.md)); this page records
-only that **SPI needs a pull-up in open-drain output and none in normal
-output**.
+`docs/generic/` (see [commands.md](../../generic/commands.md)); this page
+records only that **SPI needs a pull-up in open-drain output and none in
+normal output**.
 
 ## Voltage limit
 

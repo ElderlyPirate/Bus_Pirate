@@ -1,8 +1,8 @@
 # SPI — macros
 
-Part of the SPI documentation set (`docs/spi/`). This page owns the mode macro
-list and the in-place clock tweaks. The sniffer itself is described in
-[sniffer.md](sniffer.md).
+Part of the SPI documentation set (`docs/protocol/spi/`). This page owns the
+mode macro list and the in-place clock tweaks. The sniffer itself is described
+in [sniffer.md](sniffer.md).
 
 ## The `(0)` list
 
@@ -34,10 +34,8 @@ list and the in-place clock tweaks. The sniffer itself is described in
 | any other | `Unknown macro, try ? or (0) for help` | both |
 
 The macro menu jumps from `2` straight to `10`; there are **no macros 3–9**.
-Using one of those values prints the unknown-macro message. An older published
-SPI page listed a struck-through "macro 3" as a temporarily removed
-CS-high sniffer; that macro does not exist in the current firmware. Only the
-two sniff macros `(1)` and `(2)` are present.
+Using one of those values prints the unknown-macro message. Only the two sniff
+macros `(1)` and `(2)` and the six tweak macros `(10)`–`(15)` are defined.
 
 ## Sniff macros
 
@@ -65,13 +63,12 @@ The header shows the current settings (see
 SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
 ```
 
-These macros were added so the clock can be adjusted mid-session; the change
-applies to the whole SPI interface, and later bus operations use it until the
-next tweak or a re-entry. Whether the in-place change is safe for a device that
-is already mid-transaction is **not verified** — change the clock settings
-between transactions.
+The tweak applies immediately to the whole SPI interface, and later bus
+operations use it until the next tweak or a re-entry. Whether the in-place
+change is safe for a device that is already mid-transaction is **not
+verified** — change the clock settings between transactions.
 
 ## v3 / v4
 
 The macro list, the sniff macros and the clock tweaks 10–15 are the same in
-both builds. The v3 column is **not verified**.
+both builds. v3 is **not verified**.

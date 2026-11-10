@@ -1,10 +1,10 @@
 # SPI — bus operations
 
-Part of the SPI documentation set (`docs/spi/`). This page owns the on-bus
-commands: chip-select control, byte read/write, and the read-back form. Shared
-prompt grammar — value entry, repetition `:N`, width `;N`, the wrappers,
-`(n)` macros — is owned by `docs/generic/`; only the SPI effect is described
-here.
+Part of the SPI documentation set (`docs/protocol/spi/`). This page owns the
+on-bus commands: chip-select control, byte read/write, and the read-back
+form. Shared prompt grammar — value entry, repetition `:N`, width `;N`, the
+wrappers, `(n)` macros — is owned by `docs/generic/`; only the SPI effect is
+described here.
 
 ## Chip select
 
@@ -59,7 +59,7 @@ The values are printed in the current display format (`o`), hex by default.
 ## Reading a byte
 
 `r` reads one byte. Since SPI is full duplex, the read is a write of the
-dummy byte `0xff` while the returned byte is captured:
+dummy byte `0xFF` while the returned byte is captured:
 
 ```
 READ: 0xEF
@@ -68,14 +68,21 @@ READ: 0xEF
 `r:N` reads N bytes. The shared `:N` and `;N` grammar is in
 `docs/generic/` (see [commands.md](../../generic/commands.md)).
 
+If the SPI module cannot complete the transfer, the read returns `0xFF` — the
+same value a real all-ones byte produces. There is no separate timeout error;
+see [binary.md](binary.md) §Transfer faults.
+
 ## Worked session
 
-A format illustration of a small transaction — assert CS, send a command byte,
-read a byte, release CS. The `0x9F` / `0xEF` values are example values; on real
-hardware the read byte is whatever the target returns. This session uses the
-default `/CS` polarity and normal output:
+A format illustration of a small transaction — bring the bus up with `W`,
+assert CS, send a command byte, read a byte, release CS. The `0x9F` / `0xEF`
+values are example values; on real hardware the read byte is whatever the
+target returns. This session uses the default `/CS` polarity and normal output:
 
 ```
+SPI>W
+POWER SUPPLIES ON
+Clutch engaged!!!
 SPI>[
 /CS ENABLED
 SPI>0x9F
@@ -107,5 +114,5 @@ A binary-mode exchange of the same kind of transaction is in
 ## v3 / v4
 
 The CS control, byte read/write and the read-back flag behave the same in both
-builds; only the sniffer's CS capture path differs (see
-[sniffer.md](sniffer.md)). The v3 path is **not verified**.
+builds; only the sniffer's CS capture path differs (polled on v3, CN capture on
+v4 — see [sniffer.md](sniffer.md)). The v3 path is **not verified**.

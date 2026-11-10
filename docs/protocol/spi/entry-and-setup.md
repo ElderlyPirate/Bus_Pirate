@@ -1,8 +1,8 @@
 # SPI — entry & setup
 
-Part of the SPI documentation set (`docs/spi/`). This page owns how the mode is
-entered, the speed menu, the setup prompt chain, and what the one-line settings
-form accepts. Wiring is in [wiring.md](wiring.md); the sniffer is in
+Part of the SPI documentation set (`docs/protocol/spi/`). This page owns how the
+mode is entered, the speed menu, the setup prompt chain, and what the one-line
+settings form accepts. Wiring is in [wiring.md](wiring.md); the sniffer is in
 [sniffer.md](sniffer.md).
 
 ## Entering SPI
@@ -35,14 +35,9 @@ order.
 | 11 | `3.2MHz` | 3.2 MHz |
 | 12 | `5.3MHz` | 5.3 MHz |
 
-The default answer is `1` (`30kHz`). The firmware's own table comment labels
-option 1 as `31 kHz` while the menu prints `30kHz`; the menu text is the
-displayed value. The **set** of rates is
-`30, 50, 125, 250 kHz; 1, 1.3, 2, 2.6, 3.2, 4, 5.3, 8 MHz`.
-
-An older published SPI page listed options 5–12 in a **different order**
-(5 = `50kHz`, 6 = `1.3MHz`, 7 = `2MHz`, …). That order does not match the
-firmware and has been corrected here.
+The rates are nominal and the menu prints a fixed, unsorted order; the full set
+is `30, 50, 125, 250 kHz; 1, 1.3, 2, 2.6, 3.2, 4, 5.3, 8 MHz`. The default
+answer is `1` (`30kHz`); measure the actual clock if a target is marginal.
 
 ## The setup prompt chain
 
@@ -61,8 +56,8 @@ The **output type** decides the electrical behaviour of the output pins and
 therefore the pull-up requirement — see [wiring.md](wiring.md). The **CS**
 choice sets the CS polarity: `CS` is active-high, `/CS` is active-low.
 
-After the last answer the menu form prints the parking lines; the bus is inert
-until `W`:
+After the last answer the menu form prints the parking lines. The bus is inert
+until `W` succeeds; `W` is what runs the pin and module setup.
 
 ```
 Clutch disengaged!!!
@@ -80,7 +75,7 @@ menu is in `docs/generic/`:
 ```
 HiZ>m
 1. HiZ
-2. 1-WIRE
+2. 1WIRE
 3. UART
 4. I2C
 5. SPI
@@ -138,49 +133,61 @@ Ready
 SPI>
 ```
 
+## Bring-up with `W`
+
+Run `W` before the first bus operation:
+
+```
+SPI>W
+POWER SUPPLIES ON
+Clutch engaged!!!
+SPI>
+```
+
+On success `W` enables the Bus Pirate's programmable supply on the VCC pin and
+then runs the mode's pin and module setup. The SPI pins and the SPI module are
+therefore configured **only** at that point, so `W` is required even when the
+target is powered from its own supply — leave VCC disconnected from a
+self-powered target. If the rails do not come up, `W` prints
+`VREG too low, is there a short?` and `POWER SUPPLIES OFF`, and the setup does
+not run — see [edge-cases.md](edge-cases.md).
+
 ## The one-line settings form
 
 SPI can be entered with its settings on one line. After the mode number it
-reads six integers in the order shown by the settings header:
-
-```
-SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
-```
+reads six integers in the order shown by the settings header. For example
+`m5 4 1 2 1 2 2` selects speed `4` = `1MHz`, polarity `1` idle low, edge `2`
+active→idle, sample `1` middle, CS `2` `/CS`, output type `2` normal. Any
+speed from 1 to 12 is accepted, so `m5 12 1 2 1 2 2` selects `12` = `5.3MHz`.
 
 | Field | Meaning | Header display | Input value (menu number) |
 |---|---|---|---|
-| `spd` | speed | menu number 1–12 | menu number 1–12 (only 1–4 accepted — see below) |
+| `spd` | speed | menu number 1–12 | menu number 1–12 |
 | `ckp` | clock polarity | `0` idle low, `1` idle high | `1` idle low, `2` idle high |
 | `ske` | clock edge | `0` idle→active, `1` active→idle | `1` idle→active, `2` active→idle |
 | `smp` | input sample phase | `0` middle, `1` end | `1` middle, `2` end |
 | `csl` | CS polarity | `0` `CS`, `1` `/CS` | `1` `CS`, `2` `/CS` |
 | `hiz` | output type | `1` open drain / Hi-Z, `0` normal | `1` open drain / Hi-Z, `2` normal |
 
-The **Header display** column is what the printed settings header above shows;
-it is not what you type. The header prints `spd` one-based (matching the menu)
-and the other five fields in their raw `0`/`1` form. To enter the form by hand
-you type the **Input value** column — the menu numbers for the two-option
-prompts — for example `m5 4 1 2 1 2 2` selects `4` = `1MHz`, polarity `1` idle
-low, edge `2` active→idle, sample `1` middle, CS `2` `/CS`, output type `2`
-normal. When the form is accepted the firmware echoes the settings header
-instead of running the prompts.
+The **Header display** column is what the printed settings header shows; it is
+not what you type. The header prints `spd` one-based (matching the menu) and
+the other five fields in their raw `0`/`1` form. To enter the form by hand you
+type the **Input value** column — the menu numbers for the two-option prompts.
+When all six values are in range the firmware echoes the settings header instead
+of running the prompts:
 
-Quirk: the validation behind the one-line form only accepts `spd` **1–4**. A
-full settings line with a speed above `4` is rejected and the interactive
-prompts run instead, even though the menu itself offers 1–12.
+```
+SPI (spd ckp ske smp csl hiz)=( 4 0 1 0 1 0 )
+```
 
-## The buffer limit
+If a value is missing or out of range, the interactive prompts run instead.
 
-The terminal/ring buffer is the SPI mode's data limit. It is sized per build:
+## Buffer limit
 
-| Build | Buffer |
-|---|---|
-| v4 | 4096 bytes |
-| v3 | 2048 bytes |
-
-The sniffer fills this buffer and drains it to the host (see
-[sniffer.md](sniffer.md)); the binary sub-protocol also streams through the
-host buffers (see [binary.md](binary.md)).
+The terminal ring buffer bounds a long capture (v4 4096 bytes, v3 2048 bytes).
+Overflow handling and the other capture limits are in [sniffer.md](sniffer.md)
+§Integrity and stopping; the binary path has its own framing rules — see
+[binary.md](binary.md).
 
 ## v3 / v4
 

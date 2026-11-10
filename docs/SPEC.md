@@ -57,7 +57,7 @@ control are listed here.
 | · address scanner / sniffer macros | x | x | — | ✓ |
 | · on-board EEPROM macros 3/4 | - | x | connect + write-enable | ✓ |
 | **SPI** | x | x | — | ✓ [spi/](protocol/spi/README.md) |
-| · sniffer (CS-low / all / live tweaks) | x | x | v4: hardware-CS note | ✓ |
+| · sniffer (CS-low / all / live tweaks) | x | x | v4: CN CS capture (bounded) | ✓ |
 | · binary mode | x | x | — | ✓ |
 | **2WIRE (raw)** | x | x | ISO7816-3 ATR macros | ✓ [2wire/](protocol/wire/2wire/README.md) |
 | **3WIRE (raw)** | x | x | no macros (by design) | ✓ [3wire/](protocol/wire/3wire/README.md) |

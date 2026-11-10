@@ -26,7 +26,7 @@
       <itemPath>../core_eeprom/onboard_eeprom.h</itemPath>
       <itemPath>../i2c.h</itemPath>
       <itemPath>../configuration.h</itemPath>
-      <itemPath>../hd44780.h</itemPath>
+      <itemPath>../capability_hd44780/hd44780.h</itemPath>
       <itemPath>../spi.h</itemPath>
       <itemPath>../uart.h</itemPath>
       <itemPath>../jtag.h</itemPath>
@@ -89,7 +89,7 @@
       <itemPath>../core_usb/usb_stack.c</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
       <itemPath>../i2c.c</itemPath>
-      <itemPath>../hd44780.c</itemPath>
+      <itemPath>../capability_hd44780/hd44780.c</itemPath>
       <itemPath>../spi.c</itemPath>
       <itemPath>../uart.c</itemPath>
       <itemPath>../openocd.c</itemPath>
@@ -319,7 +319,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -560,7 +560,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

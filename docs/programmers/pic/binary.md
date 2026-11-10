@@ -1,15 +1,15 @@
 # PIC — binary protocols
 
-Part of the PIC documentation set (`docs/pic/`).  This page documents the two
-scriptable PIC interfaces: the dedicated binary sub-protocol entered with
-`0x07`, which prints `PIC1`, and the PIC command group carried inside the
-raw-wire binary mode.  The general binary layer (entering BBIO, framing,
-returning to the terminal) is documented in `docs/generic/` (see
-[commands.md](../../generic/commands.md) §Leaving the CLI) and `docs/binary/` —
-see [entering-and-framing.md](../../protocol/binary/entering-and-framing.md),
-[commands.md](../../protocol/binary/commands.md) and
-[sub-protocols.md](../../protocol/binary/sub-protocols.md).  The raw-wire framing itself is
-owned by [../2wire/binary.md](../../protocol/wire/2wire/binary.md).
+Part of the PIC documentation set (`docs/programmers/pic/`).  This page
+documents the two scriptable PIC interfaces: the dedicated binary sub-protocol
+entered with `0x07`, which prints `PIC1`, and the PIC command group carried
+inside the raw-wire binary mode.  The general binary layer (entering BBIO,
+framing, returning to the terminal) is in
+[the binary layer](../../protocol/binary/README.md) — see
+[entering and framing](../../protocol/binary/entering-and-framing.md),
+[binary commands](../../protocol/binary/commands.md) and
+[sub-protocols](../../protocol/binary/sub-protocols.md).  The raw-wire framing
+itself is owned by [the shared RAW1 page](../../protocol/wire/binary.md).
 
 Both paths are written from the firmware's command definitions and are
 **unverified**.
@@ -47,8 +47,8 @@ family:
 | `0x02` | control | select 6-bit opcodes | `0x01` |
 | `0x03` | control | select 4-bit opcodes | `0x01` |
 | `0x04`–`0x07` | control | set the post-command delay to `0`–`3` ms | `0x01` |
-| `0x10`–`0x17` | config | PWM / VREG / pull-up switches | `0x01` / `0x00` |
-| `0x18`–`0x1F` | config | AUX / MISO / CS switches | `0x01` / `0x00` |
+| `0x10`–`0x17` | config | PWM / VREG / pull-up switches | `0x01` |
+| `0x18`–`0x1F` | config | AUX / MISO / CS switches | `0x01` |
 | `0x40`–`0x7F` | write | clock out an opcode (low 6 bits) | `0x01` |
 | `0x80`–`0xBF` | write+data | opcode, then two host bytes as a payload | `0x01` |
 | `0xC0`–`0xFF` | write+read | opcode, then two payload bytes read back | `0x01`, then 2 data bytes |
@@ -59,6 +59,7 @@ Control and config families:
   preset), bit 1 = voltage regulator, bit 0 = pull-up resistors.
 - `0x18`–`0x1F` (bit 3 set) drive the auxiliary pins: bit 2 = AUX, bit 1 =
   MISO, bit 0 = CS (set = high).
+- These two switch groups have no failure path; each returns `0x01`.
 - Any other byte in the `0x00`–`0x3F` range is a failure (`0x00`).
 
 Write families:
@@ -81,7 +82,7 @@ host -> 0x02            select 6-bit opcodes
 host <- 0x01
 host -> 0x04            post-command delay = 0 ms
 host <- 0x01
-host -> 0x1C            AUX/MISO/CS: AUX high (bit 2 set)
+host -> 0x1C            AUX high, MISO/CS low
 host <- 0x01
 host -> 0x40            clock out opcode 0x00
 host <- 0x01
@@ -98,26 +99,46 @@ host <- "BBIO1"
 ## PIC in raw-wire mode (`0x05` + PIC command bytes)
 
 The raw-wire binary mode also carries a PIC command group (`0xAx`).  This is
-a separate PIC24/"SIX" ICSP engine: it takes whole command scripts and
-executes them, rather than the byte-per-opcode model of `PIC1`.  It shares
-the `RAW1` framing; enter raw wire with `0x05` (prints `RAW1`) and send one of
-these command bytes:
+a separate script-driven ICSP engine: it takes whole command scripts and
+executes them, rather than the byte-per-opcode model of `PIC1`.  The `416` and
+`614` engines serve PIC10/12/16/18 parts; `424` is the PIC24/SIX-style engine
+— match the engine to the part.  It shares the
+`RAW1` framing; enter raw wire with `0x05` (prints `RAW1`) and send one of
+these command bytes.
+
+The **default engine is `614`** (selected when raw wire is entered).  Choose
+an engine first with `0xA0`: `1` = 416, `2` = 424, `3` = 614; anything else is
+refused.  `0xA4` and `0xA5` are refused in the default `614` engine, so send
+`0xA0 1` or `0xA0 2` before using them.
 
 | Request | Action | Payload / reply |
 |---|---|---|
-| `0xA0` | select the PIC engine | 1 host byte: `1` = 416, `2` = 424, `3` = 614; reply `0x01` / `0x00` |
-| `0xA4` | write | 1 count byte, then `count`×3 bytes (416) or `count`×4 bytes (424); reply `0x01` |
-| `0xA5` | write-and-read bits | 1 count byte, then (416) one command byte; replies with the read bytes |
-| `0xA7` | write-and-read commands | a write count, a read count, then a script buffer; reply `0x01` plus any read bytes |
+| `0xA0` | select the PIC engine | 1 host byte: `1` = 416, `2` = 424, `3` = 614; `0x01` / `0x00` |
+| `0xA4` | write records | 1 count byte, then 3 bytes (416) or 4 bytes (424) per record; `0x01` / `0x00` |
+| `0xA5` | write-and-read bits | 416: count + command byte, one byte per count; 424: count only, six bytes per count |
+| `0xA7` | write-and-read script | a write count, a read count, then the script; `0x01` plus any read bytes |
 
-- `0xA4` and `0xA5` are refused (`0x00`) in the `614` engine.
+- `0xA4` and `0xA5` are refused (`0x00`) in the `614` engine.  On the `424`
+  engine `0xA5` takes no command byte: it runs a fixed built-in write/read
+  sequence (three reads per count).
 - `0xA7`'s script is a run of marker bytes: `1` = a write record, `2` = a
-  read record; the record length depends on the selected engine.
+  read record.  The record size depends on the selected engine:
+
+  | Engine | Write record | Read record |
+  |---|---|---|
+  | 416 | 4 bytes (marker + 3) | 2 bytes (marker + command) |
+  | 614 | 4 bytes (marker + 3) | 2 bytes (marker + command) |
+  | 424 | 5 bytes (marker + 4) | 1 byte (marker only) |
+
+  When the script contains read records the `0x01` success byte is sent
+  **before** the read bytes; with write records only it is sent after the
+  script runs.
 - Any other byte in the `0xAx` group (for example `0xA1`–`0xA3`, `0xA6`, or
   `0xA8`–`0xAF`) is undefined and returns failure (`0x00`).
 
 The exact script grammar is part of the raw-wire engine and is **unverified**;
-use [../2wire/binary.md](../../protocol/wire/2wire/binary.md) for the shared `RAW1` framing.
+use [the shared RAW1 page](../../protocol/wire/binary.md) for the shared
+`RAW1` framing.
 
 ## Limits
 
@@ -130,5 +151,5 @@ use [../2wire/binary.md](../../protocol/wire/2wire/binary.md) for the shared `RA
 
 ## v3 / v4
 
-`PIC1` (`0x07`) and the raw-wire PIC group are present in both builds.  Neither
-build has been verified on hardware for these paths here.
+`PIC1` (`0x07`) and the raw-wire PIC group are present in both builds.  These
+paths are **unverified**.

@@ -1,17 +1,20 @@
 # PIC — entry & setup
 
-Part of the PIC documentation set (`docs/pic/`).  How the mode is entered,
-what it asks, and what the one-line settings form accepts.  Wiring and the
-electrical requirements are in [wiring.md](wiring.md).
+Part of the PIC documentation set (`docs/programmers/pic/`).  How the mode is
+entered, what it asks, and what the one-line settings form accepts.  Wiring
+and the electrical requirements are in [wiring.md](wiring.md); current
+limitations are owned by [edge-cases.md](edge-cases.md).
 
 ## Entering PIC
 
-`PIC` is mode number **9** in the v4 mode menu and mode number **8** in the
-v3 menu.  The shift is because the keyboard mode (`KEYB`) sits between 3WIRE
-and PIC on v4 but is **not compiled into the v3 build**.  The menu form is `m`
-then `9`/`8`; the direct form is `m9`/`m8`.  The shared mode-menu grammar is
-owned by `docs/generic/` — see
-[navigation.md](../../generic/navigation.md) §Mode menu.
+`PIC` is mode number **9** in the **default v4 image** and mode number **8**
+in the **default v3 image**.  The shift is because the keyboard mode (`KEYB`)
+sits between 3WIRE and PIC on v4 but is not compiled into the v3 build.  A
+custom build with a different enabled-mode set shifts the number; the menu is
+dynamic.  See the mode-menu note in
+[the generic navigation page](../../generic/navigation.md).
+
+The menu form is `m` then `9`/`8`; the direct form is `m9`/`m8`.
 
 There are two settings, asked in this order:
 
@@ -41,6 +44,24 @@ Entering through the `m` menu (`m` then `9`) also prints the parking lines
 `Clutch disengaged!!!` / `To finish setup…` before `Ready`; the direct form
 `m9` prints only `Ready`.  The bus stays parked until `W` (see below).
 
+## Width ↔ family
+
+The first choice is the **programming-protocol width**, not the instruction
+word size.  Match it to the part's programming specification:
+
+| Width | Opcode / payload | Typical parts | `(1)` devID |
+|---|---|---|---|
+| **6b/14b** | 6-bit command / 14-bit data | PIC10/12/16 families | works |
+| **4b/16b** | 4-bit command / 16-bit data | PIC18 family | `Not implemented (yet)` |
+
+PIC24/dsPIC (24-bit) parts are not served by either terminal width; the host
+tool drives the raw-wire 24-bit engine.  If a part is not listed, take the
+width from its programming specification or the host tool's part entry — a
+wrong width makes the entry or ID read fail.
+
+The built-in `(1)` macro works only in **6b/14b**; in **4b/16b** use the host
+tool ([macros.md](macros.md)).
+
 ## The one-line settings form
 
 Like the other modes, PIC accepts its settings on the mode line: after the
@@ -51,12 +72,12 @@ mode number it reads two integers (width, then delay).
 | 1st number | width | `1`–`2` | `1` = 6b/14b, `2` = 4b/16b |
 | 2nd number | delay | `0`–`3` | delay in milliseconds |
 
-When a valid pair is given, the prompts are skipped and the firmware prints a
-one-line settings header instead:
+A valid pair is **applied and echoed**; the prompts are skipped and the
+firmware prints a one-line settings header:
 
 ```
-HiZ>m 9 1 0
-PIC(mod dly)=(6 0)
+HiZ>m 9 2 1
+PIC(mod dly)=(4 1)
 Ready
 PIC>
 ```
@@ -68,14 +89,9 @@ The header fields are:
 | `mod` | `6` / `4` | opcode width: `6` = 6b/14b, `4` = 4b/16b |
 | `dly` | `0`–`3` | the post-command delay in milliseconds |
 
-**Quirk — the one-line form does not apply its numbers.**  In this build the
-two integers are validated to decide whether to show the prompts, but they
-are not stored; the header prints the mode's internal defaults (`6 0`) and
-the mode keeps them.  One-line entry therefore runs at **6b/14b with a 0 ms
-delay** — the `0` in the header is the delay actually used, not the `(1)` the
-interactive prompt shows.  To choose something other than the defaults, use
-the interactive prompts (`m9`/`m8` with no numbers on the line).  The 4b/16b
-selection via the one-line form is **unverified**.
+The two numbers are the settings the mode runs with.  If the width is not
+`1`–`2` or the delay is not `0`–`3`, the mode runs the two interactive
+prompts instead.
 
 ## Power and pull-ups
 
@@ -95,7 +111,7 @@ the physical Vpullup pin; if nothing is on VPU the firmware prints
 `Warning: no voltage on Vpullup pin` and the open-drain lines have no
 idle-high.  On v4 `e2`/`e3` provides the source; on v3 the Vpullup pin must
 be fed externally.  These are base-layer elements — see
-[commands.md](../../generic/commands.md).
+[generic commands](../../generic/commands.md).
 
 Unlike SPI, I2C and 2WIRE, PIC has **no output-type prompt**: it is always
 open-drain, so a pull-up is required (see [wiring.md](wiring.md)).
@@ -104,11 +120,11 @@ open-drain, so a pull-up is required (see [wiring.md](wiring.md)).
 
 | | v3 | v4 |
 |---|---|---|
-| mode number | 8 | 9 |
+| mode number in the default image | 8 | 9 |
 | setup prompts and defaults | present | present |
 | one-line form | present | present |
 | `e` VPU source | — (feed externally) | present |
 
 The two builds ask the same two questions with the same wording.  The v3
-build and its mode number 8 are derived from the v3 build configuration and
-are **not verified** on hardware.
+build and its default mode number 8 are derived from the v3 build
+configuration and are **not verified** on hardware.

@@ -1,8 +1,8 @@
 # PIC — wiring and electrical requirements
 
-Part of the PIC documentation set (`docs/pic/`).  This page owns the full
-wiring table, the pull-up statement, and the programming-voltage question;
-the README carries the headline only.
+Part of the PIC documentation set (`docs/programmers/pic/`).  This page owns
+the full wiring table, the pull-up statement, and the programming-voltage
+question; the README carries the headline only.
 
 ## Signal names used here
 
@@ -22,14 +22,18 @@ mapped on the right.
 |---|---|---|---|
 | CLK | → | **PGC** | program clock, driven by the Bus Pirate |
 | MOSI | ↔ | **PGD** | program data; the mode drives it out and reads it back |
-| CS | → | **VPP/MCLR** | programming-mode control, high-voltage parts only; the host drives it, not terminal mode (see below) |
+| CS | → | **VPP/MCLR** | programming-mode control; high-voltage parts only (see HVPP) |
 | GND | ⏚ | VSS / ground | common ground with the target |
 | 3.3V / 5.0V | → | VDD / VCC | target power (optional; `W` to enable) |
 | VPU (`Vpu`) | in | pull-up voltage reference | the voltage the pull-ups tie PGC/PGD to; not a wire to the PIC |
 
+Do not connect the Bus Pirate supply rail to the target VCC when the target is
+self-powered — that back-feeds one supply into the other.
+
 The mode's own pin table (`v`) prints the two signal names **PGC** for the
-clock and **PGD** for the data, and leaves the CS/MISO columns as `-`.  This
-set writes them as **PGC (CLK)** and **PGD (MOSI)**.
+clock and **PGD** for the data in the clock/data columns, and leaves the
+CS/MISO columns as `-`.  This set writes them as **PGC (CLK)** and
+**PGD (MOSI)**.
 
 PGD is bidirectional: it carries the programming data out and the device's
 reply back in on a read.
@@ -38,7 +42,10 @@ reply back in on a read.
 
 **A pull-up on PGC and PGD is required.**  PIC mode always drives its pins
 open-drain (high = released to the pull-up, low = driven to ground), so with
-no pull-up there is no idle-high and the clocked data is meaningless.
+no pull-up there is no idle-high and the clocked data is meaningless.  With
+no target and the pull-up fitted, both lines idle high, so `(1)` reads all
+ones (see [macros.md](macros.md)); without the pull-up the read value is
+undefined.
 
 Value guidance: **2 kΩ – 10 kΩ** from each line to the logic supply.  The
 Bus Pirate's own on-board pull-ups can serve when a voltage is on VPU:
@@ -51,50 +58,55 @@ open-drain behaviour is fixed.
 
 ## The programming voltage (VPP/MCLR)
 
-Some PIC families need a **high voltage** — typically 6–13 V — on VPP/MCLR
-to enter programming mode (high-voltage ICSP, HVPP).  Others support
-**low-voltage** ICSP (LVPP) and need no high voltage.
+Two entry styles exist:
 
-- The Bus Pirate's own supplies are the 3.3 V and 5.0 V rails (`W`); it
-  cannot generate 6–13 V.  Its outputs are 5 V safe — do not exceed
-  **5.5 V** on PGC, PGD or the VPU pin.
-- For high-voltage parts, apply VPP from an **external 13 V supply** with a
-  switching circuit, or use the Bus Pirate high-voltage programming adapter
-  (a legacy accessory).  PIC **terminal mode does not drive the CS line**;
-  VPP sequencing is a host or adapter function.  The CS pin can still be
-  driven from the terminal through the generic AUX facility (`c`/`C`/`k`/`K`,
-  then `A`/`a`), and the `PIC1` binary protocol has explicit CS switches
-  (`0x18`–`0x1F`).
+- **LVPP (low-voltage ICSP)** — no high voltage.  **Tie MCLR to the target's
+  VDD (or drive it high)** so the part is not held in reset; the Bus Pirate
+  does not drive MCLR.  Use the target's programming specification for the
+  exact level, because some parts differ.
+- **HVPP (high-voltage ICSP)** — many PIC families need **VPP**, typically
+  6–13 V, on VPP/MCLR to enter programming mode.
 
-### High-voltage adapter signals (legacy accessory)
+### HVPP — the high-voltage path
 
-The documented high-voltage adapter uses three further Bus Pirate lines:
+The Bus Pirate cannot generate VPP, and **no Bus Pirate pin is
+VPP-tolerant**.  VPP lives only on the target side of the switching circuit;
+the Bus Pirate drives the switch's control inputs, never the high voltage.
 
-| Bus Pirate pin | Direction | Adapter signal | Notes |
-|---|---|---|---|
-| CS | → | VPP/MCLR | programming-mode control |
-| MISO | → | VPP_CTL | pull-up power enable |
-| AUX | → | VPPEN | programming power enable |
-| VPU | ← | VTARGET | pull-up voltage |
+| Line | Adapter use | Control from |
+|---|---|---|
+| CS | VPP/MCLR (switched) | terminal (assign CS to AUX, then `A`/`a`) or `PIC1` `0x18`–`0x1F` |
+| MISO | VPP_CTL (pull-up power enable) | `PIC1` `0x18`–`0x1F` only |
+| AUX | VPPEN (programming power enable) | terminal `A`/`a` or `PIC1` `0x18`–`0x1F` |
+| VPU | VTARGET (pull-up voltage) | the target's supply |
 
-The legacy adapter is documented as **not compatible with the v4 pinout**.
+- The **legacy high-voltage adapter is v3 pinout only**; it is not compatible
+  with v4.
+- On **v4**, use an external VPP supply plus a switching circuit, and drive
+  its control inputs as in the table.
+- **Terminal mode** can drive CS (by assigning it to AUX) and AUX, but not
+  MISO/VPP_CTL.  The complete adapter therefore needs the `PIC1` binary
+  protocol, which has explicit AUX/MISO/CS switches (`0x18`–`0x1F`).
+- Take VPP sequencing and timing from the target's programming specification.
 
 ## Voltage limit and grounds
 
-The interface is 5 V safe; do not exceed **5.5 V** on PGC/PGD.  The low level
-is driven to ground.  Always share a common ground with the target, and power
-the target (its own supply, or `W`) before reading the device.
+The interface is 5 V safe: **do not exceed 5.5 V** on PGC, PGD, CS, AUX,
+MISO or the VPU pin.  The low level is driven to ground.  Always share a
+common ground with the target, and power the target (its own supply, or `W`)
+before reading the device.
 
 ## v3 / v4
 
 | | v3 | v4 |
 |---|---|---|
+| PIC terminal mode | present (build-only) | present (default image) |
 | PGC / PGD pins | CLK / MOSI | CLK / MOSI |
 | pull-up required | yes | yes |
 | VPU source selection | none — feed externally | `e1` / `e2` / `e3` |
-| `v` pin-row order | `PGC PGD - -` | `- - PGC PGD` |
+| `v` signal row (CLK/MOSI columns) | `PGC PGD - -` | `- - PGC PGD` |
 | on-board pull-up value | documented 2 kΩ (v3a+) | unverified |
 
 The two builds use the same ICSP lines and the same open-drain behaviour; the
-pins simply sit in different columns of the `v` pin row.  v3 wiring and the
-v3 VPU route are **not verified**.
+pins simply sit in different columns of the `v` row.  v3 wiring and the v3
+VPU route are **not verified**.

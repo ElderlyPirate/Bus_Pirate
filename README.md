@@ -41,8 +41,8 @@ This repository represents the hard work of community members to sustain and con
 * Servo driver
 * Can program many AVR microcontrollers
   * Supported by AVRdude
-  * Can emulate the AVR STK500 v2 with alternate ST500 Clone firmware 
-  * Programs FPGAs and CPLDs with alternate XSVF firmware
+  * Can emulate the AVR STK500 v2 (built-in AVRISP-MKII personality)
+  * Programs FPGAs and CPLDs with the built-in XSVF JTAG player
 * Scriptable from Perl, Python, etc.
 * Public domain (Creative Commons Zero) source. Prototype with the Bus Pirate, then use the code in your project however you want. 
 

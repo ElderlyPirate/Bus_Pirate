@@ -18,7 +18,7 @@
       <itemPath>../raw2wire.h</itemPath>
       <itemPath>../raw3wire.h</itemPath>
       <itemPath>../selftest.h</itemPath>
-      <itemPath>../sump.h</itemPath>
+      <itemPath>../protocol_sump/sump.h</itemPath>
       <itemPath>../core_usb/usb_stack.h</itemPath>
       <itemPath>../core_usb/usb_stack_globals.h</itemPath>
       <itemPath>../core_usb/prj_usb_config.h</itemPath>
@@ -83,7 +83,7 @@
       <itemPath>../raw3wire.c</itemPath>
       <itemPath>../selftest.c</itemPath>
       <itemPath>../smps.c</itemPath>
-      <itemPath>../sump.c</itemPath>
+      <itemPath>../protocol_sump/sump.c</itemPath>
       <itemPath>../core_usb/usb_stack.c</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
       <itemPath>../i2c.c</itemPath>
@@ -317,7 +317,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../protocol_sump"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -558,7 +558,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../protocol_sump"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

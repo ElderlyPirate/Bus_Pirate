@@ -25,7 +25,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def extract(name, signature):
-    source = (ROOT / "pic.c").read_text()
+    source = (ROOT / "programmer_pic/pic.c").read_text()
     match = re.search(re.escape(signature) + r"\s*\{", source)
     if not match:
         raise RuntimeError("shape changed: %s not found; update harness" % name)

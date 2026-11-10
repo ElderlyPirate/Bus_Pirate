@@ -13,7 +13,7 @@
       <itemPath>../dio.h</itemPath>
       <itemPath>../hardwarev3.h</itemPath>
       <itemPath>../pc_at_keyboard.h</itemPath>
-      <itemPath>../pic.h</itemPath>
+      <itemPath>../programmer_pic/pic.h</itemPath>
       <itemPath>../core_usb/picusb.h</itemPath>
       <itemPath>../raw2wire.h</itemPath>
       <itemPath>../raw3wire.h</itemPath>
@@ -78,7 +78,7 @@
       <itemPath>../jtag/ports.c</itemPath>
       <itemPath>../core_system/main.c</itemPath>
       <itemPath>../pc_at_keyboard.c</itemPath>
-      <itemPath>../pic.c</itemPath>
+      <itemPath>../programmer_pic/pic.c</itemPath>
       <itemPath>../raw2wire.c</itemPath>
       <itemPath>../raw3wire.c</itemPath>
       <itemPath>../selftest.c</itemPath>
@@ -317,7 +317,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../programmer_pic"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -558,7 +558,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../programmer_pic"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

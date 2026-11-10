@@ -142,8 +142,11 @@ and the `HiZ>` prompt.  See
 
 ### Self-test (`0x10`, `0x11`)
 
-- `0x10` — **short self-test**: every check except those needing an external
-  jumper.
+- `0x10` — **short self-test**: the pass without the external-jumper steps
+  (`ADC` on both boards, `VPU` on v3) and without the full-pass-only
+  `Bus Hi-Z 1` group.  The per-check `0x10` column in
+  [the self-test check reference](../../capabilities/selftest/checks.md)
+  defines it.
 - `0x11` — **full self-test**: every check.  Disconnect the target first and
   fit the same jumpers as the interactive full run: `ADC`→`+3.3 V` on both
   boards, plus `Vpu`→`+5 V` on v3.

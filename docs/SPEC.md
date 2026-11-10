@@ -32,7 +32,7 @@ control are listed here.
 | Frequency counter | x | x | `f` on the AUX pin | ✓ [generic/](generic/README.md) |
 | PWM / servo output | x | x | `g` / `S` on the AUX pin (not in HiZ) | ✓ [generic/](generic/README.md) |
 | Elapsed timer | x | x | `t` / `T` read / reset (µs) | ✓ [generic/](generic/README.md) |
-| Self-test | x | x | `~` (HiZ only) | ✓ [self-test/](capabilities/selftest/README.md) |
+| Self-test | x | x | `~` (HiZ only) | ✓ [selftest/](capabilities/selftest/README.md) |
 
 ## 2. Modes & sub-functions
 
@@ -107,7 +107,7 @@ custom-baud form are v4-only (confirmed in the UART round).
 | OpenOCD JTAG (`0x06`) | x | x | client: OpenOCD | ✓ [jtag/](protocol/jtag/README.md) |
 | XSVF (`0x18`) | - | x | — | ✓ [xsvf/](tools/xsvf/README.md) |
 | AVRISP (`0x08` / `0x09`) | - | x | see §3 | ✓ |
-| Self-test (`0x10` / `0x11`) | x | x | — | ✓ [self-test/](capabilities/selftest/README.md) |
+| Self-test (`0x10` / `0x11`) | x | x | — | ✓ [selftest/](capabilities/selftest/binary.md) |
 
 ## 7. Planned — tbi
 

@@ -1,9 +1,9 @@
 # Self-test — terminal
 
-Part of the self-test documentation set (`docs/self-test/`).  This page covers
-the interactive `~` self-test: how it is entered, the jumper setup it prompts
-for, the output it prints, and how to read a failure.  The per-check reference
-is in [checks.md](checks.md); the scriptable variants are in
+Part of the self-test documentation set (`docs/capabilities/selftest/`).  This
+page covers the interactive `~` self-test: how it is entered, the setup it
+prompts for, the output it prints, and how to read a failure.  The per-check
+reference is in [checks.md](checks.md); the scriptable variants are in
 [binary.md](binary.md).
 
 ## Scope
@@ -35,28 +35,47 @@ The terminal `~` always runs the **full test** — the same test the binary
 layer exposes as `0x11`.  There is no short-test form in the terminal; the
 short test exists only over the binary layer (see [binary.md](binary.md)).
 
-## Jumper setup
+## Setup
 
-The full test measures board pins through external jumper wires, so it
-prompts for them before it starts.  The prompt is board-specific:
+The full test measures board pins through external jumper wires, so it asks
+for them before it starts, then waits for a key.  The prompt is
+board-specific.
 
-| Board | Jumper(s) to place |
-|---|---|
-| v4 | `ADC` pin to `+3.3V` |
-| v3 | `Vpu` pin to `+5V`, and `ADC` pin to `+3.3V` |
+v4:
 
+```
+Disconnect any devices
+Connect (ADC to +3.3V)
+Space to continue
+```
+
+v3:
+
+```
+Disconnect any devices
+Connect (Vpu to +5V) and (ADC to +3.3V)
+Space to continue
+```
+
+| Board | Pins to jumper | Prompt line |
+|---|---|---|
+| v4 | `ADC` to `+3.3V` | `Connect (ADC to +3.3V)` |
+| v3 | `Vpu` to `+5V`, and `ADC` to `+3.3V` | `Connect (Vpu to +5V) and (ADC to +3.3V)` |
+
+- **Disconnect any target** from the header before running — the test drives
+  the Bus Pirate's own pins and supply.
 - **No external pull-up resistor is needed**: the test enables the pull-ups
   itself.  On v3 the `Vpu`→`+5V` jumper is the pull-up reference; on v4 the
   on-board 3.3V pull-up source is used.
-- **Disconnect any target** from the header before running — the test drives
-  the Bus Pirate's own pins and supply.
 - The firmware names the pull-up pin `Vpu` in the prompt and `VPU` in the
   check labels; the rails are `+5V` / `+3.3V` in the prompt and `5V` / `3.3V`
   in the labels.  These are the same pin and the same rails.
+- After the run the board is back in HiZ with the four I/O pins as inputs,
+  the supplies and pull-ups off, and the AUX assignment back to `A0`.
 
-If a jumper is absent, only the checks that use it fail (see
-[checks.md](checks.md) and [edge-cases.md](edge-cases.md)); the rest of the
-test still runs.
+A missing jumper only affects the checks fed from it: a missing `ADC` jumper
+fails `ADC`, and on v3 a missing `Vpu`→`+5V` jumper fails `VPU` and the four
+`Bus Hi-Z 1` pin checks.  The rest of the test still runs.
 
 ## The run (v4, full test)
 
@@ -105,6 +124,7 @@ CS OK
 MODE, VREG, and USB LEDs should be on!
 Any key to exit
 Found 0 errors.
+HiZ>
 ```
 
 How to read the output:
@@ -117,22 +137,20 @@ How to read the output:
 - Each check prints `OK` or `FAIL`, and the run ends with
   `Found <n> errors.` — `0` means no check failed.
 
-Because `~` is the full test, it includes the jumper checks `ADC` and
-`Bus Hi-Z 1`.  Without the jumper, `ADC` prints `FAIL`.
+Because `~` is the full test, it includes the external-jumper checks: `ADC`
+on v4, and `ADC`, `VPU` and the four `Bus Hi-Z 1` pins on v3.
 
 ## Reading a failure
 
 A `FAIL` increments the error count, but the count is reported only as a
-total, so the failed lines are what to read:
+total, so the failed lines are what to read.  The per-check causes are the
+`If it fails` column in [checks.md](checks.md).
 
-| Symptom | Likely cause |
+| Symptom | What it means |
 |---|---|
-| a measurement line prints `FAIL` | the rail or probe is outside the acceptance window |
-| `ADC FAIL` on a full run | the `ADC` jumper is missing or not seated |
-| `VPU FAIL` on a v3 full run | the `Vpu`→`+5V` jumper is missing |
+| one or more jumper checks fail (`ADC`; on v3 also `VPU` and the four `Bus Hi-Z 1` pins) | the matching jumper is missing or not seated |
 | a rail line fails (`5V`, `3.3V`, `Vusb`) | supply fault or a short |
-| a `Bus high` pin fails | that pin is stuck low |
-| a `Bus Hi-Z 1` pin fails | the pin does not pull high |
+| several unrelated checks fail, or results change between runs | a target is still connected, or the board is damaged |
 
 The acceptance window for a voltage check is a fixed band of about ±0.5 V
 around the nominal rail value.  The printed voltage is the measured value;
@@ -143,7 +161,7 @@ failure/recovery cases are in [edge-cases.md](edge-cases.md).
 
 | | v3 | v4 |
 |---|---|---|
-| test coverage | no EEPROM, `Vusb` or internal VPU checks | adds EEPROM and `Vusb` |
+| test coverage | no EEPROM, `Vusb` or internal pull-up rail checks | adds EEPROM, `Vusb` and the internal pull-up rails |
 | supply lines | `5V`, `VPU` (jumper), `3.3V`, `ADC` (jumper) | `Vusb`, `5V`, `5V VPU`, `ADC` (jumper), `3.3V`, `3.3V VPU` |
 | jumper prompt | `Connect (Vpu to +5V) and (ADC to +3.3V)` | `Connect (ADC to +3.3V)` |
 | LED prompt | `MODE and VREG LEDs should be on!` | `MODE, VREG, and USB LEDs should be on!` |
@@ -155,4 +173,5 @@ The v3 column is **not verified** here.
 - [checks.md](checks.md) — every check and what it verifies.
 - [binary.md](binary.md) — the scriptable `0x10` / `0x11` variants.
 - [edge-cases.md](edge-cases.md) — failure modes and recovery.
-- [docs/generic/](../../generic/README.md) — the shared prompt; its "Idle mode (HiZ)" section covers the mode the test requires.
+- [docs/generic/](../../generic/README.md) — the shared prompt; its
+  "Idle mode (HiZ)" section covers the mode the test requires.

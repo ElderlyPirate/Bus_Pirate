@@ -14,8 +14,8 @@ This README is a map, not the manual — the details live in the files below.
 
 | File | Covers |
 |---|---|
-| [terminal.md](terminal.md) | entering with `~` (HiZ only), the jumper setup, the full output, reading a failure |
-| [checks.md](checks.md) | the reference: every check, what it verifies, and the v3/v4 differences |
+| [terminal.md](terminal.md) | entering with `~` (HiZ only), setup, the full output, reading a failure |
+| [checks.md](checks.md) | the reference: every check, what it verifies, the `0x10` split, failure guidance, v3/v4 differences |
 | [binary.md](binary.md) | the scriptable variants: `0x10` short / `0x11` full |
 | [edge-cases.md](edge-cases.md) | failure modes and recovery |
 
@@ -23,15 +23,15 @@ This README is a map, not the manual — the details live in the files below.
 
 - At the `HiZ>` prompt type `~`.  The test runs **in HiZ only**; in any other
   mode it prints `Self-test in HiZ mode only` and does nothing.
-- The terminal `~` always runs the **full test**, which first prompts for a
-  jumper: `Connect (ADC to +3.3V)` on v4, plus `Vpu`→`+5V` on v3.
-- Every line is one check: `<name> OK` or `<name> FAIL`; a measurement check
-  also prints its reading as `name(v.vv)`.
+- The terminal `~` always runs the **full test**.  Jumpers and the target
+  disconnect are in [terminal.md](terminal.md) §Setup.
+- Every **check** line carries a result: `<name> OK` or `<name> FAIL`; a
+  measurement check also prints its reading as `name(v.vv)`.  Group headers
+  (such as `EEPROM`) are printed without a result.
 - The run ends with `Found <n> errors.` — `0` means no check failed.
 - The same test is scriptable over the binary bitbang layer: send `0x10`
-  (short, no jumpers) or `0x11` (full) and read back one byte = the error
-  count.  The MODE LED blinks when there are no errors, and stays on when
-  there are.
+  (short) or `0x11` (full) and read back one byte = the error count.  Which
+  checks each pass covers is the `0x10` column in [checks.md](checks.md).
 - **Disconnect any target first** — the test drives the Bus Pirate's own pins
   and supply.
 
@@ -62,7 +62,9 @@ The full per-check table is in [checks.md](checks.md).
 
 ## Related docs
 
-- [docs/generic/](../../generic/README.md) — the shared prompt and the binary-entry sequence; its "Idle mode (HiZ)" section covers the mode in which the self-test runs.
-- [docs/binary/](../../protocol/binary/README.md) — the binary bitbang layer that carries
-  `0x10` / `0x11`.
-- `docs/SPEC.md` — the capability index.
+- [docs/generic/](../../generic/README.md) — the shared prompt and the
+  binary-entry sequence; its "Idle mode (HiZ)" section covers the mode in
+  which the self-test runs.
+- [docs/protocol/binary/](../../protocol/binary/README.md) — the binary
+  bitbang layer that carries `0x10` / `0x11`.
+- [docs/SPEC.md](../../SPEC.md) — the capability index.

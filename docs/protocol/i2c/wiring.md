@@ -1,53 +1,61 @@
 # I2C — wiring and electrical requirements
 
-Part of the I2C documentation set (`docs/i2c/`).  This page owns the full
+Part of the I2C documentation set (`docs/protocol/i2c/`).  This page owns the
 wiring table and the pull-up statement; the README carries the headline only.
 
 ## Wiring
 
 | Bus Pirate pin | Direction | I2C signal | Notes |
 |---|---|---|---|
-| MOSI | ↔ | SDA (data) | open-drain: the Bus Pirate only pulls it low; the pull-up makes the high |
+| MOSI | ↔ | SDA (data) | open-drain: only pulls low; the pull-up makes the high |
 | CLK | → | SCL (clock) | open-drain, same rule |
 | GND | ⏚ | ground | common ground with the target |
-| VPU (`Vpu`) | in | pull-up voltage reference | the voltage the pull-ups tie SDA/SCL to; **not a wire to the bus** — see below |
+| VPU (`Vpu`) | in | pull-up reference | the voltage the pull-ups tie SDA/SCL to; not a bus wire |
 
-The Bus Pirate's **MISO** pin is not used in I2C mode.  SDA is the pin the mode
-itself labels `SDA` and SCL the one it labels `SCL` in its pin table (`v`).
+The Bus Pirate's **MISO** pin is not used in I2C mode.  SDA is the pin the
+mode labels `SDA` and SCL the one it labels `SCL` in its pin table (`v`).
 
-The two on-board lines are read back by the mode for the bus checks; the
-address scanner and the clock-stretch wait both sample them.
+## The pull-up is required
 
-## The pull-up is required — stated explicitly
-
-**Pull-up resistors on SDA and SCL are mandatory.**  I2C is an open-drain bus:
-every device (including the Bus Pirate) can only pull a line low; the high
-level comes only from the pull-up.  With no pull-up there is no idle-high and
-the classic symptom is that the **address scanner reports a device at every
+**Pull-up resistors on SDA and SCL are mandatory.**  I2C is open-drain: every
+device (including the Bus Pirate) can only pull a line low; the high level
+comes only from the pull-up.  With no pull-up there is no idle-high and the
+classic symptom is that the **address scanner reports a device at every
 address**, because a floating line reads as an ACK.
 
 Value guidance:
 
 | Situation | Pull-up |
 |---|---|
-| General bus | **2 kΩ – 10 kΩ**, one on SDA and one on SCL, to the pull-up voltage |
-| Longer/faster bus or many devices | the lower end (≈ 2 kΩ) for a faster edge |
+| General bus | **2 kΩ – 10 kΩ**, one on SDA and one on SCL, to VPU |
+| Longer/faster bus, many devices | the lower end (≈ 2 kΩ) for a faster edge |
 
-The Bus Pirate's own on-board pull-up resistors can serve as the bus pull-up
-when a voltage is present on VPU (`P`).  The v3a and later boards are
-documented with an on-board 2 kΩ pull-up; older boards need an external
-resistor.  **The on-board value is unverified for v4.**
+### On-board pull-ups (v4)
 
-The bus checks use the pull-up: the scanner and the start condition warn with
-`Warning: *Short or no pull-up` when a line that should have been released to
-the high level is still low (see [bus-operations.md](bus-operations.md)).
+The Bus Pirate's switched on-board pull-ups can serve as the bus pull-up when
+a voltage is present on VPU (`P`):
+
+| Line | On-board resistor |
+|---|---|
+| SDA | 2 kΩ |
+| SCL | 10 kΩ |
+
+External resistors are in parallel with these.  The 10 kΩ SCL value gives a
+slow rise on a loaded bus, so fast modes often need a stronger external SCL
+pull-up: roughly 1.5–2.2 kΩ is a starting point.  Select the value from the
+actual bus capacitance and the sink-current rating, then check the rise and
+the high time at the target.  SDA's 2 kΩ is often sufficient; verify it
+separately.  A stronger pull-up increases the current a slave must sink for
+ACK/data.
+
+The v3 on-board value is not covered here; feed VPU externally (unverified).
 
 ## Output type
 
 I2C is always **open-drain / open-collector** and the mode forces that state;
-there is no `Select output type` prompt (that prompt belongs to SPI, UART and
-the raw modes).  This is why the pull-up is unconditional: the Bus Pirate
-never drives a line high itself.
+there is no `Select output type` prompt (that belongs to SPI, UART and the raw
+modes).  This is why the pull-up is unconditional: the Bus Pirate never drives
+a line high itself.
 
 ## Feeding the pull-up voltage (VPU)
 
@@ -64,18 +72,20 @@ physical **Vpullup** pin.  That pin must already be at the pull-up voltage:
   supply.  (**Not verified**.)
 
 If nothing is on VPU, `P` still enables the pull-ups but prints
-`Warning: no voltage on Vpullup pin`, and the bus has no idle-high.  The
-shared `P`/`e` commands and the VPU routing are documented in
-`docs/generic/` — see [commands.md](../../generic/commands.md).
+`Warning: no voltage on Vpullup pin`, and the bus has no idle-high.  See
+[docs/generic/commands.md](../../generic/commands.md) §Feeding the VPU pin.
 
 The target's own supply (VCC) is separate from VPU: `W` enables the Bus
 Pirate's programmable supply to power the target, while VPU only sets the
-pull-up reference.  Both are base-layer behaviour — see `docs/generic/`.
+pull-up reference.
 
-## Voltage limit
+## Voltage limits
 
-The I2C interface is 5 V safe; do not exceed **5.5 V** on SDA/SCL.  The Bus
-Pirate's own pull-up source is at most the on-board 5.0 V rail.
+The I2C interface and VPU are **5 V class**: the on-board VPU source tops out
+at 5.0 V, and the Vpullup pin is specified as 0–5 V on the reference card.
+Keep external pull-ups and VPU within that range; do not apply more than 5 V.
+The exact absolute-maximum rating of the I/O pins is not documented here
+(unverified).
 
 ## v3 / v4
 
@@ -83,8 +93,8 @@ Pirate's own pull-up source is at most the on-board 5.0 V rail.
 |---|---|---|
 | SDA / SCL pin | MOSI / CLK | MOSI / CLK |
 | pull-up required | yes | yes |
-| on-board pull-up | documented 2 kΩ (v3a+) | unverified |
+| on-board pull-up | not covered (unverified) | SDA 2 kΩ, SCL 10 kΩ |
 | VPU source selection | none — feed externally | `e1` / `e2` / `e3` |
-| on-board EEPROM bus | — | separate internal bus, macros 3/4 (see [eeprom.md](eeprom.md)) |
+| on-board EEPROM bus | — | separate internal bus, macros 3/4 |
 
 v3 wiring and the v3 VPU route are **not verified**.

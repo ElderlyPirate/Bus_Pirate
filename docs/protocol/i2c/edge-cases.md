@@ -1,60 +1,72 @@
 # I2C — edge cases & failure modes
 
-Part of the I2C documentation set (`docs/i2c/`).  Each entry is a concrete
-trigger, the observable symptom, and the recovery.
+Part of the I2C documentation set (`docs/protocol/i2c/`).  Each entry is a
+trigger, the observable symptom, and the recovery.  Timing and bus-error
+detail is owned by [clock-stretching.md](clock-stretching.md).
 
 ## Wiring and pull-ups
 
-| Trigger | Observable symptom | Behaviour / recovery |
+| Trigger | Symptom | Recovery |
 |---|---|---|
-| No pull-ups (or too weak) on SDA/SCL | the address scanner reports a device at **every** address | fit 2 kΩ–10 kΩ pull-ups to the VPU voltage, then re-scan |
-| A line stuck low (short, or target holding it) | start or scan prints `Warning: *Short or no pull-up`; the scanner returns without scanning | clear the short / fit the pull-up, then retry |
-| `P` with no voltage on VPU | pull-ups enable but print `Warning: no voltage on Vpullup pin`; the bus has no idle-high | on v4 select a source with `e2`/`e3` before `P`; on v3 feed VPU externally |
-| `e` while a voltage is already on VPU | `Warning: already a voltage on Vpullup pin` (and a syntax error if the line is malformed) | remove the external source, or leave the source as it is |
+| No pull-ups on SDA/SCL | scanner reports every address | fit 2 kΩ–10 kΩ |
+| A line held low | scanner warns, does not scan | clear the short |
+| Start/stop cannot complete | `I2C bus error` | see clock-stretching.md |
+| `P` with no VPU voltage | `Warning: no voltage on Vpullup pin` | select `e2`/`e3` (v4) |
+| `e` with VPU already powered | `Warning: already a voltage on Vpullup pin` | remove the external source |
+
+The scanner's pre-check is the only place the `*Short or no pull-up` warning
+is printed.  A bus operation that cannot complete reports `I2C bus error`
+instead — it does not print that warning.
 
 ## Read / ACK handling
 
-| Trigger | Observable symptom | Behaviour / recovery |
+| Trigger | Symptom | Behaviour |
 |---|---|---|
-| A read byte followed by a start or stop | `NACK` is printed before the next condition | this is correct: the pending ninth bit is NACKed to end the read |
-| Two reads in a row | the second prints `READ:  ACK <value>` — the ACK belongs to the **first** byte | expected; the ACK for a byte is sent with the next command |
-| A read left unresolved (no following command) | the ninth bit stays pending silently — no warning is printed | send `]` (resolves as NACK and stops) or `[` before doing anything else |
-| Expected a `*(N)ACK PENDING` banner | it never appears | that banner is from an older firmware; the current firmware shows the state only as the `ACK`/`NACK` prefix of the next line |
-| A write issued while a read ACK is pending | the line prints `ACK` then `WRITE: … ACK/NACK` | expected: the write flushes the pending ACK first |
+| Read then start/stop | `NACK` before the condition | the pending bit is NACKed |
+| Two reads in a row | `READ:  ACK <value>` | the ACK is from the first byte |
+| Write after a read | `WRITE: <value> ACK …` | first ACK is the read's |
+| Read left unresolved | no warning | send `]` or `[` to NACK it |
+| `*(N)ACK PENDING` banner | never appears | only the next line shows it |
 
 ## Clock stretching
 
-| Trigger | Observable symptom | Behaviour / recovery |
-|---|---|---|
-| Slave holds SCL low for a slow operation | the byte just takes longer; no error | handled: the driver waits per bit (see [clock-stretching.md](clock-stretching.md)) |
-| Slave holds SCL low longer than the timeout (~25 ms) | the bit is abandoned; an acknowledge slot reports `NACK` | check the slave for a stuck clock; the Bus Pirate is not hung and recovers when the slave releases SCL |
+A slave that holds SCL low is waited on per bit, up to a fixed bound.  On
+timeout the command reports `I2C bus error` and releases both pins.  The
+outcomes, the hardware bus-clear and the binary `0x0A` status are in
+[clock-stretching.md](clock-stretching.md).
 
 ## Macros
 
-| Trigger | Observable symptom | Behaviour / recovery |
+| Trigger | Symptom | Recovery |
 |---|---|---|
-| `(4)` run before `(3)` | nothing happens, no message | run `(3)` first, then `(4)` |
-| `(3)` used once, then the mode is left and re-entered | subsequent bus operations still target the on-board EEPROM | the redirect persists until a reset; reset the Bus Pirate to return to the external bus |
-| `(3)`/`(4)` run on a v3 build | `Unknown macro, try ? or (0) for help` | those macros are v4 only |
-| A number other than 0–4 as a macro | `Unknown macro, try ? or (0) for help` | use `(0)` to list valid macros |
+| `(4)` before `(3)` | nothing | run `(3)` first |
+| `(3)` in Software mode | `Onboard EEPROM requires hardware I2C` | re-enter with `m4 2 <speed>` |
+| `(3)`/`(4)` on v3 | `Unknown macro, try ? or (0) for help` | v4 only |
+| Leave and re-enter after `(3)` | external bus again | redirect is per session |
+| Macro number other than 0–4 | `Unknown macro, try ? or (0) for help` | use `(0)` |
+
+The on-board write protect is separate from the redirect: `(4)` clears it,
+and a reset or a mode change re-asserts it.  See [eeprom.md](eeprom.md).
 
 ## Setup and settings form
 
-| Trigger | Observable symptom | Behaviour / recovery |
+| Trigger | Symptom | Recovery |
 |---|---|---|
-| Expected an `Open drain` / `Normal` prompt on entry | it is not asked | I2C is fixed open-drain; there is no output-type prompt |
-| Typed a settings line echoing the header | rejected or taken as the wrong driver/speed | the header prints the driver and speed **zero-based** (`0` = Software, `0` = first speed); type the menu numbers instead (`1`–`2`, `1`–`4`) |
-| Entering I2C on v3 hardware with an old PIC (rev A3 or earlier) | `WARNING: HARDWARE I2C is broken on this PIC! (REV A3)` | use the Software driver on that board |
+| `mod 2` with `spd 4` | driver/speed prompts restart | use `spd 1`–`3` |
+| Expecting an output-type prompt | it is not asked | fixed open-drain |
+| Typing the zero-based header back | wrong driver/speed | type menu numbers |
+| Old v3 PIC (rev A3 or earlier) | `WARNING: HARDWARE I2C is broken on this PIC! (REV A3)` | use Software |
 
 ## Binary interface
 
-| Trigger | Observable symptom | Behaviour / recovery |
+| Trigger | Symptom | Recovery |
 |---|---|---|
-| `0x08` write-then-read with a count over the terminal buffer (4096 B on v4, 2048 on v3) | reply `0x00`; no bus traffic, no payload consumed | reduce the counts |
-| `0x08` write-then-read with both counts zero | reply `0x00` | request at least one write or read byte |
-| A device NACKs during an `0x08` write phase | reply `0x00` | the firmware aborts without sending a stop — send `0x03` (stop) before starting a new transaction if the bus may be left running |
-| Sniffer (`0x0F`) stopped with a host byte | the stopping byte is consumed by the I2C binary loop, but the following bytes are processed normally | send the next command as usual |
-| Assumed binary I2C follows the interactive driver choice | it never uses the hardware engine | binary I2C is always the software driver |
+| `0x08` zero write count | `0x00`, no payload read | send the address byte |
+| `0x08` count over the buffer | `0x00`, no payload read | ≤ 4096 (v4) / 2048 (v3) |
+| Slave NACK in a write phase | STOP sent; `0x00` | start again normally |
+| Bus timeout in a write phase | pins released; no STOP; `0x0A` = `0x00` | start fresh |
+| Sniffer `0x0F` exited | `0x01` after the exit byte | send the next command |
+| Expecting binary to use the chosen driver | always software | — |
 
 ## Unverified / v3
 

@@ -1,49 +1,90 @@
-# I2C — clock stretching
+# I2C — clock stretching and bus errors
 
-Part of the I2C documentation set (`docs/i2c/`).  This is the headline
-correction to the older published I2C page, which stated that v3 does not
-support clock stretching.  Both the software and the hardware driver handle
-it.
+Part of the I2C documentation set (`docs/protocol/i2c/`).  This page owns the
+per-bit clock-stretch wait, the timeout, pin release, and recovery in both
+drivers.
 
 ## What clock stretching is
 
 I2C slaves may **hold SCL low** after the master releases it, to pause the
-master while they prepare data (clock stretching).  The master must not
-continue until the slave releases SCL.  A master that ignores stretching reads
-garbage from slow devices.
+master while they prepare data.  The master must not continue until the slave
+releases SCL.  A master that ignores stretching reads garbage from slow
+devices.
 
 ## Software driver — per-bit wait, bounded
 
-The Bus Pirate's software (bit-banged) I2C driver waits for the slave to
-release SCL on **every** bit, not only at the acknowledge slot:
+The software (bit-banged) driver waits for SCL to rise on **every** bit, not
+only at the acknowledge slot:
 
-- while **writing** a byte, each bit is held after the clock is raised until
-  SCL reads high again;
-- while **reading** a byte, the data bit is sampled only after SCL is released;
-- the same wait runs for the ACK bit.
+- writing a byte: each bit is held after the clock is released until SCL
+  reads high again;
+- reading a byte: the data bit is sampled only after SCL is released;
+- the acknowledge bit uses the same wait.
 
-A slave that holds SCL low **forever** cannot hang the Bus Pirate.  There is a
-fixed timeout of about **25 ms** (chosen to cover the SMBus timeout minimum and
-slow parts such as the SHT3x family).  After the timeout the bit is abandoned
-and the bus moves on.  If the stuck bit was an acknowledge slot, the read is
-reported as **NACK** (not ACK), so a timed-out acknowledge is never mistaken
-for a valid one.
+The wait is a fixed poll count, not an exact wall-clock deadline.  On the
+documented v4 build it is roughly **25 ms**, enough for parts with long
+stretches such as the SHT3x family.
 
-## Hardware driver
+## Three outcomes
 
-The hardware engine keeps SCL stretching enabled in its control register, so
-stretching is handled by the on-chip I2C peripheral rather than by the firmware
-wait loop.  The hardware path is **not verified**.
+| Outcome | What happens |
+|---|---|
+| SCL is released within the bound | the bit completes and the transfer continues |
+| SCL still low at the bound | abort: both pins released, `I2C bus error`, command abandoned |
+| the next command runs | it starts from a fresh error state; if SCL is still held, it waits and times out again |
+
+A timed-out acknowledge slot is **not** reported as `NACK`.  The read path
+returns an all-ones placeholder (`0xFF`) and the command reports the bus
+error; a write prints no ACK/NACK for the failed byte.
+
+A start that cannot complete because SCL is held:
+
+```
+I2C>[
+I2C bus error
+Syntax error at char 1
+I2C>
+```
+
+The `Syntax error` line is the abandoned command line, not a separate fault.
+
+## Recovery
+
+- **Software driver:** the next bus operation clears the error flag and retries
+  from the current line state.  Clear the cause (release the slave, remove the
+  short) before retrying.
+- **Hardware driver:** the engine uses the same bounded polling budget for
+  every master sequence (start/repeated start, stop, ACK, transmit, receive,
+  and the initial idle-line check).  A bus-collision, write-collision or
+  receive-overflow status bit (`BCL` / `IWCOL` / `I2COV`) aborts the
+  operation: the selected module is disabled, its pins are released, and the
+  pending ACK state is dropped.
+- A new hardware START after a fault re-initialises the bus.  If SDA is still
+  held low (a slave stranded mid-read), that START first attempts the
+  nine-clock bus-clear: nine released-SDA clocks, then a STOP, with a bounded
+  SCL wait on each edge.  If SDA is still held after that, the new START fails
+  too.
+
+## Binary status — `0x0A`
+
+The binary `I2C1` sub-protocol reports the last bus operation with `0x0A`:
+
+| Reply | Meaning |
+|---|---|
+| `0x01` | no bus fault |
+| `0x00` | a timeout or bus fault occurred |
+
+Reading `0x0A` does **not** clear the status; the next bus operation does.
+A bulk write latches a fault for the whole command: the remaining payload is
+consumed and answered NACK without further bus activity.  A normal slave NACK
+is not a bus fault.  The command set is in [binary.md](binary.md).
 
 ## v3 / v4
-
-The per-bit wait lives in the shared bit-bang layer, which is the software
-driver used by **both** boards.  Clock stretching therefore applies to v3
-software I2C as well; the older "v3 does not support clock stretching" claim is
-wrong.  v3 is **not verified**.
 
 | | v3 | v4 |
 |---|---|---|
 | software driver stretch wait | yes | yes |
 | ~25 ms bounded timeout | yes | yes |
-| hardware driver stretch handling | — (no hardware driver in a default build) | yes |
+| hardware driver stretch handling | optional build (not in the default v3 build) | yes |
+
+The v3 column is **not verified**.

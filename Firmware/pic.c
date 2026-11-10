@@ -169,7 +169,8 @@ void pic_cleanup(void) { mode_configuration.int16 = NO; }
 void pic_start(void) {
   mode_info.mode = PIC_MODE_COMMAND;
   MSG_PIC_MODE_COMMAND;
-  user_serial_transmit_character(mode_info.mode == PIC_MODE_6BITS ? '6' : '4');
+  user_serial_transmit_character(mode_info.opcode_bits == PIC_MODE_6BITS ? '6'
+                                                                         : '4');
   mode_configuration.int16 = NO;
   bpBR;
 }

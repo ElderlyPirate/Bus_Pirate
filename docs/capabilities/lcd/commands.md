@@ -1,8 +1,8 @@
 # LCD — command and macro reference
 
-Part of the LCD documentation set (`docs/lcd/`).  This page owns the
-LCD-specific commands, the `(0)` macro set, and the controller instruction
-bytes.
+Part of the LCD documentation set (`docs/capabilities/lcd/`).  This page owns
+the LCD-specific commands, the `(0)` macro set, and the controller
+instruction bytes.
 The shared CLI (prompt, value entry, `W`/`w`, `P`/`p`, `A`/`a`/`@`, `i`,
 `m`, `v`, user macros `<n>`) is documented once in
 [the generic layer](../../generic/README.md) and is not repeated here.
@@ -24,8 +24,9 @@ string is written to the selected target.
 | `}` or `]` | select the **data** register (RS high) | `RS HIGH, DATA MODE` |
 
 All four keys act as simple on/off selectors here — `{`/`[` are equivalent,
-and `}`/`]` are equivalent.  On entry, and whenever `W` runs, the data
-register is selected.
+and `}`/`]` are equivalent.  `W` selects the data register.  On a cold entry
+before `W` the bus is not driven, so the selected register has no effect until
+the supplies are on.
 
 **Naming note:** these are the same keys the base layer calls "start" / "stop"
 wrappers; in LCD they carry no start/stop semantics — they only move RS.
@@ -53,8 +54,20 @@ commands to the controller: select command (`{`) and send the command byte.
 
 ## Reading is not implemented
 
-`r` has no effect in this mode: it prints
-`READ: ERROR: command has no effect here` and reports a command error.  The
+`r` has no effect in this mode.  The mode's read handler prints the base-layer
+error and sets the command error, which the dispatcher follows with the
+syntax-error line:
+
+```
+LCD>r
+READ: ERROR: command has no effect here
+0x00
+Syntax error at char 1
+LCD>
+```
+
+The `0x00` is the dummy value the no-effect read returns; the
+`Syntax error at char 1` line is the dispatcher's, not the mode's.  The
 display's read line and busy flag are never used.  Do not expect `r` to return
 display content.
 
@@ -165,17 +178,20 @@ no validation, so a wrong byte is passed through unchanged.  Defining a custom
 character uses `0x40` and `0x80` with eight data bytes; see
 [usage.md](usage.md).
 
-**Requires verification:** the exact on-display result of hand-written
-instruction bytes is not confirmed (no adapter available); the base byte values
-and option-bit positions above match the HD44780 definitions the firmware uses.
+`unverified`: the exact on-display result of hand-written instruction bytes is
+not confirmed.  The base byte values and option-bit positions match the
+HD44780 definitions the firmware uses.
 
 ## Shared keys that still apply
 
 | Key | In LCD mode |
 |---|---|
-| `W` / `w` | engage / release the supplies and pins (see [entry-and-setup.md](entry-and-setup.md)) |
-| `v` | print the pin/rail table (see [edge-cases.md](edge-cases.md) for the pin-label quirk) |
-| `i`, `m`, `o`, `?` | base-layer info, mode change, display format, help |
+| `W` / `w` | engage / release the supplies and the SPI setup; `w` may leave the pins driven (see [entry-and-setup.md](entry-and-setup.md#supply-release-w)) |
+| `i` | version block plus the standard status block in LCD (see [entry-and-setup.md](entry-and-setup.md#status-output-i-and-v)) |
+| `v` | the pin/voltage table only; same I2C-style labels (see [entry-and-setup.md](entry-and-setup.md#status-output-i-and-v) and [edge-cases.md](edge-cases.md#pin-labels-look-like-i2c)) |
+| `m`, `o`, `?` | base-layer mode change, display format, help |
+| `#` / `m1` | leave for HiZ / reset: `#` is a full terminal reset on v4 and a reboot on v3; `m1` is the HiZ mode ([generic reset rules](../../generic/usage.md#reset-and-the-idle-state)) |
+| `P` / `p` | accepted; enable / disable the Bus Pirate pull-ups, which this mode does not use.  `P` may warn that no voltage is present on the VPU pin (see [wiring.md](wiring.md)) |
 | `A` / `a` / `@` | drive / read the AUX pin |
 | `<n>` | user macros (base-layer storage and replay) |
 

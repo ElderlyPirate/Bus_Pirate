@@ -12,6 +12,7 @@ rot with any edit).
 | ADC probe | `capability_adc/adc.c` — `bp_read_adc()`, `bp_adc_probe()`, `bp_adc_continuous_probe()` |
 | AUX pin, PWM, servo, frequency | `capability_aux/aux_pin.c` — `bp_pwm_setup()`, `bp_servo_setup()`, `bp_frequency_counter_setup()`, `bp_aux_pin_set_low()` / `_high()`, `bp_aux_pin_read()` |
 | Self-test | `capability_selftest/selftest.c` — `perform_selftest()` |
+| LCD (HD44780) adapter | `capability_hd44780/hd44780.c` — `LCDsetup()`, `LCDsetup_exc()`, `LCDwrite()`, `LCDstart()` / `LCDstop()` (register select), `LCDmacro()`, `LCDpins()`, `HD44780_Reset()` / `_Init()` / `_WriteByte()` / `_WriteNibble()` / `_SPIwrite()`; selected by `BP_ENABLE_HD44780_SUPPORT`; registered in `core_system/core.c` (`"LCD"` entry, cleanup `spi_disable_interface`) |
 | Mode registry & callbacks | `core_system/core.c` — protocol table, `bp_current_protocol()`, `bp_protocol_by_index()`, null-callback defaults |
 | Binary layer & SUMP entry | `protocol_binary/binary_io.c` — `enter_binary_bitbang_mode()`, return `0x0F`; `protocol_sump/sump.c` — `enter_sump_mode()`, reset and exit bytes |
 | JTAG, XSVF and OpenOCD | `protocol_jtag/jtag.c` — `jtag()` TAP engine, `jtag_setup()`, state helpers; `tool_xsvf/micro.c` — XSVF player (`xsvfDoXSIR()`, …); `tool_openocd/openocd.c` — `binOpenOCD()` adapter |

@@ -1,25 +1,33 @@
 # LCD — adapter wiring and electrical requirements
 
-Part of the LCD documentation set (`docs/lcd/`).  This page owns the wiring
-table, the adapter chain, and the supply / pull-up statement; the README
-carries the headline only.
+Part of the LCD documentation set (`docs/capabilities/lcd/`).  This page owns
+the wiring table, the adapter, the supply / contrast / pull-up statement; the
+README carries the headline only.
 
 ## Scope
 
 How the 74HCT595 adapter connects the Bus Pirate to an HD44780 display, and
-what electrical conditions the firmware expects.  The adapter is not available
-for testing, so the electrical statements here are derived from the firmware
-and the adapter's documented design and are **unverified**.
+what electrical conditions the firmware expects.  The electrical statements
+here are derived from the firmware and the adapter's published design and are
+`unverified`.
 
-The adapter is third-party hardware built around a **74HCT595** shift
-register.  The firmware does not identify a particular board or revision, so
-treat the specific board and its markings as third-party details to confirm
-(**Requires verification**).
-
-## The adapter chain
+## The adapter
 
 The Bus Pirate has no HD44780 interface of its own.  The mode drives a small
-adapter board that carries a **74HCT595** 8-bit shift register:
+adapter board built around a **74HCT595** 8-bit shift register: the
+**Bus Pirate LCD adapter**.  It is a separate Dangerous Prototypes design, not
+a stock Bus Pirate accessory — build one or buy one:
+
+- Bus Pirate LCD adapter v2 (the v3 design):
+  <http://dangerousprototypes.com/docs/Bus_Pirate_LCD_adapter_v2>
+- Bus Pirate v4 LCD adapter:
+  <http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter>
+
+The firmware does not identify a particular board or revision, so treat the
+specific board, its connector markings and its electrical details as that
+design's own.  The physical pin-out is `unverified` here.
+
+## The adapter chain
 
 ```
 Bus Pirate  --SPI-->  74HCT595  --parallel-->  HD44780
@@ -51,7 +59,8 @@ The active signals are the SPI pins on both v3 and v4; the board-level pin
 order differs, the electrical function does not.  The `v` pin-state row does
 **not** name these signals — the LCD mode reuses the I2C mode's four-label
 string, so those labels are not meaningful here.  See
-[edge-cases.md](edge-cases.md) for the exact labels, which differ by revision.
+[edge-cases.md](edge-cases.md#pin-labels-look-like-i2c) for the exact labels,
+which differ by revision.
 
 **Requires verification:** the adapter's physical connector pin-out — which
 Bus Pirate header pin lands on which adapter pad — is not confirmed here.
@@ -79,22 +88,29 @@ polled — the firmware uses fixed delays between operations instead.
 `bit 0` is the adapter's indicator LED.  Its on/off sense is not confirmed;
 the wiring itself does not depend on it.
 
-## Supply and pull-ups — stated explicitly
+## Supply, contrast and pull-ups
 
-- **No pull-up resistors are required** (unverified — no adapter was
-  checked).  The 74HCT595 has push-pull CMOS outputs that drive the display
-  inputs directly; there is no open-drain bus and no idle-high level to
-  maintain, so `P`/`p` play no role in this mode.  Treat this as a property of
-  the 74HCT595 design rather than of one board.
-- **Power the adapter.**  In the documented design the Bus Pirate's VCC rail
-  (switched on by `W`) supplies the adapter and display, with GND as the common
-  return; but the adapter's own power input — whether it takes VCC from the
-  Bus Pirate header or a separate supply — is board-specific, so confirm it on
-  the adapter (**Requires verification**).  Treat 3.3 V / 5 V compatibility of
-  the display and adapter as a property of that board too.
+- **No pull-up resistors are required** (unverified).  The 74HCT595 has
+  push-pull CMOS outputs that drive the display inputs directly; there is no
+  open-drain bus and no idle-high level to maintain, so `P`/`p` play no role
+  in this mode.  Treat this as a property of the 74HCT595 design rather than
+  of one board.
+- **Power the adapter.**  In the published design the Bus Pirate's VCC rail
+  (switched on by `W`) supplies the adapter and display, with GND as the
+  common return; but the adapter's own power input — whether it takes VCC
+  from the Bus Pirate header or a separate supply — is board-specific, so
+  confirm it on the adapter (**Requires verification**).  Treat 3.3 V / 5 V
+  compatibility of the display and adapter as a property of that board too.
+- **Display contrast (V0).**  Contrast is a display-board adjustment, not a
+  Bus Pirate setting; set V0 per the display's datasheet.  A correctly wired
+  display that stays blank is usually a supply or contrast problem.
 - **`W` must be sent before writes have any chance of reaching the display.**
   Until `W`, the supplies are off and the bus is parked
   (`Clutch disengaged!!!`); the SPI pins are not driven.
+- **The supply can stop again.**  `w`, a mode change and `#` all switch the
+  regulated VCC off; a BP-powered display loses power and clears, while an
+  externally powered display keeps its content
+  ([entry-and-setup.md](entry-and-setup.md)).
 
 ## v3 / v4
 

@@ -1,14 +1,15 @@
 # LCD — worked sessions
 
-Part of the LCD documentation set (`docs/lcd/`).  The sessions below are
-**illustrative and code-derived** — the adapter is not available for testing,
-so the exact on-display result and terminal spacing are **unverified**.  They
-show the command shapes and the replies the firmware produces.
+Part of the LCD documentation set (`docs/capabilities/lcd/`).  The sessions
+below are **illustrative and code-derived**; the on-display result and the
+terminal spacing are `unverified`.  They show the command shapes and the
+replies the firmware produces.
 
 ## First session — enter, power, init, write text
 
-All-protocols build; the LCD entry is 9.  The mode has no setup prompts, so
-entry goes straight to `Ready`:
+All-protocols build; the LCD entry is 9.  The menu form prints the clutch and
+finish-setup lines; the direct `m9` form skips them and goes straight to
+`Ready`:
 
 ```
 HiZ>m
@@ -36,8 +37,8 @@ LCD>
 ```
 
 Initialise the display as a two-line unit, put the cursor home, and write
-text.  The data register is already selected on entry, so no wrapper is
-needed before the string:
+text.  `W` selected the data register, so no wrapper is needed before the
+string:
 
 ```
 LCD>(2) 2
@@ -125,9 +126,10 @@ LCD>
 
 ## Defining a custom character
 
-The firmware has no dedicated custom-character macro, but the controller's own
-data path is available through the two registers.  Define glyph 0, then print
-it:
+With the display powered (`W`) and initialised (`(2)`), the controller's own
+data path is available through the two registers.  The eight row bytes you
+send are the glyph bitmap, one byte per row (five bits wide in a 5×7 cell).
+Define glyph 0, then print it:
 
 ```
 LCD>{
@@ -168,17 +170,18 @@ character-generator RAM, send the eight row bytes (data mode), then send
 `0x80` (command mode) to return to the display, and finally send the character
 code (data mode) to print the glyph.  The controller's address counter
 advances after each byte, so the row bytes are sent in order without
-re-addressing.
+re-addressing.  The on-glass glyph is `unverified`.
 
 ## Reading — not available
 
-`r` has no effect in this mode; the read reports the base-layer error and the
-read value follows on the next line:
+`r` has no effect in this mode.  The read reports the base-layer error and the
+read value, and the dispatcher then appends the syntax-error line:
 
 ```
 LCD>r
 READ: ERROR: command has no effect here
 0x00
+Syntax error at char 1
 LCD>
 ```
 
@@ -195,8 +198,10 @@ Ready
 HiZ>
 ```
 
-Leaving releases the SPI interface; the display keeps its last content until
-it is reset or re-initialised.
+Leaving releases the SPI interface and runs the board reset, which switches
+the regulated VCC off.  If the adapter is powered from the Bus Pirate VCC the
+display clears; if it has its own supply it keeps its last content.  On
+re-entry send `W`, then `(2)` to re-initialise.
 
 ## v3 / v4
 

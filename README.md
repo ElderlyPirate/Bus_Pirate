@@ -6,28 +6,45 @@
 > If you own a Bus Pirate 5 or later, please see https://buspirate.com
 >
 
-The Bus Pirate is an open source hacker multi-tool that talks to electronic stuff.
-It's got a bunch of features an intrepid hacker might need to prototype their next project.
+The Bus Pirate is an open source hacker multi-tool that talks to electronic
+stuff.  It's got a bunch of features an intrepid hacker might need to
+prototype their next project.
 
-This community firmware was forked from the official Dangerous Prototypes firmware for these devices.
-This repository represents the hard work of community members to sustain and continue the legacy of the Bus Pirate v3 and v4 devices.
+This community firmware was forked from the official Dangerous Prototypes
+firmware for these devices.  This repository represents the hard work of
+community members to sustain and continue the legacy of the Bus Pirate v3 and
+v4 devices.
 
-Public domain (Creative Commons Zero) source: prototype with the Bus Pirate, then use the code in your project however you want — see [LICENSE](LICENSE).
+Public domain (Creative Commons Zero) source: prototype with the Bus Pirate,
+then use the code in your project however you want — see [LICENSE](LICENSE).
 
 ## Documentation
 
-One central location: **[docs/](docs/)**.  This README intentionally does not repeat capabilities — the specification does that:
+The documentation lives under **[docs/](docs/)**.  The specification owns the
+full capability matrix and links every set:
 
-* **[docs/SPEC.md](docs/SPEC.md)** — the specification: every mode, function and sub-function (e.g. UART *and* HDUART, SUMP *and* its extended logic analyzer) with its v3/v4 status.  Planned items are marked `tbi`.
-* **[docs/generic/](docs/generic/)** — how to use the prompt (the generic layer: navigation, formatting, macros, elements).
-* per-function documentation under `docs/<function>/` — being consolidated from the existing [Documentation/](Documentation/) files.
-* developer documentation (build, flash, bootloaders, tooling) — see [docs/dev/](docs/dev/).
+* **[docs/SPEC.md](docs/SPEC.md)** — the specification: every mode, function
+  and sub-function (for example UART *and* HDUART) with its v3/v4 status.
+  Planned items are marked `tbi`.
+* **[docs/generic/](docs/generic/)** — how to use the prompt: navigation,
+  formatting, values, macros, wrappers, reads and reset.
 
-*(Documentation restructure in progress — 2026-11.)*
+Sets are grouped by cluster:
+
+| Cluster | Covers |
+|---|---|
+| [docs/protocol/](docs/protocol/) | bus and host protocols |
+| [docs/tools/](docs/tools/) | self-contained tools that ride a protocol |
+| [docs/capabilities/](docs/capabilities/) | hardware capabilities |
+| [docs/programmers/](docs/programmers/) | programmer personalities |
+| [docs/core/](docs/core/) | firmware internals (maintainer-facing) |
+| [docs/dev/](docs/dev/) | build, flash, bootloaders and tooling (maintainer-facing) |
 
 ## Application support
 
-The Bus Pirate is used through a simple terminal interface; these programs can drive it for specific jobs (each covered with its function's documentation):
+The Bus Pirate is used through a simple terminal interface; these programs can
+drive it for specific jobs (each covered in the set for the function it
+drives):
 
 * [AVRDude] — AVR programming via the built-in AVRISP-MKII personality (BPv4)
 * [OpenOCD] — JTAG debugging (binary JTAG mode)
@@ -37,20 +54,22 @@ The Bus Pirate is used through a simple terminal interface; these programs can d
 
 ## Purchasing
 
-> 2025 - If you're looking to purchase an old Bus Pirate v3, or v4.. don't
+> If you're looking to purchase an old Bus Pirate v3, or v4.. don't
 > spend over $30-40 USD. Spend your hard-earned cash on a Bus Pirate 5+ https://buspirate.com
 
 * Bus Pirate v4.0 - *Newer, more space for bigger firmwares*
   * Worldwide: amazon.com has some overpriced old stock boards.
 
-* Bus Pirate v3.6 - *Proven, more well tested*
+* Bus Pirate v3.6 - *Long-standing design*
   * Worldwide: amazon.com has some overpriced old stock boards.
   * Europe: <https://www.robotshop.com/uk/bus-pirate-v36a.html>
   * USA: <https://anibit.com/product/ptt07001>
 
 ## Firmware
 
-Refer to [docs/dev/](docs/dev/) to see how to build and flash this firmware.
+The firmware is built and flashed with the steps in
+[docs/dev/](docs/dev/README.md) — see [building](docs/dev/building.md) and
+[flashing](docs/dev/flashing.md).
 
 [OpenOCD]: http://openocd.org
 [AVRDude]: http://www.nongnu.org/avrdude

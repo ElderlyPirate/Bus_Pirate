@@ -304,10 +304,8 @@ void bp_pwm_setup(void) {
 
   /* Get parameters. */
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  pwm_frequency = getint();
-  consumewhitechars();
-  pwm_period_float = getint();
+  pwm_frequency = getint_with_spaces();
+  pwm_period_float = getint_with_spaces();
 
   valid_arguments = ((pwm_frequency > 0) && (pwm_frequency < 4000) &&
                      ((pwm_period_float > 0) && (pwm_period_float < 100)));
@@ -1074,8 +1072,7 @@ void bp_servo_setup(void) {
   keep_asking = false;
 
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  pwm_period = getint();
+  pwm_period = getint_with_spaces();
   if ((mode_configuration.command_error == YES)|| (pwm_period > 180)) {
     mode_configuration.command_error = NO;
     BPMSG1254;
@@ -1174,4 +1171,12 @@ void stop_timers(void) {
    * +---------------- TON:   Timer OFF.
    */
   T2CON = 0x0000;
+}
+
+
+void bp_aux_pin_reset_state(void) {
+  /* Detach any output source and clear the matching mode flag, so a board
+     reset leaves a consistent idle AUX state instead of a phantom PWM. */
+  AUXPIN_RPOUT = OFF;
+  state.mode = AUX_MODE_IO;
 }

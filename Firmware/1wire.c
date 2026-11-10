@@ -725,8 +725,7 @@ void onewire_setup_prepare(void) {
   mode_configuration.high_impedance = true;
 
   /* Assume standard speed. */
-  consumewhitechars();
-  speed = getint();
+  speed = getint_with_spaces();
   if ((speed > 0) && (speed <= 2)) {
     mode_configuration.speed = speed - 1;
   } else {

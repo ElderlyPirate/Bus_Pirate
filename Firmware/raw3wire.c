@@ -86,12 +86,9 @@ void raw3wire_setup_prepare(void) {
   int output;
   int cs_line_low;
 
-  consumewhitechars();
-  speed = getint();
-  consumewhitechars();
-  cs_line_low = getint();
-  consumewhitechars();
-  output = getint();
+  speed = getint_with_spaces();
+  cs_line_low = getint_with_spaces();
+  output = getint_with_spaces();
 
   user_prompt = !(((speed > 0) && (speed <= 4)) &&
                   ((cs_line_low > 0) && (cs_line_low <= 2)) &&
@@ -114,6 +111,14 @@ void raw3wire_setup_prepare(void) {
 
   mode_configuration.write_with_read = NO;
   mode_configuration.int16 = NO;
+
+  /*
+   * Apply the timing profile here as well: the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with the previous mode's profile.
+   * The pins themselves are still configured by setup_execute().
+   */
+  bitbang_setup(3, mode_configuration.speed);
 }
 
 void raw3wire_setup_execute(void) {

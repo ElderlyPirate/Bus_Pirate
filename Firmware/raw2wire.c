@@ -59,10 +59,10 @@ static void read_atr_header(void);
  */
 static void trigger_atr(void);
 
-uint16_t raw2wire_read(void) { return bitbang_read_value(); }
+uint16_t raw2wire_read(void) { return bitbang_read_value(false); }
 
 uint16_t raw2wire_write(const uint16_t value) {
-  bitbang_write_value(value);
+  bitbang_write_value(value, false);
   return 0x100;
 }
 
@@ -88,10 +88,8 @@ void raw2wire_print_settings(void) {
 }
 
 void raw2wire_setup_prepare(void) {
-  consumewhitechars();
-  int speed = getint();
-  consumewhitechars();
-  int output = getint();
+  int speed = getint_with_spaces();
+  int output = getint_with_spaces();
 
   bool user_prompt =
       !(((speed > 0) && (speed <= 4)) && ((output > 0) && (output <= 2)));
@@ -107,6 +105,14 @@ void raw2wire_setup_prepare(void) {
     mode_configuration.high_impedance = (output - 1) == 0;
     raw2wire_print_settings();
   }
+
+  /*
+   * Apply the timing profile here as well: the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with the previous mode's profile.
+   * The pins themselves are still configured by setup_execute().
+   */
+  bitbang_setup(2, mode_configuration.speed);
 }
 
 void raw2wire_setup_execute(void) {
@@ -154,7 +160,7 @@ void read_atr_header(void) {
 
   MSG_RAW2WIRE_ATR_REPLY_HEADER;
   for (size_t index = 0; index < ATR_HEADER_LENGTH; index++) {
-    buffer[index] = bitbang_read_value();
+    buffer[index] = bitbang_read_value(false);
     if (mode_configuration.little_endian == YES) {
       buffer[index] = bp_reverse_byte(buffer[index]);
     }

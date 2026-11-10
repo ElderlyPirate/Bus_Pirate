@@ -130,10 +130,8 @@ static void write_bits(const uint16_t data, const uint8_t bits);
 static uint16_t read_bits(const uint8_t bits);
 
 void pic_setup_prepare(void) {
-  consumewhitechars();
-  int mode = getint();
-  consumewhitechars();
-  int delay = getint();
+  int mode = getint_with_spaces();
+  int delay = getint_with_spaces();
   bool interactive =
       !(((mode > 0) && (mode <= 2)) && ((delay >= 0) && (delay <= 3)));
 

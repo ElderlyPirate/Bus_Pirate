@@ -3,12 +3,13 @@
 **Status:** draft — v3 is build-only (not verified).
 
 The binary bitbang layer is the Bus Pirate's scriptable, byte-oriented
-protocol. A host program drives the Bus Pirate with single-byte requests
-instead of terminal text: the same hardware is controlled, but the replies
-are raw bytes rather than human-readable lines. The layer is entered from the
-terminal and is how all the binary sub-protocols are reached — SPI, I2C,
-UART, 1-Wire and raw wire, plus the PIC, OpenOCD, XSVF, AVRISP and self-test
-paths.
+protocol. A host program or script drives the Bus Pirate with single-byte
+requests instead of terminal text: the same hardware is controlled, but the
+replies are raw bytes rather than human-readable lines. The layer is entered
+from the terminal and is how the binary sub-protocols are reached — SPI, I2C,
+UART, 1-Wire and raw wire, plus the PIC, OpenOCD, XSVF and AVRISP paths — and
+it also carries the in-layer self-test, PWM, ADC, frequency and edge-wait
+commands.
 
 This README is a map, not the manual; the details live in the files below.
 
@@ -26,18 +27,18 @@ This README is a map, not the manual; the details live in the files below.
   `BBIO1`. There is no prompt.
 - Reply convention: **`0x01` = success/ack · `0x00` = failure**; commands that
   read return data bytes instead.
-- `0x00` re-prints `BBIO1`; `0x0F` resets and returns to the terminal.
-- Sub-protocol entry bytes: `0x01` SPI, `0x02` I2C, `0x03` UART, `0x04`
-  1-Wire, `0x05` raw wire, `0x06` OpenOCD, `0x07` PIC, `0x08`/`0x09` AVRISP,
-  `0x18` XSVF.  Each prints its own identifier (`SPI1`, `I2C1`, `ART1`, `1W01`,
-  `RAW1`, `OCD1`, `PIC1`, `XSV1`) except the AVRISP entries, which print none.
+- `0x00` re-prints `BBIO1` (no state change); `0x0F` returns to the terminal
+  through a reset.
+- Entry bytes and identifiers: see [sub-protocols.md](sub-protocols.md)
+  §Entry bytes.
 - In BBIO1, the pins are driven by one **state byte** (`1xxxxxxx`) and set to
   input/output by a **direction byte** (`010xxxxx`); the `0x70` command waits
   for an edge on the AUX pin.
-- Wiring headline: the layer drives the five header lines **AUX, MOSI, CLK,
-  MISO, CS** plus ground.  Whether a **pull-up is required** depends on the
-  selected sub-protocol and its output type — open-drain output needs a
-  pull-up, push-pull does not; see the wiring page of the active mode and
+- Wiring headline: the layer uses the header lines **AUX, MOSI, CLK, MISO and
+  CS**, plus ground, and the **ADC** and **Vpullup** pins for the ADC and
+  pull-up-feed commands. Whether a **pull-up is required** depends on the
+  selected sub-protocol and its output type — open-drain output needs the
+  pull-up resistors with a Vpu voltage, push-pull does not; see
   [entering-and-framing.md](entering-and-framing.md) §Wiring.
 - Per-mode command maps (speed tables, transfers, sniffers) live in each
   mode's own `binary.md`, linked from
@@ -47,28 +48,46 @@ This README is a map, not the manual; the details live in the files below.
 
 | Group | v3 | v4 |
 |---|---|---|
-| Core (pin I/O, reset, self-test, PWM, ADC, frequency, `0x70`) | present (build-only) | present |
-| SPI / I2C / UART / 1-Wire / raw-wire / OpenOCD / PIC entries | present (build-only) | present |
-| XSVF player (`0x18`) | — (answered with a failure) | present |
-| AVRISP entries (`0x08` / `0x09`) | — (answered with a failure) | present |
-| Pull-up feed (`0x5x`) | — (answered `0x00`) | present |
+| Core (pin I/O, return to terminal, self-test, PWM, ADC, frequency, `0x70`) | present (build-only) | present |
+| SPI / I2C / UART / 1-Wire / raw wire / OpenOCD / PIC entries | present (build-only) | present |
+| XSVF player (`0x18`) | — (answered `0x00`) | present |
+| AVRISP entries (`0x08` / `0x09`) | — (answered `0x00`, then `BBIO1`) | present |
+| Pull-up feed (`0x5x`, sub-protocol modes only) | — (answered `0x00` in the sub-protocol modes; a direction byte in BBIO1) | present |
 
 The v3 column is **not verified** (v3 is build-only here).
 
 ## Limits & out of scope
 
 - This set documents the **binary layer itself**: entry, framing, the reply
-  conventions, and the BBIO1 core command map. The per-protocol command maps
-  are owned by each mode's `binary.md`.
+  conventions, and the BBIO1 core command map. It owns the byte values, reply
+  shapes, framing and v3/v4 availability. The capability pages will own the
+  units, ranges, wiring, side effects and limits of PWM, ADC, frequency and
+  self-test; until those pages are written, this set carries the working units
+  and formulas (see [commands.md](commands.md)).
+- The per-protocol command maps are owned by each mode's `binary.md`.
 - The SUMP logic analyzer is a separate mode with its own entry sequence — see
-  `docs/sump/`.
-- Building and flashing the firmware is a developer topic (`docs/dev/`).
+  [../sump/README.md](../sump/README.md).
+- Building and flashing the firmware is a developer topic — see
+  [../../dev/README.md](../../dev/README.md).
 
 ## Related docs
 
-- [../generic/README.md](../../generic/README.md) — the terminal prompt layer and
-  the binary entry sequence.
-- [../SPEC.md](../../SPEC.md) — the capability matrix.
-- Mode sets: `docs/spi/`, `docs/i2c/`, `docs/uart/`, `docs/1wire/`,
-  `docs/2wire/`, `docs/3wire/`, `docs/pic/`, `docs/jtag/`, `docs/avrisp/`,
-  `docs/self-test/`, `docs/smps/`.
+- [generic/README.md](../../generic/README.md) — the terminal prompt layer
+  and the binary entry sequence.
+- [../../SPEC.md](../../SPEC.md) — the function and capability matrix.
+- Mode sets:
+
+| Set | Page |
+|---|---|
+| SPI | [SPI set](../spi/README.md) |
+| I2C | [I2C set](../i2c/README.md) |
+| UART | [UART set](../uart/README.md) |
+| 1-Wire | [1-Wire set](../wire/1wire/README.md) |
+| 2-Wire | [2-Wire set](../wire/2wire/README.md) |
+| 3-Wire | [3-Wire set](../wire/3wire/README.md) |
+| raw wire binary framing | [shared `RAW1` page](../wire/binary.md) |
+| JTAG (OpenOCD, XSVF) | [JTAG set](../jtag/README.md) |
+| PIC | [PIC set](../../programmers/pic/README.md) |
+| AVRISP-MKII | [AVRISP-MKII set](../../programmers/avrisp/README.md) |
+| self-test | [self-test set](../../capabilities/selftest/README.md) |
+| SMPS | [SMPS set](../../capabilities/smps/README.md) |

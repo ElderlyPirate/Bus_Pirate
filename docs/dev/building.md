@@ -157,9 +157,11 @@ python packstrings.py bus_pirate_v4_strings.txt ../../Firmware/messages_v4 v4
 ```
 
 The third argument is the header include-guard tag
-(`v3` → `BP_MESSAGES_V3_H`).  Run the generator **from `tools/packstrings/`**:
-the `#include bus_pirate_common_strings.txt` line inside the version files is
-resolved relative to the process working directory.
+(`v3` → `BP_MESSAGES_V3_H`).  Run the generator **from `tools/packstrings/`**
+because the output prefixes above are relative to that directory.  The
+`#include bus_pirate_common_strings.txt` line inside the version files is
+resolved relative to the including input file (not the process working
+directory), so the version file itself may be given by any path.
 
 - **Requires verification:** the exact command lines above are derived from
   `packstrings.py`'s argument parsing and the `#include` lines; they are not

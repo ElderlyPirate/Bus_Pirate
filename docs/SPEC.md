@@ -63,7 +63,7 @@ control are listed here.
 | **3WIRE (raw)** | x | x | no macros (by design) | ✓ [3wire/](protocol/wire/3wire/README.md) |
 | **KEYB** | - | x | live input monitor | ✓ [keyboard/](protocol/keyboard/README.md) |
 | **PIC** | x | x | command/data `[`/`]`, devID macro; host tool `picprog` | ✓ [pic/](programmers/pic/README.md) |
-| **DIO** | x | x | 100% pin control | ✓ [dio/](protocol/dio/README.md) |
+| **DIO** | x | x | 100% pin control | ✓ [protocol/dio/](protocol/dio/README.md) |
 | **HD44780 LCD** | off | off | optional build (not in default image) | ✓ [lcd/](capabilities/lcd/README.md) |
 | **SMPS** | off | off | optional **v4** build; legacy external board; binary commands `0xF0`–`0xF2` | ✓ [smps/](capabilities/smps/README.md) |
 

@@ -1,14 +1,15 @@
 # DIO — wiring
 
-Part of the DIO documentation set (`docs/dio/`).  This page owns the pin
-header, the pins DIO controls, and the electrical limits; the README carries
-the headline only.
+Part of the DIO documentation set (`docs/protocol/dio/`).  This page owns the
+pin header, the pins DIO controls, and the electrical limits; the README
+carries the headline only.
 
 ## Wiring
 
-DIO has no bus and needs no external component.  Each of the five controlled
-pins is an independent general-purpose I/O — connect each one to whatever you
-are driving or reading.  Ground is always common with the target.
+DIO has no bus and needs no external component for basic pin control.  Each
+of the five controlled pins is an independent general-purpose I/O — connect
+each one to whatever you are driving or reading.  Ground is always common
+with the target.
 
 | Bus Pirate pin | DIO controls | Value bit |
 |---|---|---|
@@ -18,7 +19,7 @@ are driving or reading.  Ground is always common with the target.
 | `MOSI` | direction + level | bit 3 |
 | `AUX` | direction + level | bit 4 |
 | `GND` | — | common ground with the target |
-| `VCC` | supply | the on-board supply enabled by `W` |
+| `+3.3V` / `+5.0V` | supply rails | the on-board supply enabled by `W` |
 | `Vpu` / `VPU` | pull-up reference | used only if the pull-ups are enabled |
 
 `MISO` is normally a mode *input*; DIO can drive it too, like any other pin.
@@ -61,36 +62,44 @@ only in quoted output.
 The v3 label row is ordered `GND 3.3V 5.0V ADC VPU AUX CS MISO CLK MOSI`; the
 v4 label row is `GND 5.0V 3.3V VPU ADC AUX2 AUX1 AUX CS MISO CLK MOSI`.
 
-## Voltage limit
+## Voltage limits
 
-The I/O pins are 5 V safe; do **not** exceed **5.5 V** on any pin.  The
-on-board supply never exceeds the board's own rail.  Ground must be common
-with the target.
+The I/O pins are **5 V class**: the on-board supply tops out at 5.0 V and the
+Vpullup pin is specified as 0–5 V.  Keep applied signals within 0–5 V and
+ground common with the target.  The exact absolute-maximum rating of the pins
+is not documented here (unverified).
 
 ## Safety
 
-- Do not short the rails (`VCC`, `+3.3V`, `+5.0V`) to ground or to each other;
-  `W` reports `VREG too low, is there a short?` if the rails do not come up.
+- Do not short the rails (`+3.3V`, `+5.0V`) to ground or to each other; `W`
+  reports `VREG too low, is there a short?` if the rails do not come up.
 - Never drive a pin against an external source.  Set a pin to input (its
   direction bit = 1) before attaching a driver to the same net — see
   [edge-cases.md](edge-cases.md).
 
 ## Power and pull-ups
 
+DIO drives its five pins **push-pull only**; it never selects an open-drain
+output type.  As a result the on-board VPU source cannot be selected from DIO:
+`e` (v4) is refused with `WARNING: pins not open drain (HiZ)`, and entering
+DIO also clears any source selected earlier.  Feed the **VPU** pin from an
+external supply on both boards when the pull-ups are used.
+
 | Step | Command | Effect |
 |---|---|---|
-| supply on | `W` | on-board supply on, `Clutch engaged!!!` |
-| supply off | `w` | on-board supply off, `Clutch disengaged!!!` |
-| pull-ups on | `P` | ties the I/O lines to the VPU voltage |
+| supply on | `W` | on-board rails on, `POWER SUPPLIES ON` + `Clutch engaged!!!` |
+| supply off | `w` | rails off, `Clutch disengaged!!!` + `POWER SUPPLIES OFF`; pin directions, levels and pull-ups stay as set |
+| pull-ups on | `P` | ties the I/O lines to VPU; prints `WARNING: pins not open drain (HiZ)` first, then `Pull-up resistors ON` |
 | pull-ups off | `p` | releases the pull-ups |
 
-The pull-ups are optional for DIO.  `P` enables them but warns
-`Warning: no voltage on Vpullup pin` if `VPU` is unpowered; the pull-ups have
-no high reference until `VPU` is fed (`e2` / `e3` on v4, external on v3; see
-[commands.md](../../generic/commands.md)).  A state value with bit 5 set enables
-the pull-ups on its own and does **not** print the warning.  The same two
-functions are also reachable from a state value: bit 6 = power, bit 5 =
-pull-up (see [pin-control.md](pin-control.md)).
+`P` also prints `Warning: no voltage on Vpullup pin` when its single VPU
+sample is low.  A state value with bit 5 set enables the same resistors
+without that warning (and without the open-drain warning).  The pull-ups are
+optional for DIO; without a VPU feed they have no high reference.  See
+[commands.md](../../generic/commands.md) §Feeding the VPU pin.
+
+The same two functions are reachable from a state value: bit 6 = power,
+bit 5 = pull-up (see [pin-control.md](pin-control.md)).
 
 ## v3 / v4
 
@@ -99,7 +108,9 @@ pull-up (see [pin-control.md](pin-control.md)).
 | DIO pins | `AUX` `MOSI` `CLK` `MISO` `CS` | `AUX` `MOSI` `CLK` `MISO` `CS` |
 | extra header pins | — | `AUX1`, `AUX2` (not DIO pins) |
 | supply | on-board VREG via `W` | on-board VREG via `W` |
-| `VPU` source | external only | `e1` / `e2` / `e3` |
+| output type | push-pull only | push-pull only |
+| `e` command | not present | refused in DIO |
+| `VPU` source | external only | external only |
 | pull-up required | no | no |
 
 The v3 column is **not verified**.

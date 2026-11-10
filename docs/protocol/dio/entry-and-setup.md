@@ -1,8 +1,8 @@
 # DIO — entry & setup
 
-Part of the DIO documentation set (`docs/dio/`).  How the mode is entered and
-engaged.  Wiring is in [wiring.md](wiring.md); the write values are in
-[pin-control.md](pin-control.md).
+Part of the DIO documentation set (`docs/protocol/dio/`).  How the mode is
+entered and engaged.  Wiring is in [wiring.md](wiring.md); the write values
+are in [pin-control.md](pin-control.md).
 
 ## Scope
 
@@ -22,8 +22,9 @@ The v3 image has no `KEYB` entry, so every later mode sits one slot lower:
 DIO is entry 10 on v4 and entry 9 on v3.  (The v3 number is unverified.)
 
 As with every mode the menu form is `m`, Enter, then the number; the direct
-form is `m10` (v4) or `m9` (v3).  The shared mode-menu grammar is owned by
-`docs/generic/` — see [navigation.md](../../generic/navigation.md) §Mode menu.
+form is `m10` (v4) or `m9` (v3).  The shared mode-menu grammar is owned
+by `docs/generic/` — see [navigation.md](../../generic/navigation.md) §Mode
+menu.
 
 There is **no settings menu** and no prompt during entry: DIO has nothing to
 configure, so entering it goes straight to the parking lines.  The mode has no
@@ -38,7 +39,7 @@ grammar is in [navigation.md](../../generic/navigation.md) §Mode menu):
 ```
 HiZ>m
 1. HiZ
-2. 1-WIRE
+2. 1WIRE
 3. UART
 4. I2C
 5. SPI
@@ -76,9 +77,14 @@ lines; the direct form does not.  Both leave the bus parked.
 | supply on | `W` | `POWER SUPPLIES ON` + `Clutch engaged!!!` |
 | supply off | `w` | `Clutch disengaged!!!` + `POWER SUPPLIES OFF` |
 
-`W` turns on the on-board supply (VCC).  If the rails do not come up it prints
-`VREG too low, is there a short?` followed by `POWER SUPPLIES OFF` and leaves
-the supply off.
+`W` turns on the on-board supply rails (`+5.0V` / `+3.3V`).  If the rails do
+not come up it prints `VREG too low, is there a short?` followed by
+`POWER SUPPLIES OFF` and leaves the supply off.
+
+`w` turns the supply off and restores the default 8-bit read/write width.  It
+does **not** change pin directions, levels or pull-ups: pins that were
+outputs stay outputs.  To park every pin as an input and return to `HiZ`, use
+`#` instead (see [edge-cases.md](edge-cases.md)).
 
 Unlike the bus modes, DIO has no setup step inside `W`; the supply is the only
 engagement.  Pin writes take effect whether or not `W` was used: the `POWER`

@@ -1,8 +1,9 @@
-# Shared firmware machinery (maintainer note)
+# Shared helper contract (maintainer note)
 
-**Status:** maintainer summary.  This consolidates what is still true from the
-old `Documentation/shared-firmware-machinery.md` page; the rest of that page
-was a PR-era work log (see §Historical).
+**Status:** maintainer summary.  This consolidates the durable helper contract
+from the earlier maintainer page.  It covers four helpers, not the shared
+module layer — USB, bit-bang, messages and EEPROM are
+[docs/core/](../core/README.md).
 
 This page describes the small set of helpers shared by the terminal
 dispatcher, the mode registry, BASIC and the numeric output code, so a future
@@ -10,12 +11,12 @@ change touches them through their accessors rather than the private state.
 
 ## Shared implementations
 
-| Helper | Role |
-|---|---|
-| `bp_current_protocol()` | Resolves the live mode descriptor for terminal and BASIC callbacks.  The protocol table stays private; callers get a `const` descriptor pointer. |
-| `bp_protocol_by_index()` | Same table, indexed — used for mode-menu enumeration. |
-| `getint_with_spaces()` | The single consume-spaces/getint pair used by mode and tool setup prompts, so grammar, cursor/error behavior and buffer mutation are identical everywhere. |
-| `bp_write_dec_word()` | The one out-of-line 16-bit decimal engine; byte output delegates to it.  It keeps the fast literal-division algorithm rather than a generic 32-bit division loop. |
+| Helper | Where | Role |
+|---|---|---|
+| `bp_current_protocol()` | `core_system/core.c` | Resolves the live mode descriptor for terminal and BASIC callbacks.  The protocol table stays private; callers get a `const` descriptor pointer. |
+| `bp_protocol_by_index()` | `core_system/core.c` | Same table, indexed — used for mode-menu enumeration. |
+| `getint_with_spaces()` | `core_system/proc_menu.c` | The single consume-spaces/getint pair used by mode and tool setup prompts, so grammar, cursor/error behavior and buffer mutation are identical everywhere. |
+| `bp_write_dec_word()` | `core_system/base.c` | The one out-of-line 16-bit decimal engine; byte output delegates to it (`bp_write_dec_byte()`).  It keeps the fast literal-division algorithm rather than a generic 32-bit division loop. |
 
 Boundary rules:
 
@@ -27,14 +28,16 @@ Boundary rules:
   strings and numeric output are unchanged by this sharing; no C++ runtime,
   heap allocation or feature removal is involved.
 
-Where these live is in [code-map.md](code-map.md) and the per-module pages'
-maintainer notes.  This page records the contract, not the line numbers.
+Symbol locations are in [code-map.md](code-map.md) (rows "Value entry &
+parsing", "Mode registry & callbacks" and "Numeric formatting & delays").
+This page records the contract, not the line numbers.
 
 ## Native checks
 
 The sharing is pinned by the hardware-free harnesses in `Firmware/tests/`
 (`test_shared_format.py`, `test_protocol_access.py`, `test_messages.py`; see
-[building.md](building.md) §Native tests).  They:
+[building.md](building.md) §Native tests and the suite table in
+[tooling.md](tooling.md)).  They:
 
 - check the live descriptor selection and mode/index pointer identity;
 - check all byte/word decimal values, plus parser result/cursor/error/buffer
@@ -51,15 +54,6 @@ Generated test files stay under `Firmware/build/` and are **not** linked into
 the shipping image.  They do not emulate USB enumeration, hardware interrupts
 or MCU-cycle timing, and they do not claim electrical protocol conformance.
 
-## Historical
-
-The old page opened by requiring branch **#237** (`perf/base-number-math`) to
-merge before it, and described rebasing onto upstream and comparing size at a
-fixed optimisation level.  That text was a work log for the PR that introduced
-the sharing; it is not actionable now that the code is at the repository tip.
-Those build/comparison mechanics are superseded by
-[building.md](building.md).
-
 ## Verification
 
 - Not run for this page; see [verification.md](verification.md) for the
@@ -67,6 +61,7 @@ Those build/comparison mechanics are superseded by
 
 ## Limits & out of scope
 
-- This is not an architecture deep dive for the whole firmware; it covers only
-  the shared helpers above.
+- This is not an architecture deep dive for the whole firmware; the shared
+  module layer is [docs/core/](../core/README.md).  This page covers only the
+  helpers above.
 - Symbol-level location lives in [code-map.md](code-map.md).

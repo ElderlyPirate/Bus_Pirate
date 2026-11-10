@@ -1,16 +1,17 @@
 # 1-Wire — entry & speed
 
-Part of the 1-Wire documentation set (`docs/1wire/`).
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).
 
 ## Scope
 
-How the 1-WIRE mode is entered and how its bus speed is chosen, including the
+How the `1WIRE` mode is entered and how its bus speed is chosen, including the
 in-place `O` toggle.  Wiring is in [wiring.md](wiring.md); bus operations are in
 [bus-operations.md](bus-operations.md).
 
-## Entering 1-WIRE
+## Entering 1-Wire
 
-`1-WIRE` is mode number **2** in the mode menu (HiZ is 1).  There are three
+`1WIRE` is mode number **2** in the mode menu (HiZ is 1).  There are three
 equivalent entries:
 
 | Input | Behaviour | Notes |
@@ -19,15 +20,15 @@ equivalent entries:
 | `m2` | direct entry, runs the setup prompt | no `Clutch` line |
 | `m 2 1` | direct entry, speed supplied on the same line | no `Clutch` line |
 
-The mode menu and the shared entry grammar are owned by `docs/generic/`
-(see [navigation.md](../../../generic/navigation.md) §Mode menu).  After a menu-form
+The mode menu and the shared entry grammar are owned by `docs/generic/` (see
+[navigation.md](../../../generic/navigation.md) §Mode menu).  After a menu-form
 change the firmware prints:
 
 ```
 Clutch disengaged!!!
 To finish setup, start up the power supplies with command 'W'
 Ready
-1-WIRE>
+1WIRE>
 ```
 
 The direct form prints only `Ready` and the prompt.  Until `W` is sent the bus
@@ -38,7 +39,7 @@ The direct form as an example:
 ```
 HiZ>m 2 1
 Ready
-1-WIRE>
+1WIRE>
 ```
 
 The `m2` form runs the same speed prompt; it skips the
@@ -51,12 +52,12 @@ Set speed:
  2. Overdrive (~160kps)
 (1)>1
 Ready
-1-WIRE>
+1WIRE>
 ```
 
 ## The speed setup menu
 
-Entering 1-WIRE asks one question.  The exact firmware wording is:
+Entering 1-Wire asks one question.  The exact firmware wording is:
 
 | Prompt | Option | Text |
 |---|---|---|
@@ -74,11 +75,11 @@ Entering 1-WIRE asks one question.  The exact firmware wording is:
 `O` switches the active speed **without leaving the mode**, so the power
 supplies and the pull-up resistors keep running and any device that has
 already been put into overdrive stays powered.  It is dispatched by the base
-layer but only accepted in 1-WIRE mode.
+layer but only accepted in 1-Wire mode.
 
 | Input | Result |
 |---|---|
-| `O` in 1-WIRE | toggles the speed and prints the new one |
+| `O` in `1WIRE` | toggles the speed and prints the new one |
 | `O` in any other mode (including HiZ) | prints `Command not used in this mode` |
 
 The two printed strings are:
@@ -88,18 +89,17 @@ The two printed strings are:
 1-WIRE speed: standard
 ```
 
-### Why it exists
+### How overdrive is entered and left
 
-A common 1-Wire sequence puts a device into overdrive by sending the
-**Overdrive Skip ROM** command (`0x3C`) at standard speed; from the next reset
-on, the device answers at overdrive speed.  Before `O` existed, moving the Bus
-Pirate to overdrive meant leaving and re-entering the mode, which would drop
-the supplies and reset the device back to standard.  `O` toggles the Bus
-Pirate's side of the speed in place so the two stay in step.
+A common 1-Wire sequence sends the **Overdrive Skip ROM** command (`0x3C`) at
+standard speed.  The parts switch to overdrive timing immediately; send `O`
+before the next reset so the host follows them.  If the next reset runs at
+standard speed, that reset returns the parts to standard.
 
-Note that the **device** side persists overdrive until its own power cycle —
-the Bus Pirate cannot talk a device back to standard over the bus.  `O`
-toggles only the host's timing.
+`O` toggles only the Bus Pirate's timing.  To return the parts to standard,
+toggle `O` to standard and issue a reset (`[` or `{`, at least 480 µs low);
+that reset returns overdrive-capable devices to standard.  A power cycle also
+does it.
 
 ### Example: toggling in place
 
@@ -107,11 +107,11 @@ The toggle on its own (the full sequence is in
 [bus-operations.md](bus-operations.md)):
 
 ```
-1-WIRE>O
+1WIRE>O
 1-WIRE speed: overdrive
-1-WIRE>O
+1WIRE>O
 1-WIRE speed: standard
-1-WIRE>
+1WIRE>
 ```
 
 ## v3 / v4

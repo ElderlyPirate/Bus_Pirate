@@ -1,8 +1,8 @@
 # 1-Wire — wiring and electrical requirements
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  This page owns the
-full wiring table and the pull-up statement; the README carries the headline
-only.
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the full wiring table and
+the pull-up statement; the README carries the headline only.
 
 ## Wiring
 
@@ -20,17 +20,16 @@ Pirate's pull-up ties the data line to, fed by `e2`/`e3` on v4 and by an
 external supply on v3.  If you fit your own pull-up from the data line to a
 supply, you do not need `P`/VPU at all.
 
-The v3 and v4 pin tables differ only in where `OWD` sits in the row (the
-column order follows the board's pin order); the electrical function is the
-same.
+The `OWD` column sits in a different position in the two builds' `v` tables
+(the full tables also differ in width); the electrical function is the same.
 
 ## The pull-up is required — stated explicitly
 
 **A pull-up resistor on the data line is mandatory.**  1-Wire is an
 open-drain bus: the Bus Pirate and every device can only pull the line low;
-the high level comes from the pull-up.  With no pull-up there is no idle-high
-and no device presence pulse, and every reset reports
-`BUS RESET Warning: *No device detected` (see
+the high level comes from the pull-up.  With no pull-up the reset fails —
+usually with `BUS RESET Warning: *Short or no pull-up` if the line stays low,
+or `*No device detected` if it floats high (see
 [bus-operations.md](bus-operations.md)).
 
 Value guidance:
@@ -52,22 +51,13 @@ an external 2 kΩ resistor.  **Treat the 2 kΩ figure as unverified for v4.**
 
 ## Feeding the pull-up voltage (VPU)
 
-`P` connects the Bus Pirate's pull-up resistors between the I/O lines and the
-physical **Vpullup** pin.  That pin must already be at the pull-up voltage:
+This mode ties the **data line** to VPU through the on-board pull-up.  On v4
+select the source with `e2` (3.3 V) or `e3` (5.0 V); on v3 feed Vpullup from
+an external 0–5 V supply.  If nothing is on VPU, `P` still enables the
+pull-ups but prints `Warning: no voltage on Vpullup pin`.
 
-- **v4** — the on-board source is selected with `e`:
-  - `e1` External (or None),
-  - `e2` on-board **3.3 V**,
-  - `e3` on-board **5.0 V**.
-  `e` is only accepted while the pins are open-drain HiZ and no voltage is
-  already on VPU.
-- **v3** — there is no `e`; feed the Vpullup pin from an external 0–5 V
-  supply.  (**not verified**.)
-
-If nothing is on VPU, `P` still enables the pull-ups but prints
-`Warning: no voltage on Vpullup pin`, and the bus has no idle-high.  The
-shared `P`/`e` commands and the VPU routing are documented in
-`docs/generic/` — see [commands.md](../../../generic/commands.md).
+The shared `P`/`e` sequence, the v4 source choices and the ordering rule are
+on the cluster page: [wire protocols](../README.md#power-pull-ups-and-vpu).
 
 ## Bus engagement
 

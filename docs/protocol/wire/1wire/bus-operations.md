@@ -1,11 +1,12 @@
 # 1-Wire — bus operations
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  This page owns the bus
-reset, device detection, the error codes, and the byte/bit operations.
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the bus reset, device
+detection, the error codes, and the byte/bit operations.
 
 ## Scope
 
-On-the-bus behaviour in 1-WIRE mode.  Shared prompt grammar — value entry,
+On-the-bus behaviour in `1WIRE` mode.  Shared prompt grammar — value entry,
 repetition `:N`, width `;N`, the wrappers, `(n)` macros — is owned by
 `docs/generic/` and only the 1-Wire effect is described here.
 
@@ -22,7 +23,7 @@ the line low during the presence window.
 |---|---|
 | `[` | bus reset (then send/read as usual) |
 | `{` | bus reset (start-with-read form; same effect) |
-| `]` / `}` | no bus effect in 1-WIRE |
+| `]` / `}` | no bus effect in 1-Wire |
 
 ### Reset results
 
@@ -83,17 +84,16 @@ device is put into overdrive (see [entry-and-speed.md](entry-and-speed.md)).
 | `.` | read the stored data state (no bus change) |
 | `^` / `^:N` | clock N time slots using the stored data state |
 | `!` / `!:N` | read N bits with clock |
-| `/` | prints `CLOCK, 1`; **no bus effect** in 1-WIRE |
-| `\` | prints `CLOCK, 0`; **no bus effect** in 1-WIRE |
+| `/` | prints `CLOCK, 1`; **no bus effect** in 1-Wire |
+| `\` | prints `CLOCK, 0`; **no bus effect** in 1-Wire |
 
 The labels come from the base layer, but 1-Wire has no discrete clock line, so
 `/` and `\` have no handler in this mode and only print their label.  `^` is
 the real clock: it drives the stored data state for one time slot and samples
 the line, which both sends and receives a bit.
 
-The stored-state model was changed in firmware v5.2: `-` and `_` now only set
-the value used by the **next** `^`; they no longer also send a bit.  A run of
-four high bits is therefore `-^^^^`, not `-^^^`.
+`-` and `_` set the value used by the **next** `^`; they do not send a bit
+themselves.  A run of four high bits is therefore `-^^^^`, not `-^^^`.
 
 ## Worked session
 
@@ -102,34 +102,40 @@ overdrive, toggle the host speed with `O`, read again, toggle back.  Abridged
 to the on-bus commands:
 
 ```
-1-WIRE>W
+1WIRE>W
 POWER SUPPLIES ON
 Clutch engaged!!!
-1-WIRE>e 2
+1WIRE>e 2
 3.3V on-board pullup voltage enabled
-1-WIRE>P
+1WIRE>P
 Pull-up resistors ON
-1-WIRE>{
+1WIRE>{
 BUS RESET  OK
-1-WIRE>(51)
+1WIRE>(51)
 BUS RESET  OK
 READ ROM (0x33): 0x01 0x23 0x45 0x67 0x89 0xAB 0x0C 0x7D
 Unknown device
-1-WIRE>{0x3C
+1WIRE>{0x3C
 BUS RESET  OK
 WRITE: 0x3C
-1-WIRE>O
+1WIRE>O
 1-WIRE speed: overdrive
-1-WIRE>{
+1WIRE>{
 BUS RESET  OK
-1-WIRE>(51)
+1WIRE>(51)
 BUS RESET  OK
 READ ROM (0x33): 0x01 0x23 0x45 0x67 0x89 0xAB 0x0C 0x7D
 Unknown device
-1-WIRE>O
+1WIRE>O
 1-WIRE speed: standard
-1-WIRE>
+1WIRE>{
+BUS RESET  OK
+1WIRE>
 ```
+
+The `{0x3C` line sends a standard-speed reset and the Overdrive Skip ROM byte;
+the parts switch to overdrive immediately, so `O` follows before the next
+reset.  The later `O` back to standard plus the reset returns them to standard.
 
 The `Unknown device` line is the family-code lookup on the first ROM byte
 (`0x01`); the lookup table is in [macros.md](macros.md).

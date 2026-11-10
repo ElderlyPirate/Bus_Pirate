@@ -1,13 +1,15 @@
 # 1-Wire — binary (`1W01`) sub-protocol
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  This page documents the
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page documents the
 binary/host-programming interface to 1-Wire mode.
 
 This page is written from the firmware's command definitions; it is
 unverified.  The general binary layer (entering BBIO, framing, the shared
 commands) is documented in `docs/generic/` (see
-[commands.md](../../../generic/commands.md) §Leaving the CLI) and `docs/binary/` —
-see [entering-and-framing.md](../../binary/entering-and-framing.md),
+[commands.md](../../../generic/commands.md) §Leaving the CLI) and
+`docs/protocol/binary/` — see
+[entering-and-framing.md](../../binary/entering-and-framing.md),
 [commands.md](../../binary/commands.md) and
 [sub-protocols.md](../../binary/sub-protocols.md).
 
@@ -30,7 +32,7 @@ The first nibble of each request byte selects the command group.
 |---|---|---|---|
 | `0x00` | action | exit 1-Wire (back to BBIO) | `BBIO1` |
 | `0x01` | action | version string | `1W01` |
-| `0x02` | action | bus reset | `0x01` (success) |
+| `0x02` | action | bus reset | `0x01` (ack only) |
 | `0x04` | action | read one byte from the bus | one data byte |
 | `0x08` | action | ROM search (macro `(240)`) | `0x01`, then device bytes, then 8 × `0xFF` |
 | `0x09` | action | alarm search (macro `(236)`) | `0x01`, then device bytes, then 8 × `0xFF` |
@@ -44,6 +46,10 @@ The first nibble of each request byte selects the command group.
   returns `0x00`.
 - The bulk-write group sends exactly `n + 1` bytes: `n = 0` sends one byte and
   `n = 15` sends sixteen.
+- **`0x02` (bus reset) always replies `0x01`.**  The reply only acknowledges the
+  request; it does not report presence, an absent device, or a short.  For
+  the reset result use the terminal reset messages (`BUS RESET …`), or read
+  the bus to detect a device.
 
 ### Configure peripherals (`0x4v`)
 
@@ -60,8 +66,8 @@ The low four bits of `v` set the board's state:
 
 The low nibble selects the on-board source feeding the pull-up voltage (VPU);
 the group is shared with the other binary modes (see
-[../binary/sub-protocols.md](../../binary/sub-protocols.md) §Shared command
-groups).
+[docs/protocol/binary/sub-protocols.md](../../binary/sub-protocols.md)
+§Shared command groups).
 
 | Operand | Source |
 |---|---|
@@ -71,7 +77,7 @@ groups).
 
 The reply is `0x01` when the request was applied and `0x00` when it was refused
 (the pins are not open-drain HiZ, or a voltage is already present on VPU).  The
-group exists on v4 only; it is not in the v3 build.
+group is v4 only; on v3 the request returns `0x00`.
 
 ## Worked exchange
 
@@ -81,7 +87,7 @@ The framing for a complete exchange:
 host -> 0x04                 select 1-Wire
 host <- "1W01"
 host -> 0x02                 bus reset
-host <- 0x01                 success
+host <- 0x01                 ack only (no presence/short result)
 host -> 0x04                 read a byte
 host <- <byte>
 host -> 0x14                 bulk-write length 5
@@ -97,5 +103,5 @@ host <- "BBIO1"
 ## v3 / v4
 
 The action, bulk-write and configure commands are the same in both builds.
-The pull-up feed (`0x5x`) is **v4 only**.  This sub-protocol is
-unverified; both columns are from the firmware.
+The pull-up feed (`0x5x`) is **v4 only**; on v3 it returns `0x00`.  This
+sub-protocol is unverified; both columns are from the firmware.

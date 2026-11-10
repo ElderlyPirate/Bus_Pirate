@@ -1,12 +1,12 @@
 # 1-Wire — macros and the device roster
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  This page owns the
-mode macros: the `(0)` list, the ROM commands, and the discovered-device
-roster.
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the mode macros: the `(0)`
+list, the ROM commands, and the discovered-device roster.
 
 ## Scope
 
-The 1-WIRE mode macros, invoked as `(n)`.  Shared user macros `<n>` are a
+The 1-Wire mode macros, invoked as `(n)`.  Shared user macros `<n>` are a
 base-layer feature (see [commands.md](../../../generic/commands.md)) and are not
 repeated here.
 
@@ -109,7 +109,7 @@ line is one greater than the roster number shown for the same device by
 identify the device, not the printed number.
 
 Roster entries live only as long as the mode is active; leaving and re-entering
-1-WIRE clears the roster (a fresh search is needed).
+1-Wire clears the roster (a fresh search is needed).
 
 ## v3 / v4
 

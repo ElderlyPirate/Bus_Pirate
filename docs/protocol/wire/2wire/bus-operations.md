@@ -1,9 +1,11 @@
 # 2WIRE — bus operations
 
-Part of the 2WIRE documentation set (`docs/2wire/`).  This page owns the on-bus
-commands: start/stop, byte read/write, and the bitwise controls.  Shared prompt
-grammar — value entry, repetition `:N`, width `;N`, the wrappers, `(n)` macros
-— is owned by `docs/generic/`; only the 2WIRE effect is described here.
+Part of the [2-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the on-bus commands:
+start/stop, byte read/write, and the bitwise controls.  Shared prompt
+grammar — value entry, repetition `:N`, width `;N`, the wrappers, `(n)`
+macros — is owned by `docs/generic/`; only the 2-Wire effect is described
+here.
 
 ## Start and stop
 
@@ -82,10 +84,10 @@ bits out.
 
 ## Bitwise controls
 
-2WIRE's distinguishing feature over I2C is that the two lines can be driven and
-clocked a bit at a time.  The grammar and firmware wording are shared with the
-base layer (see [commands.md](../../../generic/commands.md) §Transaction wrappers and
-bit ops); the 2WIRE effect is:
+2-Wire's distinguishing feature over I2C is that the two lines can be driven
+and clocked a bit at a time.  The grammar and firmware wording are shared with
+the base layer (see [commands.md](../../../generic/commands.md) §Transaction
+wrappers and bit ops); the 2-Wire effect is:
 
 | Input | Action | Firmware output |
 |---|---|---|

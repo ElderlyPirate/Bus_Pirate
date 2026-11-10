@@ -1,17 +1,23 @@
-# 1-WIRE (Dallas/Maxim)
+# 1-Wire (Dallas/Maxim)
 
-**Status:** draft — available on v3 and v4; v3 is build-only and unverified.
+**Status:** available on v3 and v4; v3 is build-only and unverified.
 
-1-Wire (Dallas/Maxim) is a single-wire bus: one data line plus ground.  This
-mode drives that line, offers standard and overdrive speeds, ROM-search
-macros, and a device roster.  This README is a map, not the manual — the
-details live in the files below.
+Part of the [wire protocol set](../README.md).  1-Wire (Dallas/Maxim) is a
+single-wire bus: one data line plus ground.  This mode drives that line, offers
+standard and overdrive speeds, ROM-search macros, and a device roster.  This
+README is a map, not the manual — the details live in the files below.
+
+**Naming:** the firmware token is `1WIRE` (mode menu, banner and prompt); this
+set writes `1-Wire` in prose and keeps `1-WIRE` inside the firmware's speed
+messages (`1-WIRE speed: overdrive` / `1-WIRE speed: standard`).  The same
+mapping is stated in the
+[generic mode-menu note](../../../generic/navigation.md) §Mode menu.
 
 | File | Covers |
 |---|---|
-| [entry-and-speed.md](entry-and-speed.md) | entering 1-WIRE, the speed setup menu, the in-place `O` toggle |
+| [entry-and-speed.md](entry-and-speed.md) | entering `1WIRE`, the speed setup menu, the in-place `O` toggle |
 | [wiring.md](wiring.md) | the data pin, the **required** pull-up, VPU feeding, v3/v4 |
-| [bus-operations.md](bus-operations.md) | bus reset, device detection, error codes, read/write and bit ops |
+| [bus-operations.md](bus-operations.md) | bus reset, device detection, error codes, read/write and bit operations |
 | [macros.md](macros.md) | ROM macros 51/85/204/236/240, the device roster, the `(0)` list |
 | [timings.md](timings.md) | standard/overdrive reset and bit-slot behaviour |
 | [binary.md](binary.md) | the `1W01` binary sub-protocol (client/host API) |
@@ -42,7 +48,7 @@ supply.
 | required pull-up | yes | yes |
 | in-place `O` toggle | present | present |
 | VPU source `e` | — (feed VPU externally) | `e1` / `e2` / `e3` |
-| binary `1W01` read-peripherals | — | present |
+| binary `1W01` pull-up feed (`0x5x`) | — (request returns `0x00`) | present |
 
 Full per-item detail and the exact wording are in the topic files.
 
@@ -56,3 +62,14 @@ Full per-item detail and the exact wording are in the topic files.
 - Shared prompt grammar (`r`, `W`, `P`, `(n)`, wrappers, bit ops, safe
   reset `#`, bootloader `$`) lives in
   [the generic layer](../../../generic/README.md) and is not repeated here.
+
+## Related docs
+
+- [Wire protocol set](../README.md) — the cluster front door and the shared
+  pull-up/VPU rules.
+- [docs/generic/](../../../generic/README.md) — the shared prompt layer.
+- [docs/SPEC.md](../../../SPEC.md) — the capability and function index.
+- [2-Wire set](../2wire/README.md) and [3-Wire set](../3wire/README.md) —
+  the sibling raw-wire modes.
+- [Raw-wire `RAW1` binary](../binary.md) — the shared 2-/3-wire binary path
+  (1-Wire uses its own `1W01`).

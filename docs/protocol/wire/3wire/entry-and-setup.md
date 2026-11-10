@@ -1,16 +1,18 @@
 # 3WIRE — entry & setup
 
-Part of the 3WIRE documentation set (`docs/3wire/`).  How the mode is entered,
-what it asks, and what the one-line settings form accepts.  Wiring and the
-electrical requirements are in [wiring.md](wiring.md).
+Part of the [3-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  How the mode is entered, what it asks, and
+what the one-line settings form accepts.  Wiring and the electrical
+requirements are in [wiring.md](wiring.md).
 
 ## Entering 3WIRE
 
-`3WIRE` is mode number **7** in the mode menu (HiZ is 1).  The menu form is `m`
-then `7`; the direct form is `m7`.  The number is fixed by the position of the
-mode in the menu (after 2WIRE, before KEYB), so it is 7 on both builds even
-though v3 omits the v4-only modes.  The shared mode-menu grammar is owned by
-`docs/generic/` — see [navigation.md](../../../generic/navigation.md) §Mode menu.
+`3WIRE` is mode number **7** in the mode menu (HiZ is 1).  The menu form is
+`m` then `7`; the direct form is `m7`.  The number is fixed by the position of
+the mode in the menu (after 2-Wire, before KEYB), so it is 7 on both builds
+even though v3 omits the v4-only modes.  The shared mode-menu grammar is owned
+by `docs/generic/` — see [navigation.md](../../../generic/navigation.md)
+§Mode menu.
 
 Entering asks three questions, in this order:
 
@@ -31,10 +33,9 @@ approximate; the four profiles are the same software bit-bang delay profiles
 used by software I2C and 2WIRE.
 
 The **CS** answer sets the chip-select polarity: the `CS` option (menu `1`,
-as opposed to the CS wire) and `/CS` (menu `2`, the default).  Which physical
-level that ends up driving is described in
-[bus-operations.md](bus-operations.md) — the current firmware does not match
-the label.
+as opposed to the CS wire) and `/CS` (menu `2`, the default).  The physical
+level each one drives is described in
+[bus-operations.md](bus-operations.md) §Which level is driven.
 
 The **output type** answer sets the high-impedance state:
 
@@ -129,6 +130,11 @@ The acceptance check for the one-line form is narrow: the speed must be
 `1`–`4`, the CS number `1`–`2` and the output number `1`–`2`.  Anything
 else (including an out-of-range speed) falls back to the interactive prompts.
 
+**`m7 2` is not a one-field form.**  It supplies the speed only; the mode then
+runs all three interactive prompts and discards the typed `2`.  Pressing Enter
+at the prompts therefore selects the defaults (~6kHz, `/CS`, open drain), not
+~60kHz.  Answer all three prompts, or type the complete form `m7 2 2 1`.
+
 ## Power and pull-ups
 
 Entering the mode only parks the bus.  To bring it up:
@@ -136,13 +142,14 @@ Entering the mode only parks the bus.  To bring it up:
 | Step | Command | Effect |
 |---|---|---|
 | engage | `W` | `POWER SUPPLIES ON` + `Clutch engaged!!!` |
-| enable the pull-ups (open drain) | `P` | `Pull-up resistors ON` |
 | source the pull-up voltage (v4) | `e2` / `e3` | `3.3V` / `5.0V` on-board pull-up voltage enabled |
+| enable the pull-ups (open drain) | `P` | `Pull-up resistors ON` |
 | park again | `w` (`p` releases pull-ups) | `Clutch disengaged!!!` |
 
-`P` only works if a voltage is on the VPU pin; on v4 `e2`/`e3` provides it, on
-v3 it must be fed externally.  These are base-layer elements — see
-[commands.md](../../../generic/commands.md) and the 3WIRE notes in
+At `W` the firmware drives CLK and MOSI low and puts CS at its inactive level
+(`/CS` high, `CS` low).  The first `^` therefore starts with a rising edge.
+The shared `P`/`e` commands and the v4 source choices are in
+[commands.md](../../../generic/commands.md); the 3-Wire wiring notes are in
 [wiring.md](wiring.md).
 
 If the mode was entered with **normal** output, `P` prints

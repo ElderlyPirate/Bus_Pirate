@@ -1,9 +1,9 @@
 # 2WIRE — smart cards (ISO 7816-3)
 
-Part of the 2WIRE documentation set (`docs/2wire/`).  This page is the use
-context for the ATR macros: what a contact smart card is, how to wire one to
-the Bus Pirate, and how the ATR flow runs.  The macro mechanics are in
-[macros.md](macros.md).
+Part of the [2-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page is the use context for the ATR
+macros: what a contact smart card is, how to wire one to the Bus Pirate, and
+how the ATR flow runs.  The macro mechanics are in [macros.md](macros.md).
 
 ## Why 2WIRE for a smart card
 
@@ -78,4 +78,4 @@ command; here it is exposed raw, decoded only to the level the firmware decodes.
   drain (with a pull-up), while a card may expect the reader to drive its clock.
   If a card does not answer, the shared output-type setting is worth reviewing.
 - No transport-level ISO 7816-3 support (APDU, T=0/T=1) exists in this mode.
-- The whole smart-card path is **not verified** on hardware.
+- The v3 build is **not verified** (v3 is build-only here).

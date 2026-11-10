@@ -1,8 +1,9 @@
 # 3WIRE — wiring and electrical requirements
 
-Part of the 3WIRE documentation set (`docs/3wire/`).  This page owns the full
-wiring table, the output-type behaviour, and the pull-up statement; the README
-carries the headline only.
+Part of the [3-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the full wiring table, the
+output-type behaviour, and the pull-up statement; the README carries the
+headline only.
 
 ## Wiring
 
@@ -56,26 +57,14 @@ check the data-in pin (MISO), or `v` for the pin states.  See
 
 ## Feeding the pull-up voltage (VPU)
 
-`P` connects the Bus Pirate's pull-up resistors between the I/O lines and the
-physical **Vpullup** pin.  That pin must already be at the pull-up voltage:
+This mode ties all four signal lines to VPU through the on-board pull-ups.  On
+v4 select the source with `e2` (3.3 V) or `e3` (5.0 V); on v3 feed Vpullup
+from an external 0–5 V supply.  If nothing is on VPU, `P` still enables the
+pull-ups but prints `Warning: no voltage on Vpullup pin`, and the open-drain
+bus has no idle-high.
 
-- **v4** — the on-board source is selected with `e`:
-  - `e1` External (or None),
-  - `e2` on-board **3.3 V**,
-  - `e3` on-board **5.0 V**.
-  `e` is only accepted while the pins are open-drain HiZ and no voltage is
-  already on VPU.
-- **v3** — there is no `e`; feed the Vpullup pin from an external 0–5 V
-  supply.  (**Not verified**.)
-
-If nothing is on VPU, `P` still enables the pull-ups but prints
-`Warning: no voltage on Vpullup pin`, and the open-drain bus has no idle-high.
-The shared `P`/`e` commands and the VPU routing are documented in
-`docs/generic/` — see [commands.md](../../../generic/commands.md).
-
-The target's own supply (VCC) is separate from VPU: `W` enables the Bus
-Pirate's programmable supply to power the target, while VPU only sets the
-pull-up reference.
+The shared `P`/`e` sequence, the v4 source choices and the ordering rule are
+on the cluster page: [wire protocols](../README.md#power-pull-ups-and-vpu).
 
 ## Voltage limit
 

@@ -1,8 +1,9 @@
 # 2WIRE — macros
 
-Part of the 2WIRE documentation set (`docs/2wire/`).  This page owns the `(0)`
-macro list and the ISO 7816-3 ATR macros, which are 2WIRE's headline extra.
-The smart-card context behind them is in [smartcard.md](smartcard.md).
+Part of the [2-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page owns the `(0)` macro list and
+the ISO 7816-3 ATR macros, which are 2-Wire's headline extra.  The smart-card
+context behind them is in [smartcard.md](smartcard.md).
 
 ## The macro list — `(0)`
 
@@ -138,11 +139,10 @@ Printed after `Data unit length (bits): `.
 - The protocol field recognises only the high nibbles `8`, `9`, `A` and `F`
   (§The parse).  A standard ATR starts with `TS` = `0x3B` (direct convention)
   or `0x3F` (inverse), whose high nibble is `3`, so a standard card prints
-  `unknown`; the recognised nibbles are the firmware's own set, not the
-  ISO 7816-3 `TS` values (**not verified**).
+  `unknown`.  The decode for the non-`TS` codes is taken from the firmware's
+  own table; a standard ATR does not exercise those codes.
 - The macros print no error when no card answers; the four values are just
   whatever the floating or idle lines read.
-- The ATR path is **not verified** on hardware.
 
 ## v3 / v4
 

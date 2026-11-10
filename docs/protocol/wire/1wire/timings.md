@@ -1,8 +1,9 @@
 # 1-Wire — timing behaviour
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  This page describes the
-observable timing of the two speeds; it states behavioural values, not the
-firmware's internal delay constants.
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  This page describes the observable timing
+of the two speeds; it states behavioural values, not the firmware's internal
+delay constants.
 
 ## Scope
 
@@ -11,13 +12,14 @@ describe device-internal timing.
 
 ## The two speeds
 
-| Speed | Menu | Nominal rate (firmware wording) |
+| Speed | Menu | Nominal rate |
 |---|---|---|
 | standard | `1` | ~16.3 kbps |
 | overdrive | `2` | ~160 kbps |
 
-Overdrive is roughly ten times faster.  The speed is chosen at mode entry and
-can be toggled in place with `O` (see
+The menu labels are nominal.  The implemented slot timings are the table
+below, about five to six times shorter in overdrive.  The speed is chosen at
+mode entry and can be toggled in place with `O` (see
 [entry-and-speed.md](entry-and-speed.md)).
 
 ## Reset pulse
@@ -38,7 +40,7 @@ timing.
 ## Bit slots
 
 Each bit is one time slot; the same slot shape is used to send and to receive.
-Nominal slot widths (a `^:255` burst):
+Nominal slot widths:
 
 | Speed | Bit sent | Slot period | Data-low time |
 |---|---|---|---|
@@ -51,18 +53,20 @@ Observable properties:
 
 - A write-0 slot is mostly low; a write-1 slot is a short low pulse followed
   by a long high (release) period.
-- Standard slots are about five to six times longer than overdrive slots,
-  matching the ~10× nominal speed difference once the release/recovery margins
-  are included.
+- Standard slots are about five to six times longer than overdrive slots.
 - The `1` slot has a much shorter low time than the `0` slot at both speeds,
   which is what lets a device distinguish the two by measuring the low time.
 
-## Overdrive persistence
+## Overdrive
 
-Overdrive is a property of the **device** as well as the host.  A device put
-into overdrive stays there until its own power is cycled; the host cannot talk
-it back to standard over the bus.  `O` toggles only the Bus Pirate's timing,
-so the host must follow the device.
+Overdrive is a property of the **device** as well as the host.  The Overdrive
+Skip ROM command (`0x3C`) switches the parts to overdrive immediately; the
+host must send `O` before the next reset to follow them.  If a reset runs at
+standard speed, it returns overdrive-capable devices to standard.
+
+`O` toggles only the Bus Pirate's timing.  To return the parts to standard,
+toggle `O` to standard and issue a reset (`[` or `{`, at least 480 µs low); a
+power cycle also does it.
 
 ## v3 / v4
 

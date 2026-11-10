@@ -1,7 +1,8 @@
 # 1-Wire — edge cases & failure modes
 
-Part of the 1-Wire documentation set (`docs/1wire/`).  Each entry is a
-concrete trigger, the observable symptom, and the recovery.
+Part of the [1-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  Each entry is a concrete trigger, the
+observable symptom, and the recovery.
 
 ## Bus and reset
 
@@ -10,9 +11,8 @@ prefix `BUS RESET Warning: `; the `P`-command warning has no prefix.
 
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
-| No pull-up, or VPU unpowered | `*No device detected` | fit the pull-up; put a voltage on VPU; retry |
-| VPU unpowered while `P` runs | `Warning: no voltage on Vpullup pin` | supply VPU (`e2`/`e3` on v4; external on v3) |
-| Data line shorted low, or pull-up weak/missing | `*Short or no pull-up` | clear the short or fit the pull-up; retry |
+| No pull-up, VPU unpowered, or the line held low | `*Short or no pull-up` if the line stays low; `*No device detected` if it floats high | fit the pull-up and supply VPU (`e2`/`e3` on v4; external on v3); retry |
+| VPU unpowered while `P` runs | `Warning: no voltage on Vpullup pin` | supply VPU first, then enable the pull-ups |
 | Device unpowered or not on common ground | `*No device detected` | power the target; share ground |
 | `r` read with the line never high | `READ: 0x00` | the all-zero read is a floating/low line, not a device value; check the pull-up |
 
@@ -20,15 +20,15 @@ prefix `BUS RESET Warning: `; the `P`-command warning has no prefix.
 
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
-| `O` typed outside 1-WIRE (or in HiZ) | `Command not used in this mode` | `O` is accepted only in 1-WIRE |
-| Host standard, device in overdrive | reads/writes fail or are garbage | device overdrive lasts until its power cycle; match or power-cycle |
-| Overdrive device, mode re-entered | device overdrive, host standard (or vice versa) | use `O` to match the device instead of leaving |
+| `O` typed outside `1WIRE` (or in HiZ) | `Command not used in this mode` | `O` is accepted only in `1WIRE` |
+| Host standard, device in overdrive | reads/writes fail or are garbage | toggle `O` to overdrive to match; or toggle `O` to standard and issue a reset (`[`/`{`, at least 480 µs low); a power cycle also returns the device to standard |
+| Overdrive device, mode re-entered | device overdrive, host standard (or vice versa) | use `O` to match the device instead of leaving; a standard reset returns the device to standard |
 
 ## Bit and byte operations
 
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
-| `-^^^` as four high bits (pre-5.2) | only three bits sent / off by one | since v5.2 use `-^^^^`; `-`/`_` sets the next `^` |
+| `-^^^` expected to send four high bits | only three bits sent / off by one | `-`/`_` set the next `^` only; four high bits is `-^^^^` |
 | `/` or `\` used to "clock" the bus | prints `CLOCK, 1` / `CLOCK, 0`; no bus change | no clock line; use `^` (`-`/`_` sets the bit) |
 | `.` expected to touch the bus | prints `DATA STATE: 0` / `1` and returns | `.` reads the stored value only; no bus drive |
 
@@ -52,7 +52,7 @@ prefix `BUS RESET Warning: `; the `P`-command warning has no prefix.
 ## Unverified paths
 
 - The 1-Wire **failure** outputs (`*No device detected`, `*Short or no
-  pull-up`) are the firmware's messages, and are unverified.  The no-pull-up
+  pull-up`) are the firmware's messages and are unverified.  The no-pull-up
   `READ: 0x00` symptom is likewise unverified.
 - All search/roster macros and the `1W01` binary sub-protocol are documented
   from the firmware and are unverified.

@@ -1,14 +1,16 @@
 # 2WIRE — entry & setup
 
-Part of the 2WIRE documentation set (`docs/2wire/`).  How the mode is entered,
-what it asks, and what the one-line settings form accepts.  Wiring and the
-electrical requirements are in [wiring.md](wiring.md).
+Part of the [2-Wire documentation set](README.md) in the
+[wire protocol set](../README.md).  How the mode is entered, what it asks, and
+what the one-line settings form accepts.  Wiring and the electrical
+requirements are in [wiring.md](wiring.md).
 
 ## Entering 2WIRE
 
-`2WIRE` is mode number **6** in the mode menu (HiZ is 1).  The menu form is `m`
-then `6`; the direct form is `m6`.  The shared mode-menu grammar is owned by
-`docs/generic/` — see [navigation.md](../../../generic/navigation.md) §Mode menu.
+`2WIRE` is mode number **6** in the mode menu (HiZ is 1).  The menu form is
+`m` then `6`; the direct form is `m6`.  The shared mode-menu grammar is owned
+by `docs/generic/` — see [navigation.md](../../../generic/navigation.md)
+§Mode menu.
 
 Entering asks two questions, in this order:
 
@@ -107,6 +109,11 @@ So `R2W (spd hiz)=( 1 1  )` is the second speed + open drain, and the form is a
 *display* of the current settings, not the text to type back.  Type the menu
 numbers (`1`–`4` and `1`–`2`).
 
+**`m6 2` is not a one-field form.**  It supplies the speed only; the mode then
+runs both interactive prompts and discards the typed `2`.  Pressing Enter at
+the prompts therefore selects the default ~6kHz open-drain setting, not
+~60kHz.  Answer both prompts, or type the complete form `m6 2 1`.
+
 ## Power and pull-ups
 
 Entering the mode only parks the bus.  To bring it up:
@@ -120,9 +127,9 @@ Entering the mode only parks the bus.  To bring it up:
 
 `P` only works if a voltage is on the VPU pin; on v4 `e2`/`e3` provides it, on
 v3 it must be fed externally.  **Feed VPU before `P`** — running `P` first on
-v4 only prints `Warning: no voltage on Vpullup pin`.  These are base-layer
-elements — see [commands.md](../../../generic/commands.md) and the 2WIRE notes in
-[wiring.md](wiring.md).
+v4 only prints `Warning: no voltage on Vpullup pin`.  The shared `P`/`e`
+commands are in [commands.md](../../../generic/commands.md); the 2-Wire wiring
+notes are in [wiring.md](wiring.md).
 
 If the mode was entered with **normal** output, `P` prints
 `WARNING: pins not open drain (HiZ)` because driven pins make the pull-up

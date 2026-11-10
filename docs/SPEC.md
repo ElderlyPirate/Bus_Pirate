@@ -105,7 +105,7 @@ custom-baud form are v4-only (confirmed in the UART round).
 | SPI / I2C / UART / 1-Wire / RAW sub-protocols | x | x | per-protocol libraries as clients | ✓ |
 | PIC (`0x07`) | x | x | — | ✓ |
 | OpenOCD JTAG (`0x06`) | x | x | client: OpenOCD | ✓ [jtag/](protocol/jtag/README.md) |
-| XSVF (`0x18`) | - | x | — | ✓ |
+| XSVF (`0x18`) | - | x | — | ✓ [xsvf/](tools/xsvf/README.md) |
 | AVRISP (`0x08` / `0x09`) | - | x | see §3 | ✓ |
 | Self-test (`0x10` / `0x11`) | x | x | — | ✓ [self-test/](capabilities/selftest/README.md) |
 

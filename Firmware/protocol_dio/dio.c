@@ -42,4 +42,16 @@ void dio_setup_prepare(void) {
 	mode_configuration.write_with_read = NO;
 }
 
+void dio_cleanup(void) {
+    /* Release the header before removing bias or clearing output latches. */
+    IODIR |= AUX | MOSI | CLK | MISO | CS;
+    bp_disable_pullup();
+#ifdef BUSPIRATEV4
+    bp_disable_3v3_pullup();
+#endif /* BUSPIRATEV4 */
+    IOLAT &= ~(AUX | MOSI | CLK | MISO | CS);
+    mode_configuration.numbits = 8;
+    mode_configuration.int16 = NO;
+}
+
 #endif /* BP_ENABLE_DIO_SUPPORT */

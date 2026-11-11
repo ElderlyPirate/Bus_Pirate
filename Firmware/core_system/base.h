@@ -182,8 +182,11 @@ void bp_reset_board_state(void);
 /**
  * @brief Reads a value from the ADC on the given channel.
  *
- * @warning this function assumes the ADC is already enabled, and will not turn
- *          it on or off.
+ * @warning Requires an initialized, foreground-owned manual ADC, with no
+ *          concurrent auto-sampling/interrupt owner. The converter is restarted
+ *          internally to retire pending results and select the requested input
+ *          before sampling. It remains enabled on return; the caller disables
+ *          it when the manual measurement session is complete.
  *
  * @param[in] channel the channel to read data from.
  * @return the value read from the channel.

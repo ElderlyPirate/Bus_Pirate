@@ -250,15 +250,24 @@ void bp_reset_board_state(void) {
 }
 
 uint16_t bp_read_adc(const uint16_t channel) {
-
-  /* Set channel. */
+  /* Retire the previous owner's transaction before selecting a new input. */
+  AD1CON1bits.ADON = OFF;
   AD1CHS = channel;
+  AD1CON1bits.DONE = OFF;
+  AD1CON1bits.ADON = ON;
 
-  /* Trigger sample. */
+  /* DS39705B 17.4.5: analog startup precedes sampling (300ns typical).
+   * Five cycles provide at least 312.5ns at the maximum 16MHz FCY. */
+  Nop();
+  Nop();
+  Nop();
+  Nop();
+  Nop();
   AD1CON1bits.SAMP = ON;
 
-  /* Clear "done" flag. */
-  AD1CON1bits.DONE = OFF;
+  /* A prior DONE is not completion of this input's acquisition. */
+  while (AD1CON1bits.SAMP == ON) {
+  }
 
   /* Wait for conversion to finish. */
   while (AD1CON1bits.DONE == OFF) {

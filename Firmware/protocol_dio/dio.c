@@ -38,8 +38,8 @@ unsigned int dio_write(unsigned int value) {
         bitbang_pin_direction_set(value);
 }
 
-#endif /* BP_ENABLE_DIO_SUPPORT */
-
 void dio_setup_prepare(void) {
 	mode_configuration.write_with_read = NO;
 }
+
+#endif /* BP_ENABLE_DIO_SUPPORT */

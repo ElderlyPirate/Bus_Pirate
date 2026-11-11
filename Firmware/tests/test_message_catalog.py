@@ -222,7 +222,7 @@ int main(void){
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--revision')
-    p.add_argument('--case',choices=('inventory','regen','colors','crlf','packed','agree','cdc_zero','uart_fields','generator','help','nested'))
+    p.add_argument('--case',choices=('inventory','regen','colors','crlf','packed','agree','cdc_zero','uart_fields','generator','help','nested','keyboard_timeout'))
     p.add_argument('--dump',type=Path)
     args=p.parse_args()
     src=source('messages.c',args.revision)
@@ -273,6 +273,26 @@ def main():
         for board,table in tables.items():
             assert all(b'\n\r' not in v for v in table.values()),board
         print('PASS both-board catalog line endings are CRLF, not reversed LFCR',flush=True)
+    if wanted('keyboard_timeout'):
+        name='MSG_KEYBOARD_ERROR_TIMEOUT'
+        for board in tables:
+            assert tables[board][name]==b' TIMEOUT' and flags[board][name],board
+            prefix=PREFIX.replace('static uint8_t answer;','').replace('static uint8_t user_serial_read_byte(void){return answer;}','')
+            body=source('messages_'+board+'.h',args.revision)+'\n'+function(src,'bp_message_write_buffer')+'\n'+function(src,'bp_message_write_line')
+            test=r'''
+int main(void){
+ static const uint8_t text[]=" TIMEOUT";
+ data=text;length=sizeof(text)-1;base=0x200;label="MSG_KEYBOARD_ERROR_TIMEOUT_str";
+ const char *head="READ: ",*tail="0x00";
+ while(*head)user_serial_transmit_character(*head++);
+ MSG_KEYBOARD_ERROR_TIMEOUT;
+ while(*tail)user_serial_transmit_character(*tail++);
+ const char expected[]="READ:  TIMEOUT\r\n0x00";
+ assert(used==sizeof(expected)-1 && !memcmp(output,expected,used));
+ puts("PASS keyboard timeout emits one CRLF before the formatted read value");
+}
+'''
+            compile_run(prefix,body,test,'keyboard_timeout_'+board)
     if wanted('packed'):
         for board in tables:packed(src,source('messages_'+board+'.h',args.revision),tables[board],flags[board],board)
     if wanted('nested'):nested(src)

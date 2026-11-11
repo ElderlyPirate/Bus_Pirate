@@ -95,7 +95,6 @@ static i2c_state_t i2c_state = {0};
 
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 /**
  * Handles a pending acknowledgement by sending either an ACK or a NACK on the

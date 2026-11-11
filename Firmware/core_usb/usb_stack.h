@@ -86,16 +86,15 @@ or send a letter to
 #define USB_REQUEST_SET_INTERFACE               11
 #define USB_REQUEST_SYNCH_FRAME                 12
 
-typedef enum
+/* Active state-byte encodings; keep their values stable for all consumers. */
+enum
 {
 DETACHED_STATE          = 0x00,                         
 ATTACHED_STATE          = 0x01,                         
-POWERED_STATE           = 0x02,                         
 DEFAULT_STATE           = 0x04,                         
-ADR_PENDING_STATE       = 0x08,                         
 ADDRESS_STATE           = 0x10,                         
 CONFIGURED_STATE        = 0x20                        
-} USB_DEVICE_STATE;
+};
 
 
 /* Structs for defining endpoints */

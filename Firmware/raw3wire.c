@@ -30,7 +30,6 @@
 #define R3WMISO_TRIS BP_MISO_DIR
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 /**
  * Raw 3 Wire mode chip select initial line state.

@@ -44,7 +44,6 @@
 #define SPICS_RPIN BP_CS_RPIN
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 extern bus_pirate_configuration_t bus_pirate_configuration;
 
 typedef enum {

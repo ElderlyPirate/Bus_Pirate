@@ -206,7 +206,6 @@ typedef enum {
 
 extern bus_pirate_configuration_t bus_pirate_configuration;
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 typedef struct {
   uint16_t from;

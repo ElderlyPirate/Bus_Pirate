@@ -94,12 +94,6 @@ typedef struct {
 
 } __attribute__((packed)) mode_configuration_t;
 
-typedef struct {
-  uint16_t num;
-  uint16_t repeat;
-  uint8_t cmd;
-} __attribute__((packed)) command_t;
-
 /**
  * @brief Reverses the bits in the given value and returns it.
  *

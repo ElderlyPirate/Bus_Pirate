@@ -55,11 +55,6 @@ bus_pirate_configuration_t bus_pirate_configuration = {.terminal_input =
  */
 mode_configuration_t mode_configuration;
 
-/**
- * The last command being input by the user.
- */
-command_t last_command;
-
 #define FIRMWARE_SIGNATURE 0x31415926
 
 #ifdef BUSPIRATEV4

@@ -39,7 +39,6 @@ typedef enum {
 } raw2wire_macro_identifier_t;
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 static const uint32_t DATA_UNIT_LENGTH_TABLE[14] = {
     128,   256,   512,   1024,   2048,   4096,   8192,

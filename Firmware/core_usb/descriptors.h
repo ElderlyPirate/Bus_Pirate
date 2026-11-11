@@ -54,7 +54,7 @@ ROMPTR const unsigned char cdc_config_descriptor[] = {
         0x01,                                           // bConfigurationValue
         0x00,                                           // iConfiguration (0=none)
         0x80,                                           // bmAttributes (0x80 = bus powered)
-        0x64,                                           // bMaxPower (in 2 mA units, 50=100 mA)
+        0x64,                                           // bMaxPower (100 x 2 mA = 200 mA)
               //Interface0 descriptor starts here
         0x09,                                           // bLength (Interface0 descriptor starts here)
         USB_INTERFACE_DESCRIPTOR_TYPE,                  // bDescriptorType

@@ -390,7 +390,7 @@ void MSG_KEYBOARD_ERROR_STARTBIT_str(void);
 void MSG_KEYBOARD_ERROR_STOPBIT_str(void);
 #define MSG_KEYBOARD_ERROR_STOPBIT bp_message_write_line(__builtin_tbladdress(MSG_KEYBOARD_ERROR_STOPBIT_str))
 void MSG_KEYBOARD_ERROR_TIMEOUT_str(void);
-#define MSG_KEYBOARD_ERROR_TIMEOUT bp_message_write_buffer(__builtin_tbladdress(MSG_KEYBOARD_ERROR_TIMEOUT_str))
+#define MSG_KEYBOARD_ERROR_TIMEOUT bp_message_write_line(__builtin_tbladdress(MSG_KEYBOARD_ERROR_TIMEOUT_str))
 void MSG_KEYBOARD_ERROR_UNKNOWN_str(void);
 #define MSG_KEYBOARD_ERROR_UNKNOWN bp_message_write_line(__builtin_tbladdress(MSG_KEYBOARD_ERROR_UNKNOWN_str))
 void MSG_KEYBOARD_LIVE_INPUT_START_str(void);

@@ -25,7 +25,6 @@
 #include "uart2.h"
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 #define UART_COMMON_BAUD_RATES_COUNT 15
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25

@@ -27,6 +27,9 @@
 
 #ifdef BUSPIRATEV4
 #include "core_usb/cdc.h"
+#ifdef BP_ENABLE_SMPS_SUPPORT
+#include "smps.h"
+#endif /* BP_ENABLE_SMPS_SUPPORT */
 #endif /* BUSPIRATEV4 */
 
 /**
@@ -172,6 +175,19 @@ void bp_reset_board_state(void) {
   BP_MISO_DIR = INPUT;
   BP_CS_DIR = INPUT;
   BP_AUX0_DIR = INPUT;
+#ifdef BUSPIRATEV4
+  /* Release GPIO before removing peripheral ownership or clearing latches. */
+  BP_AUX1_DIR = INPUT;
+  BP_AUX2_DIR = INPUT;
+#ifdef BP_ENABLE_SMPS_SUPPORT
+  /* Stop feedback/PWM before resetting the shared ADC configuration. */
+  smps_stop();
+#endif /* BP_ENABLE_SMPS_SUPPORT */
+  BP_AUX1_RPOUT = NULL_IO;
+  BP_AUX2_RPOUT = NULL_IO;
+  BP_AUX1_LAT = LOW;
+  BP_AUX2_LAT = LOW;
+#endif /* BUSPIRATEV4 */
   bp_disable_mode_led();
   bp_enable_usb_led();
 #ifdef BUSPIRATEV4

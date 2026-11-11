@@ -151,6 +151,8 @@ def main():
                 (out / "base.h").write_text(BASE + pins + "\n", encoding="ascii")
                 (out / "bitbang.h").write_text("", encoding="ascii")
                 (out / "dio.h").write_text("#include <stdint.h>\nuint16_t dio_read(void);\nuint16_t dio_write(uint16_t);\nvoid dio_setup_prepare(void);\n", encoding="ascii")
+                (out / "protocol_dio").mkdir()
+                (out / "protocol_dio/dio.h").write_bytes((out / "dio.h").read_bytes())
                 for name in ("core.c", "core.h"):
                     text = source("core_system/" + name)
                     if name == "core.c":

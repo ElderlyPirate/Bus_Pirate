@@ -5,7 +5,7 @@
  *
  * The protocol engine is a port of LUFA's AVRISP-MKII project
  * (Copyright (C) Dean Camera, 2021; MIT-style licence, see
- * Documentation/avrisp-mkii-license.txt) rewritten for the PIC24-based
+ * docs/programmers/avrisp/license.md) rewritten for the PIC24-based
  * Bus Pirate.  The transport layer presents the engine with a byte stream
  * on either the mkII USB personality (bulk endpoint 2) or the framed
  * STK500v2 serial fallback (AVR068).

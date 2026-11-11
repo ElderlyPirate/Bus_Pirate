@@ -2,7 +2,7 @@
 #ifndef xsvf_ports_h
 #define xsvf_ports_h
 
-#include "../base.h"
+#include "base.h"
 
 #ifdef BP_ENABLE_JTAG_SUPPORT
 

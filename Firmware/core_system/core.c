@@ -419,7 +419,7 @@ static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .run_macro = null_macro_callback,
      .setup_prepare = dio_setup_prepare,
      .setup_execute = silent_null_operation_callback,
-     .cleanup = reset_mode_to_8_bits,
+     .cleanup = dio_cleanup,
      .print_pins_state = hiz_print_pins_state,
      .print_settings = empty_print_settings_implementation,
      .name = "DIO"}
@@ -457,6 +457,18 @@ void null_macro_callback(uint16_t value) {
 void empty_print_settings_implementation(void) { bpBR; }
 
 #ifdef BP_ENABLE_DIO_SUPPORT
+
+/* Keep the standalone core safe until the DIO family supplies its strong hook. */
+void __attribute__((weak)) dio_cleanup(void) {
+  IODIR |= AUX | MOSI | CLK | MISO | CS;
+  bp_disable_pullup();
+#ifdef BUSPIRATEV4
+  /* Release both software-selectable VPU sources. */
+  bp_disable_3v3_pullup();
+#endif /* BUSPIRATEV4 */
+  IOLAT &= ~(AUX | MOSI | CLK | MISO | CS);
+  reset_mode_to_8_bits();
+}
 
 void silent_null_operation_callback(void) {
   mode_configuration.command_error = false;

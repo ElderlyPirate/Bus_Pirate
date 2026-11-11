@@ -268,4 +268,14 @@ typedef struct {
 #endif /* BP_ENABLE_BASIC_SUPPORT */
 } bus_pirate_configuration_t;
 
+#ifdef BP_ENABLE_DIO_SUPPORT
+/**
+ * DIO cleanup hook; a strong family implementation overrides the core fallback.
+ * Release AUX0/MOSI/CLK/MISO/CS, disable pull-ups/software VPU, clear their
+ * latches and restore 8-bit transfers. Do not change the selected mode or PSU;
+ * terminal 'w' disables the regulator after this callback returns.
+ */
+void dio_cleanup(void);
+#endif /* BP_ENABLE_DIO_SUPPORT */
+
 #endif /* !BP_CORE_H */

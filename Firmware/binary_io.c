@@ -554,11 +554,32 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
   bp_set_voltage_regulator_state((state_mask & 0b01000000) ? ON : OFF);
   bp_set_pullup_state((state_mask & 0b00100000) ? ON : OFF);
 
-  BP_AUX0 = (state_mask & 0b00010000) ? HIGH : LOW;
-  BP_MOSI = (state_mask & 0b00001000) ? HIGH : LOW;
-  BP_CLK = (state_mask & 0b00000100) ? HIGH : LOW;
-  BP_MISO = (state_mask & 0b00000010) ? HIGH : LOW;
-  BP_CS = (state_mask & 0b00000001) ? HIGH : LOW;
+  /* PORT reads pin levels; latch writes must preserve other output latches. */
+  if (state_mask & 0b00010000) {
+    IOLAT |= AUX;
+  } else {
+    IOLAT &= ~AUX;
+  }
+  if (state_mask & 0b00001000) {
+    IOLAT |= MOSI;
+  } else {
+    IOLAT &= ~MOSI;
+  }
+  if (state_mask & 0b00000100) {
+    IOLAT |= CLK;
+  } else {
+    IOLAT &= ~CLK;
+  }
+  if (state_mask & 0b00000010) {
+    IOLAT |= MISO;
+  } else {
+    IOLAT &= ~MISO;
+  }
+  if (state_mask & 0b00000001) {
+    IOLAT |= CS;
+  } else {
+    IOLAT &= ~CS;
+  }
 
   /* Wait a bit. */
 

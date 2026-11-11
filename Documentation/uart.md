@@ -135,7 +135,7 @@ A custom baud rate is set with the BRG option in firmware v5.5+. Use a [PIC UART
 
 ![Baud Rate Calculator](images/BP-uart-custom-baud.png)
 
-Set the calculator with the Bus Pirate values: PIC24, 32MHz clock. Enter the desired baud rate and hit calculate. Use the value from the BRGH=1 section. For 9700bps enter 411 at the Bus Pirate BRG prompt.
+Set the calculator with the Bus Pirate values: PIC24, 16MHz clock. Enter the desired baud rate and hit calculate. Use the value from the BRGH=1 section. For 9700bps enter 411 at the Bus Pirate BRG prompt.
 
 Macros
 ------------------

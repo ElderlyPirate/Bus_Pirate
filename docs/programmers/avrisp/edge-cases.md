@@ -41,8 +41,8 @@ entry is a concrete trigger, the observable symptom, and the recovery.
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
 | Target fused for an external clock/crystal that is not running | ISP enable fails even though SCK is driven | wire `CS` → target XTAL1 and retry; see [rescue-clock-osccal.md](rescue-clock-osccal.md) |
-| `OSCCAL` requested without AVR053 firmware on the target | the calibration command times out after about 31 ms | AVR053 requires the target calibration firmware; it is not installed by this personality |
-| `OSCCAL` attempted with the ISP data wires still on the target | the calibration times out | calibration uses the AVR053 wiring, not the ISP wiring; see [rescue-clock-osccal.md](rescue-clock-osccal.md) |
+| `OSCCAL` requested without AVR053 firmware on the target | the calibration command times out after about 32 ms nominal | AVR053 requires the target calibration firmware; it is not installed by this personality |
+| `SCK` still connected during `OSCCAL` | nothing differs — `CLK` is not driven by the command | the AVR053 reference wiring leaves `SCK` off; a connected `SCK` is a wiring-convention difference, not a fault.  Remove it between sessions if you follow that wiring |
 | VTARGET reads a nonsense value | the ADC pin is floating | VTARGET is informational and is only meaningful if the target supply is wired to the ADC pin |
 | VTARGET reads low under load but normal when idle | a real supply sag, not a firmware problem | check the target supply's current limit; the programmer does not power the target |
 | Target supply below its operating minimum | unstable or failing programming | bring the target supply into its datasheet range before programming |

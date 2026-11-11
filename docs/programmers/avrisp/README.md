@@ -47,12 +47,12 @@ below.
 - **Serial route:** after `0x09` use `avrdude -c stk500v2 -P COM5 …`; this
   route is **ISP only**, and needs no extra driver.
 - **Wiring headline (ISP):** CLK→SCK, MOSI→target MOSI, MISO→target MISO,
-  AUX→/RESET, GND→GND.  `CS` is **not** a chip select here: it
-  continuously outputs the 4 MHz rescue clock, so leave it open unless you
-  are injecting that clock into XTAL1 — see
-  [rescue-clock-osccal.md](rescue-clock-osccal.md).  **No pull-up or supply
-  is required from the Bus Pirate** — it drives push-pull 3.3 V and does
-  not power the target.
+  AUX→/RESET, GND→GND.  `CS` is **not** a chip select here: it outputs the
+  4 MHz rescue clock for the session (paused only while a calibration command
+  runs), so leave it open unless you are injecting that clock into XTAL1 —
+  see [rescue-clock-osccal.md](rescue-clock-osccal.md).  **No pull-up or
+  supply is required from the Bus Pirate** — it drives push-pull 3.3 V and
+  does not power the target.
 - **Wiring headline (PDI/TPI):** CLK→clock, DATA = MOSI **and** MISO joined
   through resistors; PDI leaves AUX open, TPI uses AUX→/RESET.
 - **Leaving:** the mode ends by itself and the binary layer prints `BBIO1`

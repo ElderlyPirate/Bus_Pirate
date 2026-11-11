@@ -104,10 +104,13 @@ host  <- 0x01
 After the return to `BBIO1`, send `0x08` or `0x09` again for another session,
 or `0x0F` to leave for the terminal.
 
-Within the idle window the personality is still alive: a second `avrdude`
-run that starts before the deadline and reopens the same device is served
-without sending the entry bytes again.  Once the deadline has passed,
-re-enter as above.  The entry byte is never queued for a later session.
+Within the idle window the personality **can** still serve a second
+`avrdude` run without re-entry, provided the USB link stayed configured and
+the request is valid.  This is not a general re-run or hot-swap path: a host
+reset or a deconfiguration of the interface ends the mode, and no target
+should be swapped or rewired while the personality is active.  Once the
+deadline has passed, re-enter as above.  The entry byte is never queued for
+a later session.
 
 ## Related docs
 

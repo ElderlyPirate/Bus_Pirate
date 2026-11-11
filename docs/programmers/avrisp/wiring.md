@@ -50,8 +50,9 @@ AUX1, AUX2 and the reference/supply pins are not used.
 | ground | GND (12) | GND |
 
 - **No pull-up is required** on any ISP signal.  While the personality is
-  active **`CS` continuously outputs the 4 MHz rescue clock**, so leave it
-  open unless you are injecting that clock into the target's XTAL1 — see
+  active **`CS` outputs the 4 MHz rescue clock** for the session (paused only
+  while a calibration command runs), so leave it open unless you are
+  injecting that clock into the target's XTAL1 — see
   [rescue-clock-osccal.md](rescue-clock-osccal.md).  It is not a chip select
   here.
 - Asserting `/RESET` uses the polarity selected by the host; the default is
@@ -61,11 +62,14 @@ AUX1, AUX2 and the reference/supply pins are not used.
 - **The programmer does not supply target power.**  Power the target
   externally and share ground.  The ISP clock/data pins are push-pull
   3.3 V outputs.
-- **AVR053 calibration is not an in-circuit ISP operation** and uses a
-  different wiring: the calibration clock leaves on `MOSI` into XTAL1, the
-  target's calibration output comes back on `MISO`, and `/RESET` is released
-  by the command.  The full table is in
-  [rescue-clock-osccal.md](rescue-clock-osccal.md) §AVR053 wiring.
+- **AVR053 calibration is a separate session, not the normal ISP wiring**:
+  the calibration clock leaves on `MOSI` into the target's **MOSI** C-clock
+  input (not XTAL1), the target's calibration OK output comes back on
+  `MISO`, `/RESET` is released by the command, and the AVR053 reference
+  wiring leaves the ISP `SCK` wire off.  `MOSI`/`MISO` are the ISP data
+  pins, repurposed for calibration.  The full table and the order of
+  operations are in [rescue-clock-osccal.md](rescue-clock-osccal.md) §AVR053
+  wiring.
 
 ### ISP pin mapping is not the SPI pin mapping
 

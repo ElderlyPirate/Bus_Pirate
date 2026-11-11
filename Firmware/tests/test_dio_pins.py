@@ -27,6 +27,7 @@ PREFIX = r'''
 static uint16_t latch;
 static unsigned regulator, pullups, delays;
 #define IOLAT latch
+#define IODIR direction.word
 void bp_set_voltage_regulator_state(unsigned value) { regulator=value; }
 void bp_set_pullup_state(unsigned value) { pullups=value; }
 void bp_delay_us(unsigned value) { assert(value==5); ++delays; }

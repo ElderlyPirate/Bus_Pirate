@@ -532,11 +532,31 @@ uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Set directions. */
 
-  BP_AUX0_DIR = (direction_mask & 0b00010000) ? INPUT : OUTPUT;
-  BP_MOSI_DIR = (direction_mask & 0b00001000) ? INPUT : OUTPUT;
-  BP_CLK_DIR = (direction_mask & 0b00000100) ? INPUT : OUTPUT;
-  BP_MISO_DIR = (direction_mask & 0b00000010) ? INPUT : OUTPUT;
-  BP_CS_DIR = (direction_mask & 0b00000001) ? INPUT : OUTPUT;
+  if (direction_mask & 0b00010000) {
+    IODIR |= AUX;
+  } else {
+    IODIR &= ~AUX;
+  }
+  if (direction_mask & 0b00001000) {
+    IODIR |= MOSI;
+  } else {
+    IODIR &= ~MOSI;
+  }
+  if (direction_mask & 0b00000100) {
+    IODIR |= CLK;
+  } else {
+    IODIR &= ~CLK;
+  }
+  if (direction_mask & 0b00000010) {
+    IODIR |= MISO;
+  } else {
+    IODIR &= ~MISO;
+  }
+  if (direction_mask & 0b00000001) {
+    IODIR |= CS;
+  } else {
+    IODIR &= ~CS;
+  }
 
   /* Wait a bit. */
 

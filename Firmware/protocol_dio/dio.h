@@ -28,6 +28,7 @@
  */
 unsigned int dio_read(void);
 void dio_setup_prepare(void);
+void dio_cleanup(void);
 
 /**
  * Writes a value to the device.

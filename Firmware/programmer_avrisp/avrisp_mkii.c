@@ -12,7 +12,7 @@
  *
  * The protocol engine is a port of LUFA's AVRISP-MKII project
  * (Copyright (C) Dean Camera, 2021; MIT-style licence, see
- * Documentation/avrisp-mkii-license.txt).
+ * docs/programmers/avrisp/license.md).
  */
 
 #include <stdbool.h>

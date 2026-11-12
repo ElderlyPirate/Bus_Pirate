@@ -4,6 +4,7 @@ Uses the existing native-function fixture convention; this is not an electrical
 or timing simulator. XC16 builds/disassembly and the bench battery cover those.
 """
 import argparse
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -87,15 +88,77 @@ int main(void) {
 }
 '''
 
+SELFTEST = r'''
+static uint8_t errors;
+static struct { bool quiet; } bus_pirate_configuration;
+static unsigned pins[32],IODIR,IOLAT,terminal_refusals;
+static bool bp_adc_check_foreground(void) { ++terminal_refusals;return false; }
+static void bp_write_voltage(unsigned n) { (void)n; }
+static void bp_write_dec_byte(unsigned n) { (void)n; }
+#define bpSP ((void)0)
+#define bpBR ((void)0)
+#define ALLIO 15
+#define V5L 700
+#define V5H 850
+#define V33L 460
+#define V33H 563
+#define eeprom_test() true
+#define bp_enable_pullup() (++feeds)
+#define bp_disable_pullup() (++feeds)
+#define bp_enable_voltage_regulator() (++feeds)
+#define bp_disable_voltage_regulator() (++feeds)
+#define bp_enable_mode_led() (++feeds)
+#define bp_disable_mode_led() (++feeds)
+#define bp_enable_usb_led() (++feeds)
+#define bp_disable_usb_led() (++feeds)
+#define bp_disable_5v0_pullup() (++feeds)
+#define bp_reset_board_state() (++feeds)
+#define PIN_STATE_TEST_DELAY 100
+#define PWR_STATE_TEST_DELAY 2
+#define MSG_ANY_KEY_TO_EXIT_PROMPT ((void)0)
+'''
+
+SELFTEST_TEST = r'''
+int main(void) {
+ (void)mode_configuration;(void)user_serial_ready_to_read;
+ IEC0bits.AD1IE=1;
+ for(unsigned progress=0;progress<2;++progress) {
+  assert(perform_selftest(progress,true)==1);
+  assert(!enables && !disables && !reads && !feeds && !delays && !outlen);
+  assert(!bus_pirate_configuration.quiet && IEC0bits.AD1IE);
+  assert(!IODIR && !IOLAT);
+  for(unsigned i=0;i<32;++i) assert(!pins[i]);
+ }
+ assert(terminal_refusals==1);
+ perform_adc_test(BP_ADC_PROBE,0,1024);
+ assert(errors==1 && !reads && !outlen && IEC0bits.AD1IE);
+ IEC0bits.AD1IE=0;perform_adc_test(BP_ADC_PROBE,460,563);
+ assert(errors==1 && reads==1 && outlen==2);
+ puts("PASS self-test refusal precedes rails/pins/ADC/reset and ADC leaf is guarded");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
     base = source("core_system/base.c", revision)
+    selftest = source("capability_selftest/selftest.c", revision)
+    selftest_macros = "\n".join("#define " + n + " ((void)0)" for n in
+                                sorted(set(re.findall(r"\bBPMSG\d+\b", selftest))))
+    pins = sorted(set(re.findall(r"\bBP_(?:AUX0|LEDMODE|PULLUP|VREGEN|EE_SCL|EE_SDA|EE_WP|MOSI|MISO|CLK|CS)(?:_LAT|_DIR)?\b", selftest)))
+    selftest_macros += "\n" + "\n".join(
+        "#define %s pins[%d]" % (n, i) for i, n in enumerate(pins))
+    selftest_macros += "\n#define BP_ADC_USB 1\n#define BP_ADC_5V0 2\n#define BP_ADC_3V3 3\n"
     return {
         "adc": COMMON + ADC + function(base, "bp_adc_foreground_available") +
         "\n".join(function(binary, n) for n in (
             "bp_binary_io_pullup_control", "read_and_transmit_adc_measurement",
             "handle_read_adc_one_shot", "handle_read_adc_continuously")) + ADC_TEST,
+        "selftest": COMMON + ADC + SELFTEST + selftest_macros + "\n" +
+        function(base, "bp_adc_foreground_available") +
+        "\n".join(function(selftest, n) for n in (
+            "check_result", "perform_pins_state_test", "perform_adc_test",
+            "perform_selftest")) + SELFTEST_TEST,
     }
 
 

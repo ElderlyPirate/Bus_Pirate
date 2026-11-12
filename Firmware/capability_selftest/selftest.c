@@ -79,6 +79,15 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 
 uint8_t perform_selftest(bool show_progress, bool jumper_test) {
 
+  /* Refuse before changing rails/pins or reaching the ADC-enable block.
+   * In binary mode the returned error count is the entire refusal. */
+  if (!bp_adc_foreground_available()) {
+    if (show_progress) {
+      bp_adc_check_foreground();
+    }
+    return 1;
+  }
+
   errors = 0;
   if (!show_progress) {
     bus_pirate_configuration.quiet = true;
@@ -332,6 +341,11 @@ void perform_adc_test(unsigned int channel, unsigned int minimum_threshold,
                       unsigned int maximum_threshold) {
 
   unsigned int measurement;
+
+  if (!bp_adc_foreground_available()) {
+    check_result(false, true);
+    return;
+  }
 
   user_serial_transmit_character('(');
   measurement = bp_read_adc(channel);

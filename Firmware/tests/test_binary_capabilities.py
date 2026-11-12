@@ -269,6 +269,34 @@ int main(void) {
 }
 '''
 
+LCD_SPI = r'''
+static struct { unsigned SPIEN,SPIRBF; } SPI1STATbits;
+static struct { unsigned SPI1IF; } IFS0bits;
+static struct { unsigned command_error; } mode_configuration;
+static unsigned counter,reads,cleanup;
+static uint16_t buffer;
+static uint16_t timer(void) { counter+=100;return counter; }
+static uint16_t *spi_buffer(void) { ++reads;return &buffer; }
+#define TMR1 timer()
+#define SPI1BUF (*spi_buffer())
+static void hd44780_cleanup(void) { ++cleanup;SPI1STATbits.SPIEN=0; }
+'''
+
+LCD_SPI_TEST = r'''
+int main(void) {
+ assert(!hd44780_spi_write_byte(0x96));
+ assert(mode_configuration.command_error && !reads && !cleanup);
+ mode_configuration.command_error=0;SPI1STATbits.SPIEN=1;
+ SPI1STATbits.SPIRBF=1;IFS0bits.SPI1IF=1;
+ assert(hd44780_spi_write_byte(0x96));
+ assert(buffer==0x96 && reads==2 && !IFS0bits.SPI1IF && !cleanup);
+ SPI1STATbits.SPIRBF=0;counter=0;reads=0;
+ assert(!hd44780_spi_write_byte(0xa5));
+ assert(counter==2100 && reads==1 && cleanup==1 && mode_configuration.command_error);
+ puts("PASS LCD-local standard SPI byte completion, disabled interface and bounded timeout");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -301,6 +329,7 @@ def cases(revision):
         "smps": COMMON + SMPS + "\n".join(function(smps, n) for n in (
             "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
         "lcd-cleanup": COMMON + LCD_CLEANUP + function(lcd, "hd44780_cleanup") + LCD_CLEANUP_TEST,
+        "lcd-spi": COMMON + LCD_SPI + function(lcd, "hd44780_spi_write_byte") + LCD_SPI_TEST,
     }
 
 

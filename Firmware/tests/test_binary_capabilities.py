@@ -145,7 +145,7 @@ static bool available=true;
 #define bp_adc_check_foreground() available
 static struct { unsigned TCKPS1,TCKPS0,TON; } T2CONbits;
 static struct { uint16_t pwm_frequency,pwm_duty_cycle; unsigned mode; } state;
-static uint16_t OC5CON,OC5R,OC5RS,PR2,AUXPIN_RPOUT;
+static uint16_t OC5CON,OC5CON2,OC5R,OC5RS,PR2,AUXPIN_RPOUT,AUXPIN_DIR,TMR2;
 #define AUX_MODE_IO 0
 #define AUX_MODE_PWM 2
 #define OC5_IO 22
@@ -161,11 +161,12 @@ PWM_TEST = r'''
 int main(void) {
  unsigned checks=0;
  for(unsigned f=1;f<=4000;++f) for(unsigned duty=0;duty<=100;++duty) {
-  bp_update_pwm(f,duty);
+  TMR2=65535;OC5CON2=31;AUXPIN_DIR=INPUT;bp_update_pwm(f,duty);
   unsigned pre=f<4?256:f<31?64:f<245?8:1;
   uint32_t ticks=16000000UL/pre/f;
   assert(PR2==ticks-1 && OC5R==(ticks*duty)/100 && OC5RS==OC5R);
   assert(T2CONbits.TON && AUXPIN_RPOUT==OC5_IO && state.mode==AUX_MODE_PWM);
+  assert(!TMR2 && OC5CON2==12 && AUXPIN_DIR==OUTPUT);
   assert((T2CONbits.TCKPS1*2+T2CONbits.TCKPS0)==(f<4?3:f<31?2:f<245?1:0));
   ++checks;
  }
@@ -331,6 +332,7 @@ int main(void) {
   unsigned ticks=divisor/f;
   assert(PR2==ticks-1 && OC5R==ticks*duty/100 && OC5RS==OC5R);
   assert(T2CONbits.TON && state.mode==AUX_MODE_PWM && AUXPIN_RPOUT==OC5_IO);
+  assert(!TMR2 && OC5CON2==12 && AUXPIN_DIR==OUTPUT);
   ++checks;
  }
  printf("PASS %u g-kHz/duty pairs, inline zero duty and inclusive 4MHz endpoint\n",checks);
@@ -404,7 +406,7 @@ BINARY_PWM = r'''
 static bool available;
 #define bp_adc_foreground_available() available
 static struct { unsigned TCKPS,TON; } T2CONbits;
-static uint16_t T2CON,T4CON,OC5CON,OC5R,OC5RS,PR2,BP_AUX_RPOUT;
+static uint16_t T2CON,T4CON,OC5CON,OC5CON2,OC5R,OC5RS,PR2,BP_AUX_RPOUT,BP_AUX0_DIR,TMR2;
 static const uint8_t input[]={0,3,32,6,63};
 static unsigned used,reply,count;
 static uint8_t user_serial_read_byte(void) { assert(used<5);return input[used++]; }
@@ -426,6 +428,7 @@ int main(void) {
  available=true;used=0;handle_setup_pwm();
  assert(used==5 && count==3 && reply==1 && PR2==1599 && OC5R==800 && OC5RS==800);
  assert(T2CONbits.TON && BP_AUX_RPOUT==OC5_IO);
+ assert(!TMR2 && OC5CON2==12 && BP_AUX0_DIR==OUTPUT);
  handle_clear_pwm();assert(reply==1 && !T2CON && !OC5CON && !BP_AUX_RPOUT);
  puts("PASS binary PWM consumes/refuses conflicts without touching OC5, normal framing retained");
 }
@@ -488,7 +491,7 @@ def main():
             c = Path(tmp) / (name + ".c")
             exe = c.with_suffix(".exe")
             c.write_text(code, encoding="ascii")
-            linker = (["-fuse-ld=bfd"] if not shutil.which("ld") and shutil.which("ld.bfd") else [])
+            linker = ["-fuse-ld=bfd"] if shutil.which("ld.bfd") else []
             subprocess.run(["gcc", *linker, "-std=gnu99", "-Wall", "-Wextra", "-Werror",
                             str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True)

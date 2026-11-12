@@ -1495,6 +1495,7 @@ void handle_setup_pwm(void) {
    *   +---------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON - OUTPUT COMPARE 5 CONTROL REGISTER
@@ -1511,6 +1512,7 @@ void handle_setup_pwm(void) {
 #endif /* BUSPIRATEV4 */
 
   BP_AUX_RPOUT = OC5_IO;
+  BP_AUX0_DIR = OUTPUT;
   T2CONbits.TCKPS = prescale;
   OC5R = duty_cycle;
   OC5RS = duty_cycle;
@@ -1547,6 +1549,7 @@ void handle_setup_pwm(void) {
 
   PR2 = period;
 
+  TMR2 = 0;
   T2CONbits.TON = ON;
   REPORT_IO_SUCCESS();
 }

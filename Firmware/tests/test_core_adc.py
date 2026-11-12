@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from test_core_system import function
+from test_core_system import function, source
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMP = Path.home() / "AppData/Local/Temp/opencode"
@@ -81,11 +81,10 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--revision")
     args = p.parse_args()
-    if args.revision:
-        text = subprocess.check_output(["git", "show", args.revision + ":Firmware/core_system/base.c"],
-                                       cwd=ROOT, text=True, encoding="utf-8")
-    else:
-        text = (ROOT / "Firmware/core_system/base.c").read_text(encoding="utf-8")
+    try:
+        text = source("adc.c", args.revision)
+    except RuntimeError:
+        text = source("base.c", args.revision)
     body = function(text, "bp_read_adc")
     with tempfile.TemporaryDirectory(prefix="bp-core-adc-", dir=TEMP) as tmp:
         c = Path(tmp) / "adc.c"

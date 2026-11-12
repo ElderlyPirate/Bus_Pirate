@@ -127,7 +127,8 @@ void hd44780_cleanup(void) {
         RPINR20bits.SDI1R = 0b11111;
         BP_MOSI_RPOUT = NULL_IO;
         BP_CLK_RPOUT = NULL_IO;
-        reset_mode_to_8_bits();
+        mode_configuration.numbits = 8;
+        mode_configuration.int16 = NO;
 }
 
 static bool hd44780_spi_write_byte(uint8_t value) {

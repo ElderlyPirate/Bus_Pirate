@@ -156,6 +156,20 @@ void bp_update_duty_cycle(const uint16_t duty_cycle) {
   bp_update_pwm(state.pwm_frequency, duty_cycle);
 }
 
+static uint16_t pwm_duty_register(uint16_t period, uint16_t percent) {
+  uint16_t counts = ((uint32_t)(period + 1UL) * percent) / 100;
+#if defined(BUSPIRATEV4)
+  /* Dedicated OC timer, synchronized to Timer2: the falling comparison takes
+   * effect on the next clock (DS39723A 35.3.3.1, Figures 35-14/15).
+   * R=0 remains the special 0% case; an unrepresentable one-count pulse
+   * rounds down. The old v3 OC uses the high-count value directly. */
+  if (counts != 0) {
+    counts--;
+  }
+#endif
+  return counts;
+}
+
 void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   uint16_t period;
   uint16_t cycle;
@@ -217,7 +231,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   }
   period = (timer_frequency / frequency) - 1;
   PR2 = period;
-  cycle = ((uint32_t)(period + 1UL) * state.pwm_duty_cycle) / 100;
+  cycle = pwm_duty_register(period, state.pwm_duty_cycle);
 
   /* Attach the AUX pin to the PWM generator. */
   AUXPIN_RPOUT = OC5_IO;
@@ -347,9 +361,9 @@ void bp_pwm_setup(void) {
     pwm_duty = getnumber(50, 0, 99, 0);
   }
 
-  /* DS39897C 14.3.1: the period contains PR2+1 ticks, not PR2 ticks.
-   * At 4 MHz, using PR2=3 made a requested 50% duty into 25%. */
-  pwm_duty_cycle = ((uint32_t)(pwm_period + 1UL) * pwm_duty) / 100;
+  /* PR2+1 determines the high-count budget; the OC register encoding differs
+   * between the v3 timer comparator and the v4 dedicated OC timer. */
+  pwm_duty_cycle = pwm_duty_register(pwm_period, pwm_duty);
 
   /* Assign output source to AUX pin. */
   AUXPIN_RPOUT = OC5_IO;

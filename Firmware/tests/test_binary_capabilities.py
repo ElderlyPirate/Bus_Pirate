@@ -155,6 +155,14 @@ static uint16_t OC5CON,OC5CON2,OC5R,OC5RS,PR2,AUXPIN_RPOUT,AUXPIN_DIR,TMR2;
 #define PWM_DIVISOR_PRESCALER_1_1 16000
 static void stop_timers(void) { memset(&T2CONbits,0,sizeof(T2CONbits)); }
 void bp_update_pwm(uint16_t frequency,uint16_t duty_cycle);
+static unsigned expected_pwm_compare(unsigned ticks,unsigned duty) {
+ unsigned high=ticks*duty/100;
+#ifdef BUSPIRATEV4
+ return high ? high-1 : 0;
+#else
+ return high;
+#endif
+}
 '''
 
 PWM_TEST = r'''
@@ -164,16 +172,23 @@ int main(void) {
   TMR2=65535;OC5CON2=31;AUXPIN_DIR=INPUT;bp_update_pwm(f,duty);
   unsigned pre=f<4?256:f<31?64:f<245?8:1;
   uint32_t ticks=16000000UL/pre/f;
-  assert(PR2==ticks-1 && OC5R==(ticks*duty)/100 && OC5RS==OC5R);
+  assert(PR2==ticks-1 && OC5R==expected_pwm_compare(ticks,duty) && OC5RS==OC5R);
   assert(T2CONbits.TON && AUXPIN_RPOUT==OC5_IO && state.mode==AUX_MODE_PWM);
-  assert(!TMR2 && OC5CON2==12 && AUXPIN_DIR==OUTPUT);
+  assert(!TMR2 && AUXPIN_DIR==OUTPUT);
+#ifdef BUSPIRATEV4
+  assert(OC5CON2==12);
+  unsigned actual=OC5R ? OC5R+1 : 0;
+  assert(actual==(ticks*duty)/100);
+#else
+  assert(OC5CON2==31);
+#endif
   assert((T2CONbits.TCKPS1*2+T2CONbits.TCKPS0)==(f<4?3:f<31?2:f<245?1:0));
   ++checks;
  }
- bp_update_pwm(1000,50);assert(PR2==15999 && OC5R==8000);
- bp_update_duty_cycle(25);assert(PR2==15999 && OC5R==4000);
- bp_update_pwm(1,99);assert(PR2==62499 && OC5R==61875);
- bp_update_pwm(1000,65535);assert(OC5R==16000);
+ bp_update_pwm(1000,50);assert(PR2==15999 && OC5R==expected_pwm_compare(16000,50));
+ bp_update_duty_cycle(25);assert(PR2==15999 && OC5R==expected_pwm_compare(16000,25));
+ bp_update_pwm(1,99);assert(PR2==62499 && OC5R==expected_pwm_compare(62500,99));
+ bp_update_pwm(1000,65535);assert(OC5R==expected_pwm_compare(16000,100));
  bp_update_pwm(0,0);assert(!T2CONbits.TON && !AUXPIN_RPOUT && !state.mode);
  bp_update_duty_cycle(50);assert(!T2CONbits.TON && !AUXPIN_RPOUT);
  available=false;PR2=123;OC5CON=99;bp_update_pwm(1000,50);
@@ -330,9 +345,17 @@ int main(void) {
   args[0]=f;args[1]=duty;bp_pwm_setup();
   unsigned divisor=f<4?62:f<31?250:f<245?2000:16000;
   unsigned ticks=divisor/f;
-  assert(PR2==ticks-1 && OC5R==ticks*duty/100 && OC5RS==OC5R);
+  assert(PR2==ticks-1 && OC5R==expected_pwm_compare(ticks,duty) && OC5RS==OC5R);
   assert(T2CONbits.TON && state.mode==AUX_MODE_PWM && AUXPIN_RPOUT==OC5_IO);
-  assert(!TMR2 && OC5CON2==12 && AUXPIN_DIR==OUTPUT);
+  assert(!TMR2 && AUXPIN_DIR==OUTPUT);
+#ifdef BUSPIRATEV4
+  assert(OC5CON2==12);
+  unsigned target=ticks*duty/100;
+  unsigned actual=OC5R ? OC5R+1 : 0;
+  assert(actual==target || (target==1 && actual==0));
+#else
+  assert(!OC5CON2);
+#endif
   ++checks;
  }
  printf("PASS %u g-kHz/duty pairs, inline zero duty and inclusive 4MHz endpoint\n",checks);
@@ -483,7 +506,8 @@ def cases(revision):
     smps = source("capability_smps/smps.c", revision)
     lcd = source("capability_hd44780/hd44780.c", revision)
     pwm_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
-        re.findall(r"\b_OC5CON1_\w+_POSITION\b", aux)))) + "\n"
+        re.findall(r"\b_OC5CON(?:1)?_\w+_POSITION\b", aux)))) + "\n"
+    pwm_encoding = function(aux, "pwm_duty_register") if "static uint16_t pwm_duty_register(" in aux else ""
     selftest_macros = "\n".join("#define " + n + " ((void)0)" for n in
                                 sorted(set(re.findall(r"\bBPMSG\d+\b", selftest))))
     pins = sorted(set(re.findall(r"\bBP_(?:AUX0|LEDMODE|PULLUP|VREGEN|EE_SCL|EE_SDA|EE_WP|MOSI|MISO|CLK|CS)(?:_LAT|_DIR)?\b", selftest)))
@@ -504,14 +528,18 @@ def cases(revision):
         "\n".join(function(selftest, n) for n in (
             "check_result", "perform_pins_state_test", "perform_adc_test",
             "perform_selftest")) + SELFTEST_TEST,
-        "pwm": COMMON + PWM + pwm_macros + "\n".join(function(aux, n) for n in (
+        "pwm": COMMON + PWM + pwm_macros + pwm_encoding + "\n".join(function(aux, n) for n in (
             "setup_prescaler_divisor", "bp_update_pwm", "bp_update_duty_cycle")) + PWM_TEST,
+        "pwm-v3": COMMON.replace("#define BUSPIRATEV4", "#define BUSPIRATEV3") + PWM + pwm_macros + pwm_encoding +
+        "\n".join(function(aux, n) for n in ("setup_prescaler_divisor", "bp_update_pwm", "bp_update_duty_cycle")) + PWM_TEST,
         "smps-frame": COMMON + SMPS_FRAME + function(binary, "handle_smps_command") + SMPS_FRAME_TEST,
         "smps": COMMON + SMPS + "\n".join(function(smps, n) for n in (
             "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
         "lcd-cleanup": COMMON + LCD_CLEANUP + function(lcd, "hd44780_cleanup") + LCD_CLEANUP_TEST,
         "lcd-spi": COMMON + LCD_SPI + function(lcd, "hd44780_spi_write_byte") + LCD_SPI_TEST,
-        "g-pwm": COMMON + PWM + G_PWM + pwm_macros +
+        "g-pwm": COMMON + PWM + G_PWM + pwm_macros + pwm_encoding +
+        function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
+        "g-pwm-v3": COMMON.replace("#define BUSPIRATEV4", "#define BUSPIRATEV3") + PWM + G_PWM + pwm_macros + pwm_encoding +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
         "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
         "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +

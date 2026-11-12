@@ -294,7 +294,7 @@ static inline void handle_read_adc_continuously(void);
 static inline void handle_frequency_measurement(void);
 static inline int handle_bitbang_command(const bitbang_command command);
 
-static void read_and_transmit_adc_measurement(void);
+static bool read_and_transmit_adc_measurement(void);
 
 static void send_bits(const uint8_t value, const size_t count);
 
@@ -634,7 +634,8 @@ void bp_binary_io_peripherals_set(unsigned char inByte) {
 // checks if voltage is present on VUEXTERN
 bool bp_binary_io_pullup_control(uint8_t control_byte) {
 
-  if (mode_configuration.high_impedance == NO) {
+  if ((mode_configuration.high_impedance == NO) ||
+      !bp_adc_foreground_available()) {
     return false;
   }
 
@@ -1381,13 +1382,25 @@ void handle_clear_pwm(void) {
   REPORT_IO_SUCCESS();
 }
 
-void read_and_transmit_adc_measurement(void) {
+bool read_and_transmit_adc_measurement(void) {
+  if (!bp_adc_foreground_available()) {
+    /* ADC samples are 10-bit words. Preserve framing with an invalid sample,
+     * not terminal ASCII or a one-byte status indistinguishable from data. */
+    user_serial_transmit_character(0xFF);
+    user_serial_transmit_character(0xFF);
+    return false;
+  }
   uint16_t value = bp_read_adc(BP_ADC_PROBE);
   user_serial_transmit_character((value >> 8) & 0xFF);
   user_serial_transmit_character(value & 0xFF);
+  return true;
 }
 
 void handle_read_adc_one_shot(void) {
+  if (!bp_adc_foreground_available()) {
+    read_and_transmit_adc_measurement();
+    return;
+  }
   bp_enable_adc();
   read_and_transmit_adc_measurement();
   bp_disable_adc();
@@ -1396,9 +1409,15 @@ void handle_read_adc_one_shot(void) {
 void handle_read_adc_continuously(void) {
   bool should_loop = true;
 
+  if (!bp_adc_foreground_available()) {
+    read_and_transmit_adc_measurement();
+    return;
+  }
   bp_enable_adc();
   do {
-    read_and_transmit_adc_measurement();
+    if (!read_and_transmit_adc_measurement()) {
+      return;
+    }
     if (user_serial_ready_to_read()) {
       user_serial_read_byte();
       should_loop = false;

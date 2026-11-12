@@ -49,9 +49,17 @@ typedef struct {
 /**
  * The switched mode power supply module state.
  */
-static smps_state_t smps_state = {0};
+static volatile smps_state_t smps_state = {0};
 
 void smps_start(unsigned int requested_voltage) {
+
+  /* Reconfiguration must not race the feedback ISR or a pending conversion.
+   * DS39897C register 22-1: ADON=0 retires the active ADC operation. */
+  IEC0bits.AD1IE = OFF;
+  AD1CON1bits.ADON = OFF;
+  AD1CON1bits.ASAM = OFF;
+  OC5CON1 = 0;
+  BP_AUX1_DIR = INPUT;
 
   /* Get a 7-bits duty cycle value for switching operations. */
   smps_state.pwm_duty_cycle = 128 - (64000 / requested_voltage);
@@ -70,9 +78,6 @@ void smps_start(unsigned int requested_voltage) {
 
   /* Clear ADC interrupt flag. */
   IFS0bits.AD1IF = OFF;
-
-  /* Enable ADC interrupt. */
-  IEC0bits.AD1IE = ON;
 
   /* Enable auto sampling. */
   AD1CON1bits.ASAM = ON;
@@ -117,6 +122,10 @@ void smps_start(unsigned int requested_voltage) {
    */
   OC5CON1 = 0x1C06;
 
+  /* Reserve ADC ownership only after all ISR-visible state is ready. */
+  IFS0bits.AD1IF = OFF;
+  IEC0bits.AD1IE = ON;
+
   /* Turn ADC on. */
   AD1CON1bits.ADON = ON;
 }
@@ -125,14 +134,15 @@ void smps_stop(void) {
   /* Release the pad before peripheral/latch changes (DS39897C 10.1).
    * Also safe at startup, when no SMPS session has been started. */
   BP_AUX1_DIR = INPUT;
-  /* Turn the ADC off. */
-  AD1CON1bits.ADON = OFF;
-
   /* Disable ADC interrupts. */
   IEC0bits.AD1IE = OFF;
 
+  /* Turn the ADC off before releasing auto-sampling state. */
+  AD1CON1bits.ADON = OFF;
+
   /* Disable auto sampling. */
   AD1CON1bits.ASAM = OFF;
+  IFS0bits.AD1IF = OFF;
 
   /* Set 0% as the PWM duty cycle. */
   OC5R = 0;
@@ -187,15 +197,17 @@ void smps_adc(void) {
 }
 
 void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt() {
+  uint16_t measurement;
 
   /* Clear ADC interrupt flag. */
   IFS0bits.AD1IF = OFF;
 
   /* Read data from the ADC. */
-  smps_state.voltage_reading = ADC1BUF0;
+  measurement = ADC1BUF0;
+  smps_state.voltage_reading = measurement;
 
   /* Turn PWM off if it goes out of spec. */
-  OC5R = (ADC1BUF0 > smps_state.voltage_out) ? 0 : smps_state.pwm_duty_cycle;
+  OC5R = (measurement > smps_state.voltage_out) ? 0 : smps_state.pwm_duty_cycle;
 }
 
 #endif /* BUSPIRATEV4 */

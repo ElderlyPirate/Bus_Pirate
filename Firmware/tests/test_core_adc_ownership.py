@@ -34,6 +34,9 @@ PREFIX = r'''
 #define CMDLENMSK 255
 #define OC5_IO 22
 #define NULL_IO 0
+#define INPUT 1
+#define OUTPUT 0
+#define LOW 0
 #define AUX2 1
 #define AUX1 256
 #define AUX 32
@@ -46,7 +49,7 @@ static struct {
  struct { unsigned AD1IE; } ie;
  struct { unsigned AD1IF; } flags;
  uint16_t chs,buf,con2,con3,pwm,period,oc1,oc2,route;
- unsigned pullup,vpu33,vpu50,psu;
+  unsigned pullup,vpu33,vpu50,psu,aux_dir,aux_lat;
 } hw;
 #define AD1CON1bits hw.con1
 #define IEC0bits hw.ie
@@ -58,10 +61,13 @@ static struct {
 #define OC5CON1 hw.oc1
 #define OC5CON2 hw.oc2
 #define BP_AUX1_RPOUT hw.route
+#define BP_AUX1_DIR hw.aux_dir
+#define BP_AUX1_LAT hw.aux_lat
 static struct { unsigned command_error,high_impedance; } mode_configuration;
 static struct { unsigned bus_mode; } bus_pirate_configuration;
 static struct { uint16_t voltage_out,voltage_reading;uint8_t pwm_duty_cycle; } smps_state;
 static unsigned effects,notes,reads,input_calls,ready_calls,cmdstart,vpu_measurement;
+static void bp_aux_pin_reset_state(void) { ++effects; }
 static char output[1024];
 static void note(void) { ++notes; }
 static void bp_write_line(const char *s) { strcat(output,s);strcat(output,"\r\n"); }
@@ -164,15 +170,30 @@ def main():
     args = p.parse_args()
 
     def source(path):
+        candidates = [path]
+        if path == "capability_adc/adc.c":
+            candidates.append("core_system/base.c")
+        if path == "smps.c":
+            candidates.insert(0, "capability_smps/smps.c")
         if args.revision:
-            return subprocess.check_output(["git", "show", args.revision + ":Firmware/" + path],
-                                           cwd=ROOT, text=True, encoding="utf-8")
-        return (ROOT / "Firmware" / path).read_text(encoding="utf-8")
+            for candidate in candidates:
+                result = subprocess.run(["git", "show", args.revision + ":Firmware/" + candidate],
+                                        cwd=ROOT, text=True, encoding="utf-8", capture_output=True)
+                if result.returncode == 0:
+                    return result.stdout
+        else:
+            for candidate in candidates:
+                file = ROOT / "Firmware" / candidate
+                if file.exists():
+                    return file.read_text(encoding="utf-8")
+        raise RuntimeError("Missing source: " + path)
 
     base = source("core_system/base.c")
     menu = source("core_system/proc_menu.c")
     code = "\n".join(function(base, name) for name in (
-        "bp_adc_foreground_available", "bp_adc_check_foreground", "bp_adc_probe", "bp_adc_continuous_probe"))
+        "bp_adc_foreground_available", "bp_adc_check_foreground"))
+    adc = source("capability_adc/adc.c")
+    code += "\n" + "\n".join(function(adc, name) for name in ("bp_adc_probe", "bp_adc_continuous_probe"))
     code += "\n" + function(menu, "print_pins_information")
     code += "\n#ifdef BUSPIRATEV4\n" + function(menu, "set_pullup_voltage") + "\n#endif\n"
     code += function(menu, "switch_psu_on")

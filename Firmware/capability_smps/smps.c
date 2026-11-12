@@ -120,6 +120,9 @@ void smps_start(unsigned int requested_voltage) {
 }
 
 void smps_stop(void) {
+  /* Release the pad before peripheral/latch changes (DS39897C 10.1).
+   * Also safe at startup, when no SMPS session has been started. */
+  BP_AUX1_DIR = INPUT;
   /* Turn the ADC off. */
   AD1CON1bits.ADON = OFF;
 
@@ -170,6 +173,7 @@ void smps_stop(void) {
 
   /* Free the AUX pin from the Output Comparator unit #5. */
   BP_AUX1_RPOUT = NULL_IO;
+  BP_AUX1_LAT = LOW;
 }
 
 void smps_adc(void) {

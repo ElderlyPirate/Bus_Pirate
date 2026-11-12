@@ -612,8 +612,8 @@ void bp_binary_io_peripherals_set(unsigned char inByte) {
   bp_set_voltage_regulator_state((inByte & 0b00001000) == 0b00001000);
   bp_set_pullup_state((inByte & 0b00000100) == 0b00000100);
 
-  BP_AUX0_DIR = OUTPUT;
   BP_AUX0_LAT = (inByte & 0b00000010) ? ON : OFF;
+  BP_AUX0_DIR = OUTPUT;
 
   // CS pin, follows HiZ setting
   if (inByte & 0b1) {

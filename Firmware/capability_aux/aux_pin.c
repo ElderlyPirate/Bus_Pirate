@@ -910,32 +910,32 @@ void bp_aux_pin_set_high_impedance(void) {
 void bp_aux_pin_set_high(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
-    BP_AUX0_DIR = OUTPUT;
     BP_AUX0_LAT = HIGH;
+    BP_AUX0_DIR = OUTPUT;
   } else {
-    BP_CS_DIR = OUTPUT;
     BP_CS_LAT = HIGH;
+    BP_CS_DIR = OUTPUT;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
-    BP_AUX0_DIR = OUTPUT;
     BP_AUX0_LAT = HIGH;
+    BP_AUX0_DIR = OUTPUT;
     break;
 
   case 1:
-    BP_CS_DIR = OUTPUT;
     BP_CS_LAT = HIGH;
+    BP_CS_DIR = OUTPUT;
     break;
 
   case 2:
-    BP_AUX1_DIR = OUTPUT;
     BP_AUX1_LAT = HIGH;
+    BP_AUX1_DIR = OUTPUT;
     break;
 
   case 3:
-    BP_AUX2_DIR = OUTPUT;
     BP_AUX2_LAT = HIGH;
+    BP_AUX2_DIR = OUTPUT;
     break;
 
   default:
@@ -949,32 +949,32 @@ void bp_aux_pin_set_high(void) {
 void bp_aux_pin_set_low(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
-    BP_AUX0_DIR = OUTPUT;
     BP_AUX0_LAT = LOW;
+    BP_AUX0_DIR = OUTPUT;
   } else {
-    BP_CS_DIR = OUTPUT;
     BP_CS_LAT = LOW;
+    BP_CS_DIR = OUTPUT;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
-    BP_AUX0_DIR = OUTPUT;
     BP_AUX0_LAT = LOW;
+    BP_AUX0_DIR = OUTPUT;
     break;
 
   case 1:
-    BP_CS_DIR = OUTPUT;
     BP_CS_LAT = LOW;
+    BP_CS_DIR = OUTPUT;
     break;
 
   case 2:
-    BP_AUX1_DIR = OUTPUT;
     BP_AUX1_LAT = LOW;
+    BP_AUX1_DIR = OUTPUT;
     break;
 
   case 3:
-    BP_AUX2_DIR = OUTPUT;
     BP_AUX2_LAT = LOW;
+    BP_AUX2_DIR = OUTPUT;
     break;
 
   default:

@@ -161,6 +161,11 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   uint16_t cycle;
   uint32_t timer_frequency;
 
+  /* The SMPS owns OC5 as well as the ADC, including zero-duty intervals. */
+  if (!bp_adc_foreground_available()) {
+    return;
+  }
+
   state.pwm_frequency = frequency;
   state.pwm_duty_cycle = duty_cycle > 100 ? 100 : duty_cycle;
 
@@ -263,6 +268,10 @@ void bp_pwm_setup(void) {
   uint16_t pwm_divisor;
   uint16_t pwm_duty;
   bool valid_arguments;
+
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
 
   stop_timers();
 #if defined(BUSPIRATEV4)
@@ -1095,6 +1104,10 @@ void bp_servo_setup(void) {
   uint16_t duty_cycle;
   bool keep_asking;
   int16_t position;
+
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
 
   stop_timers();
 

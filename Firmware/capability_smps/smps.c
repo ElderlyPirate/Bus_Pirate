@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 #include "base.h"
+#include "capability_aux/aux_pin.h"
 
 /**
  * Switched power mode supply module state data holder.
@@ -59,6 +60,8 @@ void smps_start(unsigned int requested_voltage) {
   AD1CON1bits.ADON = OFF;
   AD1CON1bits.ASAM = OFF;
   OC5CON1 = 0;
+  /* A previous AUX0 PWM/servo must not mirror the SMPS OC5 waveform. */
+  bp_aux_pin_reset_state();
   BP_AUX1_DIR = INPUT;
 
   /* Get a 7-bits duty cycle value for switching operations. */

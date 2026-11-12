@@ -185,6 +185,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C; /* Synchronize legacy PWM to Timer2, not a prior SMPS. */
 #else
   /*
    * OC5CON
@@ -220,6 +221,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
 
   /* Attach the AUX pin to the PWM generator. */
   AUXPIN_RPOUT = OC5_IO;
+  AUXPIN_DIR = OUTPUT;
 
   /* Setup the PWM generator. */
   OC5R = cycle;
@@ -257,6 +259,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   OC5CON = (0b110 << _OC5CON_OCM_POSITION) | (OFF << _OC5CON_OCTSEL_POSITION) |
            (OFF << _OC5CON_OCFLT_POSITION) | (OFF << _OC5CON_OCSIDL_POSITION);
 #endif /* BUSPIRATEV4 */
+  TMR2 = 0;
   T2CONbits.TON = ON;
   state.mode = AUX_MODE_PWM;
 }
@@ -289,6 +292,7 @@ void bp_pwm_setup(void) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON
@@ -349,6 +353,7 @@ void bp_pwm_setup(void) {
 
   /* Assign output source to AUX pin. */
   AUXPIN_RPOUT = OC5_IO;
+  AUXPIN_DIR = OUTPUT;
 
   OC5R = pwm_duty_cycle;
   OC5RS = pwm_duty_cycle;
@@ -388,6 +393,7 @@ void bp_pwm_setup(void) {
 #endif /* BUSPIRATEV4 */
 
   PR2 = pwm_period;
+  TMR2 = 0;
   T2CONbits.TON = ON;
 
   BPMSG1034;
@@ -1128,6 +1134,7 @@ void bp_servo_setup(void) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON
@@ -1176,6 +1183,7 @@ void bp_servo_setup(void) {
      */
     duty_cycle = ((position * 5) / 14) + 62;
     AUXPIN_RPOUT = OC5_IO;
+    AUXPIN_DIR = OUTPUT;
     OC5R = duty_cycle;
     OC5RS = duty_cycle;
 
@@ -1217,6 +1225,7 @@ void bp_servo_setup(void) {
     PR2 = period;
 
     /* Start timer 2. */
+    TMR2 = 0;
     T2CONbits.TON = ON;
     BPMSG1255;
     state.mode = AUX_MODE_PWM;

@@ -363,6 +363,33 @@ int main(void) {
 }
 '''
 
+AUX_DRIVE = r'''
+static struct { unsigned alternate_aux; } mode_configuration;
+static unsigned dir[4],lat[4],expected;
+static unsigned *direction(unsigned i) { assert(lat[i]==expected);return &dir[i]; }
+#define BP_AUX0_LAT lat[0]
+#define BP_CS_LAT lat[1]
+#define BP_AUX1_LAT lat[2]
+#define BP_AUX2_LAT lat[3]
+#define BP_AUX0_DIR (*direction(0))
+#define BP_CS_DIR (*direction(1))
+#define BP_AUX1_DIR (*direction(2))
+#define BP_AUX2_DIR (*direction(3))
+#define BPMSG1040 ((void)0)
+#define BPMSG1041 ((void)0)
+'''
+
+AUX_DRIVE_TEST = r'''
+int main(void) {
+ for(unsigned i=0;i<4;++i) {
+  mode_configuration.alternate_aux=i;lat[i]=0;dir[i]=1;expected=1;
+  bp_aux_pin_set_high();assert(lat[i]==1 && !dir[i]);
+  dir[i]=1;expected=0;bp_aux_pin_set_low();assert(!lat[i] && !dir[i]);
+ }
+ puts("PASS all AUX selectors preload the latch before enabling an output");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -401,6 +428,8 @@ def cases(revision):
         "g-pwm": COMMON + PWM + G_PWM + pwm_macros +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
         "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
+        "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +
+        function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,
     }
 
 

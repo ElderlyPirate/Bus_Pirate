@@ -243,10 +243,10 @@ static unsigned SPIMOSI_TRIS,SPICLK_TRIS,SPIMISO_TRIS,SPICS_TRIS;
 static struct { unsigned SPIEN; } SPI1STATbits;
 static struct { unsigned SDI1R; } RPINR20bits;
 static unsigned BP_MOSI_RPOUT,BP_CLK_RPOUT;
-static struct { unsigned numbits,int16,mode,high_impedance; } mode;
+static struct { unsigned numbits,int16,selected_mode,high_impedance; } mode_configuration;
+#define mode mode_configuration
 static unsigned latch,psu,vpu,pullup;
 #define NULL_IO 0
-static void reset_mode_to_8_bits(void) { mode.numbits=8;mode.int16=0; }
 '''
 
 LCD_CLEANUP_TEST = r'''
@@ -254,14 +254,14 @@ int main(void) {
  for(unsigned seed=0;seed<256;++seed) {
   SPIMOSI_TRIS=SPICLK_TRIS=SPIMISO_TRIS=SPICS_TRIS=0;
   SPI1STATbits.SPIEN=1;RPINR20bits.SDI1R=2;BP_MOSI_RPOUT=7;BP_CLK_RPOUT=8;
-  mode.numbits=16;mode.int16=1;mode.mode=seed;mode.high_impedance=seed&1;
+  mode.numbits=16;mode.int16=1;mode.selected_mode=seed;mode.high_impedance=seed&1;
   latch=seed;psu=seed&1;vpu=seed&3;pullup=(seed>>1)&1;
   for(unsigned repeat=0;repeat<2;++repeat) {
    hd44780_cleanup();
    assert(SPIMOSI_TRIS && SPICLK_TRIS && SPIMISO_TRIS && SPICS_TRIS);
    assert(!SPI1STATbits.SPIEN && RPINR20bits.SDI1R==31);
    assert(!BP_MOSI_RPOUT && !BP_CLK_RPOUT && mode.numbits==8 && !mode.int16);
-   assert(mode.mode==seed && mode.high_impedance==(seed&1));
+   assert(mode.selected_mode==seed && mode.high_impedance==(seed&1));
    assert(latch==seed && psu==(seed&1) && vpu==(seed&3) && pullup==((seed>>1)&1));
   }
  }

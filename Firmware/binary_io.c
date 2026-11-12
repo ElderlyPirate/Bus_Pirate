@@ -510,15 +510,53 @@ void reset_state(void) {
   bitbang_pin_state_set(0x00);
 }
 
+/**
+ * Reads the current state of the I/O pins.
+ *
+ * The value is in the same format the pin update commands answer with:
+ * AUX0/MOSI/CLK/MISO/CS on bits 4..0.  The reads go through the
+ * per-board pin macros, so they reflect the header pins on both hardware
+ * revisions (a PORTx read returns the pin levels).
+ *
+ * @return the current state of the pins.
+ */
+uint8_t bitbang_pin_state_get(void) {
+  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
+         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
+         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
+         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
+         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+}
+
 uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Set directions. */
 
-  BP_AUX0_DIR = (direction_mask & 0b00010000) ? INPUT : OUTPUT;
-  BP_MOSI_DIR = (direction_mask & 0b00001000) ? INPUT : OUTPUT;
-  BP_CLK_DIR = (direction_mask & 0b00000100) ? INPUT : OUTPUT;
-  BP_MISO_DIR = (direction_mask & 0b00000010) ? INPUT : OUTPUT;
-  BP_CS_DIR = (direction_mask & 0b00000001) ? INPUT : OUTPUT;
+  if (direction_mask & 0b00010000) {
+    IODIR |= AUX;
+  } else {
+    IODIR &= ~AUX;
+  }
+  if (direction_mask & 0b00001000) {
+    IODIR |= MOSI;
+  } else {
+    IODIR &= ~MOSI;
+  }
+  if (direction_mask & 0b00000100) {
+    IODIR |= CLK;
+  } else {
+    IODIR &= ~CLK;
+  }
+  if (direction_mask & 0b00000010) {
+    IODIR |= MISO;
+  } else {
+    IODIR &= ~MISO;
+  }
+  if (direction_mask & 0b00000001) {
+    IODIR |= CS;
+  } else {
+    IODIR &= ~CS;
+  }
 
   /* Wait a bit. */
 
@@ -526,11 +564,7 @@ uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
@@ -540,11 +574,32 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
   bp_set_voltage_regulator_state((state_mask & 0b01000000) ? ON : OFF);
   bp_set_pullup_state((state_mask & 0b00100000) ? ON : OFF);
 
-  BP_AUX0 = (state_mask & 0b00010000) ? HIGH : LOW;
-  BP_MOSI = (state_mask & 0b00001000) ? HIGH : LOW;
-  BP_CLK = (state_mask & 0b00000100) ? HIGH : LOW;
-  BP_MISO = (state_mask & 0b00000010) ? HIGH : LOW;
-  BP_CS = (state_mask & 0b00000001) ? HIGH : LOW;
+  /* PORT reads pin levels; latch writes must preserve other output latches. */
+  if (state_mask & 0b00010000) {
+    IOLAT |= AUX;
+  } else {
+    IOLAT &= ~AUX;
+  }
+  if (state_mask & 0b00001000) {
+    IOLAT |= MOSI;
+  } else {
+    IOLAT &= ~MOSI;
+  }
+  if (state_mask & 0b00000100) {
+    IOLAT |= CLK;
+  } else {
+    IOLAT &= ~CLK;
+  }
+  if (state_mask & 0b00000010) {
+    IOLAT |= MISO;
+  } else {
+    IOLAT &= ~MISO;
+  }
+  if (state_mask & 0b00000001) {
+    IOLAT |= CS;
+  } else {
+    IOLAT &= ~CS;
+  }
 
   /* Wait a bit. */
 
@@ -552,11 +607,7 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 void binary_io_self_test(const bool jumper_test) {
@@ -740,8 +791,8 @@ void send_bits(const uint8_t value, const size_t count) {
 void pic614_read(const uint8_t value) {
   send_bits(value, 6);
 
-  user_serial_transmit_character(bitbang_read_value());
-  user_serial_transmit_character(bitbang_read_value());
+  user_serial_transmit_character(bitbang_read_value(false));
+  user_serial_transmit_character(bitbang_read_value(false));
 }
 
 void pic614_write(const uint8_t command, const uint8_t data_low,
@@ -749,16 +800,16 @@ void pic614_write(const uint8_t command, const uint8_t data_low,
   send_bits(command, 6);
 
   if ((command & 0x80) == 0x00) {
-    bitbang_write_value(data_low);
-    bitbang_write_value(data_high);
+    bitbang_write_value(data_low, false);
+    bitbang_write_value(data_high, false);
   }
 }
 
 void pic416_read(const uint8_t value) {
   send_bits(value, 4);
 
-  bitbang_read_value();
-  user_serial_transmit_character(bitbang_read_value());
+  bitbang_read_value(false);
+  user_serial_transmit_character(bitbang_read_value(false));
 }
 
 void pic416_write(const uint8_t command, const uint8_t data_low,
@@ -778,8 +829,8 @@ void pic416_write(const uint8_t command, const uint8_t data_low,
     id >>= 1;
   }
 
-  bitbang_write_value(data_low);
-  bitbang_write_value(data_high);
+  bitbang_write_value(data_low, false);
+  bitbang_write_value(data_high, false);
 }
 
 void pic24_send_six_payload(const uint8_t *payload) {
@@ -790,9 +841,9 @@ void pic24_send_six_payload(const uint8_t *payload) {
   bitbang_write_bit(LOW);
 
   /* Send payload. */
-  bitbang_write_value(*payload++);
-  bitbang_write_value(*payload++);
-  bitbang_write_value(*payload++);
+  bitbang_write_value(*payload++, false);
+  bitbang_write_value(*payload++, false);
+  bitbang_write_value(*payload++, false);
 }
 
 void pic24_send_nop_opcode(void) {
@@ -815,10 +866,10 @@ void pic424_read(void) {
   bitbang_write_bit(LOW);
   bitbang_write_bit(LOW);
 
-  bitbang_write_value(0x00);
+  bitbang_write_value(0x00, false);
 
-  uint8_t value = bitbang_read_value();
-  user_serial_transmit_character(bitbang_read_value());
+  uint8_t value = bitbang_read_value(false);
+  user_serial_transmit_character(bitbang_read_value(false));
   user_serial_transmit_character(value);
 
   /* Send two NOPs after a read. */
@@ -858,7 +909,7 @@ bool handle_wire_generic_command(const wire_generic_command command) {
 
   case IO_COMMAND_BITBANG_READ_BYTE: {
     uint16_t value = (io_state.wires == BINARY_IO_2_WIRES)
-                         ? bitbang_read_value()
+                         ? bitbang_read_value(false)
                          : bitbang_read_with_write(0xFF);
     if (mode_configuration.little_endian == YES) {
       value = bp_reverse_integer(value, mode_configuration.numbits);
@@ -868,7 +919,7 @@ bool handle_wire_generic_command(const wire_generic_command command) {
   }
 
   case IO_COMMAND_BITBANG_READ_BIT:
-    user_serial_transmit_character(bitbang_read_bit());
+    user_serial_transmit_character(bitbang_read_bit(false));
     break;
 
   case IO_COMMAND_PEEK_INPUT_BIT:
@@ -919,14 +970,14 @@ void handle_bulk_byte_transfer(const uint8_t command) {
     }
 
     if (io_state.wires == BINARY_IO_2_WIRES) {
-      bitbang_write_value(value & 0xFF);
+      bitbang_write_value(value & 0xFF, false);
       REPORT_IO_SUCCESS();
     } else {
       value = bitbang_read_with_write(value & 0xFF);
       if (mode_configuration.little_endian == YES) {
         value = bp_reverse_integer(value, mode_configuration.numbits);
       }
-      bitbang_write_value(value & 0xFF);
+      bitbang_write_value(value & 0xFF, false);
     }
   }
 }
@@ -1061,8 +1112,8 @@ void handle_pic_command_write_and_read_bits(void) {
     for (size_t counter = 0; counter < commands_count; counter++) {
       send_bits(command, 4);
 
-      bitbang_read_value();
-      user_serial_transmit_character(bitbang_read_value());
+      bitbang_read_value(false);
+      user_serial_transmit_character(bitbang_read_value(false));
     }
 
     return;

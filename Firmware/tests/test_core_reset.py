@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 
 from test_core_system import function
+from test_core_system import source as grouped_source
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMP = Path.home() / "AppData/Local/Temp/opencode"
@@ -53,6 +54,9 @@ static struct { unsigned numbits,int16,write_with_read,command_error,
 static struct { unsigned bus_mode; } bus_pirate_configuration;
 static struct { unsigned ADON,ASAM,SSRC; } AD1CON1bits;
 static struct { unsigned AD1IE; } IEC0bits;
+#if defined(BUSPIRATEV4) && defined(BP_ENABLE_SMPS_SUPPORT)
+static struct { unsigned AD1IF; } IFS0bits;
+#endif
 static uint16_t AD1CSSL,AD1CON2,AD1CON3,OC5R,OC5RS,OC5CON1,OC5CON2;
 static void bp_disable_mode_led(void) { mode_led=0; }
 static void bp_enable_usb_led(void) { usb_led=1; }
@@ -147,7 +151,7 @@ def main():
     parser.add_argument("--revision")
     args = parser.parse_args()
     base = source("Firmware/core_system/base.c", args.revision)
-    smps = source("Firmware/smps.c", args.revision)
+    smps = grouped_source("smps.c", args.revision)
     body = function(base, "clear_mode_configuration") + "\n" + function(base, "bp_reset_board_state")
     for label, defines in (("v3", "#define BUSPIRATEV3\n"),
                            ("v4", "#define BUSPIRATEV4\n"),

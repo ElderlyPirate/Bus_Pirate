@@ -14,13 +14,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def source(name, revision=None):
     if revision:
-        for directory in ("core_system/", "capability_aux/", "protocol_dio/", ""):
+        for directory in ("core_system/", "capability_aux/", "capability_adc/", "capability_smps/", "protocol_dio/", ""):
             r = subprocess.run(["git", "show", revision + ":Firmware/" + directory + name], cwd=ROOT,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             if r.returncode == 0:
                 return r.stdout
         raise RuntimeError(name + " absent at " + revision)
-    for directory in ("core_system", "capability_aux", "protocol_dio", ""):
+    for directory in ("core_system", "capability_aux", "capability_adc", "capability_smps", "protocol_dio", ""):
         path = ROOT / "Firmware" / directory / name
         if path.exists(): return path.read_text()
     raise RuntimeError("Missing source: " + name)

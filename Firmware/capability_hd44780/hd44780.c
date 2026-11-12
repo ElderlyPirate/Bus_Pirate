@@ -289,7 +289,7 @@ void LCDmacro(unsigned int c)
 }
 
 void LCDpins(void) {
-    MSG_I2C_PINS_STATE;
+    MSG_SPI_PINS_STATE;
 }
 
 

@@ -398,6 +398,19 @@ int main(void) {
 }
 '''
 
+LCD_PINS = r'''
+static unsigned spi_map,i2c_map;
+#define MSG_SPI_PINS_STATE (++spi_map)
+#define MSG_I2C_PINS_STATE (++i2c_map)
+'''
+
+LCD_PINS_TEST = r'''
+int main(void) {
+ LCDpins();assert(spi_map==1 && !i2c_map);
+ puts("PASS LCD pin report names CS/MISO/CLK/MOSI, not I2C pins");
+}
+'''
+
 AUX_DRIVE = r'''
 static struct { unsigned alternate_aux; } mode_configuration;
 static unsigned dir[4],lat[4],expected;
@@ -542,6 +555,7 @@ def cases(revision):
         "g-pwm-v3": COMMON.replace("#define BUSPIRATEV4", "#define BUSPIRATEV3") + PWM + G_PWM + pwm_macros + pwm_encoding +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
         "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
+        "lcd-pins": COMMON + LCD_PINS + function(lcd, "LCDpins") + LCD_PINS_TEST,
         "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +
         function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,
         "binary-pwm": COMMON + BINARY_PWM + pwm_macros +

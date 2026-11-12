@@ -175,6 +175,25 @@ int main(void) {
 }
 '''
 
+SMPS_FRAME = r'''
+#undef BP_ENABLE_SMPS_SUPPORT
+typedef enum { SMPS_COMMAND_GET_OUTPUT_VOLTAGE=0xf0,
+ SMPS_COMMAND_STOP=0xf1,SMPS_COMMAND_START=0xf2 } smps_command;
+static unsigned reads,writes;
+static uint8_t user_serial_read_byte(void) { ++reads;return 0; }
+#define REPORT_IO_FAILURE() (++writes)
+'''
+
+SMPS_FRAME_TEST = r'''
+int main(void) {
+ for(unsigned c=0xf0;c<=0xff;++c) {
+  reads=writes=0;handle_smps_command((smps_command)c);
+  assert(writes==1 && reads==(c>=0xf2));
+ }
+ puts("PASS all disabled SMPS opcodes consume exactly their declared operands");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -201,6 +220,7 @@ def cases(revision):
             "perform_selftest")) + SELFTEST_TEST,
         "pwm": COMMON + PWM + pwm_macros + "\n".join(function(aux, n) for n in (
             "setup_prescaler_divisor", "bp_update_pwm", "bp_update_duty_cycle")) + PWM_TEST,
+        "smps-frame": COMMON + SMPS_FRAME + function(binary, "handle_smps_command") + SMPS_FRAME_TEST,
     }
 
 

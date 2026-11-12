@@ -329,6 +329,40 @@ int main(void) {
 }
 '''
 
+LCD_MACRO = r'''
+static unsigned cmdstart,argument,prompt,reset,init,lines;
+static struct { bool command_error; } mode_configuration;
+#define CMDLENMSK 255
+#define CMD_CLEARDISPLAY 1
+#define CMD_SETDDRAMADDR 128
+#define HD44780_COMMAND 0
+#define HD44780_DATA 1
+#define DISPLAYLINES1 0
+#define DISPLAYLINES2 8
+#define MSG_UNKNOWN_MACRO_ERROR ((void)0)
+static void consumewhitechars(void) {}
+static int getint(void) { return argument; }
+static int getnumber(int a,int b,int c,int d) { (void)a;(void)b;(void)c;(void)d;++prompt;return 2; }
+static void HD44780_Reset(void) { ++reset; }
+static void HD44780_Init(unsigned char n) { ++init;lines=n; }
+static void HD44780_WriteByte(unsigned char r,unsigned char b) { (void)r;(void)b; }
+static void bp_delay_ms(unsigned n) { (void)n; }
+static void user_serial_transmit_character(unsigned c) { (void)c; }
+'''
+
+LCD_MACRO_TEST = r'''
+int main(void) {
+ for(unsigned n=1;n<=2;++n) {
+  reset=init=prompt=0;argument=n;LCDmacro(2);
+  assert(reset==1 && init==1 && !prompt && lines==(n==1?0:8));
+ }
+ reset=init=prompt=0;argument=0;LCDmacro(2);
+ assert(reset==1 && init==1 && prompt==1 && lines==8);
+ reset=init=prompt=0;LCDmacro(1);assert(reset==1 && !init && !prompt);
+ puts("PASS LCD macro (2) initializes inline and prompted line counts; reset-only remains unchanged");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -345,6 +379,8 @@ def cases(revision):
     selftest_macros += "\n" + "\n".join(
         "#define %s pins[%d]" % (n, i) for i, n in enumerate(pins))
     selftest_macros += "\n#define BP_ADC_USB 1\n#define BP_ADC_5V0 2\n#define BP_ADC_3V3 3\n"
+    lcd_macros = "\n".join("#define " + n + " ((void)0)" for n in
+                            sorted(set(re.findall(r"\bBPMSG\d+\b", lcd)))) + "\n"
     return {
         "adc": COMMON + ADC + function(base, "bp_adc_foreground_available") +
         "\n".join(function(binary, n) for n in (
@@ -364,6 +400,7 @@ def cases(revision):
         "lcd-spi": COMMON + LCD_SPI + function(lcd, "hd44780_spi_write_byte") + LCD_SPI_TEST,
         "g-pwm": COMMON + PWM + G_PWM + pwm_macros +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
+        "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
     }
 
 

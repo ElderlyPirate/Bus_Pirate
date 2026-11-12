@@ -33,7 +33,7 @@
 #define SPIMOSI                 BP_MOSI
 #define SPICLK                  BP_CLK  
 #define SPIMISO                 BP_MISO 
-#define SPICS                   BP_CS   
+#define SPICS                   BP_CS_LAT
 
 //Define how the PCF8574 pins connect to the LCD
 #define HCT595_LCD_LED 0b00000001

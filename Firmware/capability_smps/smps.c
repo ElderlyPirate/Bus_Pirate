@@ -189,11 +189,12 @@ void smps_stop(void) {
 }
 
 void smps_adc(void) {
+  const uint16_t measurement = smps_state.voltage_reading;
 
   /* Writes the last reading to the serial port. */
 
-  user_serial_transmit_character(smps_state.voltage_reading >> 8);
-  user_serial_transmit_character(smps_state.voltage_reading);
+  user_serial_transmit_character(measurement >> 8);
+  user_serial_transmit_character(measurement);
 }
 
 void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt() {

@@ -208,7 +208,9 @@ static uint16_t adc_buffer(void) { ++buffer_reads;return result; }
 #define OC5_IO 22
 #define NULL_IO 0
 #define BP_ADC_PROBE 4
-static void user_serial_transmit_character(unsigned char c) { assert(outlen<2);output[outlen++]=c; }
+static void user_serial_transmit_character(unsigned char c) {
+ assert(outlen<2);output[outlen++]=c;smps_state.voltage_reading=0x2ab;
+}
 '''
 
 SMPS_TEST = r'''

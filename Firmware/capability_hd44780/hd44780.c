@@ -237,9 +237,9 @@ void LCDmacro(unsigned int c)
                                 BPMSG1220;
                                 //c=bpUserNumberPrompt(1, 2, 2);
                                 input=getnumber(2,1,2, 0);
-                                if(input==1) HD44780_Init(DISPLAYLINES1); else HD44780_Init(DISPLAYLINES2);
                                 //bpWline(OUMSG_LCD_MACRO_INIT);
                         }
+                        if(input==1) HD44780_Init(DISPLAYLINES1); else HD44780_Init(DISPLAYLINES2);
                         BPMSG1221;
                         break;          
                 case 3: //Clear LCD and return home

@@ -138,11 +138,51 @@ int main(void) {
 }
 '''
 
+PWM = r'''
+static struct { unsigned TCKPS1,TCKPS0,TON; } T2CONbits;
+static struct { uint16_t pwm_frequency,pwm_duty_cycle; unsigned mode; } state;
+static uint16_t OC5CON,OC5R,OC5RS,PR2,AUXPIN_RPOUT;
+#define AUX_MODE_IO 0
+#define AUX_MODE_PWM 2
+#define OC5_IO 22
+#define PWM_DIVISOR_PRESCALER_1_256 62
+#define PWM_DIVISOR_PRESCALER_1_64 250
+#define PWM_DIVISOR_PRESCALER_1_8 2000
+#define PWM_DIVISOR_PRESCALER_1_1 16000
+static void stop_timers(void) { memset(&T2CONbits,0,sizeof(T2CONbits)); }
+void bp_update_pwm(uint16_t frequency,uint16_t duty_cycle);
+'''
+
+PWM_TEST = r'''
+int main(void) {
+ unsigned checks=0;
+ for(unsigned f=1;f<=4000;++f) for(unsigned duty=0;duty<=100;++duty) {
+  bp_update_pwm(f,duty);
+  unsigned pre=f<4?256:f<31?64:f<245?8:1;
+  uint32_t ticks=16000000UL/pre/f;
+  assert(PR2==ticks-1 && OC5R==(ticks*duty)/100 && OC5RS==OC5R);
+  assert(T2CONbits.TON && AUXPIN_RPOUT==OC5_IO && state.mode==AUX_MODE_PWM);
+  assert((T2CONbits.TCKPS1*2+T2CONbits.TCKPS0)==(f<4?3:f<31?2:f<245?1:0));
+  ++checks;
+ }
+ bp_update_pwm(1000,50);assert(PR2==15999 && OC5R==8000);
+ bp_update_duty_cycle(25);assert(PR2==15999 && OC5R==4000);
+ bp_update_pwm(1,99);assert(PR2==62499 && OC5R==61875);
+ bp_update_pwm(1000,65535);assert(OC5R==16000);
+ bp_update_pwm(0,0);assert(!T2CONbits.TON && !AUXPIN_RPOUT && !state.mode);
+ bp_update_duty_cycle(50);assert(!T2CONbits.TON && !AUXPIN_RPOUT);
+ printf("PASS %u Hz/duty combinations, prescaler boundaries, FREQ 1000, DUTY and OFF\n",checks);
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
     base = source("core_system/base.c", revision)
     selftest = source("capability_selftest/selftest.c", revision)
+    aux = source("capability_aux/aux_pin.c", revision)
+    pwm_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
+        re.findall(r"\b_OC5CON1_\w+_POSITION\b", aux)))) + "\n"
     selftest_macros = "\n".join("#define " + n + " ((void)0)" for n in
                                 sorted(set(re.findall(r"\bBPMSG\d+\b", selftest))))
     pins = sorted(set(re.findall(r"\bBP_(?:AUX0|LEDMODE|PULLUP|VREGEN|EE_SCL|EE_SDA|EE_WP|MOSI|MISO|CLK|CS)(?:_LAT|_DIR)?\b", selftest)))
@@ -159,6 +199,8 @@ def cases(revision):
         "\n".join(function(selftest, n) for n in (
             "check_result", "perform_pins_state_test", "perform_adc_test",
             "perform_selftest")) + SELFTEST_TEST,
+        "pwm": COMMON + PWM + pwm_macros + "\n".join(function(aux, n) for n in (
+            "setup_prescaler_divisor", "bp_update_pwm", "bp_update_duty_cycle")) + PWM_TEST,
     }
 
 

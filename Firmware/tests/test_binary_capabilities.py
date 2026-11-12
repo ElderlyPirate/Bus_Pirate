@@ -238,6 +238,37 @@ int main(void) {
 }
 '''
 
+LCD_CLEANUP = r'''
+static unsigned SPIMOSI_TRIS,SPICLK_TRIS,SPIMISO_TRIS,SPICS_TRIS;
+static struct { unsigned SPIEN; } SPI1STATbits;
+static struct { unsigned SDI1R; } RPINR20bits;
+static unsigned BP_MOSI_RPOUT,BP_CLK_RPOUT;
+static struct { unsigned numbits,int16,mode,high_impedance; } mode;
+static unsigned latch,psu,vpu,pullup;
+#define NULL_IO 0
+static void reset_mode_to_8_bits(void) { mode.numbits=8;mode.int16=0; }
+'''
+
+LCD_CLEANUP_TEST = r'''
+int main(void) {
+ for(unsigned seed=0;seed<256;++seed) {
+  SPIMOSI_TRIS=SPICLK_TRIS=SPIMISO_TRIS=SPICS_TRIS=0;
+  SPI1STATbits.SPIEN=1;RPINR20bits.SDI1R=2;BP_MOSI_RPOUT=7;BP_CLK_RPOUT=8;
+  mode.numbits=16;mode.int16=1;mode.mode=seed;mode.high_impedance=seed&1;
+  latch=seed;psu=seed&1;vpu=seed&3;pullup=(seed>>1)&1;
+  for(unsigned repeat=0;repeat<2;++repeat) {
+   hd44780_cleanup();
+   assert(SPIMOSI_TRIS && SPICLK_TRIS && SPIMISO_TRIS && SPICS_TRIS);
+   assert(!SPI1STATbits.SPIEN && RPINR20bits.SDI1R==31);
+   assert(!BP_MOSI_RPOUT && !BP_CLK_RPOUT && mode.numbits==8 && !mode.int16);
+   assert(mode.mode==seed && mode.high_impedance==(seed&1));
+   assert(latch==seed && psu==(seed&1) && vpu==(seed&3) && pullup==((seed>>1)&1));
+  }
+ }
+ puts("PASS LCD strong cleanup releases pads/SPI, restores width and preserves mode/latches/power/VPU");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -245,6 +276,7 @@ def cases(revision):
     selftest = source("capability_selftest/selftest.c", revision)
     aux = source("capability_aux/aux_pin.c", revision)
     smps = source("capability_smps/smps.c", revision)
+    lcd = source("capability_hd44780/hd44780.c", revision)
     pwm_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
         re.findall(r"\b_OC5CON1_\w+_POSITION\b", aux)))) + "\n"
     selftest_macros = "\n".join("#define " + n + " ((void)0)" for n in
@@ -268,6 +300,7 @@ def cases(revision):
         "smps-frame": COMMON + SMPS_FRAME + function(binary, "handle_smps_command") + SMPS_FRAME_TEST,
         "smps": COMMON + SMPS + "\n".join(function(smps, n) for n in (
             "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
+        "lcd-cleanup": COMMON + LCD_CLEANUP + function(lcd, "hd44780_cleanup") + LCD_CLEANUP_TEST,
     }
 
 

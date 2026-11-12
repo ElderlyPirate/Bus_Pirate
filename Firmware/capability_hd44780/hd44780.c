@@ -146,6 +146,20 @@ void spi_disable_interface(void){
 
 #endif /* !BP_ENABLE_SPI_SUPPORT */
 
+void hd44780_cleanup(void) {
+        /* Release pads before removing peripheral ownership (DS39897C 10.1).
+         * Keep the selected mode, GPIO latches, rails and VPU policy intact. */
+        SPIMOSI_TRIS = INPUT;
+        SPICLK_TRIS = INPUT;
+        SPIMISO_TRIS = INPUT;
+        SPICS_TRIS = INPUT;
+        SPI1STATbits.SPIEN = OFF;
+        RPINR20bits.SDI1R = 0b11111;
+        BP_MOSI_RPOUT = NULL_IO;
+        BP_CLK_RPOUT = NULL_IO;
+        reset_mode_to_8_bits();
+}
+
 unsigned int LCDwrite(unsigned int c)
 {       
         HD44780_WriteByte(HD44780.RS, c);

@@ -577,6 +577,9 @@ void serviceuser(void) {
         if (bus_pirate_configuration.bus_mode == BP_HIZ) {
           BPMSG1088;
         } else {
+          if (!bp_adc_check_foreground()) {
+            break;
+          }
           if (mode_configuration.high_impedance == NO) {
             BPMSG1209;
           }
@@ -665,6 +668,9 @@ void serviceuser(void) {
         break;
 
       case 'd':
+        if (!bp_adc_check_foreground()) {
+          break;
+        }
         MSG_ADC_VOLTAGE_PROBE_HEADER;
         repeat = (uint16_t)getrepeat() + 1u;
         while (--repeat) {
@@ -1654,6 +1660,10 @@ void print_status_info(void) {
 }
 
 void print_pins_information(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
   BPMSG1226;
 #ifdef BUSPIRATEV4
   BPMSG1256; // bpWstring("12.(Bk)\t11.(Wt)\t10.(Gy)\t9.(Pu)\t8.(Bu)\t7.(Gn)\t6.(Yw)\t5.(Or)\t4.(Rd)\t3.(Br)\t2.(Bk)\1.(Wt)");
@@ -1848,6 +1858,10 @@ void echo_state(const uint16_t value) {
 #ifdef BUSPIRATEV4
 
 void set_pullup_voltage(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
   if (bus_pirate_configuration.bus_mode == BP_HIZ) {
     BPMSG1088;
     mode_configuration.command_error = YES;
@@ -2259,6 +2273,10 @@ void handle_character(const uint8_t character) {
 }
 
 void switch_psu_on(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
   if (bus_pirate_configuration.bus_mode == BP_HIZ) {
     BPMSG1088;
     return;

@@ -249,6 +249,24 @@ void bp_reset_board_state(void) {
   AD1CON2 = 0x0000;
 }
 
+bool bp_adc_foreground_available(void) {
+#if defined(BUSPIRATEV4) && defined(BP_ENABLE_SMPS_SUPPORT)
+  /* Feedback retains ownership even with zero duty or an ADC fault state. */
+  return IEC0bits.AD1IE == OFF;
+#else
+  return true;
+#endif
+}
+
+bool bp_adc_check_foreground(void) {
+  if (!bp_adc_foreground_available()) {
+    bp_write_line("ADC busy: SMPS feedback active; command rejected.");
+    mode_configuration.command_error = YES;
+    return false;
+  }
+  return true;
+}
+
 uint16_t bp_read_adc(const uint16_t channel) {
   /* Retire the previous owner's transaction before selecting a new input. */
   AD1CON1bits.ADON = OFF;
@@ -278,6 +296,10 @@ uint16_t bp_read_adc(const uint16_t channel) {
 }
 
 void bp_adc_probe(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
   /* Turn the ADC on. */
   bp_enable_adc();
 
@@ -298,6 +320,10 @@ void bp_adc_probe(void) {
 
 void bp_adc_continuous_probe(void) {
   uint16_t measurement;
+
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
 
   MSG_ADC_VOLTMETER_MODE;
   MSG_ANY_KEY_TO_EXIT_PROMPT;

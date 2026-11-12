@@ -180,6 +180,24 @@ void delay_long(uint32_t microseconds);
 void bp_reset_board_state(void);
 
 /**
+ * @brief Whether the foreground may use the ADC without interrupting feedback.
+ *
+ * On SMPS-enabled BPv4, AD1IE reserves the ADC until smps_stop() releases it.
+ * This query never changes the ADC, interrupt or PWM state. Owners must not
+ * clear AD1IE temporarily to bypass the policy. Other builds return true.
+ */
+bool bp_adc_foreground_available(void);
+
+/**
+ * @brief Reject a conflicting terminal ADC operation with status and error flag.
+ *
+ * Call before any ADC, VPU, PSU, prompt or input-consumption side effect.
+ * Foreground start/stop is serialized by the command loop; this is not a lock
+ * against an arbitrary interrupt starting a new ADC owner.
+ */
+bool bp_adc_check_foreground(void);
+
+/**
  * @brief Reads a value from the ADC on the given channel.
  *
  * @warning Requires an initialized, foreground-owned manual ADC, with no
@@ -187,6 +205,8 @@ void bp_reset_board_state(void);
  *          internally to retire pending results and select the requested input
  *          before sampling. It remains enabled on return; the caller disables
  *          it when the manual measurement session is complete.
+ *          Callers must check bp_adc_foreground_available() before enabling or
+ *          disabling the ADC; terminal clients use bp_adc_check_foreground().
  *
  * @param[in] channel the channel to read data from.
  * @return the value read from the channel.

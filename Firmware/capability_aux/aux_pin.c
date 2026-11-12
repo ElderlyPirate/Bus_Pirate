@@ -315,8 +315,9 @@ void bp_pwm_setup(void) {
   consumewhitechars();
   pwm_duty = getint();
 
-  valid_arguments = ((pwm_frequency > 0) && (pwm_frequency < 4000) &&
-                     ((pwm_duty > 0) && (pwm_duty < 100)));
+  valid_arguments = !mode_configuration.command_error &&
+                    ((pwm_frequency > 0) && (pwm_frequency <= 4000) &&
+                     (pwm_duty < 100));
 
   if (!valid_arguments) {
     mode_configuration.command_error = NO;
@@ -333,12 +334,9 @@ void bp_pwm_setup(void) {
     pwm_duty = getnumber(50, 0, 99, 0);
   }
 
-  /*
-   * Duty in percent of the period.  pwm_period stays within 64 ticks (the
-   * prescaler table caps it; see setup_prescaler_divisor), so the 16-bit
-   * product cannot overflow and the /100 constant folds to a multiply.
-   */
-  pwm_duty_cycle = (pwm_period * pwm_duty) / 100;
+  /* DS39897C 14.3.1: the period contains PR2+1 ticks, not PR2 ticks.
+   * At 4 MHz, using PR2=3 made a requested 50% duty into 25%. */
+  pwm_duty_cycle = ((uint32_t)(pwm_period + 1UL) * pwm_duty) / 100;
 
   /* Assign output source to AUX pin. */
   AUXPIN_RPOUT = OC5_IO;

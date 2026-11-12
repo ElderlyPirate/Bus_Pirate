@@ -5,6 +5,7 @@ or timing simulator. XC16 builds/disassembly and the bench battery cover those.
 """
 import argparse
 import re
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -297,6 +298,37 @@ int main(void) {
 }
 '''
 
+G_PWM = r'''
+static struct { unsigned command_error; } mode_configuration;
+static unsigned cmdstart,args[2],arg_index;
+static char cmdbuf[256];
+#define CMDLENMSK 255
+#define BPMSG1028 ((void)0)
+#define BPMSG1029 ((void)0)
+#define BPMSG1030 ((void)0)
+#define BPMSG1033 ((void)0)
+#define BPMSG1034 ((void)0)
+static void consumewhitechars(void) {}
+static unsigned getint(void) { assert(arg_index<2);return args[arg_index++]; }
+static unsigned getnumber(int a,int b,int c,int d) { (void)a;(void)b;(void)c;(void)d;assert(0);return 0; }
+'''
+
+G_PWM_TEST = r'''
+int main(void) {
+ unsigned checks=0;
+ for(unsigned f=1;f<=4000;++f) for(unsigned duty=0;duty<100;++duty) {
+  state.mode=AUX_MODE_IO;cmdstart=0;cmdbuf[1]=' ';arg_index=0;
+  args[0]=f;args[1]=duty;bp_pwm_setup();
+  unsigned divisor=f<4?62:f<31?250:f<245?2000:16000;
+  unsigned ticks=divisor/f;
+  assert(PR2==ticks-1 && OC5R==ticks*duty/100 && OC5RS==OC5R);
+  assert(T2CONbits.TON && state.mode==AUX_MODE_PWM && AUXPIN_RPOUT==OC5_IO);
+  ++checks;
+ }
+ printf("PASS %u g-kHz/duty pairs, inline zero duty and inclusive 4MHz endpoint\n",checks);
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -330,6 +362,8 @@ def cases(revision):
             "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
         "lcd-cleanup": COMMON + LCD_CLEANUP + function(lcd, "hd44780_cleanup") + LCD_CLEANUP_TEST,
         "lcd-spi": COMMON + LCD_SPI + function(lcd, "hd44780_spi_write_byte") + LCD_SPI_TEST,
+        "g-pwm": COMMON + PWM + G_PWM + pwm_macros +
+        function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
     }
 
 
@@ -345,7 +379,8 @@ def main():
             c = Path(tmp) / (name + ".c")
             exe = c.with_suffix(".exe")
             c.write_text(code, encoding="ascii")
-            subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror",
+            linker = (["-fuse-ld=bfd"] if not shutil.which("ld") and shutil.which("ld.bfd") else [])
+            subprocess.run(["gcc", *linker, "-std=gnu99", "-Wall", "-Wextra", "-Werror",
                             str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True)
 

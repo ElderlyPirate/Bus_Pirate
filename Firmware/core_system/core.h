@@ -268,6 +268,16 @@ typedef struct {
 #endif /* BP_ENABLE_BASIC_SUPPORT */
 } bus_pirate_configuration_t;
 
+#ifdef BP_ENABLE_HD44780_SUPPORT
+/**
+ * LCD cleanup hook; a strong family implementation overrides the core fallback.
+ * Release MOSI/CLK/MISO/CS, disable/detach the SPI interface and restore 8-bit
+ * transfers. Leave the selected mode, PSU, pull-ups and VPU policy unchanged;
+ * terminal 'w' disables the regulator after this callback returns.
+ */
+void hd44780_cleanup(void);
+#endif /* BP_ENABLE_HD44780_SUPPORT */
+
 #ifdef BP_ENABLE_DIO_SUPPORT
 /**
  * DIO cleanup hook; a strong family implementation overrides the core fallback.

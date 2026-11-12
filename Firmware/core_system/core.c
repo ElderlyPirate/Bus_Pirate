@@ -369,7 +369,7 @@ static bus_pirate_protocol_t enabled_protocols[ENABLED_PROTOCOLS_COUNT] = {
      .run_macro = LCDmacro,
      .setup_prepare = LCDsetup,
      .setup_execute = LCDsetup_exc,
-     .cleanup = spi_disable_interface,
+     .cleanup = hd44780_cleanup,
      .print_pins_state = LCDpins,
      .print_settings = empty_print_settings_implementation,
      .name = "LCD"}
@@ -455,6 +455,17 @@ void null_macro_callback(uint16_t value) {
 }
 
 void empty_print_settings_implementation(void) { bpBR; }
+
+#ifdef BP_ENABLE_HD44780_SUPPORT
+
+/* The LCD family can replace this safe standalone-core cleanup with its hook. */
+void __attribute__((weak)) hd44780_cleanup(void) {
+  IODIR |= MOSI | CLK | MISO | CS;
+  spi_disable_interface();
+  reset_mode_to_8_bits();
+}
+
+#endif /* BP_ENABLE_HD44780_SUPPORT */
 
 #ifdef BP_ENABLE_DIO_SUPPORT
 

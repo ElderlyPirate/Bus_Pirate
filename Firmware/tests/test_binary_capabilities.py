@@ -434,6 +434,46 @@ int main(void) {
 }
 '''
 
+CAPTURE = r'''
+static struct { unsigned IC1IF,IC2IF; } IFS0bits;
+static struct { unsigned IC1R,IC2R; } RPINR7bits;
+static struct { unsigned TON; } T4CONbits;
+static uint16_t TMR5HLD,TMR4,T4CON,IC1CON1,IC2CON1,IC1CON2,IC2CON2;
+static uint32_t clock_us,latest;
+static unsigned scenario,samples,flags;
+static uint32_t bp_timer_microseconds(void) { clock_us=(clock_us+1000000UL)&0x7fffffffUL;return clock_us; }
+static unsigned capture_flag(void) {
+ ++flags;
+ if(scenario==0 || scenario==3) return 0;
+ if(scenario==1) return 1;
+ if(scenario==2) return flags==2;
+ return flags>1;
+}
+static uint16_t low_buffer(void) { latest=samples++*16000UL;return latest; }
+#define IC1ICBNE capture_flag()
+#define IC2ICBNE (scenario==3)
+#define IC1BUF low_buffer()
+#define IC2BUF ((uint16_t)(latest>>16))
+#define AUXPIN_RPIN 4
+'''
+
+CAPTURE_TEST = r'''
+int main(void) {
+ (void)bp_timer_microseconds;
+ for(scenario=0;scenario<4;++scenario) {
+  samples=flags=0;clock_us=0x7fc00000UL;T4CONbits.TON=1;
+  assert(average_sample_frequency(4)==0);
+  assert(((clock_us-(0x7fc00000UL+1000000UL))&0x7fffffffUL)==5000000UL);
+  assert(!IC1CON1 && !IC2CON1 && !T4CONbits.TON);
+  assert(RPINR7bits.IC1R==31 && RPINR7bits.IC2R==31);
+ }
+ scenario=4;samples=flags=0;clock_us=0;
+ assert(average_sample_frequency(8)==16000 && samples==9);
+ assert(average_sample_frequency(0)==0);
+ puts("PASS bounded capture startup/drain/dropout with wrap-safe timeout, normal periods and cleanup");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -452,6 +492,8 @@ def cases(revision):
     selftest_macros += "\n#define BP_ADC_USB 1\n#define BP_ADC_5V0 2\n#define BP_ADC_3V3 3\n"
     lcd_macros = "\n".join("#define " + n + " ((void)0)" for n in
                             sorted(set(re.findall(r"\bBPMSG\d+\b", lcd)))) + "\n"
+    capture_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
+        re.findall(r"\b_(?:IC[12]CON[12]|T4CON)_\w+_POSITION\b", aux)))) + "\n"
     return {
         "adc": COMMON + ADC + function(base, "bp_adc_foreground_available") +
         "\n".join(function(binary, n) for n in (
@@ -476,6 +518,7 @@ def cases(revision):
         function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,
         "binary-pwm": COMMON + BINARY_PWM + pwm_macros +
         function(binary, "handle_setup_pwm") + function(binary, "handle_clear_pwm") + BINARY_PWM_TEST,
+        "capture": COMMON + CAPTURE + capture_macros + function(aux, "average_sample_frequency") + CAPTURE_TEST,
     }
 
 
@@ -494,7 +537,7 @@ def main():
             linker = ["-fuse-ld=bfd"] if shutil.which("ld.bfd") else []
             subprocess.run(["gcc", *linker, "-std=gnu99", "-Wall", "-Wextra", "-Werror",
                             str(c), "-o", str(exe)], check=True)
-            subprocess.run([str(exe)], check=True)
+            subprocess.run([str(exe)], check=True, timeout=10)
 
 
 if __name__ == "__main__":

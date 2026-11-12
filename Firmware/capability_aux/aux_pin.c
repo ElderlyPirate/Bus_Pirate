@@ -452,6 +452,10 @@ void bp_frequency_counter_setup(void) {
     if (frequency > 0) {
       BPMSG1245;
       period = average_sample_frequency(frequency);
+      if (period == 0) {
+        MSG_PWM_FREQUENCY_TOO_LOW;
+        goto frequency_done;
+      }
       if (period > 400000) {
         frequency = 1600000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 100000);
@@ -530,6 +534,7 @@ void bp_frequency_counter_setup(void) {
     }
   }
 
+frequency_done:
   /* Detach Timer2 Clock signal from the AUX pin. */
   RPINR3bits.T2CKR = 0b11111;
   stop_timers();
@@ -638,6 +643,16 @@ uint32_t poll_frequency_counter_value(void) {
 uint32_t average_sample_frequency(const uint16_t count) {
   uint32_t current_low, counter_low, current_high, counter_high, total_samples;
   uint16_t index;
+  /* The timestamp API wraps at 2^31 us (32 half-us ticks shifted right).
+   * Bound the complete acquisition, including FIFO drains and lost input. */
+  const uint32_t started = bp_timer_microseconds();
+  bool complete = false;
+
+  if (count == 0) {
+    return 0;
+  }
+
+  total_samples = 0;
 
   /* Clear input capture interrupts. */
   IFS0bits.IC2IF = OFF;
@@ -791,23 +806,34 @@ uint32_t average_sample_frequency(const uint16_t count) {
   /* Flush IC1. */
   while (IC1ICBNE == ON) {
     current_low = IC1BUF;
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   /* Flush IC2. */
   while (IC2ICBNE == ON) {
     counter_low = IC2BUF;
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   while (IC1ICBNE == OFF) {
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   counter_low = IC1BUF;
   counter_high = IC2BUF;
-  total_samples = 0;
 
   for (index = 0; index < count; index++) {
     /* Wait for signal. */
     while (IC1ICBNE == OFF) {
+      if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+        goto capture_done;
+      }
     }
 
     current_low = IC1BUF;
@@ -817,7 +843,9 @@ uint32_t average_sample_frequency(const uint16_t count) {
     counter_high = current_high;
     counter_low = current_low;
   }
+  complete = true;
 
+capture_done:
 #if defined(BUSPIRATEV4)
 
   /* Stop input capture units. */
@@ -886,7 +914,9 @@ uint32_t average_sample_frequency(const uint16_t count) {
 
 #endif /* BUSPIRATEV4 */
 
-  return total_samples / count;
+  RPINR7bits.IC1R = 0b11111;
+  RPINR7bits.IC2R = 0b11111;
+  return complete ? total_samples / count : 0;
 }
 
 void bp_aux_pin_set_high_impedance(void) {

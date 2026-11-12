@@ -60,9 +60,8 @@
  * @param[in] frequency  the generated signal frequency in Hz, between
  *                       PWM_MINIMUM_FREQUENCY and PWM_MAXIMUM_FREQUENCY,
  *                       inclusive.  Set to PWM_OFF to stop signal generation.
- * @param[in] duty_cycle the generated signal duty cycle, on a range from
- *                       PWM_MINIMUM_DUTY_CYCLE to PWM_MAXIMUM_DUTY_CYCLE,
- *                       not inclusive.
+ * @param[in] duty_cycle the generated signal duty cycle in percent, 0..100.
+ *                       Larger values saturate to 100 percent.
  *
  * @see PWM_MINIMUM_FREQUENCY
  * @see PWM_MAXIMUM_FREQUENCY
@@ -74,9 +73,8 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle);
 /**
  * @brief Updates the duty cycle of the currently generated PWM signal.
  *
- * @param[in] duty_cycle the generated signal duty cycle, on a range from
- *                       PWM_MINIMUM_DUTY_CYCLE to PWM_MAXIMUM_DUTY_CYCLE,
- *                       not inclusive.
+ * @param[in] duty_cycle the generated signal duty cycle in percent, 0..100.
+ *                       Larger values saturate to 100 percent.
  *
  * @see PWM_MINIMUM_DUTY_CYCLE
  * @see PWM_MAXIMUM_DUTY_CYCLE

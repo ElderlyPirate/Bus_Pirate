@@ -194,12 +194,55 @@ int main(void) {
 }
 '''
 
+SMPS = r'''
+static struct { unsigned AD1IE; } IEC0bits;
+static struct { unsigned AD1IF; } IFS0bits;
+static struct { unsigned ADON,ASAM; } AD1CON1bits;
+static uint16_t OC5CON1,OC5CON2,OC5R,OC5RS,AD1CHS;
+static unsigned BP_AUX1_DIR,BP_AUX1_LAT,BP_AUX1_RPOUT;
+static volatile struct { uint16_t voltage_out,voltage_reading;uint8_t pwm_duty_cycle; } smps_state;
+static unsigned result,buffer_reads,outlen;
+static unsigned char output[2];
+static uint16_t adc_buffer(void) { ++buffer_reads;return result; }
+#define ADC1BUF0 adc_buffer()
+#define OC5_IO 22
+#define NULL_IO 0
+#define BP_ADC_PROBE 4
+static void user_serial_transmit_character(unsigned char c) { assert(outlen<2);output[outlen++]=c; }
+'''
+
+SMPS_TEST = r'''
+int main(void) {
+ for(unsigned v=512;v<=4095;++v) {
+  smps_start(v);
+  assert(smps_state.voltage_out==(uint32_t)v*45/58);
+  assert(smps_state.pwm_duty_cycle==128-64000/v);
+  assert(BP_AUX1_DIR==OUTPUT && !BP_AUX1_LAT && BP_AUX1_RPOUT==OC5_IO);
+  assert(IEC0bits.AD1IE && AD1CON1bits.ADON && AD1CON1bits.ASAM && !IFS0bits.AD1IF);
+  result=smps_state.voltage_out+1;buffer_reads=0;_ADC1Interrupt();
+  assert(!OC5R && buffer_reads==1 && IEC0bits.AD1IE);
+  result=0;buffer_reads=0;_ADC1Interrupt();
+  assert(OC5R==smps_state.pwm_duty_cycle && buffer_reads==1);
+  for(unsigned repeat=0;repeat<2;++repeat) {
+   smps_stop();
+   assert(!IEC0bits.AD1IE && !AD1CON1bits.ADON && !AD1CON1bits.ASAM && !IFS0bits.AD1IF);
+   assert(BP_AUX1_DIR==INPUT && !BP_AUX1_LAT && !BP_AUX1_RPOUT);
+   assert(!OC5CON1 && !OC5CON2 && !OC5R && !OC5RS);
+  }
+ }
+ smps_state.voltage_reading=0x123;smps_adc();
+ assert(outlen==2 && output[0]==1 && output[1]==0x23);
+ puts("PASS 3584 SMPS targets, zero-duty feedback ownership, single-buffer ISR reads and repeated STOP");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
     base = source("core_system/base.c", revision)
     selftest = source("capability_selftest/selftest.c", revision)
     aux = source("capability_aux/aux_pin.c", revision)
+    smps = source("capability_smps/smps.c", revision)
     pwm_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
         re.findall(r"\b_OC5CON1_\w+_POSITION\b", aux)))) + "\n"
     selftest_macros = "\n".join("#define " + n + " ((void)0)" for n in
@@ -221,6 +264,8 @@ def cases(revision):
         "pwm": COMMON + PWM + pwm_macros + "\n".join(function(aux, n) for n in (
             "setup_prescaler_divisor", "bp_update_pwm", "bp_update_duty_cycle")) + PWM_TEST,
         "smps-frame": COMMON + SMPS_FRAME + function(binary, "handle_smps_command") + SMPS_FRAME_TEST,
+        "smps": COMMON + SMPS + "\n".join(function(smps, n) for n in (
+            "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
     }
 
 

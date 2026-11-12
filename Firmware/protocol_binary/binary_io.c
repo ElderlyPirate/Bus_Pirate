@@ -1326,7 +1326,10 @@ void handle_smps_command(const smps_command command) {
   }
   }
 #else
-  (void)command;
+  /* Keep the request frame aligned even when no SMPS driver is present. */
+  if ((uint8_t)command >= SMPS_COMMAND_START) {
+    user_serial_read_byte();
+  }
   REPORT_IO_FAILURE();
 #endif /* BP_ENABLE_SMPS_SUPPORT */
 }

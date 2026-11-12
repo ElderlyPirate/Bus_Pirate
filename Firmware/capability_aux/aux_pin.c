@@ -86,8 +86,8 @@ static aux_state_t state = {0};
 /**
  * @brief Sets up input clock prescaler and returns an appropriate divisor.
  *
- * Sets up timer #1's input clock prescaler for the given frequency and returns
- * an appropriate divisor for it.
+ * Sets up Timer2's prescaler. The returned divisor is scaled for the terminal
+ * g command's kHz input; bp_update_pwm() converts it for its Hz contract.
  *
  * @param[in] frequency the given frequency to set things up for.
  *
@@ -152,17 +152,17 @@ uint16_t setup_prescaler_divisor(const uint16_t frequency) {
   return PWM_DIVISOR_PRESCALER_1_1;
 }
 
-inline void bp_update_duty_cycle(const uint16_t duty_cycle) {
+void bp_update_duty_cycle(const uint16_t duty_cycle) {
   bp_update_pwm(state.pwm_frequency, duty_cycle);
 }
 
 void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   uint16_t period;
   uint16_t cycle;
-  uint16_t divisor;
+  uint32_t timer_frequency;
 
   state.pwm_frequency = frequency;
-  state.pwm_duty_cycle = duty_cycle;
+  state.pwm_duty_cycle = duty_cycle > 100 ? 100 : duty_cycle;
 
   stop_timers();
 #if defined(BUSPIRATEV4)
@@ -202,10 +202,16 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
     return;
   }
 
-  divisor = setup_prescaler_divisor(frequency);
-  period = (divisor / frequency) - 1;
+  timer_frequency = (uint32_t)setup_prescaler_divisor(frequency) * 1000;
+  /* g uses kHz-scaled divisors; 16 MHz / 256 is exactly 62500 Hz,
+   * not the truncated 62 kHz table entry. DS39897C Eq. 14-1:
+   * PR2 + 1 = FCY / (prescale * frequency_in_Hz). */
+  if (frequency < 4) {
+    timer_frequency = 62500;
+  }
+  period = (timer_frequency / frequency) - 1;
   PR2 = period;
-  cycle = (period * duty_cycle) / 100;
+  cycle = ((uint32_t)(period + 1UL) * state.pwm_duty_cycle) / 100;
 
   /* Attach the AUX pin to the PWM generator. */
   AUXPIN_RPOUT = OC5_IO;

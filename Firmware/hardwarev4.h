@@ -177,10 +177,11 @@
 #define BP_AUX_RPIN BP_AUX0_RPIN
 #define BP_AUX_RPOUT BP_AUX0_RPOUT
 
-#define CFG_ADDR_UPPER 0x0001
-#define CFG_ADDR_0 0x57FA
-#define CFG_ADDR_1 0x57FC
-#define CFG_ADDR_2 0x57FE
+/* DS39897C 26.1, Table 26-1: 256KB part; CFG0/1/2 display CW3/2/1. */
+#define CFG_ADDR_UPPER 0x0002
+#define CFG_ADDR_0 0xABFA
+#define CFG_ADDR_1 0xABFC
+#define CFG_ADDR_2 0xABFE
 
 #define PIC_REV_A3 0x0001
 #define PIC_REV_A5 0x0003

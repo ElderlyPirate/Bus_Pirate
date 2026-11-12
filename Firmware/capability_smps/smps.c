@@ -58,7 +58,7 @@ void smps_start(unsigned int requested_voltage) {
 
   /* Rescale the voltage to something appropriate for the ADC to compare
    * against. */
-  smps_state.voltage_out = requested_voltage * 45 / 58;
+  smps_state.voltage_out = (uint32_t)requested_voltage * 45 / 58;
 
   /* Assign the AUX pin to Output Compare 5 */
   BP_AUX1_RPOUT = OC5_IO;

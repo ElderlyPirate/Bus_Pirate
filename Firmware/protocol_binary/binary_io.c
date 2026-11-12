@@ -1335,6 +1335,10 @@ void handle_smps_command(const smps_command command) {
 }
 
 void handle_clear_pwm(void) {
+  if (!bp_adc_foreground_available()) {
+    REPORT_IO_FAILURE();
+    return;
+  }
   /*
    * T2CON - TIMER 2 CONTROL REGISTER
    *
@@ -1439,6 +1443,15 @@ void handle_frequency_measurement(void) {
 }
 
 void handle_setup_pwm(void) {
+  const uint8_t prescale = user_serial_read_byte() & 0b00000011;
+  const uint16_t duty_cycle = user_serial_read_big_endian_word();
+  const uint16_t period = user_serial_read_big_endian_word();
+
+  /* Consume the complete frame before refusing a shared OC5 conflict. */
+  if (!bp_adc_foreground_available()) {
+    REPORT_IO_FAILURE();
+    return;
+  }
   /*
    * T2CON - TIMER 2 CONTROL REGISTER
    *
@@ -1498,10 +1511,7 @@ void handle_setup_pwm(void) {
 #endif /* BUSPIRATEV4 */
 
   BP_AUX_RPOUT = OC5_IO;
-  T2CONbits.TCKPS = user_serial_read_byte() & 0b00000011;
-
-  uint16_t duty_cycle = user_serial_read_byte();
-  duty_cycle = (duty_cycle << 8) | user_serial_read_byte();
+  T2CONbits.TCKPS = prescale;
   OC5R = duty_cycle;
   OC5RS = duty_cycle;
 
@@ -1535,8 +1545,6 @@ void handle_setup_pwm(void) {
   OC5CON = 0x0006;
 #endif /* BUSPIRATEV4 */
 
-  uint16_t period = user_serial_read_byte();
-  period = (period << 8) | user_serial_read_byte();
   PR2 = period;
 
   T2CONbits.TON = ON;

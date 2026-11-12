@@ -140,6 +140,9 @@ int main(void) {
 '''
 
 PWM = r'''
+static bool available=true;
+#define bp_adc_foreground_available() available
+#define bp_adc_check_foreground() available
 static struct { unsigned TCKPS1,TCKPS0,TON; } T2CONbits;
 static struct { uint16_t pwm_frequency,pwm_duty_cycle; unsigned mode; } state;
 static uint16_t OC5CON,OC5R,OC5RS,PR2,AUXPIN_RPOUT;
@@ -172,6 +175,8 @@ int main(void) {
  bp_update_pwm(1000,65535);assert(OC5R==16000);
  bp_update_pwm(0,0);assert(!T2CONbits.TON && !AUXPIN_RPOUT && !state.mode);
  bp_update_duty_cycle(50);assert(!T2CONbits.TON && !AUXPIN_RPOUT);
+ available=false;PR2=123;OC5CON=99;bp_update_pwm(1000,50);
+ assert(PR2==123 && OC5CON==99 && !T2CONbits.TON);
  printf("PASS %u Hz/duty combinations, prescaler boundaries, FREQ 1000, DUTY and OFF\n",checks);
 }
 '''
@@ -202,6 +207,8 @@ static struct { unsigned ADON,ASAM; } AD1CON1bits;
 static uint16_t OC5CON1,OC5CON2,OC5R,OC5RS,AD1CHS;
 static unsigned BP_AUX1_DIR,BP_AUX1_LAT,BP_AUX1_RPOUT;
 static volatile struct { uint16_t voltage_out,voltage_reading;uint8_t pwm_duty_cycle; } smps_state;
+static unsigned aux_resets;
+static void bp_aux_pin_reset_state(void) { ++aux_resets; }
 static unsigned result,buffer_reads,outlen;
 static unsigned char output[2];
 static uint16_t adc_buffer(void) { ++buffer_reads;return result; }
@@ -218,6 +225,7 @@ SMPS_TEST = r'''
 int main(void) {
  for(unsigned v=512;v<=4095;++v) {
   smps_start(v);
+  assert(aux_resets==v-511);
   assert(smps_state.voltage_out==(uint32_t)v*45/58);
   assert(smps_state.pwm_duty_cycle==128-64000/v);
   assert(BP_AUX1_DIR==OUTPUT && !BP_AUX1_LAT && BP_AUX1_RPOUT==OC5_IO);
@@ -326,6 +334,8 @@ int main(void) {
   ++checks;
  }
  printf("PASS %u g-kHz/duty pairs, inline zero duty and inclusive 4MHz endpoint\n",checks);
+ available=false;PR2=123;OC5CON=99;bp_pwm_setup();
+ assert(PR2==123 && OC5CON==99);
 }
 '''
 
@@ -390,6 +400,37 @@ int main(void) {
 }
 '''
 
+BINARY_PWM = r'''
+static bool available;
+#define bp_adc_foreground_available() available
+static struct { unsigned TCKPS,TON; } T2CONbits;
+static uint16_t T2CON,T4CON,OC5CON,OC5R,OC5RS,PR2,BP_AUX_RPOUT;
+static const uint8_t input[]={0,3,32,6,63};
+static unsigned used,reply,count;
+static uint8_t user_serial_read_byte(void) { assert(used<5);return input[used++]; }
+static uint16_t user_serial_read_big_endian_word(void) {
+ uint16_t hi=user_serial_read_byte();return (hi<<8)|user_serial_read_byte();
+}
+#define OC5_IO 22
+#define REPORT_IO_SUCCESS() do {reply=1;++count;} while(0)
+#define REPORT_IO_FAILURE() do {reply=0;++count;} while(0)
+'''
+
+BINARY_PWM_TEST = r'''
+int main(void) {
+ T2CON=T4CON=OC5CON=OC5R=OC5RS=PR2=BP_AUX_RPOUT=123;
+ handle_setup_pwm();assert(used==5 && count==1 && reply==0);
+ assert(T2CON==123 && T4CON==123 && OC5CON==123 && OC5R==123 && OC5RS==123 && PR2==123 && BP_AUX_RPOUT==123);
+ handle_clear_pwm();assert(used==5 && count==2 && reply==0);
+ assert(T2CON==123 && OC5CON==123 && BP_AUX_RPOUT==123);
+ available=true;used=0;handle_setup_pwm();
+ assert(used==5 && count==3 && reply==1 && PR2==1599 && OC5R==800 && OC5RS==800);
+ assert(T2CONbits.TON && BP_AUX_RPOUT==OC5_IO);
+ handle_clear_pwm();assert(reply==1 && !T2CON && !OC5CON && !BP_AUX_RPOUT);
+ puts("PASS binary PWM consumes/refuses conflicts without touching OC5, normal framing retained");
+}
+'''
+
 
 def cases(revision):
     binary = source("protocol_binary/binary_io.c", revision)
@@ -430,6 +471,8 @@ def cases(revision):
         "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
         "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +
         function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,
+        "binary-pwm": COMMON + BINARY_PWM + pwm_macros +
+        function(binary, "handle_setup_pwm") + function(binary, "handle_clear_pwm") + BINARY_PWM_TEST,
     }
 
 

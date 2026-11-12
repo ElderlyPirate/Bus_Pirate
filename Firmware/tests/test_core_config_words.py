@@ -2,17 +2,20 @@
 
 Compile the production table-read helper and actual status-report prefix.
 Cross-check board definitions against the selected device linker scripts.
+Keep generated sources and executables under Firmware/build/core-config-test
+for AV diagnostics; retry a transient Windows access-denied launch only once.
 """
 import argparse
+import hashlib
 from pathlib import Path
 import re
 import subprocess
-import tempfile
+import time
 
 from test_core_system import function
 
 ROOT = Path(__file__).resolve().parents[2]
-TEMP = Path.home() / "AppData/Local/Temp/opencode"
+BUILD = ROOT / "Firmware" / "build" / "core-config-test"
 
 PREFIX = r'''
 #include <assert.h>
@@ -59,6 +62,26 @@ int main(void) {
 '''
 
 
+def run_fixture(exe):
+    for attempt in range(2):
+        try:
+            subprocess.run([str(exe)], check=True)
+            return
+        except PermissionError as exc:
+            if getattr(exc, "winerror", None) != 5:
+                raise
+            if attempt == 0:
+                print("RETRY WinError 5 after 0.5s:", exe.resolve(), flush=True)
+                time.sleep(0.5)
+                continue
+            print("BLOCKED executable retained:", exe.resolve(), flush=True)
+            try:
+                print("SHA256:", hashlib.sha256(exe.read_bytes()).hexdigest(), flush=True)
+            except OSError as hash_error:
+                print("SHA256 unavailable:", hash_error, flush=True)
+            raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
@@ -85,12 +108,14 @@ def main():
         definitions = "\n".join(re.findall(r"^#define CFG_ADDR_\w+\s+0x[0-9a-fA-F]+", hardware, re.M))
         prefix = PREFIX.replace("@@ADDRESSES@@", ",".join(hex(address) for address in addresses))
         test = TEST.replace("@@BOARD@@", board)
-        with tempfile.TemporaryDirectory(prefix="bp-core-config-", dir=TEMP) as tmp:
-            c = Path(tmp) / "config.c"
-            exe = c.with_suffix(".exe")
-            c.write_text("#define BUSPIRATE" + board + "\n" + definitions + "\n" + prefix + base + status + test, encoding="ascii")
-            subprocess.run(["gcc", "-std=c99", "-Wall", "-Wextra", "-Werror", str(c), "-o", str(exe)], check=True)
-            subprocess.run([str(exe)], check=True)
+        # Separate board directories retain both fixtures, including a blocked EXE.
+        build = BUILD / board
+        build.mkdir(parents=True, exist_ok=True)
+        c = build / "config.c"
+        exe = c.with_suffix(".exe")
+        c.write_text("#define BUSPIRATE" + board + "\n" + definitions + "\n" + prefix + base + status + test, encoding="ascii")
+        subprocess.run(["gcc", "-std=c99", "-Wall", "-Wextra", "-Werror", str(c), "-o", str(exe)], check=True)
+        run_fixture(exe)
         print("PASS", board, "status mapping", ", ".join(hex(address) for address in addresses), flush=True)
 
     # Device selection and the shared DEVID path are not flash-size-dependent.

@@ -132,6 +132,12 @@ static void pwm(void) {
  for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
   reset();command(bad[i]);command("RUN");expect(!pwm_calls && strstr(output,"Error(3)"),bad[i]);
  }
+ const char *extra[]={"10 FREQ 1000,50,25", "10 DUTY 25,50"};
+ for(unsigned i=0;i<sizeof(extra)/sizeof(*extra);++i) {
+  reset();command(extra[i]);command("RUN");expect(!pwm_calls && strstr(output,"Error(3)"),extra[i]);
+ }
+ reset();command("10 IF 0 THEN FREQ 1000 50 ELSE PRINT 1 2");command("RUN");
+ expect(!pwm_calls && output_is("12"),"FREQ whitespace handling ends at ELSE");
 }
 static void pullup(void) {
  reset();command("10 PULLUP 0");command("20 LET A=PULLUP");command("RUN");

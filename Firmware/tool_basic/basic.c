@@ -1231,6 +1231,10 @@ void interpreter(void) {
         status = STATUS_CODE_SYNTAX_ERROR;
         break;
       }
+      if ((basic_peek() < TOK_LEN) && (basic_peek() != TOK_ELSE)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       if (frequency < PWM_MINIMUM_FREQUENCY) {
         frequency = PWM_MINIMUM_FREQUENCY;
@@ -1263,6 +1267,10 @@ void interpreter(void) {
       }
       int16_t duty_cycle = assign();
       if (basic_expression_error || (basic_program_counter == operand)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      if ((basic_peek() < TOK_LEN) && (basic_peek() != TOK_ELSE)) {
         status = STATUS_CODE_SYNTAX_ERROR;
         break;
       }
@@ -1571,6 +1579,8 @@ void bp_basic_enter_interactive_interpreter(void) {
         line[i] = temp;
         if (temp == TOK_FREQ) {
           frequency_arguments = YES;
+        } else if (temp == TOK_ELSE) {
+          frequency_arguments = NO;
         }
         if (temp == TOK_REM) {
           string_found = YES;

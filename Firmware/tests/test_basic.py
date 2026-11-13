@@ -223,6 +223,24 @@ static void conditional(void) {
  reset();command("10 IF 0 THEN PRINT 1");command("20 PRINT 2;");command("RUN");
  expect(output_is("2"),"false IF without ELSE advances to next line");
 }
+static void data(void) {
+ reset();command("10 DATA 1");command("20 DATA 2");command("30 READ A");command("40 READ B");
+ command("50 READ C");command("RUN");
+ expect(strstr(output,"Error(9)") && basic_variables[0]==1 && basic_variables[1]==2,
+        "READ past DATA reports exhaustion instead of restarting");
+ reset();command("10 DATA -3");command("20 REM SEPARATE DATA LINES");command("30 DATA 2");
+ command("40 READ A");command("50 READ B");command("60 PRINT A+4;B;");command("RUN");
+ expect(output_is("12"),"signed literals and separated DATA statements");
+ reset();command("10 DATA 1,2");command("20 READ A");command("30 RESTORE");
+ command("40 READ B");command("50 PRINT A;B;");command("RUN");
+ expect(output_is("11"),"RESTORE explicitly restarts DATA");
+ const char *bad[]={"10 DATA", "10 DATA 1,", "10 DATA ADC", "10 DATA (1+2)"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+  reset();command(bad[i]);command("20 READ A");command("RUN");
+  expect(strstr(output,"Error(9)")!=NULL,bad[i]);
+ }
+ reset();command("10 READ A");command("RUN");expect(strstr(output,"Error(9)")!=NULL,"READ without DATA");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
@@ -233,8 +251,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"expressions")) expressions();
  else if(!strcmp(argv[1],"editing")) editing();
  else if(!strcmp(argv[1],"conditional")) conditional();
+ else if(!strcmp(argv[1],"data")) data();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

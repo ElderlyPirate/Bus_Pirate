@@ -167,7 +167,7 @@ program area. `N` is one of:
 | 6 | the `GOTO`/`GOSUB` target line was not found |
 | 7 | `GOSUB` nested too deeply |
 | 8 | `RETURN` without a matching `GOSUB` |
-| 9 | no `DATA` statement to read from |
+| 9 | missing, malformed or exhausted `DATA` |
 
 A program that reaches `END` (or simply runs past its last line) finishes
 without a message.
@@ -222,6 +222,10 @@ Data values:
 50 END
 ```
 prints `12`.
+
+`DATA` accepts signed decimal literals. `READ` walks DATA lines in program
+order, including lines separated by other statements, and reports error 9
+when exhausted. Use `RESTORE` to restart the sequence explicitly.
 
 Subroutine:
 

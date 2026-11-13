@@ -101,7 +101,7 @@ int main(void) {
   load("10 9600 1 1 1 2 1"); uart_setup_prepare();
   assert(!prompts && header==1);
 #ifdef BUSPIRATEV4
-  assert(U2BRG==415);
+  assert(U2BRG==416);
   load("10 65535 1 1 1 2 1");uart_setup_prepare();assert(!prompts && U2BRG==60);
 #else
   assert(U2BRG==9600);
@@ -191,7 +191,7 @@ int main(void) {
   }
 #ifdef BUSPIRATEV4
   uart_settings.autobaud=1;baud_calls=0;uart_setup_execute();
-  assert(baud_calls==1 && mapped && single_wire && U2BRG==415);
+  assert(baud_calls==1 && mapped && single_wire && U2BRG==416);
   uart_setup_execute();assert(baud_calls==1 && mapped && single_wire);
 #endif
   puts("PASS macro-4 mapping/OD restore, HDUART selection, one-shot autobaud and 9/8-bit display width");
@@ -256,6 +256,27 @@ int main(void) {
 }
 '''
 
+BAUD_TEST = r'''
+static uint64_t error(uint32_t baud, uint32_t divisor) {
+  int64_t difference=4000000-(int64_t)baud*divisor;
+  return difference<0 ? -difference : difference;
+}
+int main(void) {
+ assert(uart_baud_to_brg(1)==65535 && uart_baud_to_brg(61)==65535);
+ assert(uart_baud_to_brg(4000000)==0 && uart_baud_to_brg(4000001)==0);
+ assert(uart_baud_to_brg(9600)==416 && uart_baud_to_brg(115200)==34);
+ assert(uart_baud_to_brg(31250)==127);
+ for(uint32_t baud=62;baud<=999999;++baud) {
+   uint32_t divisor=(uint32_t)uart_baud_to_brg(baud)+1;
+   /* Frequency is monotone in divisor, so neither neighbor may be better. */
+   uint64_t e=error(baud,divisor);
+   if(divisor>1)assert(e*(divisor-1)<=error(baud,divisor-1)*divisor);
+   if(divisor<65536)assert(e*(divisor+1)<=error(baud,divisor+1)*divisor);
+ }
+ puts("PASS all 999938 accepted baud values minimize exact frequency error; endpoint clamps and MIDI");
+}
+'''
+
 
 def source(path, revision):
     if revision:
@@ -267,7 +288,7 @@ def source(path, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "restore", "detection", "all"), default="all")
+    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "restore", "detection", "baud", "all"), default="all")
     args = parser.parse_args()
     uart = source("protocol_uart/uart.c", args.revision)
     core = source("core_system/proc_menu.c", args.revision)
@@ -279,7 +300,7 @@ def main():
         directory = ROOT / "Firmware/build/uart-test" / board
         directory.mkdir(parents=True, exist_ok=True)
         board_macro = "#define BUSPIRATE" + board + "\n"
-        for case in ("setup", "binary", "bridge", "common", "restore", "detection"):
+        for case in ("setup", "binary", "bridge", "common", "restore", "detection", "baud"):
             if args.case not in ("all", case):
                 continue
             if case == "bridge" and board == "V3":
@@ -287,14 +308,15 @@ def main():
             restore = "\n".join(function(uart, n) for n in ("uart_get_closest_common_rate", "uart_setup_execute", "uart_run_macro"))
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
                        "binary": (function(uart, "uart_binary_service_rx") if "static void uart_binary_service_rx(" in uart else "") + function(uart, "binUART"), "bridge": restore,
-                      "common": function(uart, "uart_get_closest_common_rate"), "restore": restore}
+                       "common": function(uart, "uart_get_closest_common_rate"), "restore": restore,
+                       "baud": ""}
             if case == "detection":
                 bodies[case] = "\n".join(function(uart, n) for n in
                                          ("uart_get_closest_common_rate", "uart_rx_level", "uart_wait_rx_level",
                                           "uart_sample_ticks", "uart_get_baud_rate"))
             body = bodies[case]
             test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST,
-                    "common": COMMON_TEST, "restore": RESTORE_TEST, "detection": DETECTION_TEST}[case]
+                     "common": COMMON_TEST, "restore": RESTORE_TEST, "detection": DETECTION_TEST, "baud": BAUD_TEST}[case]
             definitions = "\n".join(re.findall(r"^#define UART_.*", uart, re.M))
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")
@@ -302,8 +324,9 @@ def main():
             if case == "detection":
                 prefix = re.sub(r"static uint32_t uart_get_baud_rate[^\n]+\n", "", prefix)
             detection = DETECTION_PREFIX if case == "detection" else ""
+            baud_helper = function(uart, "uart_baud_to_brg") if "static uint16_t uart_baud_to_brg(" in uart else ""
             c.write_text("\n".join((board_macro, prefix, settings, table, common, macros, definitions,
-                                     detection, body, test)), encoding="ascii")
+                                     baud_helper, detection, body, test)), encoding="ascii")
             subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
                             "-Wno-unused-variable", "-Wno-unused-but-set-variable", "-Wno-implicit-fallthrough",
                             str(c), "-o", str(exe)], check=True)

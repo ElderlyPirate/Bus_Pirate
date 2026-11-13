@@ -182,7 +182,18 @@ responses before sending more.
 
 ### Custom baud rate
 
-A custom baud rate is set with the BRG option in firmware v5.5+. Use a [PIC UART calculator]("http://www.micromagicsystems.com/#/pic-baud/4523812801") to find the correct value.
+BPv4's custom menu accepts a nominal baud rate from 62 to 999999 bps. Custom
+setup and menu autobaud choose the representable frequency closest to that
+rate, using `baud = FCY / (4 * (BRG + 1))` with `FCY = 16 MHz`. Thus custom
+9600 selects BRG 416 (about 9592.33 bps) and custom 115200 selects BRG 34
+(about 114285.71 bps), matching the presets. Exact-error ties prefer the slower
+frequency. Inline custom baud operands are 16-bit; use the prompted menu for
+larger nominal rates.
+
+BPv3's custom option still accepts a raw BRG value, not nominal baud. Use a
+[PIC UART calculator]("http://www.micromagicsystems.com/#/pic-baud/4523812801")
+to find the correct value. Binary UART `0x07` also takes a raw 16-bit BRG on
+both boards; it does not apply nominal-baud rounding.
 
 ![Baud Rate Calculator](images/BP-uart-custom-baud.png)
 

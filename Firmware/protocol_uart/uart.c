@@ -83,6 +83,27 @@ static uint32_t uart_get_closest_common_rate(const uint32_t baud_rate);
  */
 static uint32_t uart_get_baud_rate(const bool quiet);
 
+#ifdef BUSPIRATEV4
+static uint16_t uart_baud_to_brg(const uint32_t baud_rate) {
+  /* Callers validate nonzero baud. BRGH=1: DS39897C equation 17-2. */
+  uint32_t divisor = (FCY / 4) / baud_rate;
+  uint32_t remainder;
+  if (divisor == 0) {
+    return 0;
+  }
+  if (divisor >= 65536UL) {
+    return 65535;
+  }
+  remainder = (FCY / 4) - baud_rate * divisor;
+  /* Compare exact frequency errors at adjacent divisors, not rounded baud.
+   * Both products are bounded by 2*(FCY/4); ties prefer the slower rate. */
+  if (remainder * (divisor + 1) >= (baud_rate - remainder) * divisor) {
+    ++divisor;
+  }
+  return (uint16_t)(divisor - 1);
+}
+#endif
+
 uint16_t uart_read(void) {
   if (uart2_rx_ready()) {
     uint16_t character;
@@ -237,7 +258,7 @@ void uart_setup_prepare(void) {
     if (mode_configuration.speed == 9) {
       MSG_UART_CUSTOM_BAUD_RATE_PROMPT;
       abd = getlong(115200, 62, 999999, 0); // get a representable baud rate
-      abd = (FCY / 4 / abd) - 1;           // BRGH=1, DS39897C equation 17-2
+      abd = uart_baud_to_brg(abd);
       brg = abd;                           // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
       // hack hack hakc
@@ -276,7 +297,7 @@ void uart_setup_prepare(void) {
     if (mode_configuration.speed == 9) {
 #ifdef BUSPIRATEV4
       abd = brg;
-      abd = (FCY / 4 / abd) - 1;
+      abd = uart_baud_to_brg(abd);
       brg = abd;                          // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
 #endif
@@ -309,7 +330,7 @@ void uart_setup_execute(void) {
       mode_configuration.speed = 8; // 115200 fallback
     } else {
       mode_configuration.speed = 9;
-      U2BRG = (FCY / 4 / detected) - 1;
+      U2BRG = uart_baud_to_brg(detected);
     }
   }
 #endif /* BUSPIRATEV4 */

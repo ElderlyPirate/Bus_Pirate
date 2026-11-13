@@ -32,6 +32,7 @@ static bool setup_defaults_mode;
 static bool half_normal_prompts;
 static unsigned header_hiz;
 static uint16_t U2BRG;
+static struct { unsigned UARTEN; } U2MODEbits;
 static struct { unsigned OERR, UTXBF; } U2STAbits, U1STAbits;
 static uint16_t U2TXREG, U1TXREG;
 static const uint8_t *input;
@@ -58,8 +59,8 @@ static void uart2_set_single_wire(bool b) { single_wire=b; }
 static void uart2_setup(uint16_t b, bool o, bool i, uint8_t d, bool s) {
   (void)o; (void)i; (void)d; (void)s; ++setups; U2BRG=configured_brg=b; mapped=true;
 }
-static void uart2_enable(void) {}
-static void uart2_disable(void) { mapped=single_wire=false; }
+static void uart2_enable(void) { U2MODEbits.UARTEN=1; }
+static void uart2_disable(void) { mapped=single_wire=false; U2MODEbits.UARTEN=0; }
 static void uart2_tx(uint16_t c) { (void)c; ++tx_calls; }
 static uint16_t uart2_rx_overrun_count(void) { return 0; }
 static void bp_disable_mode_led(void) {}
@@ -74,6 +75,9 @@ static void bp_binary_io_peripherals_set(uint8_t c) { (void)c; }
 static uint8_t bp_binary_io_pullup_control(uint8_t c) { (void)c; return 1; }
 #define BP_BUTTON_ISDOWN() (++button_polls>1)
 #define LOW 0
+#define INPUT 1
+#define OUTPUT 0
+static unsigned FTDI_CTS_DIR,FTDI_RTS_DIR,BP_CS_DIR,BP_CLK_DIR,BP_CLK,FTDI_RTS,FTDI_CTS,BP_CS;
 #define bpBR ((void)0)
 #define REPORT_IO_SUCCESS() user_serial_transmit_character(1)
 #define REPORT_IO_FAILURE() user_serial_transmit_character(0)
@@ -177,6 +181,14 @@ int main(void) {
   assert(mode_configuration.numbits==9 && mode_configuration.int16);
   uart_settings.databits_parity=0;uart_setup_execute();
   assert(mode_configuration.numbits==8 && !mode_configuration.int16);
+  for(unsigned hd=0;hd<2;++hd)for(unsigned enabled=0;enabled<2;++enabled) {
+    uart_settings.half_duplex=hd;mode_configuration.speed=9;U2BRG=127;
+    uart_setup_execute();if(!enabled)uart2_disable();
+    before=setups;uart_run_macro(4);
+    assert(U2MODEbits.UARTEN==enabled && mapped==!!enabled);
+    assert(setups==before+enabled && U2BRG==127);
+    assert(uart_settings.half_duplex==hd && (!enabled || single_wire==!!hd));
+  }
 #ifdef BUSPIRATEV4
   uart_settings.autobaud=1;baud_calls=0;uart_setup_execute();
   assert(baud_calls==1 && mapped && single_wire && U2BRG==415);
@@ -270,7 +282,7 @@ def main():
         for case in ("setup", "binary", "bridge", "common", "restore", "detection"):
             if args.case not in ("all", case):
                 continue
-            if case in ("bridge", "restore") and board == "V3":
+            if case == "bridge" and board == "V3":
                 continue  # V3's legacy bridge has no physical button escape.
             restore = "\n".join(function(uart, n) for n in ("uart_get_closest_common_rate", "uart_setup_execute", "uart_run_macro"))
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
@@ -293,7 +305,8 @@ def main():
             c.write_text("\n".join((board_macro, prefix, settings, table, common, macros, definitions,
                                      detection, body, test)), encoding="ascii")
             subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
-                            "-Wno-unused-variable", "-Wno-unused-but-set-variable", str(c), "-o", str(exe)], check=True)
+                            "-Wno-unused-variable", "-Wno-unused-but-set-variable", "-Wno-implicit-fallthrough",
+                            str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True, timeout=10)
             print(board, case, "PASS", flush=True)
 

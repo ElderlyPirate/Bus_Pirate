@@ -438,16 +438,20 @@ void uart_run_macro(const uint16_t macro) {
     }
     break;
 
-  case UART_MACRO_AUTO_BAUD_RATE_DETECTION:
+  case UART_MACRO_AUTO_BAUD_RATE_DETECTION: {
+    bool enabled = U2MODEbits.UARTEN;
     uart2_disable();
     uart_get_baud_rate(false);
-    uart_setup_execute();
+    if (enabled) {
+      uart_setup_execute();
+    }
 #ifdef BUSPIRATEV3
     if (U2BRG < U1BRG) {
       MSG_UART_POSSIBLE_OVERFLOW;
     }
 #endif /* BUSPIRATEV3 */
     break;
+  }
 
   default:
     MSG_UNKNOWN_MACRO_ERROR;

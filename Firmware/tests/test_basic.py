@@ -129,9 +129,16 @@ static void pwm(void) {
   reset();command(bad[i]);command("RUN");expect(!pwm_calls && strstr(output,"Error(3)"),bad[i]);
  }
 }
+static void pullup(void) {
+ reset();command("10 PULLUP 0");command("20 LET A=PULLUP");command("RUN");
+ expect(basic_variables[0]==0,"PULLUP off is logical zero");
+ reset();command("10 PULLUP 1");command("20 LET A=PULLUP");command("RUN");
+ expect(basic_variables[0]==1,"PULLUP on is logical one");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
+ else if(!strcmp(argv[1],"pullup")) pullup();
  else { fprintf(stderr,"unknown test group\n");return 2; }
  printf("PASS %u production BASIC checks (%s)\n",checks,argv[1]);
 }

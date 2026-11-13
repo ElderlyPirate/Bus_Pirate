@@ -287,9 +287,8 @@ void uart_setup_execute(void) {
               mode_configuration.high_impedance, uart_settings.receive_polarity,
               uart_settings.databits_parity, uart_settings.stop_bits);
 
-  if (uart_settings.databits_parity == 3) {
-    mode_configuration.numbits = 9;
-  }
+  mode_configuration.numbits = uart_settings.databits_parity == UART2_9_N ? 9 : 8;
+  mode_configuration.int16 = uart_settings.databits_parity == UART2_9_N;
 
   uart2_enable();
 

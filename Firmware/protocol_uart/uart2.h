@@ -183,7 +183,7 @@ void uart2_disable(void);
  *
  * @param[in] character the character to send.
  */
-void uart2_tx(const uint8_t character);
+void uart2_tx(const uint16_t character);
 
 /**
  * Checks if the UART #2 RX buffer is not empty.
@@ -200,7 +200,7 @@ bool uart2_rx_ready(void);
  *
  * @return the character being read from UART #2.
  */
-uint8_t uart2_rx(void);
+uint16_t uart2_rx(void);
 
 /**
  * @def UART2_RX_FLAG_PARITY

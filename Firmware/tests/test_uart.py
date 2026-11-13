@@ -213,14 +213,19 @@ static uint16_t TMR5HLD,TMR5,PR4,PR5,timer_low;
 static unsigned BP_MOSI_DIR,BP_MISO_DIR;
 static uint32_t clock_ticks,origin;
 static unsigned waveform,cancel,reads,mosi_reads,miso_reads;
+static unsigned timestamp_reads, interrupt_delay;
 static bool rx_pin(bool mosi) {
   ++reads;if(mosi)++mosi_reads;else ++miso_reads;
-  clock_ticks+=waveform==1?16:16000;
-  return waveform==1 ? ((clock_ticks/1600)&1)^uart_settings.receive_polarity : waveform==2;
+  clock_ticks+=(waveform==1 || waveform==3)?16:16000;
+  return waveform==1 || waveform==3 ? ((clock_ticks/(waveform==3?416:1600))&1)^uart_settings.receive_polarity : waveform==2;
 }
 #define BP_MOSI rx_pin(true)
 #define BP_MISO rx_pin(false)
 static uint16_t *timer_read(void) {
+  if(T4CONbits.TON && waveform==3) {
+    ++timestamp_reads;
+    if(timestamp_reads==1 || timestamp_reads==19)clock_ticks+=interrupt_delay;
+  }
   if(T4CONbits.TON) {timer_low=(uint16_t)clock_ticks;TMR5HLD=clock_ticks>>16;}
   return &timer_low;
 }
@@ -235,11 +240,26 @@ DETECTION_TEST = r'''
 static void reset(unsigned shape) {
   T4CON=0x20;T5CON=0;timer_low=123;TMR5=456;PR4=789;PR5=1011;
   waveform=shape;clock_ticks=reads=mosi_reads=miso_reads=cancel=0;
+  timestamp_reads=0;
 }
 static void restored(void) {
   assert(T4CON==0x20 && timer_low==123 && TMR5==456 && PR4==789 && PR5==1011);
 }
 int main(void) {
+#ifdef HAVE_SAMPLE_CLUSTER
+  uint32_t quantized[]={141,129,141,141,141,129,141,141};
+  assert(uart_baud_sample_ticks(quantized,8)==138);
+  uint32_t isolated[]={345,416,417,417,416,900};
+  assert(uart_baud_sample_ticks(isolated,6)==417);
+  uint32_t mixed[]={1248,416,832,416,1248,416};
+  assert(uart_baud_sample_ticks(mixed,6)==416);
+  uint32_t sparse[]={100,200};
+  assert(!uart_baud_sample_ticks(sparse,2));
+#ifdef BUSPIRATEV3
+  uint32_t single_wire_quantized[]={100,113,113};uart_settings.half_duplex=1;
+  assert(uart_baud_sample_ticks(single_wire_quantized,3)==109);
+#endif
+#endif
   for(unsigned hd=0;hd<2;++hd)for(unsigned inv=0;inv<2;++inv) {
     reset(1);uart_settings.half_duplex=hd;uart_settings.receive_polarity=inv;
     uint32_t baud=uart_get_baud_rate(true);assert(baud>=9800 && baud<=10200);
@@ -253,6 +273,14 @@ int main(void) {
   assert(!uart_get_baud_rate(false) && !input_left);restored();
   reset(1);T5CONbits.TON=1;assert(!uart_get_baud_rate(true) && !reads && T5CONbits.TON);
   reset(1);IEC1bits.T5IE=1;assert(!uart_get_baud_rate(true) && !reads);IEC1bits.T5IE=0;
+  for(unsigned hd=0;hd<2;++hd)for(unsigned inv=0;inv<2;++inv)
+  for(unsigned delay=0;delay<=192;delay+=16) {
+    uart_settings.half_duplex=hd;uart_settings.receive_polarity=inv;
+    reset(3);interrupt_delay=delay;
+    uint32_t baud=uart_get_baud_rate(true);
+    printf("detector late-edge ticks=%u estimate=%lu\n",delay,(unsigned long)baud);fflush(stdout);
+    assert(baud>=34560 && baud<=42240);restored();
+  }
   puts("PASS detection: full/shared RX pins, both polarities, static-line timeout with 31-bit wrap, host cancel, timer ownership and restoration");
 }
 '''
@@ -313,8 +341,10 @@ def main():
                        "baud": ""}
             if case == "detection":
                 bodies[case] = "\n".join(function(uart, n) for n in
-                                         ("uart_get_closest_common_rate", "uart_rx_level", "uart_wait_rx_level",
-                                          "uart_sample_ticks", "uart_get_baud_rate"))
+                                          ("uart_get_closest_common_rate", "uart_rx_level", "uart_wait_rx_level",
+                                           "uart_sample_ticks", "uart_get_baud_rate"))
+                if "static uint32_t uart_baud_sample_ticks(" in uart:
+                    bodies[case] = "#define HAVE_SAMPLE_CLUSTER\n" + function(uart,"uart_baud_sample_ticks") + bodies[case]
             body = bodies[case]
             test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST,
                      "common": COMMON_TEST, "restore": RESTORE_TEST, "detection": DETECTION_TEST, "baud": BAUD_TEST}[case]

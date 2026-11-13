@@ -283,6 +283,15 @@ training sent while UART2 is disabled is unavailable, and reopening within a
 continuous character stream can produce a shifted trailing word. Account for
 that training separately and verify the first fresh, idle-separated packet.
 
+The software estimator samples 25 idle-level pulses, finds the shortest group
+of at least three intervals within one GPIO polling quantum (12 instruction
+clock ticks; 13 for BPv3 single-wire), and averages that group. This accounts for
+polling quantization
+and rejects isolated short timestamps without masking USB interrupts. Training
+must contain at least three one-bit idle-level pulses; a repetitive `0x55`
+burst supplies them. A single unusually short measurement is not sufficient
+evidence for a baud rate.
+
 MIDI
 ------------------
 

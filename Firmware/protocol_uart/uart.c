@@ -27,6 +27,8 @@
 extern mode_configuration_t mode_configuration;
 
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25
+#define UART_BAUD_POLL_TICKS 12
+#define UART_BAUD_MIN_CLUSTER 3
 #define UART_MACRO_MENU 0
 #define UART_MACRO_TRANSPARENT_BRIDGE 1
 #define UART_MACRO_RAW_UART 2
@@ -592,9 +594,48 @@ static uint32_t uart_sample_ticks(void) {
   return ((uint32_t)TMR5HLD << 16) | low;
 }
 
+static uint32_t uart_baud_sample_ticks(uint32_t *samples, const uint8_t count) {
+  uint8_t poll_ticks = UART_BAUD_POLL_TICKS;
+#ifdef BUSPIRATEV3
+  if (uart_settings.half_duplex) {
+    ++poll_ticks;
+  }
+#endif
+  if (count < UART_BAUD_MIN_CLUSTER) {
+    return 0;
+  }
+  for (uint8_t i = 1; i < count; ++i) {
+    uint32_t value = samples[i];
+    uint8_t j = i;
+    while (j && samples[j - 1] > value) {
+      samples[j] = samples[j - 1];
+      --j;
+    }
+    samples[j] = value;
+  }
+  /* GPIO cadence is 12 FCY ticks, or 13 for V3 single-wire (XC16 -O1).
+   * Average the shortest recurring pulse across that quantization band;
+   * isolated short IRQ-delayed timestamps must not set the rate alone. */
+  for (uint8_t i = 0; i < count; ++i) {
+    uint32_t sum = 0;
+    uint8_t j = i;
+    while (j < count && samples[j] - samples[i] <= poll_ticks) {
+      sum += samples[j++];
+    }
+    uint8_t matches = j - i;
+    if (matches >= UART_BAUD_MIN_CLUSTER) {
+      /* All intervals fit inside the five-second acquisition: 32 bits suffice. */
+      return (sum + matches / 2) / matches;
+    }
+  }
+  return 0;
+}
+
 uint32_t uart_get_baud_rate(const bool quiet) {
   uint16_t saved_control, saved_low, saved_high, saved_pr4, saved_pr5;
   uint32_t started, bit_sample = 0, detected = 0;
+  uint32_t bit_samples[UART_BAUD_RATE_CALCULATION_SAMPLES];
+  uint8_t valid_samples = 0;
   bool idle = uart_settings.receive_polarity ? LOW : HIGH;
   size_t samples;
 
@@ -643,10 +684,11 @@ uint32_t uart_get_baud_rate(const bool quiet) {
       goto done;
     }
     elapsed = uart_sample_ticks() - first;
-    if (elapsed && (!bit_sample || elapsed < bit_sample)) {
-      bit_sample = elapsed;
+    if (elapsed) {
+      bit_samples[valid_samples++] = elapsed;
     }
   }
+  bit_sample = uart_baud_sample_ticks(bit_samples, valid_samples);
   if (bit_sample) {
     detected = FCY / bit_sample;
   }

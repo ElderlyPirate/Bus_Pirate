@@ -260,6 +260,7 @@ static uint16_t basic_current_stack_frame;
  * @brief Offset variable for `DATA` statements.
  */
 static uint16_t basic_data_read_pointer;
+static uint16_t basic_data_line_end;
 
 static char *tokens[NUMTOKEN + 1] = {
     STAT_LET,     // 0x80
@@ -695,6 +696,63 @@ static void write_mode_name(void) {
   bus_pirate_configuration.quiet = ON;
 }
 
+static bool read_data_value(int16_t *value) {
+  uint16_t scan = basic_data_read_pointer;
+  if (scan >= BP_BASIC_PROGRAM_SPACE) {
+    return NO;
+  }
+  if ((scan == 0) || (scan >= basic_data_line_end)) {
+    for (;;) {
+      if ((scan + 3 >= BP_BASIC_PROGRAM_SPACE) ||
+          (basic_program_area[scan] <= TOK_LEN)) {
+        basic_data_read_pointer = BP_BASIC_PROGRAM_SPACE;
+        return NO;
+      }
+      basic_data_line_end = scan + 3 + basic_program_area[scan] - TOK_LEN;
+      if (basic_data_line_end >= BP_BASIC_PROGRAM_SPACE) {
+        basic_data_read_pointer = BP_BASIC_PROGRAM_SPACE;
+        return NO;
+      }
+      if (basic_program_area[scan + 3] == TOK_DATA) {
+        basic_data_read_pointer = scan + 4;
+        break;
+      }
+      scan = basic_data_line_end;
+    }
+  }
+
+  uint16_t saved_pc = basic_program_counter;
+  uint16_t saved_limit = basic_expression_limit;
+  bool saved_error = basic_expression_error;
+  basic_program_counter = basic_data_read_pointer;
+  basic_expression_limit = basic_data_line_end;
+  basic_expression_error = NO;
+
+  /* DATA holds signed decimal literals, not hardware-reading expressions. */
+  uint8_t first = basic_peek();
+  if ((first == '+') || (first == '-')) {
+    basic_program_counter++;
+    first = basic_peek();
+    basic_program_counter--;
+  }
+  bool valid = (first >= '0') && (first <= '9');
+  if (valid) {
+    *value = get_number_or_variable();
+    valid = !basic_expression_error;
+    if (basic_peek() == ',') {
+      basic_program_counter++;
+      valid = valid && (basic_program_counter < basic_data_line_end);
+    } else {
+      valid = valid && (basic_program_counter == basic_data_line_end);
+    }
+  }
+  basic_data_read_pointer = valid ? basic_program_counter : BP_BASIC_PROGRAM_SPACE;
+  basic_program_counter = saved_pc;
+  basic_expression_limit = saved_limit;
+  basic_expression_error = saved_error;
+  return valid;
+}
+
 void interpreter(void) {
   bool program_counter_updated = NO;
   basic_status_code_t status = STATUS_CODE_UNKNOWN;
@@ -1028,63 +1086,25 @@ void interpreter(void) {
       basic_data_read_pointer = 0;
       break;
 
-    case TOK_READ:
+    case TOK_READ: {
       program_counter_updated = YES;
       basic_program_counter += 4;
-
-      if (basic_data_read_pointer == 0) {
-        i = 0;
-        /*
-         * Walk line headers only.  A header is a length marker > TOK_LEN
-         * whose length is marker - TOK_LEN; reading `> TOK_LEN` as the stop
-         * condition (instead of merely `!= 0`) keeps a corrupted byte below
-         * the marker from turning the step into a negative stride that would
-         * walk behind the program area - the address-error trap class of
-         * #130.  A byte <= TOK_LEN ends the scan, exactly like the other
-         * walks in this file.
-         */
-        while ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
-               (basic_program_area[i] > TOK_LEN) &&
-               (basic_program_area[i + 3] != TOK_DATA)) {
-          i += (basic_program_area[i] - TOK_LEN) + 3;
-        }
-
-        if ((i + 3 < BP_BASIC_PROGRAM_SPACE) &&
-            (basic_program_area[i] > TOK_LEN) &&
-            (basic_program_area[i + 3] == TOK_DATA)) {
-          basic_data_read_pointer = i + 4;
-        } else {
-          status = STATUS_CODE_DATA_ERROR;
-        }
-      }
-      temp = basic_program_counter;
-
       /* The receiving variable must exist before it is indexed. */
-      if ((basic_program_area[temp] < 'A') ||
-          (basic_program_area[temp] > 'Z')) {
+      if ((basic_peek() < 'A') || (basic_peek() > 'Z')) {
         status = STATUS_CODE_SYNTAX_ERROR;
         break;
       }
-
-      basic_program_counter = basic_data_read_pointer;
-      basic_variables[basic_program_area[temp] - 'A'] =
-          get_number_or_variable();
-      basic_data_read_pointer = basic_program_counter;
-      basic_program_counter = temp + 1;
-
-      if (basic_program_area[basic_data_read_pointer] == ',') {
-        basic_data_read_pointer++;
+      temp = basic_peek() - 'A';
+      int16_t value;
+      if (!read_data_value(&value)) {
+        status = STATUS_CODE_DATA_ERROR;
+        break;
       }
-      if (basic_program_area[basic_data_read_pointer] > TOK_LEN) {
-        if (basic_program_area[basic_data_read_pointer + 3] != TOK_DATA) {
-          basic_data_read_pointer = 0;
-        } else {
-          basic_data_read_pointer += 4;
-        }
-      }
-
+      basic_variables[temp] = value;
+      basic_program_counter++;
       handle_else_statement();
       break;
+    }
 
     case TOK_DATA:
       program_counter_updated = YES;

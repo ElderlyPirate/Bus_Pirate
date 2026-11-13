@@ -977,14 +977,18 @@ void interpreter(void) {
           user_serial_transmit_character(
               basic_program_area[basic_program_counter++]);
         }
-        if (basic_peek() == '\"') {
-          basic_program_counter++;
+        if (basic_peek() != '\"') {
+          bus_pirate_configuration.quiet = YES;
+          status = STATUS_CODE_SYNTAX_ERROR;
+          break;
         }
-      }
-      if (basic_peek() == ',') {
         basic_program_counter++;
-      } else {
-        status = STATUS_CODE_SYNTAX_ERROR;
+        if (basic_peek() != ',') {
+          bus_pirate_configuration.quiet = YES;
+          status = STATUS_CODE_SYNTAX_ERROR;
+          break;
+        }
+        basic_program_counter++;
       }
 
       /* The receiving variable must exist before it is indexed. */

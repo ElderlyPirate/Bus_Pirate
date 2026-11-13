@@ -5,6 +5,11 @@ can drive a bus without a PC at every step. Programs live in the Bus
 Pirate's own RAM and are executed from there; nothing survives a power
 cycle.
 
+The legacy onboard I2C filesystem remains disabled by policy. `SAVE`, `LOAD`
+and `FORMAT` are not available in supported builds; enabling storage or adding
+a shared storage API requires explicit owner approval. `DEBUG` is independent
+of storage and remains an optional diagnostic build feature.
+
 Enter the interpreter with `s` from the normal prompt. The prompt changes to
 `... (BASIC)>` (for example `HiZ(BASIC)>`) and terminal input goes to the
 interpreter. The current mode (HiZ, I2C, SPI, ...) is the one that was

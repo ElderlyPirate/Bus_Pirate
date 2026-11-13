@@ -1045,13 +1045,13 @@ void interpreter(void) {
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
+      handle_else_statement();
       if (basic_peek() >= TOK_LEN) {
         basic_nested_for_loops[basic_current_nested_for_index].from =
-            basic_program_counter;
+            basic_expression_limit;
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
-      handle_else_statement();
       if (status == STATUS_CODE_UNKNOWN) {
         basic_current_nested_for_index++;
       }

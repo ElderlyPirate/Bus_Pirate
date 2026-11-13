@@ -471,6 +471,9 @@ bool search_line_number(const uint16_t line, uint16_t *result) {
       return LINE_NUMBER_NOT_FOUND;
     }
     token_length = basic_program_area[index] - TOK_LEN;
+    if ((index + token_length + 3) >= BP_BASIC_PROGRAM_SPACE) {
+      return LINE_NUMBER_NOT_FOUND;
+    }
     current_line_number =
         (basic_program_area[index + 1] << 8) + basic_program_area[index + 2];
     if (line == current_line_number) {

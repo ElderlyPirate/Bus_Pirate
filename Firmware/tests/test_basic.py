@@ -245,6 +245,15 @@ static void adc(void) {
  expect(strstr(output,"Error(3)") && !adc_enable_calls && !adc_read_calls && !adc_disable_calls,
         "BASIC ADC refuses an active interrupt owner without touching hardware");
 }
+static void corrupt_headers(void) {
+ reset();memset(basic_program_area,0,sizeof(basic_program_area));
+ for(unsigned i=0;i<=1000;i+=4) {
+  basic_program_area[i]=TOK_LEN+1;basic_program_area[i+2]=1;basic_program_area[i+3]=TOK_END;
+ }
+ basic_program_area[1000]=255;basic_program_area[1002]=42;
+ uint16_t found=0;
+ expect(!search_line_number(42,&found),"truncated matching header cannot authorize an out-of-area edit");
+}
 static void conditional(void) {
  reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
  command("100 PRINT 1;");command("110 RETURN");command("RUN");
@@ -304,8 +313,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"text-bytes")) text_bytes();
  else if(!strcmp(argv[1],"commands")) commands();
  else if(!strcmp(argv[1],"adc")) adc();
+ else if(!strcmp(argv[1],"corrupt-headers")) corrupt_headers();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();adc();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();adc();corrupt_headers();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

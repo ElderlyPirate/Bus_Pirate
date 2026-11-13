@@ -49,6 +49,7 @@ static unsigned long getlong(unsigned long def, unsigned long min, unsigned long
 }
 static void UARTsettings(void) { ++header; }
 static bool uart2_rx_ready(void) { return false; }
+static uint8_t uart2_rx_pending(void) { return 0; }
 static uint16_t uart2_rx(void) { assert(0); return 0; }
 static void uart2_set_single_wire(bool b) { single_wire=b; }
 static void uart2_setup(uint16_t b, bool o, bool i, uint8_t d, bool s) {
@@ -258,7 +259,7 @@ def main():
                 continue  # V3's legacy bridge has no physical button escape.
             restore = "\n".join(function(uart, n) for n in ("uart_get_closest_common_rate", "uart_setup_execute", "uart_run_macro"))
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
-                      "binary": function(uart, "binUART"), "bridge": restore,
+                       "binary": (function(uart, "uart_binary_service_rx") if "static void uart_binary_service_rx(" in uart else "") + function(uart, "binUART"), "bridge": restore,
                       "common": function(uart, "uart_get_closest_common_rate"), "restore": restore}
             if case == "detection":
                 bodies[case] = "\n".join(function(uart, n) for n in

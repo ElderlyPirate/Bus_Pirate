@@ -192,6 +192,9 @@ void uart2_tx(const uint16_t character);
  */
 bool uart2_rx_ready(void);
 
+/** Returns a snapshot of queued words; only the foreground consumer may call. */
+uint8_t uart2_rx_pending(void);
+
 /**
  * Reads a character from UART #2.
  *

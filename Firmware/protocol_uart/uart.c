@@ -666,6 +666,18 @@ polarity (default :00000)
 # 101wxxyz � read config
 */
 
+static void uart_binary_service_rx(void) {
+  /* Bound service to this snapshot so continuous RX cannot starve commands.
+   * Keep RX output between commands, never inside a bulk command's ACKs. */
+  uint8_t pending = uart2_rx_pending();
+  while (pending--) {
+    uint16_t character = uart2_rx();
+    if (uart_settings.echo_uart) {
+      user_serial_transmit_character(character);
+    }
+  }
+}
+
 void binUART(void) {
   uint16_t brg_value;
 
@@ -686,13 +698,7 @@ void binUART(void) {
   for (;;) {
     uint8_t input_byte;
 
-    if (uart2_rx_ready()) {
-      if (uart_settings.echo_uart) {
-        user_serial_transmit_character(uart2_rx());
-      } else {
-        uart2_rx();
-      }
-    }
+    uart_binary_service_rx();
     
     if (!user_serial_ready_to_read()) {
       continue;

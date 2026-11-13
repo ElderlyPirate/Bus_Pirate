@@ -192,6 +192,23 @@ static void expressions(void) {
   expect(!strstr(output,"Error(") && (uint16_t)basic_variables[0]==values[i],expr[i]);
  }
 }
+static void editing(void) {
+ reset();command("10 PRINT 42");command("10 REM 123456789012345678901234567890123456");
+ output_size=0;output[0]=0;command("RUN");
+ expect(output_is("42"),"rejected long replacement preserves old line");
+ reset();command("10 PRINT 42");command("65535");command("20 END");
+ output_size=0;output[0]=0;command("RUN");
+ expect(output_is("42"),"reserved END sentinel cannot be deleted");
+ reset();command("20 PRINT 2;");command("10 PRINT 1;");command("20 PRINT 3;");
+ command("30 PRINT 4;");command("10");command("RUN");
+ expect(output_is("34"),"sorted replacement and deletion preserve following lines");
+ reset();for(unsigned i=1;i<240;++i) {
+  char s[40];snprintf(s,sizeof(s),"%u REM 01234567890123456789",i);command(s);
+ }
+ uint8_t saved[BP_BASIC_PROGRAM_SPACE];memcpy(saved,basic_program_area,sizeof(saved));
+ command("1000 REM 01234567890123456789");
+ expect(!memcmp(saved,basic_program_area,sizeof(saved)),"full program rejects insertion without mutation");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
@@ -200,8 +217,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"auxpin")) auxpin();
  else if(!strcmp(argv[1],"loops")) loops();
  else if(!strcmp(argv[1],"expressions")) expressions();
+ else if(!strcmp(argv[1],"editing")) editing();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();
+  pwm();pullup();auxpin();loops();expressions();editing();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

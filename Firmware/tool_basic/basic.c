@@ -1466,6 +1466,8 @@ void bp_basic_enter_interactive_interpreter(void) {
   bool frequency_arguments = NO;
   unsigned char line[35];
   uint16_t pos;
+  uint16_t replaced = 0;
+  uint16_t replaced_length = 0;
   size_t index = cmdstart;
 
   unsigned int lineno1, lineno2;
@@ -1488,17 +1490,17 @@ void bp_basic_enter_interactive_interpreter(void) {
        is written first (the header here, the payload by the tokenizer). */
 
     temp = getint();
+    /* The final END line is an invariant, not an editable user line. */
+    if ((uint16_t)temp == UINT16_MAX) {
+      BPMSG1052;
+      return;
+    }
     line[1] = temp >> 8;
     line[2] = temp & 0xFF;
 
     if (search_line_number(temp, &pos)) {
-      len = (basic_program_area[pos] - TOK_LEN) + 3;
-
-      /* The line is being replaced: close the gap it leaves, then clear the
-         tail so no stale bytes are left for a walk to find. */
-      memmove(&basic_program_area[pos], &basic_program_area[pos + len],
-              BP_BASIC_PROGRAM_SPACE - pos - len);
-      memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - len], 0x00, len);
+      replaced = pos;
+      replaced_length = (basic_program_area[pos] - TOK_LEN) + 3;
     }
 
     i = 3;
@@ -1550,6 +1552,13 @@ void bp_basic_enter_interactive_interpreter(void) {
        handle_enter_key() leaves at the end of the line buffer: the line has a
        number but no statement, so there is nothing to store. */
     if (i <= 4) {
+      if (replaced_length) {
+        memmove(&basic_program_area[replaced],
+                &basic_program_area[replaced + replaced_length],
+                BP_BASIC_PROGRAM_SPACE - replaced - replaced_length);
+        memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - replaced_length],
+               0, replaced_length);
+      }
       return;
     }
 
@@ -1567,7 +1576,7 @@ void bp_basic_enter_interactive_interpreter(void) {
        is bounded, because a corrupted header used to send it off the end of
        the array, where the read hits unimplemented memory - an address error
        trap, and the default trap handler resets the board (issue #130). */
-    while (!end) {
+    for (;;) {
       if (i >= BP_BASIC_PROGRAM_SPACE) {
         BPMSG1051;
         return;
@@ -1587,7 +1596,8 @@ void bp_basic_enter_interactive_interpreter(void) {
         }
         i += (len + 3);
       } else {
-        end = i; // we found the end! YaY!
+        end = i;
+        break;
       }
     }
 
@@ -1595,9 +1605,19 @@ void bp_basic_enter_interactive_interpreter(void) {
 
     /* Refuse to store when the program area has no room for the line, rather
        than writing past the end of the array. */
-    if ((pos > end) || ((end + temp) >= BP_BASIC_PROGRAM_SPACE)) {
+    if ((pos > end) ||
+        ((end - replaced_length + temp) >= BP_BASIC_PROGRAM_SPACE)) {
       BPMSG1051;
       return;
+    }
+    /* Validate/tokenize first: a rejected replacement must keep the old line. */
+    if (replaced_length) {
+      memmove(&basic_program_area[replaced],
+              &basic_program_area[replaced + replaced_length],
+              BP_BASIC_PROGRAM_SPACE - replaced - replaced_length);
+      memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - replaced_length],
+             0, replaced_length);
+      end -= replaced_length;
     }
 /* Open a gap and copy the line in. The old code did this with loops; a
        cleanup rewrote the copy as memcpy(&basic_program_area[pos + i],

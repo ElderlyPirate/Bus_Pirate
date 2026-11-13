@@ -97,7 +97,7 @@ Commands at the BASIC prompt (not stored as program lines):
 | `PSU 0|1` | power supplies off / on |
 | `PULLUP 0|1` | pull-up resistors off / on |
 | `DELAY ms` | pause for the given number of milliseconds |
-| `FREQ hz duty` | configure the PWM output |
+| `FREQ hz,duty` | configure PWM on AUX (Hz, percent); `FREQ 1000 50` is also accepted |
 | `DUTY duty` | change the PWM duty cycle |
 | `MACRO n` | run a mode macro |
 | `MODE [n]` | switch to the mode the menu numbers `n` (with that mode's default settings), or report the active mode's name |
@@ -106,6 +106,12 @@ Commands at the BASIC prompt (not stored as program lines):
 the normal prompt the value is bit-reversed over the configured width (the
 same rule the interactive send/read commands use), after `l` it is sent or
 read as-is.
+
+Use a comma to separate arbitrary FREQ expressions, for example
+`FREQ 500+500,25*2`. Missing operands and extra arguments are syntax errors
+before the PWM is updated. Frequency is clamped to 0..4000 Hz (0 disables
+PWM); FREQ/DUTY percentages are clamped to 1..100. PWM always uses AUX,
+independently of `AUXPIN`'s GPIO selector.
 
 ## Expressions
 

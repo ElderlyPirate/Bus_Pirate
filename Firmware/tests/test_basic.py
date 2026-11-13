@@ -115,6 +115,10 @@ static void reset(void) {
 static void expect(bool ok,const char *name) {
  ++checks;if(!ok) { fprintf(stderr,"FAIL: %s; output=%s\n",name,output);exit(1); }
 }
+static bool output_is(const char *s) {
+ size_t n=output_size;while(n && (output[n-1]=='\r' || output[n-1]=='\n')) --n;
+ return strlen(s)==n && !memcmp(output,s,n);
+}
 static void pwm(void) {
  const char *forms[]={"10 FREQ 1000 50","10 FREQ 1000,50",
  "10 FREQ 500+500 25*2","10 FREQ (500+500),(25*2)","10 FREQ A B"};
@@ -156,12 +160,30 @@ static void auxpin(void) {
   expect(mode_configuration.alternate_aux==1 && strstr(output,"Error(3)"),bad[i]);
  }
 }
+static void loops(void) {
+ reset();command("10 FOR A=1 TO 1");command("20 NEXT A");command("30 NEXT A");command("RUN");
+ expect(strstr(output,"Error(5)")!=NULL,"NEXT cannot reuse a completed loop");
+ reset();command("10 FOR A=1 TO 2");command("20 FOR B=1 TO 2");
+ command("30 FOR C=1 TO 2");command("40 FOR D=1 TO 2");command("50 PRINT 1;");
+ command("60 NEXT D");command("70 NEXT C");command("80 NEXT B");command("90 NEXT A");command("RUN");
+ expect(output_is("1111111111111111"),"four nested loops fit and execute 16 times");
+ reset();command("10 FOR A=1 TO 1");command("20 FOR B=1 TO 1");
+ command("30 FOR C=1 TO 1");command("40 FOR D=1 TO 1");command("50 FOR E=1 TO 1");command("RUN");
+ expect(strstr(output,"Error(4)")!=NULL,"fifth nested loop fails before writing");
+ reset();command("10 FOR A=-3 TO -1");command("20 PRINT A+4;");command("30 NEXT A");command("RUN");
+ expect(output_is("123"),"signed negative loop bound");
+ reset();command("10 NEXT 1");command("RUN");
+ expect(strstr(output,"Error(5)")!=NULL,"invalid NEXT variable rejected");
+ reset();command("10 NEXT A");command("RUN");
+ expect(strstr(output,"Error(5)")!=NULL,"NEXT after RUN has no stale FOR state");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
  else if(!strcmp(argv[1],"pullup")) pullup();
  else if(!strcmp(argv[1],"debug")) debug();
  else if(!strcmp(argv[1],"auxpin")) auxpin();
+ else if(!strcmp(argv[1],"loops")) loops();
  else { fprintf(stderr,"unknown test group\n");return 2; }
  printf("PASS %u production BASIC checks (%s)\n",checks,argv[1]);
 }

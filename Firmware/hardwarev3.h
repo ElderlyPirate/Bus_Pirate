@@ -56,9 +56,25 @@
 #define BP_MISO PORTBbits.RB7
 #define BP_CS PORTBbits.RB6
 #define BP_AUX0 PORTBbits.RB10   // moved pin5 (AUX) to RB10
+
+/*
+ * Latch aliases for driving the bus pins.  A write through the PORTx
+ * macros is a read-modify-write whose read side returns the pin levels
+ * (DS39897C 10.1), so consecutive pin writes re-latch each other with
+ * stale levels; outputs are driven through the latches instead.  Reads
+ * keep using the PORTx macros above.
+ */
+#define BP_MOSI_LAT LATBbits.LATB9
+#define BP_CLK_LAT LATBbits.LATB8
+#define BP_MISO_LAT LATBbits.LATB7
+#define BP_CS_LAT LATBbits.LATB6
+#define BP_AUX0_LAT LATBbits.LATB10
 #define BP_LEDMODE PORTAbits.RA1 // single MODE led on v2a
 #define BP_VREGEN PORTAbits.RA0  // single vreg enable pin on v2a
 #define BP_PULLUP PORTBbits.RB11 // Pull-up pin on V2a
+#define BP_VREGEN_LAT LATAbits.LATA0
+#define BP_PULLUP_LAT LATBbits.LATB11
+#define BP_LEDMODE_LAT LATAbits.LATA1
 #define BP_PGD PORTBbits.RB0     // PGD pin on programming header
 
 // these macros set the direction registers for each IO pin
@@ -82,6 +98,14 @@
 // Change notice assignment
 #define BP_MOSI_CN CNEN2bits.CN21IE
 #define BP_CLK_CN CNEN2bits.CN22IE
+
+/*
+ * Change notice assignments for the pins bp_aux_pin_read() can select. The
+ * device pin table maps RB10 to CN16 and RB6 to CN24, and RB9/RB8 to
+ * CN21/CN22 as used above.
+ */
+#define BP_AUX0_CN CNEN2bits.CN16IE
+#define BP_CS_CN CNEN2bits.CN24IE
 
 // ADC assignment
 #define BP_ADC_PROBE 12

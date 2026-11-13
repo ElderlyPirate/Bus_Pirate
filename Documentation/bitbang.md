@@ -110,6 +110,19 @@ The lower 7bits of the command byte control the Bus Pirate pins and peripherals.
   
 The Bus pirate responds to each update with a byte in the same format that shows the current state of the pins.
 
+### 01110000 - Wait for an edge on the AUX pin (returns 2 bytes)
+
+Waits for an edge on the AUX pin - the same pin the AUX commands and the `010xxxxx` / `1xxxxxxx` commands address - or until a timeout expires. This command is available in **all binary protocol modes**: raw bitbang, SPI, I2C, UART, 1-Wire and raw-wire.
+
+The command is followed by two parameters:
+
+- the edge to wait for: `0x01` rising (L -> H), `0x02` falling (H -> L), `0x03` either edge. Any other value is answered with a single failure byte;
+- a 16-bit big-endian timeout in milliseconds. `0` checks the pin once and returns immediately.
+
+The Bus Pirate replies with two bytes: the result code - `0x01` when the requested edge arrived, `0x00` on timeout - followed by the AUX pin level (`0` or `1`) at the moment the wait finished. A timeout of `0` therefore doubles as a way to sample the pin without waiting.
+
+The pin is read as an input while waiting. Edges are latched in hardware by the microcontroller's change notification logic, so a change cannot be missed between checks.
+
 PWM Computation
 ---------------
 

@@ -20,7 +20,8 @@
 #ifdef BP_JTAG_OPENOCD_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "capability_adc/adc.h"
+#include "protocol_binary/binary_io.h"
 #include "core.h"
 
 extern mode_configuration_t mode_configuration;

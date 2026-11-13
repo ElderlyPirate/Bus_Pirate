@@ -89,7 +89,8 @@ static bool bp_aux_pin_read(void) { return false; }
 static void bp_aux_pin_set_high(void) {}
 static void bp_aux_pin_set_low(void) {}
 static void bp_set_voltage_regulator_state(bool n) { BP_VREGEN=n; }
-static void bp_set_pullup_state(bool n) { BP_PULLUP=!n; }
+/* The shared helper releases the control pin HIGH to enable, LOW to disable. */
+static void bp_set_pullup_state(bool n) { BP_PULLUP=n; }
 static uint32_t bp_timer_microseconds(void) { return 64000; }
 static bool bp_adc_foreground_available(void) { return adc_available; }
 static void bp_enable_adc(void) { ++adc_enable_calls; }
@@ -148,9 +149,9 @@ static void pwm(void) {
 }
 static void pullup(void) {
  reset();command("10 PULLUP 0");command("20 LET A=PULLUP");command("RUN");
- expect(basic_variables[0]==0,"PULLUP off is logical zero");
+ expect(basic_variables[0]==1,"PULLUP off has logical active-low readback one");
  reset();command("10 PULLUP 1");command("20 LET A=PULLUP");command("RUN");
- expect(basic_variables[0]==1,"PULLUP on is logical one");
+ expect(basic_variables[0]==0,"PULLUP on has logical active-low readback zero");
 }
 static void debug(void) {
  reset();command("10 PRINT 42");command("DEBUG");

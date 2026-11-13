@@ -118,6 +118,11 @@ The `ADC` expression returns a raw 10-bit probe reading. It stops with syntax
 error 3, without touching the converter, if an interrupt-driven owner such as
 SMPS currently owns the ADC.
 
+The `PULLUP` expression is the logical active-low control-pin reading, not an
+enabled-state flag. The shared helper drives the control LOW for OFF and
+releases it HIGH for ON, so `PULLUP 0` followed by `PRINT PULLUP` yields `1`,
+while `PULLUP 1` followed by `PRINT PULLUP` yields `0`.
+
 ## Expressions
 
 Values in an expression are:

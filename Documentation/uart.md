@@ -212,7 +212,7 @@ frequency. Inline custom baud operands are 16-bit; use the prompted menu for
 larger nominal rates.
 
 BPv3's custom option still accepts a raw BRG value, not nominal baud. Use a
-[PIC UART calculator]("http://www.micromagicsystems.com/#/pic-baud/4523812801")
+[PIC UART calculator](http://www.micromagicsystems.com/#/pic-baud/4523812801)
 to find the correct value. Binary UART `0x07` also takes a raw 16-bit BRG on
 both boards; it does not apply nominal-baud rounding.
 
@@ -235,13 +235,13 @@ Macros
 
     UART>(1)    <<<macro 1, transparent UART bridge
     UART bridge
-    Reset to exit
-    Are you sure?  <<<Space continues, anything else exits.
+    Normal to exit
+    Are you sure?  <<<y or Y continues; other keys cancel.
 
 The transparent UART mode **macro (1)** forwards raw bytes in both directions.
 On BPv4, press NORMAL to return to the terminal. BPv3 requires a hardware reset.
-The example's legacy "Reset to exit" banner is not a restriction on BPv4's
-button escape. Host input is UART payload in this bridge, not an escape key.
+The BPv4 example's "Normal to exit" banner means the physical NORMAL button.
+Host input is UART payload in this bridge, not an escape key.
 
 Buffer overrun errors that occur during bridge mode are automatically cleared so that data continues as normal (firmware v3.0+). The MODE LED will turn off to alert you of the buffer overrun error.
 

@@ -93,7 +93,7 @@ Commands at the BASIC prompt (not stored as program lines):
 | `CLK 0|1|2` | clock low / high / produce a pulse |
 | `DAT 0|1` | set the data line low / high |
 | `AUX 0|1` | drive the auxiliary pin low / high |
-| `AUXPIN 0|1` | alternate auxiliary-pin function off / on |
+| `AUXPIN n` | select AUX (0), CS (1), or on v4 A1 (2) / A2 (3); invalid selectors are syntax errors |
 | `PSU 0|1` | power supplies off / on |
 | `PULLUP 0|1` | pull-up resistors off / on |
 | `DELAY ms` | pause for the given number of milliseconds |
@@ -267,6 +267,10 @@ stops the program with error 3 and leaves the current mode alone. The switch
 also runs the new mode's setup callback (the step the interactive flow
 performs on power-on), so the statements that follow can use the bus right
 away.
+
+The mode change deliberately resets supplies, the software VPU feed, AUX
+selection/output state and byte order. Reapply those settings after `MODE`;
+this is the same safety-reset contract as the interactive mode menu.
 
 Measuring elapsed time:
 

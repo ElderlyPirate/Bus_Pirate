@@ -1564,6 +1564,11 @@ void bp_basic_enter_interactive_interpreter(void) {
           string_found = YES;
         }
       } else {
+        /* Token/header bytes are generated here, never accepted as text. */
+        if ((uint8_t)cmdbuf[cmdstart] >= TOKENS) {
+          BPMSG1052;
+          return;
+        }
         if (cmdbuf[cmdstart] == '"') {
           string_found = !string_found;
         }

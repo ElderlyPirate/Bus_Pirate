@@ -180,6 +180,22 @@ expansion but cannot absorb an indefinitely stalled host. Binary clients that
 cannot drain concurrently should use acknowledged chunks and collect their RX
 responses before sending more.
 
+On BPv4, raw bridge/monitor RX forwarding checks CDC IN readiness before
+removing a word from the ring. A busy host therefore does not trap those loops
+inside a blocking CDC write: NORMAL can leave the bridge/monitor, and any host
+key can leave the raw monitor. The exit newline/prompt may itself wait until
+the host resumes reading. Binary bridge `0x0F` returns to ART1 on NORMAL; its
+ordinary RX echo forwarding is also readiness-gated. The configured echo-off
+mode still consumes RX without forwarding it.
+
+This is not flow control. A sender that continues through a host stall can fill
+the 127-word ring and lose new words. Bridge/monitor overruns extinguish the
+MODE LED; no error markers are inserted into the transparent byte stream.
+Command ACKs, formatted terminal output and incomplete binary commands retain
+their normal blocking I/O contracts: the host must drain responses and supply
+the promised command operands. The readiness change is not a general escape
+from every terminal or binary parser wait, nor a USB-disconnection guarantee.
+
 ### Custom baud rate
 
 BPv4's custom menu accepts a nominal baud rate from 62 to 999999 bps. Custom

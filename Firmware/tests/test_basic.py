@@ -40,6 +40,7 @@ typedef struct { unsigned little_endian,numbits,alternate_aux; } mode_configurat
 bus_pirate_configuration_t bus_pirate_configuration;
 mode_configuration_t mode_configuration;
 static unsigned BP_PULLUP=1,BP_VREGEN,pwm_calls,pwm_frequency,pwm_duty,polls,input_calls;
+static unsigned interrupt_after,send_calls,last_sent;
 static bool adc_available=true;
 static unsigned adc_enable_calls,adc_read_calls,adc_disable_calls;
 static char output[100000];
@@ -56,8 +57,8 @@ static void bp_write_hex_byte(uint8_t n) { char s[8];snprintf(s,sizeof(s),"0x%02
 #define bpBR emit("\r\n")
 #define bpSP emit(" ")
 static void user_serial_transmit_character(char c) { char s[]={c,0};emit(s); }
-static bool user_serial_ready_to_read(void) { assert(++polls<100000);return false; }
-static char user_serial_read_byte(void) { return 0; }
+static bool user_serial_ready_to_read(void) { assert(++polls<100000);return interrupt_after && polls>=interrupt_after; }
+static char user_serial_read_byte(void) { return 3; }
 static uint16_t getint(void) {
  unsigned n=0;while(cmdbuf[cmdstart]>='0' && cmdbuf[cmdstart]<='9') {
  n=n*10+cmdbuf[cmdstart]-'0';cmdstart=(cmdstart+1)&CMDLENMSK;
@@ -71,7 +72,7 @@ static int getnumber(int a,int b,int c,int d) { (void)a;(void)b;(void)c;(void)d;
 static uint16_t bp_reverse_integer(uint16_t n,unsigned width) {
  uint16_t r=0;while(width--) { r=(r<<1)|(n&1);n>>=1; }return r;
 }
-static uint16_t bus_send(uint16_t n) { return n; }
+static uint16_t bus_send(uint16_t n) { ++send_calls;last_sent=n;return n; }
 static uint16_t bus_read(void) { return 128; }
 static void nothing(void) {}
 static void macro(unsigned n) { (void)n; }
@@ -115,6 +116,8 @@ static void reset(void) {
  bus_pirate_configuration.quiet=0;output_size=0;output[0]=0;polls=0;
  pwm_calls=input_calls=0;pwm_frequency=pwm_duty=0;bp_basic_initialize();
  adc_available=true;adc_enable_calls=adc_read_calls=adc_disable_calls=0;
+ interrupt_after=send_calls=last_sent=0;
+ memset(&mode_configuration,0,sizeof(mode_configuration));mode_configuration.numbits=8;
 }
 static void expect(bool ok,const char *name) {
  ++checks;if(!ok) { fprintf(stderr,"FAIL: %s; output=%s\n",name,output);exit(1); }
@@ -254,6 +257,30 @@ static void corrupt_headers(void) {
  uint16_t found=0;
  expect(!search_line_number(42,&found),"truncated matching header cannot authorize an out-of-area edit");
 }
+static void regression(void) {
+ reset();command("10 PRINT \"HI\"");command("20 END");command("RUN");expect(output_is("HI"),"hello baseline");
+ reset();command("10 IF 1 THEN PRINT \"Y\";");command("RUN");expect(output_is("Y"),"true IF baseline");
+ reset();command("10 IF 0 THEN PRINT \"N\"; ELSE PRINT \"Z\";");command("RUN");
+ expect(output_is("Z"),"false IF/ELSE baseline");
+ reset();command("10 GOSUB 100");command("20 PRINT \"DONE\";");command("30 END");
+ command("100 PRINT \"SUB\";");command("110 RETURN");command("RUN");expect(output_is("SUBDONE"),"GOSUB baseline");
+ for(unsigned lsb=0;lsb<2;++lsb) {
+  reset();mode_configuration.little_endian=lsb;
+  command("10 SEND 1");command("20 LET A=SEND 1");command("30 LET B=RECEIVE");command("RUN");
+  expect(send_calls==2 && last_sent==(lsb?128:1) && basic_variables[0]==(lsb?128:1)
+         && basic_variables[1]==(lsb?1:128),"statement/expression SEND and RECEIVE byte order");
+ }
+ reset();command("10 GOTO 10");interrupt_after=20;command("RUN");
+ expect(strstr(output,"Error(10)")!=NULL,"Ctrl-C between statements");
+ reset();command("10 GOSUB 10");command("RUN");expect(strstr(output,"Error(7)")!=NULL,"GOSUB stack bound");
+ reset();command("10 RETURN");command("RUN");expect(strstr(output,"Error(8)")!=NULL,"RETURN without GOSUB");
+ reset();command("10 GOTO 20");command("RUN");expect(strstr(output,"Error(6)")!=NULL,"missing GOTO target");
+ reset();command("10 PRINT TIME;");command("RUN");expect(output_is("1000"),"TIME divides microseconds by 64");
+ reset();mode_configuration.alternate_aux=3;mode_configuration.little_endian=1;
+ command("10 MODE 5");command("20 LET A=MODE");command("RUN");
+ expect(basic_variables[0]==5 && !mode_configuration.alternate_aux && !mode_configuration.little_endian,
+        "MODE retains the published reset API contract");
+}
 static void conditional(void) {
  reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
  command("100 PRINT 1;");command("110 RETURN");command("RUN");
@@ -314,8 +341,10 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"commands")) commands();
  else if(!strcmp(argv[1],"adc")) adc();
  else if(!strcmp(argv[1],"corrupt-headers")) corrupt_headers();
+ else if(!strcmp(argv[1],"regression")) regression();
  else if(!strcmp(argv[1],"all")) {
   pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();adc();corrupt_headers();
+  regression();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

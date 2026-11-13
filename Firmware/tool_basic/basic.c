@@ -610,10 +610,9 @@ int16_t get_multiplication_division_bitwise_ops(void) {
 
       int16_t divisor = get_number_or_variable();
 
-      /* The instruction set manual: "A math error exception occurs if den is
-         zero", and an unhandled math error trap resets the board. Do not let
-         a script divide by zero to reset the Bus Pirate; INT16_MIN / -1
-         overflows the same way. */
+      /* DS70000157G p233: zero division traps; 0x8000/0xFFFF instead sets
+         OV with an unrepresentable signed quotient. BASIC defines both
+         exceptional results as zero rather than using that quotient. */
       if ((divisor == 0) || ((temp == (-32767 - 1)) && (divisor == -1))) {
         temp = 0;
       } else {

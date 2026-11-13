@@ -325,6 +325,8 @@ void uart_setup_execute(void) {
 inline void uart_cleanup(void) { uart2_disable(); }
 
 void uart_run_macro(const uint16_t macro) {
+  uint16_t overruns = uart2_rx_overrun_count();
+
   switch (macro) {
   case UART_MACRO_MENU:
     MSG_UART_MACRO_MENU;
@@ -355,9 +357,6 @@ void uart_run_macro(const uint16_t macro) {
 
     /* Make terminal speed match target speed to avoid overruns? */
 
-    /* Clear overrun flag. */
-    U2STAbits.OERR = OFF;
-
     for (;;) {
 #ifdef BUSPIRATEV4
       if (BP_BUTTON_ISDOWN()) {
@@ -378,15 +377,15 @@ void uart_run_macro(const uint16_t macro) {
       }
 
 #ifdef BUSPIRATEV3
-      if (U2STAbits.OERR || U1STAbits.OERR) {
-        U2STAbits.OERR = OFF;
+      if (uart2_rx_overrun_count() != overruns || U1STAbits.OERR) {
         U1STAbits.OERR = OFF;
-        BP_LEDMODE = LOW;
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
       }
 #else
-      if (U2STAbits.OERR) {
-        U2STAbits.OERR = OFF;
-        BP_LEDMODE = LOW;
+      if (uart2_rx_overrun_count() != overruns) {
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
       }
 #endif /* BUSPIRATEV3 */
 
@@ -404,7 +403,6 @@ void uart_run_macro(const uint16_t macro) {
     MSG_UART_RAW_UART_INPUT;
     MSG_ANY_KEY_TO_EXIT_PROMPT;
 
-    U2STAbits.OERR = OFF;
     for (;;) {
 #ifdef BUSPIRATEV4
       if (BP_BUTTON_ISDOWN()) {
@@ -447,9 +445,6 @@ void uart_run_macro(const uint16_t macro) {
 }
 
 void uart_start(void) {
-  /* Clear overrun flag. */
-  U2STAbits.OERR = OFF;
-
   /* Enable UART echo on the console. */
   uart_settings.echo_uart = ON;
 
@@ -743,8 +738,6 @@ void binUART(void) {
       }
     }
     
-    U2STAbits.OERR = OFF;
-
     if (!user_serial_ready_to_read()) {
       continue;
     }
@@ -764,7 +757,6 @@ void binUART(void) {
         
       case 2:
         REPORT_IO_SUCCESS();
-        U2STAbits.OERR = OFF;
         uart_settings.echo_uart = ON;
         break;
         
@@ -788,7 +780,6 @@ void binUART(void) {
         
       case 15:
         REPORT_IO_SUCCESS();
-        U2STAbits.OERR = OFF;
         for (;;) {
 
 #ifdef BUSPIRATEV4

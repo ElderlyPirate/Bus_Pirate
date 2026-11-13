@@ -55,6 +55,7 @@ static void uart2_enable(void) {}
 static void uart2_disable(void) {}
 static void uart2_tx(uint16_t c) { (void)c; ++tx_calls; }
 static uint16_t uart2_rx_overrun_count(void) { return 0; }
+static void bp_disable_mode_led(void) {}
 static uint32_t uart_get_baud_rate(bool quiet) { (void)quiet; return 9600; }
 static bool agree(void) { return true; }
 static unsigned BP_LEDMODE;

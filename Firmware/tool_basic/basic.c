@@ -494,7 +494,7 @@ uint16_t handle_special_token(const uint8_t token) {
     return BP_VREGEN;
 
   case TOK_PULLUP:
-    return ~BP_PULLUP;
+    return !BP_PULLUP;
 
   case TOK_MODE:
     /*

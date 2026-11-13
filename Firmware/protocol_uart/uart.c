@@ -170,7 +170,7 @@ void uart_setup_prepare(void) {
   consumewhitechars();
   output = getint();
   consumewhitechars();
-  hd = getint();
+  hd = cmdbuf[cmdstart] == 0 ? 1 : getint();
 
   if ((speed > 0) && (speed <= 10)) {
     mode_configuration.speed = speed - 1;
@@ -202,9 +202,6 @@ void uart_setup_prepare(void) {
     speed = 0; // when speed is 0 we ask the user
   }
 
-  if (hd == 0) {
-    hd = 1; // parameter lists from before the duplex option: full duplex
-  }
   if ((hd > 0) && (hd <= 2)) {
     uart_settings.half_duplex = hd - 1;
   } else {

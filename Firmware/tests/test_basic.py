@@ -39,7 +39,7 @@ typedef struct { unsigned quiet,bus_mode,basic; } bus_pirate_configuration_t;
 typedef struct { unsigned little_endian,numbits,alternate_aux; } mode_configuration_t;
 bus_pirate_configuration_t bus_pirate_configuration;
 mode_configuration_t mode_configuration;
-static unsigned BP_PULLUP=1,BP_VREGEN,pwm_calls,pwm_frequency,pwm_duty,polls;
+static unsigned BP_PULLUP=1,BP_VREGEN,pwm_calls,pwm_frequency,pwm_duty,polls,input_calls;
 static char output[100000];
 static size_t output_size;
 static void emit(const char *s) {
@@ -65,7 +65,7 @@ static void consumewhitechars(void) {
  while(cmdstart!=cmdend && (cmdbuf[cmdstart]==' ' || cmdbuf[cmdstart]=='\t'))
  cmdstart=(cmdstart+1)&CMDLENMSK;
 }
-static int getnumber(int a,int b,int c,int d) { (void)a;(void)b;(void)c;(void)d;return 42; }
+static int getnumber(int a,int b,int c,int d) { (void)a;(void)b;(void)c;(void)d;++input_calls;return 42; }
 static uint16_t bp_reverse_integer(uint16_t n,unsigned width) {
  uint16_t r=0;while(width--) { r=(r<<1)|(n&1);n>>=1; }return r;
 }
@@ -110,7 +110,7 @@ static void command(const char *text) {
 }
 static void reset(void) {
  bus_pirate_configuration.quiet=0;output_size=0;output[0]=0;polls=0;
- pwm_calls=0;pwm_frequency=pwm_duty=0;bp_basic_initialize();
+ pwm_calls=input_calls=0;pwm_frequency=pwm_duty=0;bp_basic_initialize();
 }
 static void expect(bool ok,const char *name) {
  ++checks;if(!ok) { fprintf(stderr,"FAIL: %s; output=%s\n",name,output);exit(1); }
@@ -241,6 +241,18 @@ static void data(void) {
  }
  reset();command("10 READ A");command("RUN");expect(strstr(output,"Error(9)")!=NULL,"READ without DATA");
 }
+static void input(void) {
+ const char *good[]={"10 INPUT A", "10 INPUT \"V?\", A"};
+ for(unsigned i=0;i<sizeof(good)/sizeof(*good);++i) {
+  reset();command(good[i]);command("RUN");
+  expect(input_calls==1 && basic_variables[0]==42 && !strstr(output,"Error("),good[i]);
+ }
+ const char *bad[]={"10 INPUT \"V?\" A", "10 INPUT \"OPEN", "10 INPUT 1", "10 INPUT"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+  reset();command(bad[i]);command("RUN");
+  expect(input_calls==0 && strstr(output,"Error(3)"),bad[i]);
+ }
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
@@ -252,8 +264,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"editing")) editing();
  else if(!strcmp(argv[1],"conditional")) conditional();
  else if(!strcmp(argv[1],"data")) data();
+ else if(!strcmp(argv[1],"input")) input();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

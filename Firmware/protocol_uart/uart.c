@@ -140,25 +140,30 @@ void UARTsettings(void) {
 }
 
 void uart_setup_prepare(void) {
-  int speed, dbp, sb, rxp, output, hd, brg = 0;
-  // autobaud detection; multi uses
+  int speed, dbp, sb, rxp, output, hd;
+  uint16_t brg = 0;
+#ifdef BUSPIRATEV4
   unsigned long abd = 0;
 
-#ifdef BUSPIRATEV4
   uart_settings.autobaud = OFF;
 #endif /* BUSPIRATEV4 */
 
   consumewhitechars();
   speed = getint();
-  if (speed == 10) // weird this is totaly ignored later as the Speed == 0 check
-                   // later skips the calculation I added it below..
-  {
+  if (speed == 10) {
     consumewhitechars();
     brg = getint();
+#ifdef BUSPIRATEV4
     /* BRGH=1: slower rates cannot fit the 16-bit BRG (DS39897C 17.1). */
     if (brg < 62) {
       speed = 0;
     }
+#else
+    /* Match the V3 raw-BRG prompt rather than interpreting it as baud. */
+    if (brg == 0 || brg > 32767) {
+      speed = 0;
+    }
+#endif
   }
   consumewhitechars();
   dbp = getint();
@@ -263,10 +268,12 @@ void uart_setup_prepare(void) {
     uart_settings.half_duplex = getnumber(1, 1, 2, 0) - 1;
   } else {
     if (mode_configuration.speed == 9) {
+#ifdef BUSPIRATEV4
       abd = brg;
       abd = (FCY / 4 / abd) - 1;
       brg = abd;                          // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
+#endif
       // hack hack hakc
       U2BRG = brg; // passing the brg variable to U2BRG so the UARTsetup_exc can
                    // use it to start UART2setup..

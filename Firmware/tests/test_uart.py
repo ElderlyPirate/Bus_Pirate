@@ -81,13 +81,25 @@ static void load(const char *s) {
   mode_configuration.command_error=0; U2BRG=123;
 }
 int main(void) {
+#ifdef BUSPIRATEV4
   const char *invalid[]={"10 0 1 1 1 2 1", "10 1 1 1 1 2 1", "10 61 1 1 1 2 1"};
+#else
+  const char *invalid[]={"10 0 1 1 1 2 1", "10 32768 1 1 1 2 1"};
+#endif
   for (unsigned i=0;i<sizeof(invalid)/sizeof(*invalid);++i) {
     load(invalid[i]); uart_setup_prepare();
     assert(prompts && !header && mode_configuration.speed==0);
   }
   load("10 9600 1 1 1 2 1"); uart_setup_prepare();
-  assert(!prompts && header==1 && U2BRG==415);
+  assert(!prompts && header==1);
+#ifdef BUSPIRATEV4
+  assert(U2BRG==415);
+  load("10 65535 1 1 1 2 1");uart_setup_prepare();assert(!prompts && U2BRG==60);
+#else
+  assert(U2BRG==9600);
+  load("10 416 1 1 1 2 1");uart_setup_prepare();assert(!prompts && U2BRG==416);
+  load("10 1 1 1 1 2 1");uart_setup_prepare();assert(!prompts && U2BRG==1);
+#endif
   load("5 1 1 1 2 1"); uart_setup_prepare();
   assert(!prompts && header==1 && mode_configuration.speed==4);
   load("5 1 1 1 2"); uart_setup_prepare();

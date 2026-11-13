@@ -22,6 +22,7 @@ PREFIX = r'''
 #define YES 1
 #define NO 0
 #define FCY 16000000UL
+#define UART2_9_N 3
 #define BP_COMMAND_BUFFER_SIZE 256
 #define CMDLENMSK 255
 static struct { unsigned speed, high_impedance, command_error, numbits, int16; } mode_configuration;
@@ -36,6 +37,8 @@ static unsigned input_left, output_count;
 static uint8_t output[128];
 static unsigned setups;
 static unsigned tx_calls, button_polls;
+static unsigned baud_calls;
+static bool mapped, single_wire;
 static uint16_t configured_brg;
 static void consumewhitechars(void) { while (cmdbuf[cmdstart]==' ') ++cmdstart; }
 static int getnumber(int def, int min, int max, int exit) {
@@ -47,16 +50,16 @@ static unsigned long getlong(unsigned long def, unsigned long min, unsigned long
 static void UARTsettings(void) { ++header; }
 static bool uart2_rx_ready(void) { return false; }
 static uint16_t uart2_rx(void) { assert(0); return 0; }
-static void uart2_set_single_wire(bool b) { (void)b; }
+static void uart2_set_single_wire(bool b) { single_wire=b; }
 static void uart2_setup(uint16_t b, bool o, bool i, uint8_t d, bool s) {
-  (void)o; (void)i; (void)d; (void)s; ++setups; configured_brg=b;
+  (void)o; (void)i; (void)d; (void)s; ++setups; U2BRG=configured_brg=b; mapped=true;
 }
 static void uart2_enable(void) {}
-static void uart2_disable(void) {}
+static void uart2_disable(void) { mapped=single_wire=false; }
 static void uart2_tx(uint16_t c) { (void)c; ++tx_calls; }
 static uint16_t uart2_rx_overrun_count(void) { return 0; }
 static void bp_disable_mode_led(void) {}
-static uint32_t uart_get_baud_rate(bool quiet) { (void)quiet; return 9600; }
+static uint32_t uart_get_baud_rate(bool quiet) { (void)quiet; ++baud_calls; return 9600; }
 static bool agree(void) { return true; }
 static unsigned BP_LEDMODE;
 static uint16_t U1BRG;
@@ -133,6 +136,25 @@ int main(void) {
 }
 '''
 
+RESTORE_TEST = r'''
+int main(void) {
+  mode_configuration.speed=4;uart_settings.half_duplex=1;
+  uart_setup_execute();assert(mapped && single_wire);
+  unsigned before=setups;uart_run_macro(4);
+  assert(setups>before && mapped && single_wire && U2BRG==416);
+  uart_settings.databits_parity=3;uart_setup_execute();
+  assert(mode_configuration.numbits==9 && mode_configuration.int16);
+  uart_settings.databits_parity=0;uart_setup_execute();
+  assert(mode_configuration.numbits==8 && !mode_configuration.int16);
+#ifdef BUSPIRATEV4
+  uart_settings.autobaud=1;baud_calls=0;uart_setup_execute();
+  assert(baud_calls==1 && mapped && single_wire && U2BRG==415);
+  uart_setup_execute();assert(baud_calls==1 && mapped && single_wire);
+#endif
+  puts("PASS macro-4 mapping/OD restore, HDUART selection, one-shot autobaud and 9/8-bit display width");
+}
+'''
+
 
 def source(path, revision):
     if revision:
@@ -144,7 +166,7 @@ def source(path, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "all"), default="all")
+    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "restore", "all"), default="all")
     args = parser.parse_args()
     uart = source("protocol_uart/uart.c", args.revision)
     core = source("core_system/proc_menu.c", args.revision)
@@ -156,16 +178,18 @@ def main():
         directory = ROOT / "Firmware/build/uart-test" / board
         directory.mkdir(parents=True, exist_ok=True)
         board_macro = "#define BUSPIRATE" + board + "\n"
-        for case in ("setup", "binary", "bridge", "common"):
+        for case in ("setup", "binary", "bridge", "common", "restore"):
             if args.case not in ("all", case):
                 continue
-            if case == "bridge" and board == "V3":
+            if case in ("bridge", "restore") and board == "V3":
                 continue  # V3's legacy bridge has no physical button escape.
+            restore = "\n".join(function(uart, n) for n in ("uart_get_closest_common_rate", "uart_setup_execute", "uart_run_macro"))
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
-                      "binary": function(uart, "binUART"), "bridge": function(uart, "uart_run_macro"),
-                      "common": function(uart, "uart_get_closest_common_rate")}
+                      "binary": function(uart, "binUART"), "bridge": restore,
+                      "common": function(uart, "uart_get_closest_common_rate"), "restore": restore}
             body = bodies[case]
-            test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST, "common": COMMON_TEST}[case]
+            test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST,
+                    "common": COMMON_TEST, "restore": RESTORE_TEST}[case]
             definitions = "\n".join(re.findall(r"^#define UART_(?:MACRO_|COMMON_).*", uart, re.M))
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")

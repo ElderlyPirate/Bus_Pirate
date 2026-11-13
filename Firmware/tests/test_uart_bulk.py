@@ -72,6 +72,7 @@ static void user_serial_transmit_character(uint8_t c);
 static void bp_binary_io_peripherals_set(uint8_t c) { (void)c; }
 static uint8_t bp_binary_io_pullup_control(uint8_t c) { (void)c;return 1; }
 static bool getInReady(void) { return true; }
+static void bp_disable_mode_led(void) {}
 #define REPORT_IO_SUCCESS() user_serial_transmit_character(1)
 #define REPORT_IO_FAILURE() user_serial_transmit_character(0)
 '''

@@ -53,6 +53,7 @@ static unsigned long getlong(unsigned long def, unsigned long min, unsigned long
 }
 static void UARTsettings(void) { ++header; header_hiz=mode_configuration.high_impedance; }
 static bool uart2_rx_ready(void) { return false; }
+static bool getInReady(void) { return true; }
 static uint8_t uart2_rx_pending(void) { return 0; }
 static uint16_t uart2_rx(void) { assert(0); return 0; }
 static void uart2_set_single_wire(bool b) { single_wire=b; }

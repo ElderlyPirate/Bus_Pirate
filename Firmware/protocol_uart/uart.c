@@ -395,7 +395,7 @@ void uart_run_macro(const uint16_t macro) {
         break;
       }
 
-      if (uart2_rx_ready()) {
+      if (uart2_rx_ready() && getInReady()) {
         user_serial_transmit_character(uart2_rx());
       }
 #else
@@ -436,12 +436,16 @@ void uart_run_macro(const uint16_t macro) {
     MSG_ANY_KEY_TO_EXIT_PROMPT;
 
     for (;;) {
+      if (uart2_rx_overrun_count() != overruns) {
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
+      }
 #ifdef BUSPIRATEV4
       if (BP_BUTTON_ISDOWN()) {
         break;
       }
 
-      if (uart2_rx_ready()) {
+      if (uart2_rx_ready() && getInReady()) {
         user_serial_transmit_character(uart2_rx());
       }
 #else
@@ -703,6 +707,17 @@ static void uart_binary_service_rx(void) {
    * Keep RX output between commands, never inside a bulk command's ACKs. */
   uint8_t pending = uart2_rx_pending();
   while (pending--) {
+#ifdef BUSPIRATEV4
+    /* One ready write cannot block: SOF can only flush/reset the partial
+     * buffer before putc_cdc locks it, never fill it (core CDC contract). */
+    if (uart_settings.echo_uart && !getInReady()) {
+      break;
+    }
+#else
+    if (uart_settings.echo_uart && U1STAbits.UTXBF) {
+      break;
+    }
+#endif
     uint16_t character = uart2_rx();
     if (uart_settings.echo_uart) {
       user_serial_transmit_character(character);
@@ -772,9 +787,14 @@ void binUART(void) {
         REPORT_IO_SUCCESS();
         break;
         
-      case 15:
+      case 15: {
+        uint16_t overruns = uart2_rx_overrun_count();
         REPORT_IO_SUCCESS();
         for (;;) {
+          if (uart2_rx_overrun_count() != overruns) {
+            overruns = uart2_rx_overrun_count();
+            bp_disable_mode_led();
+          }
 
 #ifdef BUSPIRATEV4
           /*
@@ -787,7 +807,7 @@ void binUART(void) {
             break;
           }
 
-          if (uart2_rx_ready()) {
+          if (uart2_rx_ready() && getInReady()) {
             user_serial_transmit_character(uart2_rx());
           }
 #else
@@ -801,6 +821,7 @@ void binUART(void) {
           }
         }
         break;
+      }
         
       default:
         REPORT_IO_FAILURE();

@@ -851,8 +851,9 @@ void binUART(void) {
       
     case 0b01100000:
       input_byte &= 0b00001111;
-      if (input_byte > 0b1010) {
-        input_byte = 0b1010;
+      if (input_byte >= sizeof(UART_BRG_SPEED) / sizeof(UART_BRG_SPEED[0])) {
+        REPORT_IO_FAILURE();
+        break;
       }
       brg_value = UART_BRG_SPEED[input_byte];
       uart2_disable();

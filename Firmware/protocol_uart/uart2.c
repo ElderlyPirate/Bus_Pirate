@@ -116,6 +116,10 @@ void uart2_set_single_wire(const bool single_wire) {
 void uart2_setup(const uint16_t baud_rate_generator_prescaler,
                  const bool open_drain_output, const bool invert_polarity,
                  const uint8_t databits_and_parity, const bool stop_bits) {
+  IEC1bits.U2RXIE = OFF;
+  /* Do not expose a stale GPIO latch while UART/PPS ownership changes. */
+  BP_MOSI_DIR = INPUT;
+  U2MODEbits.UARTEN = OFF;
 
   /*
    * Set the output mode.  Single-wire operation forces open drain: the
@@ -177,21 +181,20 @@ void uart2_setup(const uint16_t baud_rate_generator_prescaler,
 }
 
 void uart2_enable(void) {
-  /* Enable UART port. */
-  U2MODEbits.UARTEN = ON;
-
-  /* Enable data transmission. */
-  U2STAbits.UTXEN = ON;
-
-/* Reset the receive ring and enable the RX interrupt. */
+  IEC1bits.U2RXIE = OFF;
+  /* Initialise the queue before the receiver or its interrupt can publish. */
   uart2_rx_head = 0;
   uart2_rx_tail = 0;
   uart2_rx_last_flags = 0;
   uart2_rx_overruns = 0;
+  uart2_rx_discard = false;
 
   /* Clear UART2 interrupt flag and enable the RX interrupt. */
   IFS1bits.U2RXIF = OFF;
   IEC1bits.U2RXIE = ON;
+
+  U2MODEbits.UARTEN = ON;
+  U2STAbits.UTXEN = ON;
 
   /*
    * Tristate bits are ignored by the PPS peripheral, and are set here only to
@@ -204,10 +207,13 @@ void uart2_disable(void) {
   /* Disable the RX interrupt before touching the port. */
   IEC1bits.U2RXIE = OFF;
 
+  /* Release GPIO before the peripheral stops overriding TRIS. */
+  BP_MOSI_DIR = INPUT;
+
   /* Disable UART port. */
   U2MODEbits.UARTEN = OFF;
 
-  /* Enable data transmission. */
+  /* Disable data transmission. */
   U2STAbits.UTXEN = OFF;
 
   /* Map pin RB7 as UART2 RX. */
@@ -220,11 +226,6 @@ void uart2_disable(void) {
   /* Drop any single-wire selection with the port. */
   uart2_single_wire = false;
 
-  /*
-   * Tristate bits are ignored by the PPS peripheral, and are set here only to
-   * allow the 'v' command to report the right direction.
-   */
-  BP_MOSI_DIR = INPUT;
 }
 
 void uart2_tx(const uint16_t character) {

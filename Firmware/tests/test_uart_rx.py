@@ -134,6 +134,12 @@ def main():
     path = "Firmware/protocol_uart/uart2.c"
     text = (subprocess.check_output(["git", "show", args.revision + ":" + path], cwd=ROOT, text=True)
             if args.revision else (ROOT / path).read_text())
+    if not args.revision:
+        from test_core_system import function
+        enable = function(text, "uart2_enable")
+        disable = function(text, "uart2_disable")
+        assert enable.index("U2RXIE = OFF") < enable.index("uart2_rx_head = 0") < enable.index("UARTEN = ON")
+        assert disable.index("BP_MOSI_DIR = INPUT") < disable.index("UARTEN = OFF") < disable.index("UARTTX_PIN = OFF")
     text = re.sub(r'^#include[^\n]*', '', text, flags=re.M)
     text = re.sub(r'__attribute__\(\([^)]*\)\)', '', text)
     text = re.sub(r'\binline\s+', '', text)

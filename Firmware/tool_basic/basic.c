@@ -1101,11 +1101,33 @@ void interpreter(void) {
       break;
 
     case TOK_FREQ: {
-      int16_t frequency = assign();
-      int16_t duty_cycle = assign();
-
       program_counter_updated = YES;
       basic_program_counter += 4;
+
+      uint16_t operand = basic_program_counter;
+      if (basic_program_area[operand] >= TOK_LEN) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t frequency = assign();
+      if (basic_program_counter == operand) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      if (basic_program_area[basic_program_counter] == ',') {
+        basic_program_counter++;
+      }
+      operand = basic_program_counter;
+      if ((basic_program_area[operand] >= TOK_LEN) ||
+          (basic_program_area[operand] == TOK_ELSE)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t duty_cycle = assign();
+      if (basic_program_counter == operand) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       if (frequency < PWM_MINIMUM_FREQUENCY) {
         frequency = PWM_MINIMUM_FREQUENCY;
@@ -1128,10 +1150,19 @@ void interpreter(void) {
     }
 
     case TOK_DUTY: {
-      int16_t duty_cycle = assign();
-
       program_counter_updated = YES;
       basic_program_counter += 4;
+
+      uint16_t operand = basic_program_counter;
+      if (basic_program_area[operand] >= TOK_LEN) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t duty_cycle = assign();
+      if (basic_program_counter == operand) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       if (duty_cycle < PWM_MINIMUM_DUTY_CYCLE) {
         duty_cycle = PWM_MINIMUM_DUTY_CYCLE;
@@ -1334,6 +1365,7 @@ void bp_basic_enter_interactive_interpreter(void) {
   int i, temp;
   int end, len; //, string;
   bool string_found = NO;
+  bool frequency_arguments = NO;
   unsigned char line[35];
   uint16_t pos;
   size_t index = cmdstart;
@@ -1384,13 +1416,25 @@ void bp_basic_enter_interactive_interpreter(void) {
       }
 
       if (!string_found) {
+        unsigned int before = cmdstart;
         consumewhitechars();
+        /* Preserve the boundary between decimal FREQ arguments; otherwise
+           "1000 50" becomes the single literal "100050" in stored code. */
+        if (frequency_arguments && (before != cmdstart) && (i > 3) &&
+            (line[i - 1] >= '0') && (line[i - 1] <= '9') &&
+            (cmdbuf[cmdstart] >= '0') && (cmdbuf[cmdstart] <= '9')) {
+          line[i++] = ',';
+          continue;
+        }
       }
 
       temp = string_found ? 0 : get_token();
 
       if (temp) {
         line[i] = temp;
+        if (temp == TOK_FREQ) {
+          frequency_arguments = YES;
+        }
         if (temp == TOK_REM) {
           string_found = YES;
         }

@@ -121,6 +121,18 @@ int main(void) {
 }
 '''
 
+COMMON_TEST = r'''
+int main(void) {
+  for(unsigned i=0;i<sizeof(UART_COMMON_BAUD_RATES)/sizeof(*UART_COMMON_BAUD_RATES);++i)
+    assert(uart_get_closest_common_rate(UART_COMMON_BAUD_RATES[i])==UART_COMMON_BAUD_RATES[i]);
+  assert(uart_get_closest_common_rate(150000)==128000);
+  assert(uart_get_closest_common_rate(192000)==128000);
+  assert(uart_get_closest_common_rate(192001)==256000);
+  assert(uart_get_closest_common_rate(256001)==0);
+  puts("PASS all sixteen common-rate endpoints, upper interval and out-of-range detection");
+}
+'''
+
 
 def source(path, revision):
     if revision:
@@ -132,30 +144,32 @@ def source(path, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("setup", "binary", "bridge", "all"), default="all")
+    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "all"), default="all")
     args = parser.parse_args()
     uart = source("protocol_uart/uart.c", args.revision)
     core = source("core_system/proc_menu.c", args.revision)
     settings = re.search(r"typedef struct \{.*?static UARTSettings uart_settings = \{0\};", uart, re.S).group()
     table = re.search(r"const uint16_t UART_BRG_SPEED\[\] = \{.*?\};", uart, re.S).group()
+    common = re.search(r"static const uint32_t UART_COMMON_BAUD_RATES\[\] = \{.*?\};", uart, re.S).group()
     macros = "\n".join("#define " + x + " ((void)0)" for x in set(re.findall(r"\bMSG_\w+", uart)))
     for board in ("V4", "V3"):
         directory = ROOT / "Firmware/build/uart-test" / board
         directory.mkdir(parents=True, exist_ok=True)
         board_macro = "#define BUSPIRATE" + board + "\n"
-        for case in ("setup", "binary", "bridge"):
+        for case in ("setup", "binary", "bridge", "common"):
             if args.case not in ("all", case):
                 continue
             if case == "bridge" and board == "V3":
                 continue  # V3's legacy bridge has no physical button escape.
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
-                      "binary": function(uart, "binUART"), "bridge": function(uart, "uart_run_macro")}
+                      "binary": function(uart, "binUART"), "bridge": function(uart, "uart_run_macro"),
+                      "common": function(uart, "uart_get_closest_common_rate")}
             body = bodies[case]
-            test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST}[case]
-            definitions = "\n".join(re.findall(r"^#define UART_MACRO_.*", uart, re.M))
+            test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST, "common": COMMON_TEST}[case]
+            definitions = "\n".join(re.findall(r"^#define UART_(?:MACRO_|COMMON_).*", uart, re.M))
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")
-            c.write_text("\n".join((board_macro, PREFIX, settings, table, macros, definitions, body, test)), encoding="ascii")
+            c.write_text("\n".join((board_macro, PREFIX, settings, table, common, macros, definitions, body, test)), encoding="ascii")
             subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
                             "-Wno-unused-variable", "-Wno-unused-but-set-variable", str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True, timeout=10)

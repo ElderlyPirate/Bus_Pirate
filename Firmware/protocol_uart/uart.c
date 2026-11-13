@@ -26,7 +26,6 @@
 
 extern mode_configuration_t mode_configuration;
 
-#define UART_COMMON_BAUD_RATES_COUNT 15
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25
 #define UART_MACRO_MENU 0
 #define UART_MACRO_TRANSPARENT_BRIDGE 1
@@ -503,8 +502,10 @@ inline void uart_pins_state(void) { MSG_UART_PINS_STATE; }
 uint32_t uart_get_closest_common_rate(const uint32_t baud_rate) {
   size_t counter;
 
-  for (counter = 1; counter < UART_COMMON_BAUD_RATES_COUNT; counter++) {
-    if (baud_rate < UART_COMMON_BAUD_RATES[counter]) {
+  for (counter = 1;
+       counter < sizeof(UART_COMMON_BAUD_RATES) / sizeof(UART_COMMON_BAUD_RATES[0]);
+       counter++) {
+    if (baud_rate <= UART_COMMON_BAUD_RATES[counter]) {
       uint32_t lower;
       uint32_t upper;
 

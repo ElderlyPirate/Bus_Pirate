@@ -1092,11 +1092,16 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      if (assign()) {
-        mode_configuration.alternate_aux = ON;
-      } else {
-        mode_configuration.alternate_aux = OFF;
+      temp = assign();
+#ifdef BUSPIRATEV4
+      if ((temp < 0) || (temp > 3)) {
+#else
+      if ((temp < 0) || (temp > 1)) {
+#endif
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
       }
+      mode_configuration.alternate_aux = temp;
       handle_else_statement();
       break;
 

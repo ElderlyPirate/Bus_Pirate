@@ -140,11 +140,28 @@ static void debug(void) {
  expect(strstr(output,"0xE3 0x00 0x0A 0x88 0x34 0x32 ")!=NULL,"DEBUG stored bytes");
  expect(output_size==BP_BASIC_PROGRAM_SPACE*5,"DEBUG dumps exactly the program area");
 }
+static void auxpin(void) {
+#ifdef BUSPIRATEV4
+ const unsigned max=3;
+#else
+ const unsigned max=1;
+#endif
+ for(unsigned pin=0;pin<=max;++pin) {
+  char s[32];reset();snprintf(s,sizeof(s),"10 AUXPIN %u",pin);command(s);command("RUN");
+  expect(mode_configuration.alternate_aux==pin && !strstr(output,"Error("),s);
+ }
+ const char *bad[]={"10 AUXPIN -1","10 AUXPIN 4","10 AUXPIN 256"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+  reset();mode_configuration.alternate_aux=1;command(bad[i]);command("RUN");
+  expect(mode_configuration.alternate_aux==1 && strstr(output,"Error(3)"),bad[i]);
+ }
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
  else if(!strcmp(argv[1],"pullup")) pullup();
  else if(!strcmp(argv[1],"debug")) debug();
+ else if(!strcmp(argv[1],"auxpin")) auxpin();
  else { fprintf(stderr,"unknown test group\n");return 2; }
  printf("PASS %u production BASIC checks (%s)\n",checks,argv[1]);
 }

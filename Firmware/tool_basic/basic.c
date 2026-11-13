@@ -1472,6 +1472,18 @@ bool compare(char *pointer) {
   return YES;
 }
 
+static bool compare_command(char *text) {
+  unsigned int saved = cmdstart;
+  if (compare(text)) {
+    consumewhitechars();
+    if ((cmdstart == cmdend) || (cmdbuf[cmdstart] == 0)) {
+      return YES;
+    }
+  }
+  cmdstart = saved;
+  return NO;
+}
+
 uint8_t get_token(void) {
   size_t index;
 
@@ -1658,12 +1670,12 @@ void bp_basic_enter_interactive_interpreter(void) {
             end - pos + 1);
     memcpy(&basic_program_area[pos], line, temp);
   } else {
-    if (compare("RUN")) {
+    if (compare_command("RUN")) {
       interpreter();
       bpBR;
-    } else if (compare("LIST")) {
+    } else if (compare_command("LIST")) {
       list();
-    } else if (compare("EXIT")) {
+    } else if (compare_command("EXIT")) {
       bus_pirate_configuration.basic = NO;
     }
 #ifdef BP_BASIC_I2C_FILESYSTEM
@@ -1677,7 +1689,7 @@ void bp_basic_enter_interactive_interpreter(void) {
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
 #ifdef BP_BASIC_DEBUG_COMMAND
-    else if (compare("DEBUG")) {
+    else if (compare_command("DEBUG")) {
       for (i = 0; i < BP_BASIC_PROGRAM_SPACE; i++) {
         bp_write_hex_byte(basic_program_area[i]);
         bpSP;
@@ -1685,7 +1697,7 @@ void bp_basic_enter_interactive_interpreter(void) {
     }
 #endif /* BP_BASIC_DEBUG_COMMAND */
 
-    else if (compare("NEW")) {
+    else if (compare_command("NEW")) {
       bp_basic_initialize();
     } else {
       BPMSG1052;

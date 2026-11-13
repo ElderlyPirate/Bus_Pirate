@@ -156,6 +156,10 @@ void uart_setup_prepare(void) {
   {
     consumewhitechars();
     brg = getint();
+    /* BRGH=1: slower rates cannot fit the 16-bit BRG (DS39897C 17.1). */
+    if (brg < 62) {
+      speed = 0;
+    }
   }
   consumewhitechars();
   dbp = getint();
@@ -226,8 +230,8 @@ void uart_setup_prepare(void) {
 
     if (mode_configuration.speed == 9) {
       MSG_UART_CUSTOM_BAUD_RATE_PROMPT;
-      abd = getlong(115200, 1, 999999, 0); // get the baud rate from user
-      abd = (((32000000 / abd) / 8) - 1);  // calculate BRG
+      abd = getlong(115200, 62, 999999, 0); // get a representable baud rate
+      abd = (FCY / 4 / abd) - 1;           // BRGH=1, DS39897C equation 17-2
       brg = abd;                           // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
       // hack hack hakc
@@ -264,7 +268,7 @@ void uart_setup_prepare(void) {
   } else {
     if (mode_configuration.speed == 9) {
       abd = brg;
-      abd = (((32000000 / abd) / 8) - 1); // calculate BRG
+      abd = (FCY / 4 / abd) - 1;
       brg = abd;                          // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
       // hack hack hakc
@@ -304,7 +308,7 @@ void uart_setup_execute(void) {
                   uart_settings.stop_bits);
     } else {
       mode_configuration.speed = 9;
-      abd = (((32000000 / abd) / 8) - 1);
+      abd = (FCY / 4 / abd) - 1;
       brg = abd;
       uart2_setup(brg, mode_configuration.high_impedance,
                   uart_settings.receive_polarity, uart_settings.databits_parity,

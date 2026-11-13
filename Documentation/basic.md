@@ -85,6 +85,7 @@ Commands at the BASIC prompt (not stored as program lines):
 | `INPUT ["prompt",] var` | ask for a number and store it in `var` |
 | `DATA n[, n]...` | storage for literal values |
 | `READ var` | take the next value from the `DATA` statements |
+| `RESTORE` | rewind READ to the first DATA value |
 | `REM text` | comment, the rest of the line is ignored |
 | `END` | stop the program |
 | `START` / `STARTR` | protocol start / start with read |

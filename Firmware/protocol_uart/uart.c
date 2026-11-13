@@ -48,7 +48,7 @@ static UARTSettings uart_settings = {0};
 
 static const uint32_t UART_COMMON_BAUD_RATES[] = {
     0,     300,   600,   1200,  2400,  4800,   9600,   14400,
-    19200, 28800, 38400, 56000, 57600, 115200, 128000, 256000};
+    19200, 28800, 31250, 38400, 56000, 57600, 115200, 128000, 256000};
 
 const uint16_t UART_BRG_SPEED[] = {
     13332, /* 300 bps */

@@ -148,7 +148,13 @@ int main(void) {
   assert(uart_get_closest_common_rate(192000)==128000);
   assert(uart_get_closest_common_rate(192001)==256000);
   assert(uart_get_closest_common_rate(256001)==0);
-  puts("PASS all sixteen common-rate endpoints, upper interval and out-of-range detection");
+  assert(uart_get_closest_common_rate(31250)==31250);
+  assert(uart_get_closest_common_rate(31936)==31250);
+  assert(uart_get_closest_common_rate(30025)==28800);
+  assert(uart_get_closest_common_rate(30026)==31250);
+  assert(uart_get_closest_common_rate(34825)==31250);
+  assert(uart_get_closest_common_rate(34826)==38400);
+  puts("PASS common-rate endpoints, MIDI measured estimate/tie boundaries, upper interval and out-of-range detection");
 }
 '''
 

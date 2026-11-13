@@ -34,7 +34,7 @@ Starting UART Mode
     HiZ>m    <<<open the mode menu
     1 . HiZ
     2 . …
-    4 . UART
+     3 . UART
     …
     (1)>3    <<<choose UART mode
     Set serial port speed: (bps)
@@ -47,7 +47,8 @@ Starting UART Mode
      7. 38400
      8. 57600
      9. 115200
-    10. BRG raw value
+    10. Custom BAUD (BPv4) / raw BRG (BPv3)
+    11. Auto-Baud Detection (BPv4 only, activity required)
     
     (1)>5    <<<choose UART speed
     Data bits and parity:
@@ -118,11 +119,11 @@ Command Syntax
 	  * Capital ‘W' enables the on-board power supplies.
 	  * Small ‘w' disables them.
   * [
-      * Open UART, discard received bytes.
+      * Start asynchronous formatted UART display (same as `{`).
   * {
-	  * Open UART, display data as it arrives asynchronously. 
+	  * Start asynchronous formatted UART display.
   * ] or }
-	  * Close UART.
+	  * Stop live display; RX remains buffered while UART is engaged.
   * r
 	  * Check UART for byte, or fail if empty.
       * Displays framing (-f) and parity (-p) errors ([more](#r-read-a-byte)). (r:1…255 for bulk reads)
@@ -171,6 +172,10 @@ between successive bulk writes. It retains the command ACK followed by one ACK
 per transmitted byte without inserting RX bytes into that ACK group. RX echo
 may appear between command responses. With echo disabled, received words are
 consumed without forwarding, as requested by that mode.
+
+Raw bridge/monitor output and ART1 are byte-oriented: they forward only the low
+eight data bits and do not encode parity/framing flags. Use formatted terminal
+reads or live display when ninth-bit values and per-word error flags matter.
 
 Buffering is finite, not a lossless-stream guarantee: the host must drain the
 response stream and the sender must use pacing or suitable flow control when
@@ -221,9 +226,10 @@ Macros
 | (#) | Description |
 |:---:| ----------- |
 | 0 | Macro menu |
-| 1 | Transparent UART bridge. Reset to exit. |
-| 2 | Live raw UART monitor. Any key exits. |
-| 3 | Transparent UART bridge with flow control. |
+| 1 | Transparent UART bridge. BPv4 NORMAL button exits; BPv3 requires reset. |
+| 2 | Live raw UART monitor. Any host key exits; BPv4 NORMAL also exits. |
+| 3 | BPv3 bridge with CTS/RTS forwarding; ordinary bridge on BPv4. |
+| 4 | Estimate/report baud without changing the selected rate or engagement state. |
   
 ### Transparent UART bridge
 
@@ -232,15 +238,24 @@ Macros
     Reset to exit
     Are you sure?  <<<Space continues, anything else exits.
 
-The transparent UART mode **macro (1)** creates a simple serial->USB bridge. The only way to exit this mode is to reset the Bus Pirate hardware.
+The transparent UART mode **macro (1)** forwards raw bytes in both directions.
+On BPv4, press NORMAL to return to the terminal. BPv3 requires a hardware reset.
+The example's legacy "Reset to exit" banner is not a restriction on BPv4's
+button escape. Host input is UART payload in this bridge, not an escape key.
 
 Buffer overrun errors that occur during bridge mode are automatically cleared so that data continues as normal (firmware v3.0+). The MODE LED will turn off to alert you of the buffer overrun error.
 
-**Macro (3)** is a second UART bridge mode that includes the CTS and RTS flow control signals. CTS is on the CS pin (PIC input from external circuit is passed to FTDI USB->serial chip). RTS is on the CLOCK pin (PIC output mirrors output from FTDI chip).
+**Macro (3)** forwards CTS/RTS only on BPv3. The CS input is mirrored to FTDI
+CTS; CLOCK mirrors FTDI RTS to the target. BPv4 has no equivalent FTDI
+handshake path: macro (3) behaves like macro (1), without hardware flow control.
 
-Note that the Bus Pirate serial port UART facing the computer (the one that connects to the USB->serial converter chip and sends text to your computer) is NOT adjusted to the same speed as the UART bridge. The USB-side serial port UART will continue to operate at the default setting (115200bps) unless adjusted with the 'b' menu.
+On BPv3, UART1 facing the FTDI USB converter is not adjusted to match UART2's
+target rate. It remains at its configured terminal baud (115200 by default).
+Set the host and the BPv3 `b` menu consistently before entering a bridge.
 
-If you use the UART bridge with a computer program that opens the virtual serial port at a different baud rate, say 9600bps, the exchange will be garbled because the Bus Pirate expects 115200bps input from the computer. Adjust the computer-side serial speed first with the 'b' menu, then start the serial bridge at the desired speed.
+BPv4 uses native USB CDC: virtual-port line-coding metadata does not program
+UART2. Select the target baud in UART setup; changing only the host's virtual
+baud does not change the wire rate.
     
 ### Live UART monitor
 
@@ -252,12 +267,35 @@ The UART monitor **macro (2)** shows a live display of UART input as raw byte va
 
 This macro is like the transparent UART **macro (1)** but without transmission abilities, and it can be exited with a key press. It's useful for monitoring high-speed UART input that causes buffer overrun errors in other modes.
 
+### Baud detection
+
+Macro (4) reports an estimate and the closest listed common rate, including MIDI
+31250. It temporarily disables UART2, samples activity on the selected RX pin
+(MOSI in half duplex, MISO in full duplex), and preserves whether UART2 was
+engaged. Any host key cancels; absent activity times out after about five
+seconds. It does not apply the reported rate. BPv4's menu autobaud instead runs
+once at the next `W` and applies the selected common rate, with a 115200 fallback
+when no rate is recognized.
+
+Use a suitable repetitive training pattern such as `0x55`, then stop and allow
+an idle interval before sending application data. Detection is not lossless RX:
+training sent while UART2 is disabled is unavailable, and reopening within a
+continuous character stream can produce a shifted trailing word. Account for
+that training separately and verify the first fresh, idle-separated packet.
+
 MIDI
 ------------------
 
 [MIDI](http://en.wikipedia.org/wiki/Musical_Instrument_Digital_Interface) is a command set used by electronic (music) instruments. It travels over a standard serial UART configured for 31250bps/8/n/1. Since firmware v2.7 MIDI is a speed option in the UART library.
 
-MIDI is a ring network, each node has an input and output socket. Each node passes messages to the next in the ring. The input and outputs are opto-isolated. The signaling is at 5volts, 5ma (current-based signaling). An adapter is required: [example 1](http://www.compuphase.com/electronics/midi_rs232.htm), [example 2](http://www.midi.org/techspecs/electrispec.php).
+On BPv4 enter nominal custom baud `31250`; BPv3 raw BRG is `127`. Binary UART's
+MIDI preset is selector `0x69`, or use raw-BRG command `0x07 0x00 0x7F`.
+
+DIN MIDI uses current-loop signaling, not a direct TTL UART connection. Use a
+suitable MIDI electrical interface, including input isolation; do not connect
+the Bus Pirate pins directly to a MIDI DIN port. Adapter references:
+[example 1](http://www.compuphase.com/electronics/midi_rs232.htm),
+[example 2](http://www.midi.org/techspecs/electrispec.php).
 
 Connections
 ------------------
@@ -268,7 +306,8 @@ Connect the Bus Pirate transmit pin (TX/MOSI) to the UART device receive pin (RX
 
 In half-duplex single-wire mode, connect the Bus Pirate TX pin (MOSI) to the peer's single data line, share ground, and fit the pull-up resistor to 3.3 V.
 
-For macros and modes with flow control: CTS is on the CS pin (PIC input from external circuit is passed to FTDI USB->serial chip). RTS is on the CLOCK pin (PIC output mirrors output from FTDI chip). 
+For BPv3 macro (3), CTS is on CS and RTS is on CLOCK. BPv4 does not forward
+these hardware handshake signals.
 
 Diagram by Uwe Bannow, released under the [GNU free documentation license](http://en.wikipedia.org/wiki/Wikipedia:Text_of_the_GNU_Free_Documentation_License).
 

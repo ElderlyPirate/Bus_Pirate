@@ -57,12 +57,11 @@ static volatile uint8_t uart2_rx_head = 0;
 static volatile uint8_t uart2_rx_tail = 0;
 static volatile uint8_t uart2_rx_last_flags = 0;
 static volatile uint16_t uart2_rx_overruns = 0;
+static volatile bool uart2_rx_discard = false;
 
-void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
+/* Called by the ISR, or with U2RXIE masked during single-wire turnaround. */
+static void uart2_rx_drain(void) {
   uint8_t next;
-
-  /* Clear the interrupt flag. */
-  IFS1bits.U2RXIF = OFF;
 
   /*
    * A hardware overrun means the previous byte was replaced before the
@@ -86,6 +85,11 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
     uint8_t flags = (uint8_t)((U2STAbits.PERR ? UART2_RX_FLAG_PARITY : 0) |
                               (U2STAbits.FERR ? UART2_RX_FLAG_FRAMING : 0));
 
+    if (uart2_rx_discard) {
+      (void)U2RXREG;
+      continue;
+    }
+
     next = (uint8_t)((uart2_rx_head + 1) & (UART2_RX_BUFFER_SIZE - 1));
 
     if (next != uart2_rx_tail) {
@@ -98,6 +102,11 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
       uart2_rx_overruns++;
     }
   }
+}
+
+void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
+  IFS1bits.U2RXIF = OFF;
+  uart2_rx_drain();
 }
 
 void uart2_set_single_wire(const bool single_wire) {
@@ -219,16 +228,18 @@ void uart2_disable(void) {
 }
 
 void uart2_tx(const uint16_t character) {
-  uint8_t saved_head;
+  bool rx_interrupt_enabled = IEC1bits.U2RXIE;
 
-  /*
-   * Single wire: remember the receive ring's state so the self-echo of
-   * this byte can be discarded once it has been transmitted.
-   */
-  saved_head = uart2_rx_head;
-
-  /* Wait until the TX buffer is empty. */
+  /* UTXBF=0 guarantees space for one character, not an empty FIFO. */
   while (U2STAbits.UTXBF == ON) {
+  }
+
+  if (uart2_single_wire) {
+    IEC1bits.U2RXIE = OFF;
+    /* Preserve already completed peer characters, even with a pending ISR. */
+    uart2_rx_drain();
+    uart2_rx_discard = true;
+    IEC1bits.U2RXIE = rx_interrupt_enabled;
   }
 
   U2TXREG = character;
@@ -241,13 +252,11 @@ void uart2_tx(const uint16_t character) {
     while (U2STAbits.TRMT == NO) {
     }
 
-    /*
-     * Drop what the receiver heard of our own transmission.  Anything the
-     * peer sent before the byte was queued stays in the ring.
-     */
-    if (uart2_rx_head != saved_head) {
-      uart2_rx_head = saved_head;
-    }
+    /* Retire pending self-echo before reopening RX, including a delayed ISR. */
+    IEC1bits.U2RXIE = OFF;
+    uart2_rx_drain();
+    uart2_rx_discard = false;
+    IEC1bits.U2RXIE = rx_interrupt_enabled;
   }
 }
 

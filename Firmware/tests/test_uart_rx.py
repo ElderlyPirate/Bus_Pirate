@@ -113,7 +113,7 @@ int main(void) {
    /* An already completed peer byte must survive starting our transmission. */
    push(0x42,2);
    IEC1bits.U2RXIE=irq;receiving_echo=1;
-   uart2_tx(0x55);_U2RXInterrupt();
+   uart2_tx(0x55);assert(IEC1bits.U2RXIE==irq);_U2RXInterrupt();
    assert(uart2_rx()==0x41 && uart2_rx_flags()==1);
    assert(uart2_rx_ready() && uart2_rx()==0x42 && uart2_rx_flags()==2);
    assert(!uart2_rx_ready() && uart2_rx_overrun_count()==0);

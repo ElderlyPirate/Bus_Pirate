@@ -177,6 +177,21 @@ static void loops(void) {
  reset();command("10 NEXT A");command("RUN");
  expect(strstr(output,"Error(5)")!=NULL,"NEXT after RUN has no stale FOR state");
 }
+static void expressions(void) {
+ const char *bad[]={"10 LET A=", "10 LET A?1", "10 LET A=(1+2", "10 LET A=()",
+ "10 LET A=1+", "10 IF 1 PRINT 1", "10 IF 0 PRINT 1", "10 PRINT \"OPEN",
+ "10 FREQ (1000,50", "10 DUTY 25+", "10 AUXPIN", "10 LET A=END"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+  reset();command(bad[i]);command("20 END");command("RUN");
+  expect(strstr(output,"Error(3)")!=NULL && !pwm_calls,bad[i]);
+ }
+ const char *expr[]={"1+2*3", "2*-3", "(-6)/(-2)", "1/0", "32768/(0-1)", "2<=2", "3<>4"};
+ const uint16_t values[]={7,65530,3,0,0,1,1};
+ for(unsigned i=0;i<sizeof(expr)/sizeof(*expr);++i) {
+  char s[64];reset();snprintf(s,sizeof(s),"10 LET A=%s",expr[i]);command(s);command("RUN");
+  expect(!strstr(output,"Error(") && (uint16_t)basic_variables[0]==values[i],expr[i]);
+ }
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
@@ -184,6 +199,13 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"debug")) debug();
  else if(!strcmp(argv[1],"auxpin")) auxpin();
  else if(!strcmp(argv[1],"loops")) loops();
+ else if(!strcmp(argv[1],"expressions")) expressions();
+ else if(!strcmp(argv[1],"all")) {
+  pwm();pullup();auxpin();loops();expressions();
+#ifdef BP_BASIC_DEBUG_COMMAND
+  debug();
+#endif
+ }
  else { fprintf(stderr,"unknown test group\n");return 2; }
  printf("PASS %u production BASIC checks (%s)\n",checks,argv[1]);
 }

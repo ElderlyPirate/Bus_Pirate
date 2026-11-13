@@ -19,7 +19,7 @@
 
 #ifdef BP_ENABLE_RAW_2WIRE_SUPPORT
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
 #include "bitbang.h"
 #include "proc_menu.h"
@@ -39,7 +39,6 @@ typedef enum {
 } raw2wire_macro_identifier_t;
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 static const uint32_t DATA_UNIT_LENGTH_TABLE[14] = {
     128,   256,   512,   1024,   2048,   4096,   8192,
@@ -59,10 +58,10 @@ static void read_atr_header(void);
  */
 static void trigger_atr(void);
 
-uint16_t raw2wire_read(void) { return bitbang_read_value(); }
+uint16_t raw2wire_read(void) { return bitbang_read_value(false); }
 
 uint16_t raw2wire_write(const uint16_t value) {
-  bitbang_write_value(value);
+  bitbang_write_value(value, false);
   return 0x100;
 }
 
@@ -107,6 +106,14 @@ void raw2wire_setup_prepare(void) {
     mode_configuration.high_impedance = (output - 1) == 0;
     raw2wire_print_settings();
   }
+
+  /*
+   * Apply the timing profile here as well: the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with the previous mode's profile.
+   * The pins themselves are still configured by setup_execute().
+   */
+  bitbang_setup(2, mode_configuration.speed);
 }
 
 void raw2wire_setup_execute(void) {
@@ -154,7 +161,7 @@ void read_atr_header(void) {
 
   MSG_RAW2WIRE_ATR_REPLY_HEADER;
   for (size_t index = 0; index < ATR_HEADER_LENGTH; index++) {
-    buffer[index] = bitbang_read_value();
+    buffer[index] = bitbang_read_value(false);
     if (mode_configuration.little_endian == YES) {
       buffer[index] = bp_reverse_byte(buffer[index]);
     }

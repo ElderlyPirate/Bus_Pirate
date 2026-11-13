@@ -34,7 +34,6 @@
 #define KEYBOARD_WRITE_TIMEOUT true
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 typedef enum {
   KEYBOARD_MACRO_MENU = 0,

@@ -135,10 +135,16 @@ static void pullup(void) {
  reset();command("10 PULLUP 1");command("20 LET A=PULLUP");command("RUN");
  expect(basic_variables[0]==1,"PULLUP on is logical one");
 }
+static void debug(void) {
+ reset();command("10 PRINT 42");command("DEBUG");
+ expect(strstr(output,"0xE3 0x00 0x0A 0x88 0x34 0x32 ")!=NULL,"DEBUG stored bytes");
+ expect(output_size==BP_BASIC_PROGRAM_SPACE*5,"DEBUG dumps exactly the program area");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
  else if(!strcmp(argv[1],"pullup")) pullup();
+ else if(!strcmp(argv[1],"debug")) debug();
  else { fprintf(stderr,"unknown test group\n");return 2; }
  printf("PASS %u production BASIC checks (%s)\n",checks,argv[1]);
 }
@@ -149,6 +155,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
     parser.add_argument("--group", default="pwm")
+    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     path = "Firmware/tool_basic/basic.c"
     text = (subprocess.check_output(["git", "show", f"{args.revision}:{path}"], cwd=ROOT).decode()
@@ -161,7 +168,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bp-basic-", dir=TEMP) as tmp:
         c = Path(tmp) / "basic.c"
         exe = c.with_suffix(".exe")
-        c.write_text(PREFIX + messages + text + TEST, encoding="ascii")
+        c.write_text(PREFIX + ("\n#define BP_BASIC_DEBUG_COMMAND\n" if args.debug else "")
+                     + messages + text + TEST, encoding="ascii")
         for board in ("BUSPIRATEV4", "BUSPIRATEV3"):
             subprocess.run(["gcc", "-std=gnu99", "-O1", "-Wall", "-Wextra", "-Werror",
                             "-Wno-unused-function", f"-D{board}", str(c), "-o", str(exe)], check=True)

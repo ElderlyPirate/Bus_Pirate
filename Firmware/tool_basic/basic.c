@@ -1530,11 +1530,9 @@ void bp_basic_enter_interactive_interpreter(void) {
 
 #ifdef BP_BASIC_DEBUG_COMMAND
     else if (compare("DEBUG")) {
-      for (i = 0; i < BP_BASIC_PROGRAM_SPACE; i += 16) {
-        for (j = 0; j < 16; j++) {
-          bp_write_hex_byte(basic_program_area[i + j]);
-          bpSP;
-        }
+      for (i = 0; i < BP_BASIC_PROGRAM_SPACE; i++) {
+        bp_write_hex_byte(basic_program_area[i]);
+        bpSP;
       }
     }
 #endif /* BP_BASIC_DEBUG_COMMAND */

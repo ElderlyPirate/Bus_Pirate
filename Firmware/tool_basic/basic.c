@@ -244,7 +244,7 @@ extern mode_configuration_t mode_configuration;
 typedef struct {
   uint16_t from;
   uint16_t var;
-  uint16_t to;
+  int16_t to;
 } __attribute__((packed)) basic_for_loop_t;
 
 static int16_t basic_variables[BP_BASIC_VARIABLES_COUNT];
@@ -895,9 +895,7 @@ void interpreter(void) {
     case TOK_FOR:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      if (basic_current_nested_for_index < BP_BASIC_NESTED_FOR_LOOP_COUNT) {
-        basic_current_nested_for_index++;
-      } else {
+      if (basic_current_nested_for_index >= BP_BASIC_NESTED_FOR_LOOP_COUNT) {
         /* The loop array is full: stop before indexing past its end. */
         status = STATUS_CODE_FOR_ERROR;
         break;
@@ -933,25 +931,35 @@ void interpreter(void) {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
       handle_else_statement();
+      if (status == STATUS_CODE_UNKNOWN) {
+        basic_current_nested_for_index++;
+      }
       break;
 
     case TOK_NEXT:
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      temp = (basic_program_area[basic_program_counter++] - 'A') + 1;
       status = STATUS_CODE_NEXT_ERROR;
+      if ((basic_program_area[basic_program_counter] < 'A') ||
+          (basic_program_area[basic_program_counter] > 'Z')) {
+        break;
+      }
+      temp = (basic_program_area[basic_program_counter++] - 'A') + 1;
 
-      for (i = 0; i <= basic_current_nested_for_index; i++) {
+      /* The index is a count, not a live entry. Search only active frames,
+         innermost first, so a completed or previous RUN's loop cannot match. */
+      for (i = basic_current_nested_for_index; i-- > 0;) {
         if (basic_nested_for_loops[i].var == temp) {
           if (basic_variables[temp - 1] < basic_nested_for_loops[i].to) {
             basic_variables[temp - 1]++;
             basic_program_counter = basic_nested_for_loops[i].from;
-          } else if (basic_current_nested_for_index > 0) {
-            /* Pop the loop; never let the index underflow. */
-            basic_current_nested_for_index--;
+            basic_current_nested_for_index = i + 1;
+          } else {
+            basic_current_nested_for_index = i;
           }
           status = STATUS_CODE_UNKNOWN;
+          break;
         }
       }
       handle_else_statement();

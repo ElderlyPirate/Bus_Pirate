@@ -154,13 +154,28 @@ The Bus Pirate reports framing errors (-f) and parity errors (-p) when reading a
 
 ### Buffer overrun errors
 
-The Bus Pirate hardware has a four-byte UART buffer that holds data until you read it with an 'r' command, or until it can be printed to the terminal if live display is enabled with '['. After it fills, new data will be lost. This is called a buffer overrun.
+The RX interrupt drains the four-word hardware FIFO into a software ring with
+127 usable words. Each word retains its parity/framing flags and ninth data bit.
+When the ring fills, newly received words are dropped; hardware overruns are
+cleared after draining the FIFO. `uart2_rx_overrun_count()` counts software drops
+and hardware-overrun events since the last UART enable, not necessarily the
+number of lost characters. Ordinary `r` output does not print a dropped-byte
+warning. Transparent bridge macro (1) extinguishes the MODE LED on overrun;
+transparent streams do not inject error bytes.
 
-    READ: 0x40 *Bytes dropped*<<<bytes dropped error
+Binary UART services a snapshot of queued RX between commands, including
+between successive bulk writes. It retains the command ACK followed by one ACK
+per transmitted byte without inserting RX bytes into that ACK group. RX echo
+may appear between command responses. With echo disabled, received words are
+consumed without forwarding, as requested by that mode.
 
-The Bus Pirate detects buffer errors, clears them, and alerts you of dropped bytes. The overrun bit is cleared any time you use the r, {, or [ commands. If you close the live UART display (]) and more than 5 bytes come in, the next read command (r) will clear the error and print the *bytes dropped* warning.
-
-Prevent buffer problems by reducing the amount of data the Bus Pirate transfers over USB for each byte of UART data. Raw display mode reduces the four byte hex value 0x00 to a single raw byte value. A better way is to use macro (1) or (2) to view unformatted UART output, this is a 1:1 transfer of bytes that should work at the highest possible speeds.
+Buffering is finite, not a lossless-stream guarantee: the host must drain the
+response stream and the sender must use pacing or suitable flow control when
+the downstream link cannot keep up. At 1 Mbps 8N1, 127 words cover about 1.27 ms
+of stalled foreground service. Raw bridge/monitor output avoids formatted-text
+expansion but cannot absorb an indefinitely stalled host. Binary clients that
+cannot drain concurrently should use acknowledged chunks and collect their RX
+responses before sending more.
 
 ### Custom baud rate
 

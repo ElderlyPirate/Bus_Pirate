@@ -280,6 +280,11 @@ uint16_t uart2_rx(void) {
 
 inline bool uart2_rx_ready(void) { return uart2_rx_head != uart2_rx_tail; }
 
+uint8_t uart2_rx_pending(void) {
+  uint8_t head = uart2_rx_head;
+  return (uint8_t)((head - uart2_rx_tail) & (UART2_RX_BUFFER_SIZE - 1));
+}
+
 uint8_t uart2_rx_flags(void) { return uart2_rx_last_flags; }
 
 uint16_t uart2_rx_overrun_count(void) { return uart2_rx_overruns; }

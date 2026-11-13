@@ -137,6 +137,22 @@ int main(void) {
  puts("PASS HDUART: queued/pending peer data retained; immediate/delayed self-echo discarded; IRQ mask preserved");
 }
 ''',
+    "pending": r'''
+int main(void) {
+ uart2_setup(416,0,0,0,0);uart2_enable();assert(!uart2_rx_pending());
+ for(unsigned round=0;round<100;++round) {
+   for(unsigned i=0;i<127;++i) {
+     push(i,0);_U2RXInterrupt();assert(uart2_rx_pending()==i+1);
+   }
+   unsigned snapshot=uart2_rx_pending();
+   assert(uart2_rx()==0 && uart2_rx_pending()==126);
+   push(222,0);_U2RXInterrupt();assert(uart2_rx_pending()==127 && snapshot==127);
+   for(unsigned i=1;i<127;++i)assert(uart2_rx()==i);
+   assert(uart2_rx()==222 && !uart2_rx_pending());
+ }
+ assert(!uart2_rx_overrun_count());puts("PASS pending snapshots: empty/full, wrap and producer progress");
+}
+''',
 }
 
 

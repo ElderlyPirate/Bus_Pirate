@@ -89,6 +89,9 @@ in inline parameter lists — omitting it selects full duplex).
     running its USART with wired-AND on its TX pin).
   - **No self-echo:** bytes the Bus Pirate transmits are not displayed back;
     received bytes are read normally (`r`, `{`/`[`, macros).
+  - Selecting half duplex forces the stored output type to open drain, even if
+    Normal was selected earlier. The settings header and VPU controls use that
+    effective output type. Half duplex requires idle-high polarity.
   - On BPv4 enable the supplies (`W`) and the pull-ups (`P`) after mode entry,
     as with the regular UART mode.
   - All commands, macros and the transparent bridge work unchanged. The binary

@@ -25,10 +25,12 @@ PREFIX = r'''
 #define UART2_9_N 3
 #define BP_COMMAND_BUFFER_SIZE 256
 #define CMDLENMSK 255
-static struct { unsigned speed, high_impedance, command_error, numbits, int16; } mode_configuration;
+static struct { unsigned speed, command_error, numbits, int16; unsigned high_impedance:1; } mode_configuration;
 static char cmdbuf[256];
 static unsigned cmdstart, prompts, header;
 static bool setup_defaults_mode;
+static bool half_normal_prompts;
+static unsigned header_hiz;
 static uint16_t U2BRG;
 static struct { unsigned OERR, UTXBF; } U2STAbits, U1STAbits;
 static uint16_t U2TXREG, U1TXREG;
@@ -42,12 +44,13 @@ static bool mapped, single_wire;
 static uint16_t configured_brg;
 static void consumewhitechars(void) { while (cmdbuf[cmdstart]==' ') ++cmdstart; }
 static int getnumber(int def, int min, int max, int exit) {
-  (void)exit; ++prompts; assert(def>=min && def<=max); return def;
+  (void)exit; ++prompts; assert(def>=min && def<=max);
+  return half_normal_prompts && (prompts==5 || prompts==6) ? 2 : def;
 }
 static unsigned long getlong(unsigned long def, unsigned long min, unsigned long max, int exit) {
   (void)exit; ++prompts; assert(min>=62 && def>=min && def<=max); return def;
 }
-static void UARTsettings(void) { ++header; }
+static void UARTsettings(void) { ++header; header_hiz=mode_configuration.high_impedance; }
 static bool uart2_rx_ready(void) { return false; }
 static uint8_t uart2_rx_pending(void) { return 0; }
 static uint16_t uart2_rx(void) { assert(0); return 0; }
@@ -110,6 +113,12 @@ int main(void) {
   load("5 1 1 2 1 2");uart_setup_prepare();assert(prompts && !header);
   load("5 1 1 2 1 1");uart_setup_prepare();
   assert(!prompts && header==1 && !uart_settings.half_duplex && uart_settings.receive_polarity);
+  load("5 1 1 1 2 2");uart_setup_prepare();
+  assert(!prompts && header==1 && uart_settings.half_duplex && mode_configuration.high_impedance && header_hiz);
+  load("0");half_normal_prompts=true;uart_setup_prepare();half_normal_prompts=false;
+  assert(prompts==6 && uart_settings.half_duplex && mode_configuration.high_impedance);
+  load("5 1 1 1 2");uart_setup_prepare();
+  assert(!uart_settings.half_duplex && !mode_configuration.high_impedance);
   puts("PASS setup: zero/missing-rate sentinel and unrepresentable baud refuse before divide; valid presets/custom unchanged");
 }
 '''

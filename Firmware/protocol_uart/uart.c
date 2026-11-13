@@ -284,6 +284,13 @@ void uart_setup_prepare(void) {
       U2BRG = brg; // passing the brg variable to U2BRG so the UARTsetup_exc can
                    // use it to start UART2setup..
     }
+  }
+
+  /* Match the stored output type to the driver's forced shared-wire ODC. */
+  if (uart_settings.half_duplex) {
+    mode_configuration.high_impedance = ON;
+  }
+  if (speed != 0) {
     UARTsettings();
   }
 }

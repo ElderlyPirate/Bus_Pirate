@@ -51,7 +51,7 @@ static bool uart2_single_wire = false;
  * consumes the characters the old code used to inspect.
  */
 #define UART2_RX_BUFFER_SIZE 128 /* power of two */
-static volatile uint8_t uart2_rx_buffer[UART2_RX_BUFFER_SIZE];
+static volatile uint16_t uart2_rx_buffer[UART2_RX_BUFFER_SIZE];
 static volatile uint8_t uart2_rx_flag_buffer[UART2_RX_BUFFER_SIZE];
 static volatile uint8_t uart2_rx_head = 0;
 static volatile uint8_t uart2_rx_tail = 0;
@@ -90,7 +90,7 @@ void __attribute__((interrupt, no_auto_psv)) _U2RXInterrupt(void) {
 
     if (next != uart2_rx_tail) {
       uart2_rx_flag_buffer[uart2_rx_head] = flags;
-      uart2_rx_buffer[uart2_rx_head] = (uint8_t)(U2RXREG & 0xFF);
+      uart2_rx_buffer[uart2_rx_head] = U2RXREG & 0x1FF;
       uart2_rx_head = next;
     } else {
       /* Ring full: the byte is read and dropped. */
@@ -218,7 +218,7 @@ void uart2_disable(void) {
   BP_MOSI_DIR = INPUT;
 }
 
-void uart2_tx(const uint8_t character) {
+void uart2_tx(const uint16_t character) {
   uint8_t saved_head;
 
   /*
@@ -251,8 +251,8 @@ void uart2_tx(const uint8_t character) {
   }
 }
 
-uint8_t uart2_rx(void) {
-  uint8_t character;
+uint16_t uart2_rx(void) {
+  uint16_t character;
 
   /* Wait until a character is available in the ring. */
   while (uart2_rx_head == uart2_rx_tail) {

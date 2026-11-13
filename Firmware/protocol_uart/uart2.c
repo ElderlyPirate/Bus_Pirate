@@ -72,6 +72,7 @@ static void uart2_rx_drain(void) {
    * non-empty FIFO re-asserts the flag anyway).
    */
   while (U2STAbits.URXDA) {
+    uint8_t head;
     uint8_t flags = (uint8_t)((U2STAbits.PERR ? UART2_RX_FLAG_PARITY : 0) |
                               (U2STAbits.FERR ? UART2_RX_FLAG_FRAMING : 0));
 
@@ -80,11 +81,12 @@ static void uart2_rx_drain(void) {
       continue;
     }
 
-    next = (uint8_t)((uart2_rx_head + 1) & (UART2_RX_BUFFER_SIZE - 1));
+    head = uart2_rx_head;
+    next = (uint8_t)((head + 1) & (UART2_RX_BUFFER_SIZE - 1));
 
     if (next != uart2_rx_tail) {
-      uart2_rx_flag_buffer[uart2_rx_head] = flags;
-      uart2_rx_buffer[uart2_rx_head] = U2RXREG & 0x1FF;
+      uart2_rx_flag_buffer[head] = flags;
+      uart2_rx_buffer[head] = U2RXREG & 0x1FF;
       uart2_rx_head = next;
     } else {
       /* Ring full: the byte is read and dropped. */
@@ -225,18 +227,21 @@ void uart2_disable(void) {
 }
 
 void uart2_tx(const uint16_t character) {
-  bool rx_interrupt_enabled = IEC1bits.U2RXIE;
+  bool rx_interrupt_enabled = false;
 
   /* UTXBF=0 guarantees space for one character, not an empty FIFO. */
   while (U2STAbits.UTXBF == ON) {
   }
 
   if (uart2_single_wire) {
+    rx_interrupt_enabled = IEC1bits.U2RXIE;
     IEC1bits.U2RXIE = OFF;
     /* Preserve already completed peer characters, even with a pending ISR. */
     uart2_rx_drain();
     uart2_rx_discard = true;
-    IEC1bits.U2RXIE = rx_interrupt_enabled;
+    if (rx_interrupt_enabled) {
+      IEC1bits.U2RXIE = ON;
+    }
   }
 
   U2TXREG = character;
@@ -253,20 +258,23 @@ void uart2_tx(const uint16_t character) {
     IEC1bits.U2RXIE = OFF;
     uart2_rx_drain();
     uart2_rx_discard = false;
-    IEC1bits.U2RXIE = rx_interrupt_enabled;
+    if (rx_interrupt_enabled) {
+      IEC1bits.U2RXIE = ON;
+    }
   }
 }
 
 uint16_t uart2_rx(void) {
   uint16_t character;
+  uint8_t tail = uart2_rx_tail;
 
   /* Wait until a character is available in the ring. */
-  while (uart2_rx_head == uart2_rx_tail) {
+  while (uart2_rx_head == tail) {
   }
 
-  character = uart2_rx_buffer[uart2_rx_tail];
-  uart2_rx_last_flags = uart2_rx_flag_buffer[uart2_rx_tail];
-  uart2_rx_tail = (uint8_t)((uart2_rx_tail + 1) & (UART2_RX_BUFFER_SIZE - 1));
+  character = uart2_rx_buffer[tail];
+  uart2_rx_last_flags = uart2_rx_flag_buffer[tail];
+  uart2_rx_tail = (uint8_t)((tail + 1) & (UART2_RX_BUFFER_SIZE - 1));
   return character;
 }
 

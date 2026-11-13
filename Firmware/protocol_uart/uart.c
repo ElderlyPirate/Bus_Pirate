@@ -527,7 +527,7 @@ uint32_t uart_get_closest_common_rate(const uint32_t baud_rate) {
   return 0;
 }
 
-static bool uart_rx_level(void) {
+static inline bool uart_rx_level(void) {
   return uart_settings.half_duplex ? BP_MOSI : BP_MISO;
 }
 

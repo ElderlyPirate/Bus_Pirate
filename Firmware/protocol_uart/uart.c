@@ -212,6 +212,11 @@ void uart_setup_prepare(void) {
     speed = 0; // when speed is 0 we ask the user
   }
 
+  /* A released open-drain shared bus must idle HIGH, not be held LOW. */
+  if (uart_settings.half_duplex && uart_settings.receive_polarity) {
+    speed = 0;
+  }
+
   if (speed == 0) {
     mode_configuration.command_error = NO;
 
@@ -265,7 +270,8 @@ void uart_setup_prepare(void) {
     mode_configuration.high_impedance = ~(getnumber(1, 1, 2, 0) - 1);
 
     MSG_UART_DUPLEX_PROMPT;
-    uart_settings.half_duplex = getnumber(1, 1, 2, 0) - 1;
+    uart_settings.half_duplex =
+        getnumber(1, 1, uart_settings.receive_polarity ? 1 : 2, 0) - 1;
   } else {
     if (mode_configuration.speed == 9) {
 #ifdef BUSPIRATEV4

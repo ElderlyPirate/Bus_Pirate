@@ -113,6 +113,10 @@ before the PWM is updated. Frequency is clamped to 0..4000 Hz (0 disables
 PWM); FREQ/DUTY percentages are clamped to 1..100. PWM always uses AUX,
 independently of `AUXPIN`'s GPIO selector.
 
+The `ADC` expression returns a raw 10-bit probe reading. It stops with syntax
+error 3, without touching the converter, if an interrupt-driven owner such as
+SMPS currently owns the ADC.
+
 ## Expressions
 
 Values in an expression are:

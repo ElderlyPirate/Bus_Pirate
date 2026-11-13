@@ -35,6 +35,7 @@ static const uint8_t *input;
 static unsigned input_left, output_count;
 static uint8_t output[128];
 static unsigned setups;
+static unsigned tx_calls, button_polls;
 static uint16_t configured_brg;
 static void consumewhitechars(void) { while (cmdbuf[cmdstart]==' ') ++cmdstart; }
 static int getnumber(int def, int min, int max, int exit) {
@@ -52,13 +53,20 @@ static void uart2_setup(uint16_t b, bool o, bool i, uint8_t d, bool s) {
 }
 static void uart2_enable(void) {}
 static void uart2_disable(void) {}
-static void uart2_tx(uint16_t c) { (void)c; }
+static void uart2_tx(uint16_t c) { (void)c; ++tx_calls; }
+static uint16_t uart2_rx_overrun_count(void) { return 0; }
+static uint32_t uart_get_baud_rate(bool quiet) { (void)quiet; return 9600; }
+static bool agree(void) { return true; }
+static unsigned BP_LEDMODE;
+static uint16_t U1BRG;
 static bool user_serial_ready_to_read(void) { assert(input_left); return true; }
 static uint8_t user_serial_read_byte(void) { assert(input_left); --input_left; return *input++; }
 static void user_serial_transmit_character(uint8_t c) { assert(output_count<sizeof(output)); output[output_count++]=c; }
 static void bp_binary_io_peripherals_set(uint8_t c) { (void)c; }
 static uint8_t bp_binary_io_pullup_control(uint8_t c) { (void)c; return 1; }
-#define BP_BUTTON_ISDOWN() 1
+#define BP_BUTTON_ISDOWN() (++button_polls>1)
+#define LOW 0
+#define bpBR ((void)0)
 #define REPORT_IO_SUCCESS() user_serial_transmit_character(1)
 #define REPORT_IO_FAILURE() user_serial_transmit_character(0)
 '''
@@ -99,6 +107,15 @@ int main(void) {
 }
 '''
 
+BRIDGE_TEST = r'''
+int main(void) {
+  const uint8_t c=0x55;input=&c;input_left=1;button_polls=tx_calls=0;
+  uart_run_macro(1);
+  assert(!input_left && tx_calls==1);
+  puts("PASS terminal bridge uses the shared UART2 transmit path and button escape");
+}
+'''
+
 
 def source(path, revision):
     if revision:
@@ -110,7 +127,7 @@ def source(path, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("setup", "binary", "all"), default="all")
+    parser.add_argument("--case", choices=("setup", "binary", "bridge", "all"), default="all")
     args = parser.parse_args()
     uart = source("protocol_uart/uart.c", args.revision)
     core = source("core_system/proc_menu.c", args.revision)
@@ -121,16 +138,21 @@ def main():
         directory = ROOT / "Firmware/build/uart-test" / board
         directory.mkdir(parents=True, exist_ok=True)
         board_macro = "#define BUSPIRATE" + board + "\n"
-        for case in ("setup", "binary"):
+        for case in ("setup", "binary", "bridge"):
             if args.case not in ("all", case):
                 continue
-            body = function(core, "getint") + function(uart, "uart_setup_prepare") if case == "setup" else function(uart, "binUART")
-            test = SETUP_TEST if case == "setup" else BINARY_TEST
+            if case == "bridge" and board == "V3":
+                continue  # V3's legacy bridge has no physical button escape.
+            bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
+                      "binary": function(uart, "binUART"), "bridge": function(uart, "uart_run_macro")}
+            body = bodies[case]
+            test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST}[case]
+            definitions = "\n".join(re.findall(r"^#define UART_MACRO_.*", uart, re.M))
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")
-            c.write_text("\n".join((board_macro, PREFIX, settings, table, macros, body, test)), encoding="ascii")
+            c.write_text("\n".join((board_macro, PREFIX, settings, table, macros, definitions, body, test)), encoding="ascii")
             subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
-                            "-Wno-unused-variable", str(c), "-o", str(exe)], check=True)
+                            "-Wno-unused-variable", "-Wno-unused-but-set-variable", str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True, timeout=10)
             print(board, case, "PASS", flush=True)
 

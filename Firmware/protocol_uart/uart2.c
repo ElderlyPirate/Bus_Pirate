@@ -64,16 +64,6 @@ static void uart2_rx_drain(void) {
   uint8_t next;
 
   /*
-   * A hardware overrun means the previous byte was replaced before the
-   * interrupt could read it; clearing OERR resets the receiver FIFO and
-   * the shift register (per the family datasheet), so only count it.
-   */
-  if (U2STAbits.OERR) {
-    U2STAbits.OERR = OFF;
-    uart2_rx_overruns++;
-  }
-
-  /*
    * The receive FIFO is four deep.  "URXDA = 1" only guarantees that at
    * least one more character can be read, so drain it one character at a
    * time; doing that for every character the FIFO holds keeps the number
@@ -101,6 +91,12 @@ static void uart2_rx_drain(void) {
       (void)U2RXREG;
       uart2_rx_overruns++;
     }
+  }
+
+  /* OERR clear resets FIFO/RSR: preserve buffered characters first (17-2). */
+  if (U2STAbits.OERR) {
+    U2STAbits.OERR = OFF;
+    uart2_rx_overruns++;
   }
 }
 

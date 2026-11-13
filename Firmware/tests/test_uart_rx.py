@@ -45,6 +45,7 @@ static struct { unsigned U2RXIF; } IFS1bits;
 static struct { unsigned U2RXIE; } IEC1bits;
 static uint16_t fifo[4], fifo_flags[4], rxreg, txreg;
 static unsigned fifo_count, tx_ticks, irq_active, receiving_echo, access_count;
+static bool previous_oerr;
 void _U2RXInterrupt(void);
 static void refresh(void) {
  sta.bits.URXDA=!!fifo_count;
@@ -57,6 +58,8 @@ static void push(uint16_t v, uint8_t flags) {
 }
 static void *status(void) {
  assert(++access_count<100000);
+ if (previous_oerr && !sta.bits.OERR) fifo_count=0;
+ previous_oerr=sta.bits.OERR;
  if (tx_ticks && !irq_active) {
    if (++tx_ticks==3 && receiving_echo) push(txreg,0);
    if (tx_ticks>=6) { sta.bits.TRMT=1;tx_ticks=0; }
@@ -79,6 +82,17 @@ static uint16_t *write_tx(void) { tx_ticks=1;sta.bits.TRMT=0;return &txreg; }
 '''
 
 TESTS = {
+    "overrun": r'''
+int main(void) {
+ uart2_setup(416,0,0,0,0);uart2_enable();
+ for(unsigned i=0;i<4;++i)push(0x40+i,i);
+ sta.bits.OERR=1;_U2RXInterrupt();status();
+ for(unsigned i=0;i<4;++i) {assert(uart2_rx_ready());assert(uart2_rx()==0x40+i);assert(uart2_rx_flags()==i);}
+ assert(!uart2_rx_ready() && uart2_rx_overrun_count()==1);
+ push(0x55,0);_U2RXInterrupt();assert(uart2_rx()==0x55);
+ puts("PASS hardware overrun retains buffered characters/flags before destructive OERR clear; receiver recovers");
+}
+''',
     "width": r'''
 int main(void) {
  uart2_setup(416,0,0,3,0);uart2_enable();

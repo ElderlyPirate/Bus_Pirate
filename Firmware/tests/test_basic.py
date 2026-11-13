@@ -209,6 +209,14 @@ static void editing(void) {
  command("1000 REM 01234567890123456789");
  expect(!memcmp(saved,basic_program_area,sizeof(saved)),"full program rejects insertion without mutation");
 }
+static void text_bytes(void) {
+ for(unsigned c=128;c<256;++c) {
+  reset();command("10 PRINT 42");
+  uint8_t saved[BP_BASIC_PROGRAM_SPACE];memcpy(saved,basic_program_area,sizeof(saved));
+  char line[]="10 PRINT \"?\"";line[10]=(char)c;command(line);
+  expect(!memcmp(saved,basic_program_area,sizeof(saved)),"raw token/header bytes cannot enter stored text");
+ }
+}
 static void conditional(void) {
  reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
  command("100 PRINT 1;");command("110 RETURN");command("RUN");
@@ -265,8 +273,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"conditional")) conditional();
  else if(!strcmp(argv[1],"data")) data();
  else if(!strcmp(argv[1],"input")) input();
+ else if(!strcmp(argv[1],"text-bytes")) text_bytes();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

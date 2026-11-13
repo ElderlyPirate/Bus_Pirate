@@ -524,6 +524,10 @@ uint16_t handle_special_token(const uint8_t token) {
     return (uint16_t)(bp_timer_microseconds() >> 6);
 
   case TOK_ADC: {
+    if (!bp_adc_foreground_available()) {
+      basic_expression_error = YES;
+      return 0;
+    }
     bp_enable_adc();
     uint16_t adc_measurement = bp_read_adc(BP_ADC_PROBE);
     bp_disable_adc();

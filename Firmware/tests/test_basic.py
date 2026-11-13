@@ -40,6 +40,8 @@ typedef struct { unsigned little_endian,numbits,alternate_aux; } mode_configurat
 bus_pirate_configuration_t bus_pirate_configuration;
 mode_configuration_t mode_configuration;
 static unsigned BP_PULLUP=1,BP_VREGEN,pwm_calls,pwm_frequency,pwm_duty,polls,input_calls;
+static bool adc_available=true;
+static unsigned adc_enable_calls,adc_read_calls,adc_disable_calls;
 static char output[100000];
 static size_t output_size;
 static void emit(const char *s) {
@@ -88,9 +90,10 @@ static void bp_aux_pin_set_low(void) {}
 static void bp_set_voltage_regulator_state(bool n) { BP_VREGEN=n; }
 static void bp_set_pullup_state(bool n) { BP_PULLUP=!n; }
 static uint32_t bp_timer_microseconds(void) { return 64000; }
-static void bp_enable_adc(void) {}
-static void bp_disable_adc(void) {}
-static uint16_t bp_read_adc(unsigned n) { (void)n;return 512; }
+static bool bp_adc_foreground_available(void) { return adc_available; }
+static void bp_enable_adc(void) { ++adc_enable_calls; }
+static void bp_disable_adc(void) { ++adc_disable_calls; }
+static uint16_t bp_read_adc(unsigned n) { (void)n;++adc_read_calls;return 512; }
 static void bp_update_pwm(unsigned f,unsigned d) { ++pwm_calls;pwm_frequency=f;pwm_duty=d; }
 static void bp_update_duty_cycle(unsigned d) { ++pwm_calls;pwm_duty=d; }
 static void bp_delay_ms(unsigned n) { (void)n; }
@@ -111,6 +114,7 @@ static void command(const char *text) {
 static void reset(void) {
  bus_pirate_configuration.quiet=0;output_size=0;output[0]=0;polls=0;
  pwm_calls=input_calls=0;pwm_frequency=pwm_duty=0;bp_basic_initialize();
+ adc_available=true;adc_enable_calls=adc_read_calls=adc_disable_calls=0;
 }
 static void expect(bool ok,const char *name) {
  ++checks;if(!ok) { fprintf(stderr,"FAIL: %s; output=%s\n",name,output);exit(1); }
@@ -233,6 +237,14 @@ static void commands(void) {
  }
  output_size=0;output[0]=0;command("RUN   ");expect(output_is("42"),"command trailing whitespace allowed");
 }
+static void adc(void) {
+ reset();command("10 LET A=ADC");command("RUN");
+ expect(basic_variables[0]==512 && adc_enable_calls==1 && adc_read_calls==1 && adc_disable_calls==1,
+        "foreground ADC read has balanced ownership");
+ reset();adc_available=false;command("10 LET A=ADC");command("RUN");
+ expect(strstr(output,"Error(3)") && !adc_enable_calls && !adc_read_calls && !adc_disable_calls,
+        "BASIC ADC refuses an active interrupt owner without touching hardware");
+}
 static void conditional(void) {
  reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
  command("100 PRINT 1;");command("110 RETURN");command("RUN");
@@ -291,8 +303,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"input")) input();
  else if(!strcmp(argv[1],"text-bytes")) text_bytes();
  else if(!strcmp(argv[1],"commands")) commands();
+ else if(!strcmp(argv[1],"adc")) adc();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();adc();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

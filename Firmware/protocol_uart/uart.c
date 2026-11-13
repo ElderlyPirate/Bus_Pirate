@@ -276,6 +276,24 @@ void uart_setup_prepare(void) {
 }
 
 void uart_setup_execute(void) {
+#ifdef BUSPIRATEV4
+  if (uart_settings.autobaud == ON) {
+    uint32_t detected;
+
+    uart_settings.autobaud = OFF; // detect once, not on every subsequent W
+    uart2_disable();
+    bpBR;
+    detected = uart_get_closest_common_rate(uart_get_baud_rate(false));
+    bpBR;
+    if (detected == 0) {
+      mode_configuration.speed = 8; // 115200 fallback
+    } else {
+      mode_configuration.speed = 9;
+      U2BRG = (FCY / 4 / detected) - 1;
+    }
+  }
+#endif /* BUSPIRATEV4 */
+
   uart2_set_single_wire(uart_settings.half_duplex == 1);
   uart2_setup(mode_configuration.speed == 9
                   ? U2BRG
@@ -288,30 +306,7 @@ void uart_setup_execute(void) {
 
   uart2_enable();
 
-#ifdef BUSPIRATEV4
-  unsigned long abd;
-  int brg;
-  if (uart_settings.autobaud == ON) {
-    uart2_disable();
-    bpBR;
-    abd = uart_get_closest_common_rate(uart_get_baud_rate(false));
-    bpBR;
-
-    if (abd == 0) {
-      uart2_setup(UART_BRG_SPEED[8], mode_configuration.high_impedance,
-                  uart_settings.receive_polarity, uart_settings.databits_parity,
-                  uart_settings.stop_bits);
-    } else {
-      mode_configuration.speed = 9;
-      abd = (FCY / 4 / abd) - 1;
-      brg = abd;
-      uart2_setup(brg, mode_configuration.high_impedance,
-                  uart_settings.receive_polarity, uart_settings.databits_parity,
-                  uart_settings.stop_bits);
-    }
-    uart2_enable();
-  }
-#else
+#ifdef BUSPIRATEV3
   if (U2BRG < U1BRG) {
     MSG_UART_POSSIBLE_OVERFLOW;
   }
@@ -426,7 +421,7 @@ void uart_run_macro(const uint16_t macro) {
   case UART_MACRO_AUTO_BAUD_RATE_DETECTION:
     uart2_disable();
     uart_get_baud_rate(false);
-    uart2_enable();
+    uart_setup_execute();
 #ifdef BUSPIRATEV3
     if (U2BRG < U1BRG) {
       MSG_UART_POSSIBLE_OVERFLOW;

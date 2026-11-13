@@ -155,6 +155,64 @@ int main(void) {
 }
 '''
 
+DETECTION_PREFIX = r'''
+#define HIGH 1
+#define INPUT 1
+#define _T4CON_T32_POSITION 3
+static union { uint16_t value; struct { unsigned pad:15,TON:1; } bits; } t4, t5;
+#define T4CON t4.value
+#define T5CON t5.value
+#define T4CONbits t4.bits
+#define T5CONbits t5.bits
+static struct { unsigned T4IE,T5IE; } IEC1bits;
+static uint16_t TMR5HLD,TMR5,PR4,PR5,timer_low;
+static unsigned BP_MOSI_DIR,BP_MISO_DIR;
+static uint32_t clock_ticks,origin;
+static unsigned waveform,cancel,reads,mosi_reads,miso_reads;
+static bool rx_pin(bool mosi) {
+  ++reads;if(mosi)++mosi_reads;else ++miso_reads;
+  clock_ticks+=waveform==1?16:16000;
+  return waveform==1 ? ((clock_ticks/1600)&1)^uart_settings.receive_polarity : waveform==2;
+}
+#define BP_MOSI rx_pin(true)
+#define BP_MISO rx_pin(false)
+static uint16_t *timer_read(void) {
+  if(T4CONbits.TON) {timer_low=(uint16_t)clock_ticks;TMR5HLD=clock_ticks>>16;}
+  return &timer_low;
+}
+#define TMR4 (*timer_read())
+static uint32_t bp_timer_microseconds(void) { return (origin+clock_ticks/16)&0x7FFFFFFF; }
+static bool detection_host_ready(void) { return cancel && reads>256; }
+#define user_serial_ready_to_read detection_host_ready
+static void bp_write_dec_dword(uint32_t n) { (void)n; }
+'''
+
+DETECTION_TEST = r'''
+static void reset(unsigned shape) {
+  T4CON=0x20;T5CON=0;timer_low=123;TMR5=456;PR4=789;PR5=1011;
+  waveform=shape;clock_ticks=reads=mosi_reads=miso_reads=cancel=0;
+}
+static void restored(void) {
+  assert(T4CON==0x20 && timer_low==123 && TMR5==456 && PR4==789 && PR5==1011);
+}
+int main(void) {
+  for(unsigned hd=0;hd<2;++hd)for(unsigned inv=0;inv<2;++inv) {
+    reset(1);uart_settings.half_duplex=hd;uart_settings.receive_polarity=inv;
+    uint32_t baud=uart_get_baud_rate(true);assert(baud>=9800 && baud<=10200);
+    assert(hd?(!miso_reads && mosi_reads):(!mosi_reads && miso_reads));restored();
+  }
+  for(unsigned shape=0;shape<3;shape+=2) {
+    reset(shape);origin=0x7FFFF000;
+    assert(!uart_get_baud_rate(false));assert(clock_ticks>=80000000);restored();
+  }
+  reset(2);cancel=1;uint8_t key='x';input=&key;input_left=1;
+  assert(!uart_get_baud_rate(false) && !input_left);restored();
+  reset(1);T5CONbits.TON=1;assert(!uart_get_baud_rate(true) && !reads && T5CONbits.TON);
+  reset(1);IEC1bits.T5IE=1;assert(!uart_get_baud_rate(true) && !reads);IEC1bits.T5IE=0;
+  puts("PASS detection: full/shared RX pins, both polarities, static-line timeout with 31-bit wrap, host cancel, timer ownership and restoration");
+}
+'''
+
 
 def source(path, revision):
     if revision:
@@ -166,7 +224,7 @@ def source(path, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision")
-    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "restore", "all"), default="all")
+    parser.add_argument("--case", choices=("setup", "binary", "bridge", "common", "restore", "detection", "all"), default="all")
     args = parser.parse_args()
     uart = source("protocol_uart/uart.c", args.revision)
     core = source("core_system/proc_menu.c", args.revision)
@@ -178,7 +236,7 @@ def main():
         directory = ROOT / "Firmware/build/uart-test" / board
         directory.mkdir(parents=True, exist_ok=True)
         board_macro = "#define BUSPIRATE" + board + "\n"
-        for case in ("setup", "binary", "bridge", "common", "restore"):
+        for case in ("setup", "binary", "bridge", "common", "restore", "detection"):
             if args.case not in ("all", case):
                 continue
             if case in ("bridge", "restore") and board == "V3":
@@ -187,13 +245,22 @@ def main():
             bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
                       "binary": function(uart, "binUART"), "bridge": restore,
                       "common": function(uart, "uart_get_closest_common_rate"), "restore": restore}
+            if case == "detection":
+                bodies[case] = "\n".join(function(uart, n) for n in
+                                         ("uart_get_closest_common_rate", "uart_rx_level", "uart_wait_rx_level",
+                                          "uart_sample_ticks", "uart_get_baud_rate"))
             body = bodies[case]
             test = {"setup": SETUP_TEST, "binary": BINARY_TEST, "bridge": BRIDGE_TEST,
-                    "common": COMMON_TEST, "restore": RESTORE_TEST}[case]
-            definitions = "\n".join(re.findall(r"^#define UART_(?:MACRO_|COMMON_).*", uart, re.M))
+                    "common": COMMON_TEST, "restore": RESTORE_TEST, "detection": DETECTION_TEST}[case]
+            definitions = "\n".join(re.findall(r"^#define UART_.*", uart, re.M))
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")
-            c.write_text("\n".join((board_macro, PREFIX, settings, table, common, macros, definitions, body, test)), encoding="ascii")
+            prefix = PREFIX
+            if case == "detection":
+                prefix = re.sub(r"static uint32_t uart_get_baud_rate[^\n]+\n", "", prefix)
+            detection = DETECTION_PREFIX if case == "detection" else ""
+            c.write_text("\n".join((board_macro, prefix, settings, table, common, macros, definitions,
+                                     detection, body, test)), encoding="ascii")
             subprocess.run(["gcc", "-std=gnu99", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
                             "-Wno-unused-variable", "-Wno-unused-but-set-variable", str(c), "-o", str(exe)], check=True)
             subprocess.run([str(exe)], check=True, timeout=10)

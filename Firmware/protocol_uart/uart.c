@@ -514,168 +514,118 @@ uint32_t uart_get_closest_common_rate(const uint32_t baud_rate) {
   return 0;
 }
 
-uint32_t uart_get_baud_rate(const bool quiet) {
-  size_t samples;
-  uint32_t current_sample;
-  uint32_t bit_sample;
+static bool uart_rx_level(void) {
+  return uart_settings.half_duplex ? BP_MOSI : BP_MISO;
+}
 
-  BP_MISO = LOW;
-  BP_MISO_DIR = INPUT;
-  bit_sample = 0;
+static bool uart_wait_rx_level(const bool level, const uint32_t started) {
+  uint8_t polls = 0;
+
+  while (uart_rx_level() != level) {
+    /* Keep timestamp/host checks out of the per-edge fast path. */
+    if (++polls != 0) {
+      continue;
+    }
+    if (user_serial_ready_to_read()) {
+      (void)user_serial_read_byte();
+      return false;
+    }
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static uint32_t uart_sample_ticks(void) {
+  /* Reading the low word latches the high word in 32-bit mode (chapter 12). */
+  uint16_t low = TMR4;
+  return ((uint32_t)TMR5HLD << 16) | low;
+}
+
+uint32_t uart_get_baud_rate(const bool quiet) {
+  uint16_t saved_control, saved_low, saved_high, saved_pr4, saved_pr5;
+  uint32_t started, bit_sample = 0, detected = 0;
+  bool idle = uart_settings.receive_polarity ? LOW : HIGH;
+  size_t samples;
+
+  /* Do not steal a running or interrupt-owned timer from another client. */
+  if (T4CONbits.TON || T5CONbits.TON || IEC1bits.T4IE || IEC1bits.T5IE) {
+    if (!quiet) {
+      MSG_UART_EARLY_EXIT;
+    }
+    return 0;
+  }
+
+  saved_control = T4CON;
+  saved_low = TMR4;
+  saved_high = TMR5;
+  saved_pr4 = PR4;
+  saved_pr5 = PR5;
+  T4CON = 1 << _T4CON_T32_POSITION;
+  PR5 = 0xFFFF;
+  PR4 = 0xFFFF;
+  TMR5HLD = 0;
+  TMR4 = 0;
+  if (uart_settings.half_duplex) {
+    BP_MOSI_DIR = INPUT;
+  } else {
+    BP_MISO_DIR = INPUT;
+  }
 
   if (!quiet) {
     MSG_UART_WAITING_ACTIVITY;
   }
+  started = bp_timer_microseconds();
+  T4CONbits.TON = ON;
 
-  /* Wait for the UART to stabilise. */
-  while ((BP_MISO == HIGH) && (U1STAbits.URXDA == OFF)) {
-    Nop();
+  /* Synchronise to activity before timing complete idle-level pulses. */
+  if (!uart_wait_rx_level(!idle, started)) {
+    goto done;
   }
+  for (samples = 0; samples < UART_BAUD_RATE_CALCULATION_SAMPLES; ++samples) {
+    uint32_t first, elapsed;
 
-  /* Key pressed during detection, bailing out. */
-  if (U1STAbits.URXDA == ON) {
-    volatile uint16_t dummy;
-
-    /* Clear RX queue. */
-    dummy = U1RXREG;
-
-    /* Stop timers. */
-
-    /* Clear timer 5 holding register. */
-    TMR5HLD = 0;
-
-    /*
-     * T4CON: TIMER4 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0001-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery form a single 32-bit timer.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T4CON = 1 << _T4CON_T32_POSITION;
-
-    /* Clear timer 4 register. */
-    TMR4 = 0;
-
-    /* Clear timer 3 holding register. */
-    TMR3HLD = 0;
-
-    /*
-     * T2CON: TIMER2 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0001-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery form a single 32-bit timer.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T2CON = 1 << _T2CON_T32_POSITION;
-
-    /* Clear timer 2 register. */
-    TMR2 = 0;
-
-    if (!quiet) {
-      MSG_UART_EARLY_EXIT;
+    if (!uart_wait_rx_level(idle, started)) {
+      goto done;
     }
-
-    return 0;
-  }
-
-  for (samples = 0; samples < UART_BAUD_RATE_CALCULATION_SAMPLES; samples++) {
-
-    /* Wait for activity. */
-    while (BP_MISO == LOW) {
+    first = uart_sample_ticks();
+    if (!uart_wait_rx_level(!idle, started)) {
+      goto done;
     }
-
-    /* Start counting. */
-    T4CONbits.TON = ON;
-    T2CONbits.TON = ON;
-
-    /* Wait for line to go down. */
-    while (BP_MISO == HIGH) {
-    }
-
-    /* Stop counting. */
-    T2CONbits.TON = OFF;
-    T4CONbits.TON = OFF;
-
-    /* Neuter Timer2. */
-    RPINR3bits.T2CKR = 0b011111;
-
-    /* Stop timers. */
-
-    /*
-     * T4CON: TIMER4 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0000-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery act as 2 16-bit timers.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T4CON = 0;
-
-    /*
-     * T2CON: TIMER2 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0000-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery act as 2 16-bit timers.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T2CON = 0;
-
-    /* Get the smallest timing value after the first one. */
-
-    current_sample = ((uint32_t)TMR3HLD << 16) | TMR2;
-    if ((samples > 0) && ((bit_sample == 0) || (bit_sample > current_sample))) {
-      bit_sample = current_sample;
+    elapsed = uart_sample_ticks() - first;
+    if (elapsed && (!bit_sample || elapsed < bit_sample)) {
+      bit_sample = elapsed;
     }
   }
+  if (bit_sample) {
+    detected = FCY / bit_sample;
+  }
 
-  /* Neuter Timer2. */
-  RPINR3bits.T2CKR = 0b011111;
-
-  /* Clear timer 2 register. */
-  TMR2 = 0;
-
-  /* Clear timer 3 holding register. */
-  TMR3HLD = 0;
-
-  bit_sample = FCY / bit_sample;
+done:
+  /* The idle timer's configuration/counts survive success, timeout or cancel. */
+  T4CON = 0;
+  TMR5 = saved_high;
+  TMR4 = saved_low;
+  PR5 = saved_pr5;
+  PR4 = saved_pr4;
+  T4CON = saved_control;
 
   if (!quiet) {
-    if (bit_sample > 150000) {
+    if (!detected) {
+      MSG_UART_EARLY_EXIT;
+    } else if (detected > 150000) {
       MSG_UART_BAUD_OVERFLOW;
     } else {
       MSG_UART_BAUD_ESTIMATED;
-      bp_write_dec_dword(bit_sample);
+      bp_write_dec_dword(detected);
       MSG_UART_BPS_MARKER;
       MSG_UART_BAUD_CALCULATED;
-      bp_write_dec_dword(uart_get_closest_common_rate(bit_sample));
+      bp_write_dec_dword(uart_get_closest_common_rate(detected));
       MSG_UART_BPS_MARKER;
     }
   }
-
-  return bit_sample;
+  return detected;
 }
 
 /*

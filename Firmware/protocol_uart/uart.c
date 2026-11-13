@@ -374,7 +374,7 @@ void uart_run_macro(const uint16_t macro) {
 #endif /* BUSPIRATEV4 */
 
       if (user_serial_ready_to_read() && (U2STAbits.UTXBF == OFF)) {
-        U2TXREG = user_serial_read_byte();
+        uart2_tx(user_serial_read_byte());
       }
 
 #ifdef BUSPIRATEV3
@@ -812,7 +812,7 @@ void binUART(void) {
 #endif /* BUSPIRATEV4 */
           
           if (user_serial_ready_to_read() && (U2STAbits.UTXBF == 0)) {
-            U2TXREG = user_serial_read_byte();
+            uart2_tx(user_serial_read_byte());
           }
         }
         break;

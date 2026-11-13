@@ -106,6 +106,9 @@ int main(void) {
   assert(!prompts && header==1 && !mode_configuration.command_error && !uart_settings.half_duplex);
   load("5 1 1 1 2 0"); uart_setup_prepare();assert(prompts && !header);
   load("5 1 1 1 2 65536"); uart_setup_prepare();assert(prompts && !header);
+  load("5 1 1 2 1 2");uart_setup_prepare();assert(prompts && !header);
+  load("5 1 1 2 1 1");uart_setup_prepare();
+  assert(!prompts && header==1 && !uart_settings.half_duplex && uart_settings.receive_polarity);
   puts("PASS setup: zero/missing-rate sentinel and unrepresentable baud refuse before divide; valid presets/custom unchanged");
 }
 '''

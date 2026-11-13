@@ -217,6 +217,16 @@ static void text_bytes(void) {
   expect(!memcmp(saved,basic_program_area,sizeof(saved)),"raw token/header bytes cannot enter stored text");
  }
 }
+static void commands(void) {
+ reset();command("10 PRINT 42");
+ uint8_t saved[BP_BASIC_PROGRAM_SPACE];memcpy(saved,basic_program_area,sizeof(saved));
+ command("NEWTON");expect(!memcmp(saved,basic_program_area,sizeof(saved)),"NEWTON must not execute NEW");
+ const char *bad[]={"RUNAWAY", "LISTING", "EXITNOW", "DEBUGGER"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);++i) {
+  output_size=0;output[0]=0;command(bad[i]);expect(strstr(output,"BPMSG1052")!=NULL,bad[i]);
+ }
+ output_size=0;output[0]=0;command("RUN   ");expect(output_is("42"),"command trailing whitespace allowed");
+}
 static void conditional(void) {
  reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
  command("100 PRINT 1;");command("110 RETURN");command("RUN");
@@ -274,8 +284,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"data")) data();
  else if(!strcmp(argv[1],"input")) input();
  else if(!strcmp(argv[1],"text-bytes")) text_bytes();
+ else if(!strcmp(argv[1],"commands")) commands();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();data();input();text_bytes();commands();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

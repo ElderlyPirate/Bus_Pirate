@@ -331,6 +331,7 @@ def main():
     parser.add_argument("--revision")
     parser.add_argument("--group", default="pwm")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--program-space", type=int, default=1024)
     args = parser.parse_args()
     path = "Firmware/tool_basic/basic.c"
     text = (subprocess.check_output(["git", "show", f"{args.revision}:{path}"], cwd=ROOT).decode()
@@ -343,11 +344,20 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bp-basic-", dir=TEMP) as tmp:
         c = Path(tmp) / "basic.c"
         exe = c.with_suffix(".exe")
-        c.write_text(PREFIX + ("\n#define BP_BASIC_DEBUG_COMMAND\n" if args.debug else "")
+        prefix = PREFIX.replace("#define BP_BASIC_PROGRAM_SPACE 1024",
+                                f"#define BP_BASIC_PROGRAM_SPACE {args.program_space}")
+        c.write_text(prefix + ("\n#define BP_BASIC_DEBUG_COMMAND\n" if args.debug else "")
                      + messages + text + TEST, encoding="ascii")
         for board in ("BUSPIRATEV4", "BUSPIRATEV3"):
-            subprocess.run(["gcc", "-std=gnu99", "-O1", "-Wall", "-Wextra", "-Werror",
-                            "-Wno-unused-function", f"-D{board}", str(c), "-o", str(exe)], check=True)
+            build = subprocess.run(["gcc", "-std=gnu99", "-O1", "-Wall", "-Wextra", "-Werror",
+                                    "-Wno-unused-function", f"-D{board}", str(c), "-o", str(exe)],
+                                   capture_output=True, text=True)
+            if args.program_space < 5:
+                assert build.returncode and "Invalid BASIC program space value" in build.stderr, build.stderr
+                print(f"PASS {board}: invalid {args.program_space}-byte program area rejected")
+                continue
+            if build.returncode:
+                raise RuntimeError(build.stderr)
             subprocess.run([str(exe), args.group], check=True, timeout=15)
 
 

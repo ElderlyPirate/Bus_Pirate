@@ -33,9 +33,9 @@
 #undef BP_BASIC_I2C_FILESYSTEM
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
-#if BP_BASIC_PROGRAM_SPACE <= 0
+#if BP_BASIC_PROGRAM_SPACE < 5
 #error "Invalid BASIC program space value"
-#endif /* BP_BASIC_PROGRAM_SPACE <= 0 */
+#endif /* Four-byte END sentinel plus its terminating NUL. */
 
 #if BP_BASIC_NESTED_FOR_LOOP_COUNT <= 1
 #error "Invalid nested BASIC FOR-LOOP count"

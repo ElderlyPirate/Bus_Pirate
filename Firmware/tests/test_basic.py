@@ -209,6 +209,20 @@ static void editing(void) {
  command("1000 REM 01234567890123456789");
  expect(!memcmp(saved,basic_program_area,sizeof(saved)),"full program rejects insertion without mutation");
 }
+static void conditional(void) {
+ reset();command("10 IF 1 THEN GOSUB 100");command("20 PRINT 2;");command("30 END");
+ command("100 PRINT 1;");command("110 RETURN");command("RUN");
+ expect(output_is("12"),"conditional GOSUB returns to the real next line");
+ reset();command("10 IF 1 THEN REM X");command("20 PRINT 2;");command("RUN");
+ expect(output_is("2"),"conditional REM skips only its own line");
+ reset();command("10 DATA 1,2");command("20 READ A");command("30 IF 1 THEN RESTORE");
+ command("40 READ B");command("50 PRINT A;B;");command("RUN");
+ expect(output_is("11"),"conditional RESTORE advances to real next line");
+ reset();command("10 IF 1 THEN MODE ELSE PRINT 9");command("20 PRINT 2;");command("RUN");
+ expect(output_is("HiZ\r\n2"),"bare conditional MODE before ELSE");
+ reset();command("10 IF 0 THEN PRINT 1");command("20 PRINT 2;");command("RUN");
+ expect(output_is("2"),"false IF without ELSE advances to next line");
+}
 int main(int argc,char **argv) {
  assert(argc==2);
  if(!strcmp(argv[1],"pwm")) pwm();
@@ -218,8 +232,9 @@ int main(int argc,char **argv) {
  else if(!strcmp(argv[1],"loops")) loops();
  else if(!strcmp(argv[1],"expressions")) expressions();
  else if(!strcmp(argv[1],"editing")) editing();
+ else if(!strcmp(argv[1],"conditional")) conditional();
  else if(!strcmp(argv[1],"all")) {
-  pwm();pullup();auxpin();loops();expressions();editing();
+  pwm();pullup();auxpin();loops();expressions();editing();conditional();
 #ifdef BP_BASIC_DEBUG_COMMAND
   debug();
 #endif

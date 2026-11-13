@@ -828,7 +828,7 @@ void interpreter(void) {
 
       if (basic_current_stack_frame < BP_BASIC_STACK_FRAMES_DEPTH) {
         basic_stack[basic_current_stack_frame] =
-            basic_program_counter + len - 1;
+            basic_expression_limit;
         basic_current_stack_frame++;
         if (search_line_number(assign(), &line_number)) {
           basic_program_counter = line_number;
@@ -854,7 +854,7 @@ void interpreter(void) {
 
     case TOK_REM:
       program_counter_updated = YES;
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
       break;
 
     case TOK_PRINT:
@@ -1088,7 +1088,7 @@ void interpreter(void) {
 
     case TOK_DATA:
       program_counter_updated = YES;
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
       break;
 
     case TOK_START:
@@ -1327,6 +1327,7 @@ void interpreter(void) {
        */
       if (((basic_program_counter + 4) >= BP_BASIC_PROGRAM_SPACE) ||
           (basic_program_area[basic_program_counter + 4] == 0x00) ||
+          (basic_program_area[basic_program_counter + 4] == TOK_ELSE) ||
           (basic_program_area[basic_program_counter + 4] >= TOK_LEN)) {
         write_mode_name();
         break;
@@ -1369,7 +1370,7 @@ void interpreter(void) {
       status = STATUS_CODE_SYNTAX_ERROR;
     }
     if (!program_counter_updated) {
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
     }
     program_counter_updated = NO;
   }

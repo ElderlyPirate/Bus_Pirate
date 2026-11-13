@@ -294,6 +294,9 @@ static void conditional(void) {
  expect(output_is("HiZ\r\n2"),"bare conditional MODE before ELSE");
  reset();command("10 IF 0 THEN PRINT 1");command("20 PRINT 2;");command("RUN");
  expect(output_is("2"),"false IF without ELSE advances to next line");
+ reset();command("10 IF 1 THEN FOR A=1 TO 2 ELSE PRINT 9");command("20 PRINT A;");
+ command("30 NEXT A");command("RUN");
+ expect(output_is("12"),"conditional FOR skips ELSE before saving its body cursor");
 }
 static void data(void) {
  reset();command("10 DATA 1");command("20 DATA 2");command("30 READ A");command("40 READ B");

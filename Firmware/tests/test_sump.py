@@ -263,6 +263,13 @@ static void timer_matrix(void) {
     }
     puts("PASS full-width timer period and bounded abort fragments across 65536-tick seams");
 }
+static void led_matrix(void) {
+    clean(); BP_LEDMODE=0x5aa5; BP_LEDMODE_LAT=1;
+    sump_reset(); require(BP_LEDMODE==0x5aa5&&!BP_LEDMODE_LAT,"reset LED must use latch");
+    sump_handle_command_byte(1);
+    require(BP_LEDMODE==0x5aa5&&BP_LEDMODE_LAT,"RUN LED must use latch");
+    puts("PASS MODE LED writes use LAT, not PORT read/modify/write");
+}
 int main(int argc,char **argv) {
     require(argc==2,"case required");
     if(!strcmp(argv[1],"capacity")) capacity_matrix();
@@ -271,6 +278,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"parser")) parser_matrix();
     else if(!strcmp(argv[1],"trigger")) trigger_matrix();
     else if(!strcmp(argv[1],"timer")) timer_matrix();
+    else if(!strcmp(argv[1],"led")) led_matrix();
     else return 2;
     return 0;
 }
@@ -280,7 +288,7 @@ int main(int argc,char **argv) {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--revision')
-    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer'])
+    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led'])
     args = parser.parse_args()
     path = 'Firmware/protocol_sump/sump.c'
     source = (subprocess.check_output(['git', 'show', args.revision + ':' + path], cwd=ROOT).decode()
@@ -302,7 +310,7 @@ def main():
                             '-Wno-unused-variable', '-Wno-implicit-fallthrough',
                             '-DBUSPIRATE' + board, '-DBPv4_SUMP_SOFT_WIRE', '-DBUFFER_SIZE=' + str(size),
                             str(c), '-o', str(exe)], check=True)
-            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer']):
+            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led']):
                 print(board, size, case, flush=True)
                 result = subprocess.run([str(exe), case], timeout=20)
                 failures += result.returncode != 0

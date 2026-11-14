@@ -642,7 +642,7 @@ void enter_sump_mode(void) {
 
 void sump_reset(void) {
   /* Switch LED off. */
-  BP_LEDMODE = OFF;
+  BP_LEDMODE_LAT = OFF;
 
 #ifdef BUSPIRATEV4 
   CNPU1 &= 0b1001111111111111; //turn off pullups on used pins
@@ -826,7 +826,7 @@ bool sump_handle_command_byte(unsigned char input_byte) {
     /* Arm the sampler. */
     case SUMP_RUN:
       /* Turn the LED on. */
-      BP_LEDMODE = ON;
+      BP_LEDMODE_LAT = ON;
 
       /* Stop timer #4. */
       T4CON = 0;

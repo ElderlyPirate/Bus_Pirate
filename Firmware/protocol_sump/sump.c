@@ -1069,6 +1069,8 @@ bool sump_handle_command_byte(unsigned char input_byte) {
  * IFS1 lives at 0x0086: CNIF is bit 3 (bit 3 of that low byte at
  * 0x0086), T5IF is bit 12 (bit 4 of the high byte at 0x0087); both are
  * identical on the two supported parts.
+ * The empty asm barriers expose the indirect RAM writes and flag changes
+ * to XC16 (DS-50002071M, 18.2); they emit no sampling instructions.
  */
 
 static unsigned int sump_sample_bytes(uint8_t *dst, unsigned int count) {
@@ -1105,6 +1107,7 @@ static unsigned int sump_sample_bytes(uint8_t *dst, unsigned int count) {
   asm("sump_1mhz_byte_out:");
   asm("SUB W6, W7, W0"); /* taken = count - remaining */
   asm("MOV W0, %0" : "=r"(taken));
+  asm volatile ("" ::: "memory", "cc");
   return taken;
 }
 
@@ -1153,6 +1156,7 @@ static unsigned int sump_sample_words(uint16_t *dst, unsigned int words,
   asm("BRA NZ, sump_1mhz_word_loop");
   asm("sump_1mhz_word_out:");
   asm("SUB W10, W7, %0" : "=r"(done)); /* words done */
+  asm volatile ("" ::: "memory", "cc");
   return done;
 }
 
@@ -1177,6 +1181,7 @@ static void sump_fast_capture_16mhz(uint16_t *buffer, unsigned int samples) {
   asm("DEC W9, W9"); /* REPEAT executes one extra time */
   asm("REPEAT W9");
   asm("MOV [W4], [W8++]");
+  asm volatile ("" ::: "memory", "cc");
 }
 
 static void sump_fast_capture_8mhz(uint16_t *buffer, unsigned int samples) {
@@ -1199,6 +1204,7 @@ static void sump_fast_capture_8mhz(uint16_t *buffer, unsigned int samples) {
   asm("DEC W7, W7");                /* cycle 4: sets Z */
   asm("MOV [W5], [W8++]");          /* cycle 5: sample */
   asm("BRA NZ, sump_la_8mhz_loop"); /* cycles 6-7 */
+  asm volatile ("" ::: "memory", "cc");
 }
 
 #ifdef BUSPIRATEV4
@@ -1227,6 +1233,7 @@ static void sump_fast_capture_4mhz(uint16_t *buffer, unsigned int samples) {
   asm("NOP");
   asm("DEC W7, W7");                /* cycle 13: sets Z */
   asm("BRA NZ, sump_la_4mhz_loop"); /* cycles 14-15 */
+  asm volatile ("" ::: "memory", "cc");
 }
 
 static void sump_fast_capture_2mhz(uint16_t *buffer, unsigned int samples) {
@@ -1242,6 +1249,7 @@ static void sump_fast_capture_2mhz(uint16_t *buffer, unsigned int samples) {
   asm("DEC W7, W7");                /* cycle 4: sets Z */
   asm("NOP");
   asm("BRA NZ, sump_la_2mhz_loop"); /* cycles 6-7 */
+  asm volatile ("" ::: "memory", "cc");
 }
 
 #else
@@ -1271,6 +1279,7 @@ static void sump_fast_capture_4mhz(uint8_t *buffer, unsigned int samples) {
   asm("MOV.B W4, [W8++]");          /* cycle 12 */
   asm("DEC W7, W7");                /* cycle 13: sets Z */
   asm("BRA NZ, sump_la_4mhz_loop"); /* cycles 14-15 */
+  asm volatile ("" ::: "memory", "cc");
 }
 
 static void sump_fast_capture_2mhz(uint8_t *buffer, unsigned int samples) {
@@ -1286,6 +1295,7 @@ static void sump_fast_capture_2mhz(uint8_t *buffer, unsigned int samples) {
   asm("NOP");                       /* cycle 4 */
   asm("DEC W7, W7");                /* cycle 5: sets Z */
   asm("BRA NZ, sump_la_2mhz_loop"); /* cycles 6-7 */
+  asm volatile ("" ::: "memory", "cc");
 }
 
 #endif /* BUSPIRATEV4 */

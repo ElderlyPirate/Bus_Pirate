@@ -329,12 +329,23 @@ int main(int argc,char **argv) {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--revision')
-    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover'])
+    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover', 'asm'])
     args = parser.parse_args()
     path = 'Firmware/protocol_sump/sump.c'
     source = (subprocess.check_output(['git', 'show', args.revision + ':' + path], cwd=ROOT).decode()
               if args.revision else (ROOT / path).read_text())
     source = source.replace('unsigned int', 'uint16_t')
+    if args.case in (None,'asm'):
+        definitions=list(re.finditer(r'^static (?:void|uint16_t) (sump_sample_(?:bytes|words)|sump_fast_capture_\d+mhz)\([^;]*?\)\s*\{',source,re.M))
+        assert len(definitions)==8
+        for definition in definitions:
+            end=definition.end();depth=1
+            while depth:
+                depth+=(source[end]=='{')-(source[end]=='}');end+=1
+            block=source[definition.start():end]
+            assert 'asm volatile ("" ::: "memory", "cc");' in block,definition.group(1)
+        print('PASS all8 board-specific sampler definitions declare indirect memory/flag effects',flush=True)
+        if args.case=='asm': return
     prefix = source[:source.index('static uint16_t sump_sample_bytes(')]
     prefix = re.sub(r'^#include[^\n]*\n', '', prefix, flags=re.M)
     funcs = ['sump_wait_for_fast_trigger', 'sump_transmit_fast', 'sump_transmit_bytes',

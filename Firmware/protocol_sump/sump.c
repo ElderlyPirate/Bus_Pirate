@@ -864,8 +864,11 @@ bool sump_handle_command_byte(unsigned char input_byte) {
       /* Stop and resume are not supported yet. */
       break;
 
-    /* It must be a long command then. */
+    /* SUMP opcodes with bit 7 clear are single-byte commands. */
     default:
+      if ((input_byte & 0x80u) == 0) {
+        break; /* Ignore unknown short commands without losing framing. */
+      }
       /* Store the first byte. */
       command_buffer.bytes[0] = input_byte;
 

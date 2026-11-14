@@ -548,7 +548,7 @@ static unsigned char sump_go_fast;
  * divider command.  The capture uses it to size its sampling fragments
  * to a few milliseconds' worth of samples.
  */
-static unsigned int sump_timer_ticks;
+static uint32_t sump_timer_ticks;
 
 // whether trigger is armed
 static bool trigger_armed;
@@ -1014,7 +1014,7 @@ bool sump_handle_command_byte(unsigned char input_byte) {
         /* Set timer period. */
         PR5 = HI16(period);
         PR4 = LO16(period);
-        sump_timer_ticks = (unsigned int)period + 1;
+        sump_timer_ticks = period + 1;
       }
 
       break;
@@ -1566,6 +1566,7 @@ bool sump_acquire_samples(void) {
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
     uint32_t end_index = 0;  /* one past the newest sample of the window */
     unsigned int slot = 0;   /* next ring position: byte or word */
+    unsigned int fragment;
     bool armed = false;
     bool triggered = false;
 
@@ -1578,6 +1579,12 @@ bool sump_acquire_samples(void) {
       delay = samples;
     }
     pre_trigger = samples - delay;
+
+    /* Larger periods already imply fewer than 16 samples per 4 ms.
+       Keep the division word-sized, once per capture, without truncating
+       the 32-bit timer period at a 65536-tick boundary. */
+    fragment = (sump_timer_ticks == 0 || sump_timer_ticks > 4000u)
+                   ? 16u : (64000u / (unsigned int)sump_timer_ticks);
 
     /* Start the sampling timer. */
     T4CONbits.TON = ON;
@@ -1598,10 +1605,7 @@ bool sump_acquire_samples(void) {
          trigger edge ends it early (checked per sample inside). */
       unsigned int chunk;
 
-      chunk = (sump_timer_ticks == 0) ? 16u : (64000u / sump_timer_ticks);
-      if (chunk < 16u) {
-        chunk = 16u;
-      }
+      chunk = fragment;
 
       /* A bounded capture takes its last (or only) burst in one go, if
          what is left is close enough. */

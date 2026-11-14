@@ -256,8 +256,12 @@ static void timer_matrix(void) {
     for(unsigned i=0;i<4;++i) {
         clean(); command(0x80,d[i]);
         require(sump_timer_ticks==(uint32_t)d[i]*4/25+1,"timer period truncated at 65536");
+        counts(4096); abort_calls=1;
+        unsigned span=sump_samples_per_word==1?16:32/sump_samples_per_word;
+        sump_handle_command_byte(1); sump_acquire_samples();
+        require(max_chunk==span && output_len==0,"slow-divider fragment/host-abort budget");
     }
-    puts("PASS timer fragment accounting retains full 24-bit divider range");
+    puts("PASS full-width timer period and bounded abort fragments across 65536-tick seams");
 }
 int main(int argc,char **argv) {
     require(argc==2,"case required");

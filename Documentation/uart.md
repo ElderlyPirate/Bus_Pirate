@@ -133,8 +133,8 @@ Command Syntax
   * 0x
 	  * Write this HEX value.
 	  * Format is 0x01. Partial bytes are fine: 0xA. A-F can be lower-case or capital letters.
-  * 0-255
-	  * Write this decimal value, check ACK.
+  * 0-255 (0-511 in 9-bit mode)
+	  * Write this decimal value. UART has no wire-level ACK.
 	  * Any number not preceded by 0x or 0b is interpreted as a decimal value.
   * , space
 	  * Value delimiter.
@@ -152,7 +152,7 @@ UART mode requires special handling compared to the other Bus Pirate modes becau
 
 ###  Parity and framing errors
 
-    READ: -p -f 0×40 <<<-p -f flag set
+    READ: -p -f 0x40 <<<-p -f flag set
 
 The Bus Pirate reports framing errors (-f) and parity errors (-p) when reading a byte from the UART. It's unlikely you'll see these errors unless the UART speed is mismatched with the sender.
 

@@ -15,6 +15,9 @@ scope:
   * CO-8a: the static mode state must return to the data state on
     setup/cleanup, or a command-state exit leaks into re-entry and
     pic_read() refuses to read.
+  * CO-8b: the display width must follow the transfer width (14 bits for
+    the 6-bit command mode, 16 for 4-bit); the core masks printed values
+    by `numbits`, so leaving it at the 8-bit default truncated reads.
 
 Run directly (like the sibling tests):  python Firmware/tests/test_pic.py
 """
@@ -47,6 +50,7 @@ def extract(name, signature):
 read_bits = extract("read_bits", "uint16_t read_bits(const uint8_t bits)")
 write_bits = extract("write_bits", "void write_bits(const uint16_t data, const uint8_t bits)")
 reset_state = extract("pic_reset_mode_state", "void pic_reset_mode_state(void)")
+display_width = extract("pic_set_display_width", "void pic_set_display_width(void)")
 cleanup = extract("pic_cleanup", "void pic_cleanup(void)")
 
 (OUT / "test.c").write_text(r'''
@@ -95,7 +99,18 @@ void bitbang_set_pins(int high, int pin, int delay) {
 void bitbang_set_pins_high(int pins, int delay) { (void)pins; (void)delay; }
 void bitbang_set_pins_low(int pins, int delay) { (void)pins; (void)delay; }
 
-''' + read_bits + "\n" + write_bits + "\n" + reset_state + "\n" + cleanup + r'''
+''' + read_bits + "\n" + write_bits + "\n" + reset_state + "\n"
+        + display_width + "\n" + cleanup + r'''
+
+static void check_width(int mode, int bits, unsigned want_bits, int want_int16) {
+    mode_info.mode = (uint8_t)mode;
+    mode_info.opcode_bits = (uint8_t)bits;
+    mode_configuration.numbits = 0xAAu;
+    mode_configuration.int16 = 0xAAu;
+    pic_set_display_width();
+    assert(mode_configuration.numbits == want_bits);
+    assert(mode_configuration.int16 == (unsigned)want_int16);
+}
 
 int main(void) {
     unsigned checks = 0;
@@ -158,7 +173,14 @@ int main(void) {
     assert(mode_configuration.int16 == NO);
     checks += 3;
 
-    puts("PIC mode: LSB-first reads, 16-bit mask and CO-8a state PASS");
+    /* CO-8b: the display width follows the mode/width pair. */
+    check_width(PIC_MODE_DATA, PIC_MODE_6BITS, 14u, YES);
+    check_width(PIC_MODE_DATA, PIC_MODE_4BITS, 16u, YES);
+    check_width(PIC_MODE_COMMAND, PIC_MODE_6BITS, 8u, NO);
+    check_width(PIC_MODE_COMMAND, PIC_MODE_4BITS, 8u, NO);
+    checks += 4;
+
+    puts("PIC mode: LSB-first reads, 16-bit mask, CO-8a state and CO-8b width PASS");
     printf("%u checks\n", checks);
     return 0;
 }

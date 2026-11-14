@@ -114,6 +114,17 @@ static pic_mode_t mode_info = {0};
 static void pic_reset_mode_state(void);
 
 /**
+ * Applies the terminal display width for the current command/data mode.
+ *
+ * The core masks reads and sends with mode_configuration.numbits before it
+ * prints them, so the mode must keep numbits in step with the transfer
+ * width.  Otherwise a 14-bit (6-bit command mode) or 16-bit (4-bit command
+ * mode) data word is truncated to the core's default 8 bits (CO-8b).  The
+ * command display stays byte-wide, matching pic_start()'s banner.
+ */
+static void pic_set_display_width(void);
+
+/**
  * Writes a null byte to the bus.
  */
 static void write_zero(void);
@@ -140,6 +151,18 @@ static void write_bits(const uint16_t data, const uint8_t bits);
 static uint16_t read_bits(const uint8_t bits);
 
 static void pic_reset_mode_state(void) { mode_info.mode = PIC_MODE_DATA; }
+
+static void pic_set_display_width(void) {
+  if (mode_info.mode == PIC_MODE_COMMAND) {
+    /* Commands are 6 or 4 bits; the byte-wide display is intended here. */
+    mode_configuration.numbits = 8;
+    mode_configuration.int16 = NO;
+  } else {
+    mode_configuration.numbits =
+        (mode_info.opcode_bits == PIC_MODE_6BITS) ? 14 : 16;
+    mode_configuration.int16 = YES;
+  }
+}
 
 void pic_setup_prepare(void) {
   pic_reset_mode_state();
@@ -169,13 +192,13 @@ void pic_setup_prepare(void) {
 
   /* Allow for different Vcc. */
   mode_configuration.high_impedance = YES;
-  mode_configuration.int16 = YES;
+  pic_set_display_width();
 
   /* Pull both pins low before applying Vcc and Vpp. */
   bitbang_set_pins_low(MOSI | CLK, PIC_PIN_DELAY);
 }
 
-void pic_setup_execute(void) { mode_configuration.int16 = YES; }
+void pic_setup_execute(void) { pic_set_display_width(); }
 
 void pic_cleanup(void) {
   pic_reset_mode_state();
@@ -187,13 +210,13 @@ void pic_start(void) {
   MSG_PIC_MODE_COMMAND;
   user_serial_transmit_character(mode_info.opcode_bits == PIC_MODE_6BITS ? '6'
                                                                          : '4');
-  mode_configuration.int16 = NO;
+  pic_set_display_width();
   bpBR;
 }
 
 void pic_stop(void) {
   mode_info.mode = PIC_MODE_DATA;
-  mode_configuration.int16 = YES;
+  pic_set_display_width();
   MSG_PIC_MODE_DATA;
 }
 

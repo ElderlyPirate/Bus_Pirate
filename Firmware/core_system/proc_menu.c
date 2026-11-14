@@ -1,0 +1,2350 @@
+/*
+ * This file is part of the Bus Pirate project
+ * (https://github.com/BusPirate/Bus_Pirate/).
+ *
+ * Written and maintained by the Bus Pirate project.
+ *
+ * To the extent possible under law, the project has waived all copyright and
+ * related or neighboring rights to Bus Pirate. This work is published from
+ * United States.
+ *
+ * For details see: http://creativecommons.org/publicdomain/zero/1.0/
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.
+ */
+
+#include <stdbool.h>
+#include <stddef.h>
+
+#include "configuration.h"
+
+#include "aux_pin.h"
+#include "base.h"
+#include "basic.h"
+#include "binary_io.h"
+#include "core.h"
+#include "proc_menu.h" //need our public versionInfo() function
+#include "selftest.h"
+#include "sump.h"
+
+/**
+ * ASCII scancode for the NUL character.
+ */
+#define ASCII_NUL 0x00
+
+/**
+ * ASCII scancode for the SOH character.
+ */
+#define ASCII_SOH 0x01
+
+/**
+ * ASCII scancode for the STX character.
+ */
+#define ASCII_STX 0x02
+
+/**
+ * ASCII scancode for the EOT character.
+ */
+#define ASCII_EOT 0x04
+
+/**
+ * ASCII scancode for the ENQ character.
+ */
+#define ASCII_ENQ 0x05
+
+/**
+ * ASCII scancode for the ACK character.
+ */
+#define ASCII_ACK 0x06
+
+/**
+ * ASCII scancode for the BACKSPACE key.
+ */
+#define ASCII_BS 0x08
+
+/**
+ * ASCII scancode for the LF character.
+ */
+#define ASCII_LF 0x0A
+
+/**
+ * ASCII scancode for the CR character.
+ */
+#define ASCII_CR 0x0D
+
+/**
+ * ASCII scancode for the SO character.
+ */
+#define ASCII_SO 0x0E
+
+/**
+ * ASCII scancode for the DLE character.
+ */
+#define ASCII_DLE 0x10
+
+/**
+ * ASCII scancode for the ESCAPE key.
+ */
+#define ASCII_ESCAPE 0x1B
+
+/**
+ * ASCII scancode for the DELETE key.
+ */
+#define ASCII_DELETE 0x7F
+
+extern bus_pirate_configuration_t bus_pirate_configuration;
+extern mode_configuration_t mode_configuration;
+static bool setup_defaults_mode = NO;
+
+#ifdef BUSPIRATEV4
+static bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
+#else
+static bool __attribute__((address(0x27FA), persistent)) skip_pgc_pgd_check;
+#endif /* BUSPIRATEV4 */
+
+#ifdef BUSPIRATEV4
+extern volatile BYTE cdc_Out_len;
+#endif /* BUSPIRATEV4 */
+
+static const uint8_t READ_DISPLAY_BASE[] = {'x', 'd', 'b', 'w'};
+
+static uint8_t change_read_display(void);
+
+static void set_display_mode(void);
+static void set_baud_rate(void);
+static void print_status_info(void);
+
+/**
+ * Outputs '0' to the serial port if the given value is zero, '1' otherwise.
+ *
+ * @param[in] value the value to test the state for.
+ */
+static void echo_state(const uint16_t value);
+
+/**
+ * Outputs both direction and state to the serial port for all available pins.
+ */
+static void print_pins_information(void);
+
+/**
+ * Outputs the direction (input/output) of the given pin to the serial port.
+ *
+ * @warning if the pin bit mask has more than one bit set to one, the result
+ * will print the AND result of all directions marked by the pin mask.  This
+ * should probably be not used that way, as it does not make much sense in the
+ * first place.
+ *
+ * @param[in] pin the pin to use for printing signal direction.
+ */
+static void print_pin_direction(const uint16_t pin);
+
+/**
+ * Outputs the state (low/high) of the given pin to the serial port.
+ *
+ * @warning if the pin bit mask has more than one bit set to one, the result
+ * will print the AND result of all states marked by the pin mask.  This
+ * should probably be not used that way, as it does not make much sense in the
+ * first place.
+ *
+ * @param[in] pin the pin to use for printing signal state.
+ */
+static void print_pin_state(const uint16_t pin);
+
+static void convert_value(const bool reversed);
+
+/**
+ * Handles the backspace key being sent to the user menu.
+ */
+static void handle_backspace(void);
+
+/**
+ * Handles the delete key being sent to the user menu.
+ */
+static void handle_delete(void);
+
+/**
+ * Removes the currently pointed character in the command line buffer.
+ */
+static void remove_current_character_from_command_line(void);
+
+/**
+ * Handles the left arrow key being sent to the user menu.
+ */
+static void handle_left_arrow(void);
+
+/**
+ * Handles the right arrow key being sent to the user menu.
+ */
+static void handle_right_arrow(void);
+
+/**
+ * Handles the up arrow key being sent to the user menu.
+ */
+static void handle_up_arrow(void);
+
+/**
+ * Handles the down arrow key being sent to the user menu.
+ */
+static void handle_down_arrow(void);
+
+/**
+ * Handles the home key being sent to the user menu.
+ */
+static void handle_home_key(void);
+
+/**
+ * Handles the end key being sent to the user menu.
+ */
+static void handle_end_key(void);
+
+/**
+ * Handles the escape key being sent to the user menu.
+ */
+static void handle_escape_key(void);
+static bool handle_escape_sequence(uint8_t character);
+
+/**
+ * Refreshes the current mode prompt.
+ */
+static void refresh_mode_prompt(void);
+
+/**
+ * Refreshes the command line with the data starting at the given offset.
+ *
+ * @param[in] start the offset in the command buffer where the new command line
+ * starts.
+ */
+static void refresh_command_line(const uint16_t start);
+
+/**
+ * Handles the enter key being sent to the user menu.
+ */
+static void handle_enter_key(void);
+
+/**
+ * Handles a non-control character being sent to the user menu.
+ */
+static void handle_character(const uint8_t character);
+
+/**
+ * Turns on the power supplies.
+ */
+static void switch_psu_on(void);
+
+/**
+ * Turns off the power supplies.
+ */
+static void switch_psu_off(void);
+
+#ifdef BUSPIRATEV4
+void set_pullup_voltage(void);
+#endif /* BUSPIRATEV4 */
+
+char cmdbuf[BP_COMMAND_BUFFER_SIZE] = {0};
+unsigned int cmdend;
+unsigned int cmdstart;
+
+static char user_macros[BP_USER_MACROS_COUNT][BP_USER_MACRO_MAX_LENGTH];
+static int user_macro;
+
+/**
+ * The user menu global state container structure.
+ */
+typedef struct {
+  /** Cursor position inside the command line buffer. */
+  uint16_t cursor_position;
+
+  /** History entry index in the command line buffer. */
+  uint16_t history_entry_counter;
+
+  /** Binary mode entering sequence counter. */
+  uint8_t binary_mode_counter;
+  uint8_t escape_state;
+
+  /** Flag indicating if a potentially valid command has been entered. */
+  bool command_present;
+} menu_state_t;
+
+/**
+ * The user menu state.
+ */
+static menu_state_t menu_state = {0};
+
+static void reset_terminal_state(void) {
+  bp_current_protocol()->cleanup();
+  bp_reset_board_state();
+  bp_disable_usb_led();
+  bus_pirate_configuration.quiet = NO;
+  bus_pirate_configuration.display_mode = HEX;
+#ifdef BP_ENABLE_BASIC_SUPPORT
+  bus_pirate_configuration.basic = NO;
+#endif
+  memset(&menu_state, 0, sizeof(menu_state));
+  menu_state.cursor_position = cmdend;
+  user_macro = 0;
+}
+
+static void update_binary_prefix(uint8_t character) {
+  /* Only consecutive NULs followed by raw STX may request SUMP. ANSI cursor
+   * keys and ordinary typing must not retain an old binary-entry prefix. */
+  if (character != ASCII_NUL && character != ASCII_STX)
+    menu_state.binary_mode_counter = 0;
+}
+
+static void load_user_macro(void) {
+  int index = user_macro - 1;
+  user_macro = 0;
+  if (index < 0 || index >= BP_USER_MACROS_COUNT) return;
+  for (uint16_t i = 0; i < BP_USER_MACRO_MAX_LENGTH && user_macros[index][i]; ++i)
+    handle_character(user_macros[index][i]);
+}
+
+void serviceuser(void) {
+  int newstart;
+  int oldstart;
+  unsigned int sendw, received;
+  uint16_t repeat;
+  int temp;
+  int numbits;
+  unsigned char oldDmode; // temporarily holds the default display mode, while a
+                          // different display read is performed
+  unsigned char newDmode;
+
+  // init
+  cmdstart = 0;
+  cmdend = 0;
+  menu_state.cursor_position = cmdend;
+  bus_pirate_configuration.bus_mode = BP_HIZ;
+  mode_configuration.command_error = NO;
+
+  newstart = 0;
+  oldstart = 0;
+
+  oldDmode = 0; // temporarily holds the default display mode, while a different
+                // display read is performed
+  newDmode = 0;
+
+  memset(user_macros, 0, sizeof(user_macros));
+  user_macro = 0;
+
+  for (;;) {
+    bp_write_string(bp_current_protocol()->name);
+#ifdef BP_ENABLE_BASIC_SUPPORT
+    if (bus_pirate_configuration.basic) {
+      // bpWstring("(BASIC)");
+      BPMSG1084;
+    }
+#endif /* BP_ENABLE_BASIC_SUPPORT */
+    bp_write_string(">");
+    while (!menu_state.command_present) {
+      if (user_macro) {
+        load_user_macro();
+      }
+
+      /* Handle periodic service callbacks if needed. */
+
+      while (!user_serial_ready_to_read()) {
+        if (mode_configuration.periodicService == ON) {
+          /* Print periodic service output if any has been generated. */
+          if ((*bp_current_protocol())
+                  .periodic_update()) {
+            bp_write_string(
+                bp_current_protocol()->name);
+            bp_write_string(">");
+            if (cmdstart != cmdend) {
+              for (size_t offset = cmdstart; offset != cmdend;
+                   offset = (offset + 1) & CMDLENMSK) {
+                user_serial_transmit_character(cmdbuf[offset]);
+              }
+            }
+          }
+        }
+      }
+
+      /* Reset serial overflows if any are found. */
+
+      if (user_serial_check_overflow()) {
+        user_serial_clear_overflow();
+        continue;
+      }
+
+      /* Process incoming byte. */
+
+      uint8_t user_byte = user_serial_read_byte();
+      update_binary_prefix(user_byte);
+
+      if (menu_state.escape_state && user_byte != ASCII_ESCAPE &&
+          handle_escape_sequence(user_byte)) continue;
+
+      switch (user_byte) {
+
+      case ASCII_BS:
+        handle_backspace();
+        break;
+
+      case ASCII_EOT:
+      case ASCII_DELETE:
+        handle_delete();
+        break;
+
+      case ASCII_ESCAPE:
+        handle_escape_key();
+        break;
+
+      case ASCII_STX:
+        handle_left_arrow();
+        break;
+
+      case ASCII_ACK:
+        handle_right_arrow();
+        break;
+
+      case ASCII_DLE:
+        handle_up_arrow();
+        break;
+
+      case ASCII_SO:
+        handle_down_arrow();
+        break;
+
+      case ASCII_SOH:
+        handle_home_key();
+        break;
+
+      case ASCII_ENQ:
+        handle_end_key();
+        break;
+
+      case ASCII_CR:
+      case ASCII_LF:
+        handle_enter_key();
+        break;
+
+      case ASCII_NUL:
+        menu_state.binary_mode_counter++;
+        if (menu_state.binary_mode_counter == 20) {
+          enter_binary_bitbang_mode();
+#ifdef BUSPIRATEV4
+          reset_terminal_state();
+          cmdstart = cmdend;
+          cmdbuf[cmdend] = 0;
+          print_version_info();
+          bp_write_string("HiZ>");
+#endif /* BUSPIRATEV4 */
+        }
+        break;
+
+      default:
+        handle_character(user_byte);
+        break;
+      }
+    }
+
+    /* Process current command line. */
+
+    newstart = cmdend;
+    oldstart = cmdstart;
+    menu_state.command_present = NO;
+
+    mode_configuration.command_error = NO;
+
+    volatile bool stop = NO;
+
+#ifdef BP_ENABLE_BASIC_SUPPORT
+    if (bus_pirate_configuration.basic) {
+      bp_basic_enter_interactive_interpreter();
+      BPMSG1085;
+      stop = YES;
+    }
+#endif /* BP_ENABLE_BASIC_SUPPORT */
+
+    oldDmode = 0; // temporarily holds the default display mode, while a
+                  // different display read is performed
+    newDmode = 0;
+
+    while (!stop) {
+      uint8_t c = cmdbuf[cmdstart];
+
+      switch (c) {
+      case 'h':
+#ifdef BP_ENABLE_COMMAND_HISTORY
+        if (!cmdhistory()) {
+          oldstart = cmdstart;
+          newstart = cmdend;
+        }
+#endif /* BP_ENABLE_COMMAND_HISTORY */
+        break;
+
+      case '?':
+        print_help();
+        break;
+
+      case 'i':
+        print_version_info();
+        if (bus_pirate_configuration.bus_mode != BP_HIZ) {
+          print_status_info();
+        }
+        break;
+
+      case 'm':
+        changemode();
+        break;
+
+      case 'b':
+        set_baud_rate();
+        break;
+
+      case 'o':
+        set_display_mode();
+        break;
+
+      case 'v':
+        print_pins_information();
+        break;
+
+      case 't':
+        bp_timer_print();
+        bpBR;
+        break;
+
+      case 'T':
+        bp_timer_reset();
+        break;
+
+      case 'f':
+        bp_frequency_counter_setup();
+        break;
+
+      case 'g':
+        if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+          BPMSG1088;
+        } else {
+          bp_pwm_setup();
+        }
+        break;
+
+      case 'c':
+        mode_configuration.alternate_aux = 0;
+        BPMSG1086;
+        break;
+
+      case 'C':
+        mode_configuration.alternate_aux = 1;
+        BPMSG1087;
+        break;
+
+#ifdef BUSPIRATEV4
+      case 'k':
+        mode_configuration.alternate_aux = 2;
+        BPMSG1263;
+        break;
+
+      case 'K':
+        mode_configuration.alternate_aux = 3;
+        BPMSG1264;
+        break;
+#endif /* BUSPIRATEV4 */
+
+      case 'L':
+        mode_configuration.little_endian = YES;
+        BPMSG1124;
+        bpBR;
+        break;
+
+      case 'l':
+        mode_configuration.little_endian = NO;
+        BPMSG1123;
+        bpBR;
+        break;
+
+      case 'p':
+        // don't allow pullups on some modules. also: V0a limitation of 2
+        // resistors
+        if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+          BPMSG1088;
+        } else {
+          bp_disable_pullup();
+          BPMSG1089;
+          bpBR;
+        }
+        break;
+
+      case 'P':
+        // don't allow pullups on some modules. also: V0a limitation of 2
+        // resistors
+        if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+          BPMSG1088;
+        } else {
+          if (!bp_adc_check_foreground()) {
+            break;
+          }
+          if (mode_configuration.high_impedance == NO) {
+            BPMSG1209;
+          }
+          bp_enable_pullup();
+          BPMSG1091;
+          bpBR;
+
+          bp_enable_adc();
+          if (bp_read_adc(BP_ADC_VPU) < 0x50) {
+            /* No voltage on pullup pin detected. */
+            MSG_NO_VOLTAGE_ON_PULLUP_PIN;
+          }
+          bp_disable_adc();
+        }
+        break;
+
+#ifdef BUSPIRATEV4
+      case 'e':
+        set_pullup_voltage();
+        break;
+#endif /* BUSPIRATEV4 */
+
+      case '=':
+        convert_value(NO);
+        break;
+
+      case '|':
+        convert_value(YES);
+        break;
+
+      case '~':
+        if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+          perform_selftest(true, true);
+        } else {
+          BPMSG1092;
+        }
+        break;
+
+      case '#':
+#ifdef BUSPIRATEV4
+        MSG_RESET_MESSAGE;
+        reset_terminal_state();
+        cmdstart = (cmdend - 1) & CMDLENMSK;
+        print_version_info();
+#else
+        BPMSG1093;
+        user_serial_wait_transmission_done();
+        __asm volatile("RESET");
+#endif /* BUSPIRATEV4 */
+        break;
+
+      case '$':
+        if (agree()) {
+          skip_pgc_pgd_check = true;
+          BPMSG1094;
+          bp_delay_ms(100);
+          bp_reset_board_state();
+          user_serial_wait_transmission_done();
+          __asm volatile("RESET");
+        }
+        break;
+
+      case 'a':
+        bp_aux_pin_set_low();
+        break;
+
+      case 'A':
+        bp_aux_pin_set_high();
+        break;
+
+      case '@':
+        repeat = (uint16_t)getrepeat() + 1u;
+        while (--repeat) {
+          BPMSG1095;
+          echo_state(bp_aux_pin_read());
+          bpBR;
+        }
+        break;
+
+      case 'W':
+        switch_psu_on();
+        break;
+
+      case 'w':
+        switch_psu_off();
+        break;
+
+      case 'd':
+        if (!bp_adc_check_foreground()) {
+          break;
+        }
+        MSG_ADC_VOLTAGE_PROBE_HEADER;
+        repeat = (uint16_t)getrepeat() + 1u;
+        while (--repeat) {
+          bp_adc_probe();
+          bpBR;
+        }
+        break;
+
+      case 'D':
+        bp_adc_continuous_probe();
+        break;
+
+      case '&':
+        repeat = getrepeat();
+        BPMSG1099;
+        bp_write_dec_word(repeat);
+        BPMSG1100;
+        bp_delay_us(repeat);
+        break;
+
+      case '%':
+        repeat = getrepeat();
+        BPMSG1099;
+        bp_write_dec_word(repeat);
+        BPMSG1212;
+        bp_delay_ms(repeat);
+        break;
+
+#ifdef BP_ENABLE_BASIC_SUPPORT
+      case 's':
+        bus_pirate_configuration.basic = ON;
+        break;
+#endif /* BP_ENABLE_BASIC_SUPPORT */
+
+      case 'S':
+        if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+          BPMSG1088;
+        } else {
+          bp_servo_setup();
+        }
+        break;
+
+#ifdef BP_ENABLE_1WIRE_SUPPORT
+
+      case 'O':
+        if (bus_pirate_configuration.bus_mode != BP_1WIRE) {
+          BPMSG1088;
+        } else {
+          /*
+           * Switch the 1-Wire speed in place: the power supplies and the
+           * pull-up resistors keep running, so a device that has just been
+           * put into overdrive (Overdrive Skip ROM, 0x3C) can be driven at
+           * overdrive speed without leaving the mode and losing them.
+           */
+          if (mode_configuration.speed == 0) {
+            mode_configuration.speed = 1;
+            MSG_1WIRE_SPEED_OVERDRIVE;
+          } else {
+            mode_configuration.speed = 0;
+            MSG_1WIRE_SPEED_STANDARD;
+          }
+        }
+        break;
+
+#endif /* BP_ENABLE_1WIRE_SUPPORT */
+
+      case '<':
+        mode_configuration.command_error = YES;
+        temp = 1;
+
+        while (cmdbuf[((cmdstart + temp) & CMDLENMSK)] != 0x00) {
+          if (cmdbuf[((cmdstart + temp) & CMDLENMSK)] == '>')
+            mode_configuration.command_error =
+                NO; // clear error if we found a > before the command ends
+          temp++;
+        }
+        if (temp >= (BP_USER_MACRO_MAX_LENGTH + 3)) {
+          mode_configuration.command_error = YES; // too long (avoid overflows)
+        }
+        if (mode_configuration.command_error == NO) {
+          cmdstart = (cmdstart + 1) & CMDLENMSK;
+          temp = getint();
+          if (cmdbuf[((cmdstart)&CMDLENMSK)] == '=') // assignment
+          {
+            if ((temp > 0) && (temp <= BP_USER_MACROS_COUNT)) {
+              cmdstart = (cmdstart + 1) & CMDLENMSK;
+              temp--;
+              for (repeat = 0; repeat < BP_USER_MACRO_MAX_LENGTH; repeat++) {
+                user_macros[temp][repeat] = 0;
+              }
+              repeat = 0;
+              while (cmdbuf[cmdstart] != '>') {
+                user_macros[temp][repeat] = cmdbuf[cmdstart];
+                repeat++;
+                cmdstart = (cmdstart + 1) & CMDLENMSK;
+              }
+            } else {
+              mode_configuration.command_error = YES;
+            }
+          } else {
+            if (temp == 0) {
+              for (repeat = 0; repeat < BP_USER_MACROS_COUNT; repeat++) {
+                bp_write_dec_byte(repeat + 1);
+                bp_write_string(". <");
+                bp_write_string(user_macros[repeat]);
+                bp_write_line(">");
+              }
+            } else if ((temp > 0) && (temp <= BP_USER_MACROS_COUNT)) {
+              bpBR;
+              user_macro = temp;
+            } else {
+              mode_configuration.command_error = YES;
+            }
+          }
+        }
+        break;
+
+      // command for subsys (i2c, UART, etc)
+      case '(':
+        cmdstart = (cmdstart + 1) & CMDLENMSK;
+        sendw = getint();
+        consumewhitechars();
+        if (cmdbuf[((cmdstart)&CMDLENMSK)] == ')') {
+          bp_current_protocol()->run_macro(sendw);
+          bpBR;
+        } else {
+          mode_configuration.command_error = YES;
+        }
+        break;
+
+      case '"':
+        mode_configuration.command_error = YES;
+        temp = 1;
+
+        while (cmdbuf[((cmdstart + temp) & CMDLENMSK)] != 0x00) {
+          if (cmdbuf[((cmdstart + temp) & CMDLENMSK)] == '"')
+            mode_configuration.command_error =
+                NO; // clear error if we found a " before the command ends
+          temp++;
+        }
+
+        if (mode_configuration.command_error == NO) {
+          BPMSG1101;
+          user_serial_transmit_character('"');
+          while (cmdbuf[((++cmdstart) & CMDLENMSK)] != '"') {
+            cmdstart &= CMDLENMSK;
+            user_serial_transmit_character(cmdbuf[cmdstart]);
+            sendw = cmdbuf[cmdstart];
+            if (mode_configuration.little_endian == YES) {
+              sendw = bp_reverse_integer(sendw, mode_configuration.numbits);
+            }
+            bp_current_protocol()->send(sendw);
+          }
+          cmdstart &= CMDLENMSK;
+          user_serial_transmit_character('"');
+          bpBR;
+        }
+        break;
+
+      case '[':
+        bp_current_protocol()->start();
+        break;
+
+      case '{':
+        bp_current_protocol()->start_with_read();
+        break;
+
+      case ']':
+        bp_current_protocol()->stop();
+        break;
+
+      case '}':
+        bp_current_protocol()->stop_from_read();
+        break;
+
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        sendw = getint();
+        cmdstart--;
+        cmdstart &= CMDLENMSK;
+        repeat = (uint16_t)getrepeat() + 1u;
+        numbits = getnumbits();
+        if (mode_configuration.command_error) break;
+        if (numbits) {
+          mode_configuration.numbits = numbits;
+          mode_configuration.int16 = numbits > 8 ? YES : NO;
+        }
+        BPMSG1101;
+        while (--repeat) {
+          bp_write_formatted_integer(sendw);
+          if (((mode_configuration.int16 == NO) &&
+               (mode_configuration.numbits != 8)) ||
+              ((mode_configuration.int16 == YES) &&
+               (mode_configuration.numbits != 16))) {
+            user_serial_transmit_character(';');
+            bp_write_dec_byte(mode_configuration.numbits);
+          }
+          if (mode_configuration.little_endian == YES) {
+            sendw = bp_reverse_integer(sendw, mode_configuration.numbits);
+          }
+          received =
+              bp_current_protocol()->send(sendw);
+          bpSP;
+          if (mode_configuration.write_with_read) {
+            MSG_READ_HEADER;
+            if (mode_configuration.little_endian == YES) {
+              received =
+                  bp_reverse_integer(received, mode_configuration.numbits);
+            }
+            bp_write_formatted_integer(received);
+            bpSP;
+          }
+        }
+        bpBR;
+        break;
+
+      case 'r':
+        newDmode = change_read_display();
+        repeat = (uint16_t)getrepeat() + 1u;
+        numbits = getnumbits();
+        if (mode_configuration.command_error) break;
+        if (numbits) {
+          mode_configuration.numbits = numbits;
+          mode_configuration.int16 = (numbits > 8) ? YES : NO;
+        }
+        MSG_READ_HEADER;
+        if (newDmode) {
+          oldDmode = bus_pirate_configuration.display_mode;
+          bus_pirate_configuration.display_mode = newDmode - 1;
+        }
+        while (--repeat) {
+          received =
+              bp_current_protocol()->read();
+          if (mode_configuration.little_endian == YES) {
+            received = bp_reverse_integer(received, mode_configuration.numbits);
+          }
+          bp_write_formatted_integer(received);
+          if (((mode_configuration.int16 == NO) &&
+               (mode_configuration.numbits != 8)) ||
+              ((mode_configuration.int16 == YES) &&
+               (mode_configuration.numbits != 16))) {
+            user_serial_transmit_character(';');
+            bp_write_dec_byte(mode_configuration.numbits);
+          }
+          bpSP;
+        }
+        if (newDmode) {
+          bus_pirate_configuration.display_mode = oldDmode;
+          newDmode = 0;
+        }
+        bpBR;
+        break;
+
+      case '/':
+        BPMSG1103;
+        bp_current_protocol()->clock_high();
+        break;
+
+      case '\\':
+        BPMSG1104;
+        bp_current_protocol()->clock_low();
+        break;
+
+      case '-':
+        BPMSG1105;
+        bp_current_protocol()->data_high();
+        break;
+
+      case '_':
+        BPMSG1106;
+        bp_current_protocol()->data_low();
+        break;
+
+      case '.':
+        BPMSG1098;
+        echo_state(
+            bp_current_protocol()->data_state());
+        break;
+
+      case '^':
+        repeat = getrepeat();
+        BPMSG1108;
+        bp_write_formatted_integer(repeat);
+        repeat++;
+if (bp_current_protocol()->clock_pulses !=
+            NULL) {
+          /* The protocol can advance all the ticks in one call. */
+          bp_current_protocol()->clock_pulses(
+              (uint16_t)(repeat - 1));
+        } else {
+          while (--repeat) {
+            bp_current_protocol()->clock_pulse();
+          }
+        }
+        bpBR;
+        break;
+
+      case '!':
+        repeat = (uint16_t)getrepeat() + 1u;
+        BPMSG1109;
+        while (--repeat) {
+          echo_state(
+              bp_current_protocol()->read_bit());
+          bpSP;
+        }
+        BPMSG1107;
+        break;
+
+      case ASCII_NUL:
+      case ASCII_CR:
+      case ASCII_LF:
+      case ' ':
+      case ',':
+        break;
+
+      default:
+        mode_configuration.command_error = YES;
+        break;
+      }
+
+      cmdstart = (cmdstart + 1) & CMDLENMSK;
+
+      if (mode_configuration.command_error == YES) {
+        BPMSG1110;
+        if (cmdstart > oldstart) {
+          bp_write_dec_byte(cmdstart - oldstart);
+        } else {
+          bp_write_dec_byte((BP_COMMAND_BUFFER_SIZE + cmdstart) - oldstart);
+        }
+        mode_configuration.command_error = NO;
+        stop = YES;
+        bpBR;
+      }
+
+      if (cmdstart == cmdend) {
+        stop = YES;
+      }
+    }
+
+    cmdstart = newstart;
+    cmdend = newstart;
+    menu_state.command_present = NO;
+  }
+}
+
+int getint(void) {
+  if (setup_defaults_mode) return 0;
+  uint16_t number = 0, i = 0, digits = 0;
+  uint8_t radix = 10;
+  uint16_t limit = 6553;
+  uint8_t last_digit = 5;
+  bool overflow = false;
+  if (cmdbuf[cmdstart] == '0') {
+    char prefix = cmdbuf[(cmdstart + 1) & CMDLENMSK];
+    if (prefix == 'x' || prefix == 'X') {
+      radix = 16; limit = 4095; last_digit = 15; i = 2;
+    } else if (prefix == 'b' || prefix == 'B') {
+      radix = 2; limit = 32767; last_digit = 1; i = 2;
+    }
+  }
+  for (; i < BP_COMMAND_BUFFER_SIZE; ++i) {
+    uint8_t c = cmdbuf[(cmdstart + i) & CMDLENMSK];
+    uint8_t digit;
+    if (c >= '0' && c <= '9') digit = c - '0';
+    else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+    else break;
+    if (digit >= radix) break;
+    if (number > limit || (number == limit && digit > last_digit)) overflow = true;
+    if (!overflow) number = number * radix + digit;
+    ++digits;
+  }
+  cmdstart = (cmdstart + i) & CMDLENMSK;
+  if (!digits || overflow || i == BP_COMMAND_BUFFER_SIZE) {
+    mode_configuration.command_error = YES;
+    return 0;
+  }
+  /* The existing API carries a 16-bit data pattern in int; counts validate it. */
+  return (int)number;
+}
+
+int getrepeat(void) {
+  int temp;
+
+  if (cmdbuf[(cmdstart + 1) & CMDLENMSK] == ':') {
+    cmdstart += 2;
+    cmdstart &= CMDLENMSK;
+    temp = getint();
+    cmdstart--; // to allow [6:10] (start send 6 10 times stop)
+    cmdstart &= CMDLENMSK;
+    if ((uint16_t)temp == 0 || (uint16_t)temp > 32767u) {
+      mode_configuration.command_error = YES;
+      return 0;
+    }
+    return temp;
+  }
+  return 1; // no repeat count=1
+} //
+
+int getnumbits(void) {
+  int temp;
+
+  if (cmdbuf[(cmdstart + 1) & CMDLENMSK] == ';') {
+    cmdstart = (cmdstart + 2) & CMDLENMSK;
+    temp = getint();
+    cmdstart = (cmdstart - 1) &
+               CMDLENMSK; // to allow [6:10] (start send 6 10 times stop)
+    if ((uint16_t)temp < 1 || (uint16_t)temp > 16) {
+      mode_configuration.command_error = YES;
+      return 0;
+    }
+    return temp;
+  }
+  return 0; // no numbits=0;
+} //
+
+uint8_t change_read_display(void) {
+  size_t index;
+
+  for (index = 0; index < sizeof(READ_DISPLAY_BASE); index++) {
+    if (cmdbuf[(cmdstart + 1) & CMDLENMSK] == READ_DISPLAY_BASE[index]) {
+      cmdstart = (cmdstart + 1) & CMDLENMSK;
+      return index + 1;
+    }
+  }
+
+  return 0;
+}
+
+void consumewhitechars(void) {
+  if (setup_defaults_mode) return;
+  while (cmdbuf[cmdstart] == 0x20) {
+    cmdstart = (cmdstart + 1) & CMDLENMSK;
+  }
+}
+
+int getint_with_spaces(void) {
+  consumewhitechars();
+  return getint();
+}
+
+void changemode(void) {
+  int i, busmode;
+
+  busmode = 0;
+  cmdstart = (cmdstart + 1) & CMDLENMSK;
+  consumewhitechars();
+  bool has_argument = cmdbuf[cmdstart] != 0;
+  busmode = getint();
+  if (has_argument && mode_configuration.command_error) {
+    cmdstart = (cmdend - 1) & CMDLENMSK;
+    return;
+  }
+
+  if (!busmode) // no argument entered
+  {
+    for (i = 0; i < ENABLED_PROTOCOLS_COUNT; i++) {
+      bp_write_dec_byte(i + 1);
+      bp_write_string(". ");
+      bp_write_line(bp_protocol_by_index(i)->name);
+    }
+    // bpWline("x. exit(without change)");
+    BPMSG1111;
+    mode_configuration.command_error =
+        NO; // error is set because no number found, but it is no
+            // error here:S eeeh confusing right?
+    busmode = getnumber(1, 1, ENABLED_PROTOCOLS_COUNT, 1) - 1;
+    if ((busmode == -2) || (busmode == -1)) {
+      // bpWline("no mode change");
+      BPMSG1112;
+    } else {
+      bp_current_protocol()->cleanup();
+      bp_reset_board_state();
+      bus_pirate_configuration.bus_mode = busmode;
+      bp_current_protocol()->setup_prepare();
+      MSG_CLUTCH_DISENGAGED;
+      if (busmode) {
+        bp_enable_mode_led();
+        MSG_FINISH_SETUP_PROMPT;
+      }
+      // bpWmessage(MSG_READY);
+      BPMSG1085;
+    }
+  } else // number entered
+  {
+    busmode--; // save a couple of programwords to do it here :D
+    if (busmode >= 0 && busmode < ENABLED_PROTOCOLS_COUNT) {
+      bp_current_protocol()->cleanup();
+      bp_reset_board_state();
+      bus_pirate_configuration.bus_mode = busmode;
+      bp_current_protocol()->setup_prepare();
+      if (busmode)
+        bp_enable_mode_led();
+      // bpWmessage(MSG_READY);
+      BPMSG1085;
+    } else { // bpWline("Nonexistent protocol!!");
+      BPMSG1114;
+    }
+  }
+  cmdstart = (cmdend - 1) & CMDLENMSK;
+}
+
+#ifdef BP_ENABLE_COMMAND_HISTORY
+
+int cmdhistory(void) {
+  int i, j, k;
+
+  int historypos[BP_COMMAND_HISTORY_LENGTH];
+
+  i = 1;
+  j = (cmdstart - 2) & CMDLENMSK; /* Do not list the active h command itself. */
+
+  while (j != cmdstart) // scroll through the whole buffer
+  {
+    if ((cmdbuf[j] == 0x00) && (cmdbuf[(j + 1) & CMDLENMSK] !=
+                                0x00)) // did we find an end? is it not empty?
+    {
+      bp_write_dec_byte(i);
+      bp_write_string(". ");
+      k = 1;
+      while (cmdbuf[((j + k) & CMDLENMSK)]) {
+        user_serial_transmit_character(
+            cmdbuf[((j + k) & CMDLENMSK)]); // print it
+        k++;
+      }
+      historypos[i] = (j + 1) & CMDLENMSK;
+      i++;
+      if (i == BP_COMMAND_HISTORY_LENGTH)
+        break;
+      bpBR;
+    }
+    j = (j - 1) & CMDLENMSK;
+  }
+
+  bpBR;
+  if (i == 1) return 1;
+  BPMSG1115;
+
+  j = getnumber(0, 1, i - 1, 1);
+
+  if (j < 1 || j >= i) // x is -1, default is 0
+  {
+    bpBR;
+    return 1;
+  }
+
+  i = 0;
+  while (cmdbuf[(historypos[j] + i) &
+                CMDLENMSK]) // copy it to the end of the ringbuffer
+  {
+    cmdbuf[(cmdend + i) & CMDLENMSK] = cmdbuf[(historypos[j] + i) & CMDLENMSK];
+    i++;
+  }
+  cmdstart = (cmdend - 1) &
+             CMDLENMSK; // start will be increased before parsing in main loop
+  cmdend = (cmdstart + i + 2) & CMDLENMSK;
+  cmdbuf[(cmdend - 1) & CMDLENMSK] = 0x00;
+
+  return 0;
+}
+
+#endif /* BP_ENABLE_COMMAND_HISTORY */
+
+// gets number from input
+// -1 = abort (x)
+// 0-max return
+// x=1 exit is enabled (we don't want that in the mode changes ;)
+
+int getnumber(int def, int min, int max,
+              int x) // default, minimum, maximum, show exit option
+{
+  if (setup_defaults_mode) return def;
+  char c;
+  char buf[6]; // five digits cover the positive int16 range
+  int i, j, stop, temp, neg;
+  bool too_long;
+
+again: // need to do it proper with whiles and ifs..
+
+  i = 0;
+  stop = 0;
+  temp = 0;
+  neg = 0;
+  too_long = false;
+
+  bp_write_string("\r\n(");
+  if (def < 0) {
+    bp_write_string("x");
+  } else {
+    bp_write_dec_byte(def);
+  }
+  bp_write_string(")>");
+
+  while (!stop) {
+    c = user_serial_read_byte();
+    switch (c) {
+    case 0x08:
+      if (i) {
+        i--;
+        MSG_DESTRUCTIVE_BACKSPACE;
+      } else {
+        if (neg) {
+          neg = 0;
+          MSG_DESTRUCTIVE_BACKSPACE;
+        } else {
+          user_serial_transmit_character(BELL);
+        }
+      }
+      break;
+    case 0x0A:
+    case 0x0D:
+      stop = 1;
+      break;
+    case '-':
+      if (!i) // enable negative numbers
+      {
+        user_serial_transmit_character('-');
+        neg = 1;
+      } else {
+        user_serial_transmit_character(BELL);
+      }
+      break;
+    case 'x':
+      if (x)
+        return -1; // user wants to quit :( only if we enable it :D
+    default:
+      if ((c >= 0x30) && (c <= 0x39)) // we got a digit
+      {
+        if (i >= 5)
+        {
+          too_long = true;
+          user_serial_transmit_character(BELL);
+          i = 5;
+        } else {
+          user_serial_transmit_character(c);
+          buf[i] = c; // store user input
+          i++;
+        }
+      } else // ignore input :)
+      {
+        user_serial_transmit_character(BELL);
+      }
+    }
+  }
+  bpBR;
+
+  if (too_long) { BPMSG1211; goto again; }
+  if (i == 0) {
+    return def; // no user input so return default option
+  } else {
+    uint32_t magnitude = 0;
+    i--;
+    j = i;
+
+    for (; i >= 0; i--) {
+      magnitude = magnitude * 10u + (buf[j - i] - '0');
+    }
+
+    if (magnitude <= (neg ? 32768UL : 32767UL)) {
+      temp = (int)(neg ? -(int32_t)magnitude : (int32_t)magnitude);
+      if (temp >= min && temp <= max) return temp;
+    }
+    {
+      BPMSG1211;
+      goto again;
+    }
+  }
+  return temp; // we dont get here, but keep compiler happy
+}
+
+#ifdef BUSPIRATEV4
+// gets number from input
+// -1 = abort (x)
+// 0-max return
+// x=1 exit is enabled (we don't want that in the mode changes ;)
+
+long getlong(long def, int min, long max,
+             int x) // default, minimum, maximum, show exit option
+{
+  char c;
+  char buf[12]; // max long = 2147483647 so 10
+  int i, j, stop, neg;
+  long temp;
+  bool too_long;
+
+again: // need to do it proper with whiles and ifs..
+
+  i = 0;
+  stop = 0;
+  temp = 0;
+  neg = 0;
+  too_long = false;
+
+  bp_write_string("\r\n(");
+  if (def < 0) {
+    bp_write_string("x");
+  } else {
+    bp_write_dec_dword(def);
+  }
+  bp_write_string(")>");
+
+  while (!stop) {
+    c = user_serial_read_byte();
+    switch (c) {
+    case 0x08:
+      if (i) {
+        i--;
+        MSG_DESTRUCTIVE_BACKSPACE;
+      } else {
+        if (neg) {
+          neg = 0;
+          MSG_DESTRUCTIVE_BACKSPACE;
+        } else {
+          user_serial_transmit_character(BELL);
+        }
+      }
+      break;
+    case 0x0A:
+    case 0x0D:
+      stop = 1;
+      break;
+    case '-':
+      if (!i) // enable negative numbers
+      {
+        user_serial_transmit_character('-');
+        neg = 1;
+      } else {
+        user_serial_transmit_character(BELL);
+      }
+      break;
+    case 'x':
+      if (x)
+        return -1; // user wants to quit :( only if we enable it :D
+    default:
+      if ((c >= 0x30) && (c <= 0x39)) // we got a digit
+      {
+        if (i > 9) // 0-9999 should be enough??
+        {
+          too_long = true;
+          user_serial_transmit_character(BELL);
+          i = 10;
+        } else {
+          user_serial_transmit_character(c);
+          buf[i] = c; // store user input
+          i++;
+        }
+      } else // ignore input :)
+      {
+        user_serial_transmit_character(BELL);
+      }
+    }
+  }
+  bpBR;
+
+  if (too_long) { BPMSG1211; goto again; }
+  if (i == 0) {
+    return def; // no user input so return default option
+  } else {
+    uint32_t magnitude = 0;
+    bool overflow = false;
+    i--;
+    j = i;
+
+    for (; i >= 0; i--) {
+      uint8_t digit = buf[j - i] - '0';
+      if (magnitude > ((neg ? 2147483648UL : 2147483647UL) - digit) / 10UL)
+        overflow = true;
+      if (!overflow) magnitude = magnitude * 10UL + digit;
+    }
+
+    if (!overflow) {
+      temp = neg ? (long)(0UL - magnitude) : (long)magnitude;
+      if (temp >= min && temp <= max) return temp;
+    }
+    {
+      BPMSG1211;
+      goto again;
+    }
+  }
+  return temp; // we dont get here, but keep compiler happy
+}
+
+#endif /* BUSPIRATEV4 */
+
+// print version info (used in menu and at startup in main.c)
+
+void print_version_info(void) {
+#ifdef BUSPIRATEV3
+  bp_write_string(BP_VERSION_STRING);
+  user_serial_transmit_character('.');
+  user_serial_transmit_character(bus_pirate_configuration.hardware_version);
+  if (bus_pirate_configuration.device_type == 0x044F) {
+    /* Sandbox Electronics clone with 44pin PIC24FJ64GA004. */
+    MSG_CHIP_IDENTIFIER_CLONE;
+  }
+  bpBR;
+#else
+  bp_write_line(BP_VERSION_STRING);
+#endif /* BUSPIRATEV3 */
+
+  bp_write_string(BP_FIRMWARE_STRING);
+
+  user_serial_transmit_character('[');
+  for (size_t index = 0; index < ENABLED_PROTOCOLS_COUNT; index++) {
+    if (index) {
+      bpSP;
+    }
+    bp_write_string(bp_protocol_by_index(index)->name);
+  }
+  user_serial_transmit_character(']');
+
+#ifdef BUSPIRATEV3
+  BPMSG1126;
+  uint16_t bootloader_version = bp_read_from_flash(0x0000, BL_ADDR_VER);
+  bp_write_dec_byte(bootloader_version >> 8);
+  user_serial_transmit_character('.');
+  bp_write_dec_byte(bootloader_version & 0xFF);
+#endif /* BUSPIRATEV3 */
+  bpBR;
+
+  BPMSG1117;
+  bp_write_hex_word(bus_pirate_configuration.device_type);
+
+  BPMSG1210;
+  bp_write_hex_word(bus_pirate_configuration.device_revision);
+#ifdef BUSPIRATEV4
+  MSG_CHIP_REVISION_ID_BEGIN;
+  switch (bus_pirate_configuration.device_revision) {
+
+  case PIC_REV_A3:
+    MSG_CHIP_REVISION_A3;
+    break;
+
+  case PIC_REV_A5:
+    MSG_CHIP_REVISION_A5;
+    break;
+
+  case PIC_REV_A6:
+    MSG_CHIP_REVISION_A6;
+    break;
+
+  default:
+    MSG_CHIP_REVISION_UNKNOWN;
+    break;
+  }
+#else
+  MSG_CHIP_REVISION_ID_BEGIN;
+  if (bus_pirate_configuration.device_type == 0x044F) {
+    /* Sandbox Electronics clone with 44pin PIC24FJ64GA004. */
+    MSG_CHIP_REVISION_ID_END_4;
+  } else {
+    MSG_CHIP_REVISION_ID_END_2;
+  }
+
+  switch (bus_pirate_configuration.device_revision) {
+
+  case PIC_REV_A3:
+    MSG_CHIP_REVISION_A3;
+    break;
+
+  case PIC_REV_B4:
+    MSG_CHIP_REVISION_B4;
+    break;
+
+  case PIC_REV_B5:
+    MSG_CHIP_REVISION_B5;
+    break;
+
+  case PIC_REV_B8:
+    MSG_CHIP_REVISION_B8;
+    break;
+
+  default:
+    MSG_CHIP_REVISION_UNKNOWN;
+    break;
+  }
+#endif /* BUSPIRATEV4 */
+
+  bp_write_line(")");
+  BPMSG1118;
+}
+
+void print_status_info(void) {
+#ifdef BUSPIRATEV4
+  MSG_CFG0_FIELD;
+  bp_write_hex_word(bp_read_from_flash(CFG_ADDR_UPPER, CFG_ADDR_0));
+  bpSP;
+#endif /* BUSPIRATEV4 */
+
+  BPMSG1136;
+  bp_write_hex_word(bp_read_from_flash(CFG_ADDR_UPPER, CFG_ADDR_1));
+  BPMSG1137;
+  bp_write_hex_word(bp_read_from_flash(CFG_ADDR_UPPER, CFG_ADDR_2));
+  bpBR;
+
+  BPMSG1119;
+
+  print_pins_information();
+
+  if (bp_get_voltage_regulator_state()) {
+    MSG_POWER_SUPPLIES_ON;
+  } else {
+    MSG_POWER_SUPPLIES_OFF;
+  }
+
+  user_serial_transmit_character(',');
+  bpSP;
+
+  // pullups available, enabled?
+  // was modeConfig.pullupEN
+  if (BP_PULLUP == 1)
+    BPMSG1091;
+  else
+    BPMSG1089;
+  user_serial_transmit_character(',');
+  bpSP;
+
+#ifdef BUSPIRATEV4
+  if (BP_PUVSEL50_DIR == OUTPUT) {
+    MSG_VPU_5V_MARKER;
+  }
+
+  if (BP_PUVSEL33_DIR == OUTPUT) {
+    MSG_VPU_3V3_MARKER;
+  }
+#endif /* BUSPIRATEV4 */
+
+  // open collector outputs?
+  if (mode_configuration.high_impedance == YES) {
+    BPMSG1120;
+  } else {
+    BPMSG1121;
+  }
+
+  // bitorder toggle available, enabled
+  if (mode_configuration.little_endian == NO) {
+    BPMSG1123;
+  } else {
+    BPMSG1124;
+  }
+
+  user_serial_transmit_character(',');
+  bpSP;
+
+  // show partial writes
+  // bpWline("Number of bits read/write: ");
+  BPMSG1252;
+  bp_write_dec_byte(mode_configuration.numbits);
+  bpBR;
+
+// AUX pin setting
+#ifdef BUSPIRATEV3
+  if (mode_configuration.alternate_aux == 1) {
+    BPMSG1087;
+  } else {
+    BPMSG1086;
+  }
+#endif /* BUSPIRATEV3 */
+
+#ifdef BUSPIRATEV4
+  switch (mode_configuration.alternate_aux) {
+  case 0:
+    BPMSG1086;
+    break;
+  case 1:
+    BPMSG1087;
+    break;
+  case 2:
+    BPMSG1263;
+    break;
+  case 3:
+    BPMSG1264;
+    break;
+  }
+#endif /* BUSPIRATEV4 */
+
+  bp_current_protocol()->print_settings();
+  BPMSG1119;
+}
+
+void print_pins_information(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
+  BPMSG1226;
+#ifdef BUSPIRATEV4
+  BPMSG1256; // bpWstring("12.(Bk)\t11.(Wt)\t10.(Gy)\t9.(Pu)\t8.(Bu)\t7.(Gn)\t6.(Yw)\t5.(Or)\t4.(Rd)\t3.(Br)\t2.(Bk)\1.(Wt)");
+  BPMSG1257; // bpWstring("GND\t5.0V\t3.3V\tVPU\tADC\tAUX2\tAUX1\tAUX\t");
+#else
+  BPMSG1233; // bpWstring("1.(Br)\t2.(Rd)\t3.(Or)\t4.(Yw)\t5.(Gn)\t6.(Bu)\t7.(Pu)\t8.(Gy)\t9.(Wt)\t0.(Bk)");
+  BPMSG1227; // bpWstring("GND\t3.3V\t5.0V\tADC\tVPU\tAUX\t");
+#endif /* BUSPIRATEV4 */
+
+  bp_current_protocol()->print_pins_state();
+  BPMSG1228;
+#ifdef BUSPIRATEV4
+  print_pin_direction(AUX2);
+  print_pin_direction(AUX1);
+  print_pin_direction(AUX);
+  print_pin_direction(CS);
+  print_pin_direction(MISO);
+  print_pin_direction(CLK);
+  print_pin_direction(MOSI);
+#else
+  print_pin_direction(AUX);
+  print_pin_direction(CLK);
+  print_pin_direction(MOSI);
+  print_pin_direction(CS);
+  print_pin_direction(MISO);
+#endif /* BUSPIRATEV4 */
+  bpBR;
+  BPMSG1234;
+  bp_enable_adc();
+
+#ifdef BUSPIRATEV4
+  bp_write_voltage(bp_read_adc(BP_ADC_5V0));
+#else
+#if defined(BP_VERSION2_SUPPORT) && (BP_VERSION2_SUPPORT == 1)
+  bp_write_voltage(bp_read_adc(BP_ADC_PROBE));
+#else
+  bp_write_voltage(bp_read_adc(BP_ADC_3V3));
+#endif /* BP_VERSION2_SUPPORT && (BP_VERSION2_SUPPORT == 1) */
+#endif /* BUSPIRATEV4 */
+  MSG_VOLTAGE_UNIT;
+  user_serial_transmit_character('\t');
+
+#ifdef BUSPIRATEV4
+  bp_write_voltage(bp_read_adc(BP_ADC_3V3));
+#else
+  bp_write_voltage(bp_read_adc(BP_ADC_5V0));
+#endif /* BUSPIRATEV4 */
+  MSG_VOLTAGE_UNIT;
+  user_serial_transmit_character('\t');
+
+#ifdef BUSPIRATEV4
+  bp_write_voltage(bp_read_adc(BP_ADC_VPU));
+#else
+#if defined(BP_VERSION2_SUPPORT) && (BP_VERSION2_SUPPORT == 1)
+  bp_write_voltage(bp_read_adc(BP_ADC_3V3));
+#else
+  bp_write_voltage(bp_read_adc(BP_ADC_PROBE));
+#endif /* BP_VERSION2_SUPPORT && (BP_VERSION2_SUPPORT == 1) */
+#endif /* BUSPIRATEV4 */
+  MSG_VOLTAGE_UNIT;
+  user_serial_transmit_character('\t');
+
+#ifdef BUSPIRATEV4
+  bp_write_voltage(bp_read_adc(BP_ADC_PROBE));
+#else
+  bp_write_voltage(bp_read_adc(BP_ADC_VPU));
+#endif /* BUSPIRATEV4 */
+  MSG_VOLTAGE_UNIT;
+  user_serial_transmit_character('\t');
+
+  bp_disable_adc();
+
+#ifdef BUSPIRATEV4
+  print_pin_state(AUX2);
+  print_pin_state(AUX1);
+  print_pin_state(AUX);
+  print_pin_state(CS);
+  print_pin_state(MISO);
+  print_pin_state(CLK);
+  print_pin_state(MOSI);
+#else
+  print_pin_state(AUX);
+  print_pin_state(CLK);
+  print_pin_state(MOSI);
+  print_pin_state(CS);
+  print_pin_state(MISO);
+#endif /* BUSPIRATEV4 */
+  bpBR;
+}
+
+void print_pin_direction(const uint16_t pin) {
+  bp_write_string(IODIR & pin ? "I\t" : "O\t");
+}
+
+void print_pin_state(const uint16_t pin) {
+  bp_write_string(IOPOR & pin ? "H\t" : "L\t");
+}
+
+void set_display_mode(void) {
+  cmdstart = (cmdstart + 1) & CMDLENMSK;
+  consumewhitechars();
+  int mode = getint();
+
+  if ((mode > 0) && (mode <= 4)) {
+    bus_pirate_configuration.display_mode = mode - 1;
+  } else {
+    mode_configuration.command_error = NO;
+    BPMSG1127;
+    bus_pirate_configuration.display_mode = getnumber(1, 1, 4, 0) - 1;
+  }
+  BPMSG1128;
+}
+
+#ifndef BUSPIRATEV4
+static bool wait_baud_confirmation(void) {
+#ifdef BP_USE_HARDWARE_DELAY_TIMER
+  uint32_t remaining = 10000000UL; /* Five seconds at Timer1's 2 MHz clock. */
+  uint16_t start = TMR1;
+  for (;;) {
+    if (user_serial_ready_to_read() && user_serial_read_byte() == ' ') return true;
+    uint16_t now = TMR1;
+    uint16_t elapsed = now - start;
+    if (elapsed >= remaining) return false;
+    remaining -= elapsed;
+    start = now;
+  }
+#else
+  for (uint16_t ms = 0; ms < 5000; ++ms) {
+    if (user_serial_ready_to_read() && user_serial_read_byte() == ' ') return true;
+    bp_delay_ms(1);
+  }
+  return false;
+#endif
+}
+#endif
+
+void set_baud_rate(void) {
+#ifdef BUSPIRATEV4
+  /* This changes no physical UART: CDC line coding belongs to the host. */
+  bp_write_line("USB CDC baud rate is host-controlled.");
+  cmdstart = (cmdend - 1) & CMDLENMSK;
+#else
+  uint8_t previous_speed = bus_pirate_configuration.terminal_speed;
+  uint16_t previous_brg = U1BRG;
+  cmdstart = (cmdstart + 1) & CMDLENMSK;
+  consumewhitechars();
+  int speed = getint();
+
+  if ((speed > 0) && (speed <= 10)) {
+    bus_pirate_configuration.terminal_speed = speed - 1;
+  } else {
+    mode_configuration.command_error = NO;
+    MSG_UART_SET_PORT_SPEED;
+    bus_pirate_configuration.terminal_speed = getnumber(9, 1, 10, 0) - 1;
+  }
+
+  int brg = 0;
+  if (bus_pirate_configuration.terminal_speed == 9) {
+    consumewhitechars();
+    brg = getint();
+
+    if (brg == 0) {
+      mode_configuration.command_error = NO;
+      MSG_RAW_BRG_VALUE_INPUT;
+      brg = getnumber(34, 0, 32767, 0);
+    }
+  }
+
+  BPMSG1134;
+  BPMSG1251;
+
+  /* Flush UART transmission queue. */
+  user_serial_wait_transmission_done();
+  if (bus_pirate_configuration.terminal_speed == 9) {
+    user_serial_set_baud_rate(brg);
+  }
+  user_serial_initialise();
+
+  if (!wait_baud_confirmation()) {
+    bus_pirate_configuration.terminal_speed = previous_speed;
+    user_serial_set_baud_rate(previous_brg);
+    user_serial_initialise();
+    bp_write_line("Baud confirmation timed out; previous rate restored.");
+  }
+#endif
+}
+
+void echo_state(const uint16_t value) {
+  user_serial_transmit_character(value ? '1' : '0');
+}
+
+#ifdef BUSPIRATEV4
+
+void set_pullup_voltage(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
+  if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+    BPMSG1088;
+    mode_configuration.command_error = YES;
+    return;
+  }
+
+  if (mode_configuration.high_impedance == NO) {
+    BPMSG1209;
+    mode_configuration.command_error = YES;
+    return;
+  }
+
+  bp_disable_3v3_pullup();
+  bp_delay_ms(2);
+  bp_enable_adc();
+  bool has_voltage = (bp_read_adc(BP_ADC_VPU) > 0x100);
+  bp_disable_adc();
+  if (has_voltage) {
+    MSG_VOLTAGE_VPULLUP_ALREADY_PRESENT;
+    mode_configuration.command_error = YES;
+    return;
+  }
+
+  cmdstart = (cmdstart + 1) & CMDLENMSK;
+  consumewhitechars();
+  int temp = getint();
+  if (mode_configuration.command_error == YES) {
+    mode_configuration.command_error = NO;
+    BPMSG1271;
+    temp = getnumber(1, 1, 3, 0);
+  }
+
+  switch (temp) {
+  case 1:
+    bp_disable_3v3_pullup();
+    BPMSG1272;
+    BPMSG1274;
+    break;
+
+  case 2:
+    bp_enable_3v3_pullup();
+    BPMSG1173;
+    BPMSG1272;
+    BPMSG1273;
+    break;
+
+  case 3:
+    bp_enable_5v0_pullup();
+    BPMSG1171;
+    BPMSG1272;
+    BPMSG1273;
+    break;
+
+  default:
+    bp_disable_3v3_pullup();
+    BPMSG1272;
+    BPMSG1274;
+    break;
+  }
+}
+
+#endif /* BUSPIRATEV4 */
+
+void convert_value(const bool reversed) {
+  cmdstart = (cmdstart + 1) & CMDLENMSK;
+  consumewhitechars();
+  int value = getint();
+  if (mode_configuration.command_error) return;
+  if (reversed) {
+    value = bp_reverse_integer(value, mode_configuration.numbits);
+  }
+  bp_write_hex_byte(value);
+  MSG_BASE_CONVERTER_EQUAL_SIGN;
+  bp_write_dec_byte(value);
+  MSG_BASE_CONVERTER_EQUAL_SIGN;
+  bp_write_bin_byte(value);
+  bpBR;
+}
+
+void remove_current_character_from_command_line(void) {
+  uint16_t characters_to_move = 0;
+
+  /* @todo: use memmove here and send the whole buffer afterwards? */
+
+  for (size_t index = menu_state.cursor_position; index != cmdend;
+       index = (index + 1) & CMDLENMSK) {
+    /* Move right-hand character over their left-hand counterpart. */
+    cmdbuf[index] = cmdbuf[(index + 1) & CMDLENMSK];
+
+    /* Write the moved character. */
+    user_serial_transmit_character(cmdbuf[index] ?: ' ');
+
+    /* Update pointer. */
+    characters_to_move++;
+  }
+
+  /* Move the buffer end to its new position. */
+  cmdend = (cmdend - 1) & CMDLENMSK;
+
+  /* Move remote cursor. */
+  bp_write_string("\x1B[");
+  bp_write_dec_word(characters_to_move);
+  bp_write_string("D");
+}
+
+void handle_delete(void) {
+  if (menu_state.cursor_position == cmdend) {
+    /* There is no character after the end cursor to delete. */
+    user_serial_transmit_character(BELL);
+    return;
+  }
+
+  /* Cursor in the middle of the line. */
+
+  /* Remove characters. */
+  remove_current_character_from_command_line();
+}
+
+void handle_backspace(void) {
+  if (menu_state.cursor_position == cmdstart) {
+    /* Cursor at the beginning of the line - nothing to handle. */
+    user_serial_transmit_character(BELL);
+    return;
+  }
+
+  if (menu_state.cursor_position == cmdend) {
+    /* Cursor at the end of the line - remove item. */
+
+    /* Update pointer. */
+    cmdend = (cmdend - 1) & CMDLENMSK;
+
+    /* Clear buffer segment. */
+    cmdbuf[cmdend] = 0x00;
+
+    /* Update cursor position. */
+    menu_state.cursor_position = cmdend;
+
+    /* Move remote cursor. */
+    MSG_DESTRUCTIVE_BACKSPACE;
+
+    return;
+  }
+
+  /* Cursor in the middle of the line. */
+
+  /* Move remote cursor. */
+  MSG_CURSOR_LEFT;
+
+  /* Update current pointer. */
+  menu_state.cursor_position = (menu_state.cursor_position - 1) & CMDLENMSK;
+
+  /* Remove characters. */
+  remove_current_character_from_command_line();
+}
+
+void handle_left_arrow(void) {
+#ifdef BP_ENABLE_SUMP_SUPPORT
+  if (menu_state.binary_mode_counter >= 5) {
+    enter_sump_mode();
+    reset_terminal_state();
+    cmdstart = cmdend;
+    cmdbuf[cmdend] = 0;
+    /* We resume inside the input loop, not at its outer prompt renderer. */
+    bp_write_string("HiZ>");
+    return;
+  }
+#endif /* BP_ENABLE_SUMP_SUPPORT */
+
+  menu_state.binary_mode_counter = 0;
+  if (menu_state.cursor_position != cmdstart) {
+    menu_state.cursor_position = (menu_state.cursor_position - 1) & CMDLENMSK;
+    MSG_CURSOR_LEFT;
+  } else {
+    user_serial_transmit_character(BELL);
+  }
+}
+
+void handle_right_arrow(void) {
+  if (menu_state.cursor_position == cmdend) {
+    user_serial_transmit_character(BELL);
+    return;
+  }
+  menu_state.cursor_position = (menu_state.cursor_position + 1) & CMDLENMSK;
+  MSG_CURSOR_RIGHT;
+}
+
+void refresh_mode_prompt(void) {
+  /* Clear line and carriage return. */
+  MSG_CLEAR_LINE_WITH_CR;
+
+  /* Write mode header. */
+  bp_write_string(bp_current_protocol()->name);
+#ifdef BP_ENABLE_BASIC_SUPPORT
+  if (bus_pirate_configuration.basic) {
+    BPMSG1084;
+  }
+#endif /* BP_ENABLE_BASIC_SUPPORT */
+  bp_write_string(">");
+}
+
+void refresh_command_line(const uint16_t start) {
+  /* Clear current command line. */
+  if (cmdstart != cmdend) {
+    while (cmdend != cmdstart) {
+      cmdbuf[cmdend] = 0x00;
+      cmdend = (cmdend - 1) & CMDLENMSK;
+    }
+
+    cmdbuf[cmdend] = 0x00;
+  }
+
+  uint16_t repeat = (start - 1) & CMDLENMSK;
+  uint16_t old_command_start = 0;
+  while (repeat != cmdend) {
+    if (!cmdbuf[repeat]) {
+      old_command_start = (repeat + 1) & CMDLENMSK;
+      break;
+    }
+    repeat = (repeat - 1) & CMDLENMSK;
+  }
+
+  refresh_mode_prompt();
+
+  /* Write old command line. */
+  for (repeat = old_command_start; repeat != start;
+       repeat = (repeat + 1) & CMDLENMSK) {
+    user_serial_transmit_character(cmdbuf[repeat]);
+    cmdbuf[cmdend] = cmdbuf[repeat];
+    cmdend = (cmdend + 1) & CMDLENMSK;
+  }
+  cmdbuf[cmdend] = 0x00;
+
+  menu_state.cursor_position = cmdend;
+}
+
+void handle_up_arrow(void) {
+  uint16_t history_entry_index = 0;
+  uint16_t character_offset;
+
+  for (character_offset = (cmdstart - 1) & CMDLENMSK;
+       character_offset != cmdend;
+       character_offset = (character_offset - 1) & CMDLENMSK) {
+
+    if (!cmdbuf[character_offset] &&
+        cmdbuf[(character_offset - 1) & CMDLENMSK]) {
+
+      /* Found an earlier history entry in the buffer. */
+
+      history_entry_index++;
+      if (history_entry_index > menu_state.history_entry_counter) {
+        menu_state.history_entry_counter++;
+
+        refresh_command_line(character_offset);
+        return;
+      }
+    }
+  }
+
+  /* First entry in the history list? */
+  if (character_offset == cmdend) {
+    user_serial_transmit_character(BELL);
+  }
+}
+
+void handle_down_arrow(void) {
+  uint16_t history_entry_index = 0;
+  uint16_t character_offset;
+
+  for (character_offset = (cmdstart - 1) & CMDLENMSK;
+       character_offset != cmdend;
+       character_offset = (character_offset - 1) & CMDLENMSK) {
+    if (!cmdbuf[character_offset] &&
+        cmdbuf[(character_offset - 1) & CMDLENMSK]) {
+
+      /* Found an earlier history entry in the buffer. */
+
+      history_entry_index++;
+      if (history_entry_index == (menu_state.history_entry_counter - 1)) {
+        menu_state.history_entry_counter--;
+        refresh_command_line(character_offset);
+        return;
+      }
+    }
+  }
+
+  if (character_offset != cmdend) {
+    return;
+  }
+
+  if (menu_state.history_entry_counter != 1) {
+    /* Top entry, send a beep. */
+    user_serial_transmit_character(BELL);
+    return;
+  }
+
+  refresh_mode_prompt();
+
+  /* Clear rest of buffer. */
+
+  while (cmdend != cmdstart) {
+    cmdbuf[cmdend] = 0x00;
+    cmdend = (cmdend - 1) & CMDLENMSK;
+  }
+  cmdbuf[cmdend] = 0x00;
+  menu_state.cursor_position = cmdend;
+  menu_state.history_entry_counter = 0;
+}
+
+void handle_home_key(void) {
+  if (menu_state.cursor_position == cmdstart) {
+    user_serial_transmit_character(BELL);
+  }
+
+  size_t repeat = (menu_state.cursor_position - cmdstart) & CMDLENMSK;
+  bp_write_string("\x1B[");
+  bp_write_dec_word(repeat);
+  bp_write_string("D");
+  menu_state.cursor_position = cmdstart;
+}
+
+void handle_end_key(void) {
+  if (menu_state.cursor_position == cmdend) {
+    user_serial_transmit_character(BELL);
+  }
+
+  size_t repeat = (cmdend - menu_state.cursor_position) & CMDLENMSK;
+  bp_write_string("\x1B[");
+  bp_write_dec_word(repeat);
+  bp_write_string("C");
+  menu_state.cursor_position = cmdend;
+}
+
+void handle_escape_key(void) {
+  menu_state.escape_state = 1;
+}
+
+static bool handle_escape_sequence(uint8_t character) {
+  uint8_t state = menu_state.escape_state;
+  menu_state.escape_state = 0;
+  if (state == 1) {
+    if (character == '[' || character == 'O') {
+      menu_state.escape_state = 2;
+      return true;
+    }
+    return false;
+  }
+  if (state == 2) {
+    switch (character) {
+    case 'A': handle_up_arrow(); return true;
+    case 'B': handle_down_arrow(); return true;
+    case 'C': handle_right_arrow(); return true;
+    case 'D': handle_left_arrow(); return true;
+    case 'H': handle_home_key(); return true;
+    case 'F': handle_end_key(); return true;
+    case '1': case '7': menu_state.escape_state = 3; return true;
+    case '4': case '8': menu_state.escape_state = 4; return true;
+    case '3': menu_state.escape_state = 5; return true;
+    default: return false;
+    }
+  }
+  if (character != '~') return false;
+  if (state == 3) handle_home_key();
+  else if (state == 4) handle_end_key();
+  else if (state == 5) handle_delete();
+  return true;
+}
+
+void handle_enter_key(void) {
+  menu_state.command_present = YES;
+  menu_state.history_entry_counter = 0;
+  cmdbuf[cmdend] = 0x00;
+  cmdend = (cmdend + 1) & CMDLENMSK;
+  menu_state.cursor_position = cmdend;
+  bpBR;
+}
+
+void handle_character(const uint8_t character) {
+  if ((((cmdend + 1) & CMDLENMSK) != cmdstart) && (character >= 0x20) &&
+      (character < 0x7F)) {
+
+    if (cmdend == menu_state.cursor_position) {
+      /* Append character. */
+      user_serial_transmit_character(character);
+      cmdbuf[cmdend] = character;
+      cmdend = (cmdend + 1) & CMDLENMSK;
+      cmdbuf[cmdend] = 0x00;
+      menu_state.cursor_position = cmdend;
+    } else {
+      /* Insert character. */
+      size_t repeat = (cmdend - menu_state.cursor_position) & CMDLENMSK;
+      bp_write_string("\x1B[");
+      bp_write_dec_word(repeat);
+      bp_write_string("C");
+      uint16_t offset = cmdend;
+      while (offset != ((menu_state.cursor_position - 1) & CMDLENMSK)) {
+        cmdbuf[(offset + 1) & CMDLENMSK] = cmdbuf[offset];
+        if (cmdbuf[offset]) {
+          user_serial_transmit_character(cmdbuf[offset]);
+          MSG_CURSOR_LEFT_TWO;
+        }
+        offset = (offset - 1) & CMDLENMSK;
+      }
+      user_serial_transmit_character(character);
+      cmdbuf[menu_state.cursor_position] = character;
+      menu_state.cursor_position = (menu_state.cursor_position + 1) & CMDLENMSK;
+      cmdend = (cmdend + 1) & CMDLENMSK;
+    }
+  } else {
+    user_serial_transmit_character(BELL);
+  }
+}
+
+void switch_psu_on(void) {
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
+
+  if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+    BPMSG1088;
+    return;
+  }
+
+  bp_enable_voltage_regulator();
+  bp_enable_adc();
+
+  /* Wait for VREG to come up.*/
+  bp_delay_ms(2);
+
+  if ((bp_read_adc(BP_ADC_3V3) > V33L) && (bp_read_adc(BP_ADC_5V0) > V5L)) {
+    /* Correct voltages read. */
+    MSG_POWER_SUPPLIES_ON;
+    bpBR;
+    bp_current_protocol()->setup_execute();
+    MSG_CLUTCH_ENGAGED;
+  } else {
+    bp_disable_voltage_regulator();
+    MSG_VREG_TOO_LOW;
+    MSG_POWER_SUPPLIES_OFF;
+    bpBR;
+  }
+
+  bp_disable_adc();
+}
+
+void switch_psu_off(void) {
+  if (bus_pirate_configuration.bus_mode == BP_HIZ) {
+    BPMSG1088;
+    return;
+  }
+
+  bp_current_protocol()->cleanup();
+  MSG_CLUTCH_DISENGAGED;
+  bp_disable_voltage_regulator();
+  MSG_POWER_SUPPLIES_OFF;
+  bpBR;
+}
+
+
+int bp_change_mode(int mode) {
+  if ((mode < 1) || (mode > ENABLED_PROTOCOLS_COUNT)) {
+    return -1;
+  }
+
+  bp_current_protocol()->cleanup();
+  bp_reset_board_state();
+  bus_pirate_configuration.bus_mode = mode - 1;
+
+  /*
+   * Run the new mode's setup phase with every prompt answering its default,
+   * so the same settings are applied that pressing ENTER through the
+   * interactive prompts would choose - without printing or blocking.
+   */
+  setup_defaults_mode = ON;
+  bp_current_protocol()->setup_prepare();
+  setup_defaults_mode = OFF;
+
+  mode_configuration.command_error = NO;
+
+  if (bus_pirate_configuration.bus_mode != BP_HIZ) {
+    bp_enable_mode_led();
+  }
+
+  bp_current_protocol()->setup_execute();
+
+  return 0;
+}

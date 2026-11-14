@@ -40,15 +40,15 @@
 #define BP_TERM_RX_RP 11
 
 // this is a different type of pin identifier used by the bitbang library
-#define AUX2 0b0000000000000001        // B0
-#define MOSI 0b0000000000000010        // B1
-#define CLK 0b0000000000000100         // B2
-#define MISO 0b0000000000001000        // B3
-#define CS 0b0000000000010000          // B4
-#define AUX0 0b0000000000100000        // B5
-#define SUMP_SPARE6 0b0000000001000000 // B6
-#define SUMP_SPARE7 0b0000000010000000 // B7
-#define AUX1 0b0000000100000000        // B8
+#define AUX2 0b0000000000000001        // RD0
+#define MOSI 0b0000000000000010        // RD1
+#define CLK 0b0000000000000100         // RD2
+#define MISO 0b0000000000001000        // RD3
+#define CS 0b0000000000010000          // RD4
+#define AUX0 0b0000000000100000        // RD5
+#define SUMP_SPARE6 0b0000000001000000 // RD6
+#define SUMP_SPARE7 0b0000000010000000 // RD7
+#define AUX1 0b0000000100000000        // RD8
 
 #define IOPOR PORTD
 #define IOLAT LATD
@@ -61,10 +61,16 @@
 #define BP_CLK PORTDbits.RD2
 #define BP_MISO PORTDbits.RD3
 #define BP_CS PORTDbits.RD4
-#define BP_AUX0 PORTDbits.RD5    // moved pin5 (AUX) to RB10
+#define BP_AUX0 PORTDbits.RD5    // pin 5 (AUX) is RD5
 #define BP_LEDMODE PORTBbits.RB8 // single MODE led on v2a
 #define BP_VREGEN PORTBbits.RB9  // single vreg enable pin on v2a
 #define BP_PULLUP PORTEbits.RE4  // Pull-up pin on V2a
+#define BP_VREGEN_LAT LATBbits.LATB9
+#define BP_PULLUP_LAT LATEbits.LATE4
+#define BP_LEDMODE_LAT LATBbits.LATB8
+#define BP_LEDUSB_LAT LATBbits.LATB10
+#define BP_PUVSEL33_LAT LATFbits.LATF4
+#define BP_PUVSEL50_LAT LATFbits.LATF5
 #define BP_PGD PORTBbits.RB7     // PGD pin on programming header
 
 // new in v4
@@ -72,6 +78,8 @@
 #define BP_BUTTON PORTCbits.RC14
 #define BP_AUX1 PORTDbits.RD8
 #define BP_AUX2 PORTDbits.RD0
+#define BP_AUX1_LAT LATDbits.LATD8
+#define BP_AUX2_LAT LATDbits.LATD0
 #define BP_EE_SDA PORTDbits.RD9
 #define BP_EE_SCL PORTDbits.RD10
 #define BP_EE_WP PORTDbits.RD11
@@ -169,28 +177,29 @@
 #define BP_AUX_RPIN BP_AUX0_RPIN
 #define BP_AUX_RPOUT BP_AUX0_RPOUT
 
-#define CFG_ADDR_UPPER 0x0001
-#define CFG_ADDR_0 0x57FA
-#define CFG_ADDR_1 0x57FC
-#define CFG_ADDR_2 0x57FE
+/* DS39897C 26.1, Table 26-1: 256KB part; CFG0/1/2 display CW3/2/1. */
+#define CFG_ADDR_UPPER 0x0002
+#define CFG_ADDR_0 0xABFA
+#define CFG_ADDR_1 0xABFC
+#define CFG_ADDR_2 0xABFE
 
 #define PIC_REV_A3 0x0001
 #define PIC_REV_A5 0x0003
 #define PIC_REV_A6 0x0004
 
 static inline void bp_enable_usb_led(void) {
+  BP_LEDUSB_LAT = ON;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB = ON;
 }
 
 static inline void bp_disable_usb_led(void) {
+  BP_LEDUSB_LAT = OFF;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB = OFF;
 }
 
 static inline void bp_toggle_usb_led(void) {
+  BP_LEDUSB_LAT ^= ON;
   BP_LEDUSB_DIR = OUTPUT;
-  BP_LEDUSB ^= ON;
 }
 
 static inline void bp_adc_pin_setup(void) {
@@ -203,13 +212,13 @@ static inline void bp_adc_pin_setup(void) {
 
 static inline void bp_enable_3v3_pullup(void) {
   BP_PUVSEL50_DIR = INPUT;
-  BP_PUVSEL33 = LOW;
+  BP_PUVSEL33_LAT = LOW;
   BP_PUVSEL33_DIR = OUTPUT;
 }
 
 static inline void bp_disable_3v3_pullup(void) {
   BP_PUVSEL50_DIR = INPUT;
-  BP_PUVSEL33 = LOW;
+  BP_PUVSEL33_LAT = LOW;
   BP_PUVSEL33_DIR = INPUT;
 }
 
@@ -223,7 +232,7 @@ static inline void bp_set_3v3_pullup_state(bool state) {
 
 static inline void bp_enable_5v0_pullup(void) {
   BP_PUVSEL33_DIR = INPUT;
-  BP_PUVSEL50 = LOW;
+  BP_PUVSEL50_LAT = LOW;
   BP_PUVSEL50_DIR = OUTPUT;
 }
 

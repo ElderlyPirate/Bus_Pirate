@@ -127,4 +127,7 @@ unsigned long bp_measure_frequency(void);
  */
 void bp_pwm_setup(void);
 
+/* Accepted board-reset ownership of AUX output and mode flag. */
+void bp_aux_pin_reset_state(void);
+
 #endif /* !BP_AUX_PIN_H */

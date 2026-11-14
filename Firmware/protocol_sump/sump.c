@@ -87,7 +87,7 @@ static void sump_stream_close(void) {
  * With additions taken from
  * http://dangerousprototypes.com/docs/The_Logic_Sniffer's_extended_SUMP_protocol
  *
- * @TODO: Add commands 0x0F, 0x9E, 0x9F from the extended SUMP protocol?
+ * @TODO: Add commands 0x9E, 0x9F from the extended SUMP protocol?
  * @TODO: Add "Set trigger configuration" command (0xC2, 0xC6, 0xCA, 0xCE).
  * @TODO: Implement continuous sampling.
  * @TODO: Remove sump_command_t.left and turn the structure into two separate
@@ -591,7 +591,7 @@ static void sump_disable_trigger(void);
  * Processes the given byte as a part of a SUMP command.
  *
  * @param[in] input_byte the byte to process.
- * @return true if a SUMP_RESET command was received, false otherwise.
+ * @return true for a terminal-exit request, false otherwise (including RESET).
  */
 static bool sump_handle_command_byte(uint8_t input_byte);
 
@@ -807,11 +807,10 @@ bool sump_handle_command_byte(unsigned char input_byte) {
       return false;
 
     /*
-     * The simulated-reset bytes leave SUMP: 0x0F is the reset byte the
-     * binary modes use, '#' is the terminal's reset command and '$' is
-     * the terminal's bootloader command - so tooling can leave SUMP and
-     * go straight to the bootloader.  SUMP has no protocol-level exit,
-     * so without these the board stays trapped until a power cycle.
+     * These simulated-reset aliases leave SUMP for HiZ and its banner.
+     * '$' here does NOT enter the bootloader: send a separate '$' at the
+     * terminal and answer its confirmation prompt to request that jump.
+     * The protocol's 0x00 RESET instead stays in SUMP.
      */
     case 0x0F:
     case '#':

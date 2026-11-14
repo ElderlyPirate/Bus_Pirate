@@ -1161,9 +1161,9 @@ static unsigned int sump_sample_words(uint16_t *dst, unsigned int words,
 }
 
 /*
- * The fast sampling loops.  Each samples the port and stores a raw 16-bit
- * word per sample; the timer sampler and the read-out convert those words
- * into host bytes.  The loops unroll in groups of four samples and use DEC
+ * The fast sampling loops store raw words, except the v3 2/4MHz loops
+ * which store pre-shifted bytes. The read-out converts them to host bytes.
+ * The unrolled loops use DEC
  * + BRA NZ for termination (Z is unambiguous and MOV/NOP do not touch it);
  * SUMP exchanges sample counts in groups of four, so the counts are
  * always a multiple of four.  Cycle counts are noted per instruction.
@@ -1257,7 +1257,7 @@ static void sump_fast_capture_2mhz(uint16_t *buffer, unsigned int samples) {
 static void sump_fast_capture_4mhz(uint8_t *buffer, unsigned int samples) {
   /* 4MHz: four cycles per sample, one byte per sample, pre-shifted into
      its five channel bits.  Four samples per pass, taken at cycles 0, 3,
-     7 and 10 (the documented one-cycle jitter, exact long term). */
+     7 and 10: intervals 3/4/3/6 cycles, mean 4, up to two cycles of jitter. */
   asm("MOV %0, W8" : : "g"(buffer) : "w4", "w5", "w7", "w8");
   asm("MOV %0, W7" : : "g"(samples));
   asm("MOV #0x02CA, W5");

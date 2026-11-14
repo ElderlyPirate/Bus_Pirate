@@ -2024,6 +2024,8 @@ void handle_left_arrow(void) {
     reset_terminal_state();
     cmdstart = cmdend;
     cmdbuf[cmdend] = 0;
+    /* We resume inside the input loop, not at its outer prompt renderer. */
+    bp_write_string("HiZ>");
     return;
   }
 #endif /* BP_ENABLE_SUMP_SUPPORT */

@@ -984,10 +984,10 @@ bool sump_handle_command_byte(unsigned char input_byte) {
       /*
        * Read the 24-bit divider value (x): SUMP asks for a rate of
        * 100MHz / (x + 1), and the timer flag fires every PR + 1 ticks at
-       * 16 MIPs, so PR = (x + 1) * 16 / 100 - 1.  The reference
-       * enhancement uses x * 4 / 25 for this, which is the same value
-       * (the -1 is folded into its truncation); keep it exact like that,
-       * so e.g. 1MHz comes out as PR = 15 -> 16MHz / 16 = 1.000 MHz.
+       * 16 MIPs. Retain the reference enhancement's integer quantizer
+       * PR = floor(x * 4 / 25). It is not an algebraic identity for all
+       * dividers: rates are quantized, not universally exact. The nominal
+       * 1MHz point x=99 is exact: PR=15 -> 16MHz / 16 = 1.000MHz.
        */
       period = (((uint32_t)command_buffer.bytes[3] << 16) +
                 ((uint32_t)command_buffer.bytes[2] << 8) +

@@ -585,6 +585,7 @@ static bool sump_acquire_samples(void);
  * Resets the device to start another buffer acquisition.
  */
 static void sump_reset(void);
+static void sump_disable_trigger(void);
 
 /**
  * Processes the given byte as a part of a SUMP command.
@@ -697,11 +698,11 @@ void sump_reset(void) {
 /**
  * Applies the change-notification inputs for the current trigger mask.
  *
- * Called when SUMP_TRIG configures a capture, and again when the timer
- * sampler arms, because the warm-up phase disables them (see
- * sump_disable_trigger()) so a busy input cannot disturb its pacing.
+ * Called only when acquisition enters the trigger wait, never while
+ * configuring the mask or collecting the pre-trigger warm-up samples.
  */
 static void sump_apply_trigger(void) {
+  sump_disable_trigger();
 #ifdef BUSPIRATEV4
 #ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
   //AUX1 on PORTD:8 will be moved in firmware to B7 of SUMP byte
@@ -735,6 +736,9 @@ static void sump_apply_trigger(void) {
   if (sump_trigger_mask & 0b00000001)
     CNEN2 |= 0b0000000100000000; // CS
 #endif
+  /* Establish the input reference before accepting a new change notice. */
+  (void)BP_SUMP_READ_PROBE();
+  IFS1bits.CNIF = OFF;
 }
 
 /**
@@ -746,8 +750,6 @@ static void sump_apply_trigger(void) {
  * which slows the post-trigger sampling down.
  */
 static void sump_disable_trigger(void) {
-  IFS1bits.CNIF = OFF;
-
 #ifdef BUSPIRATEV4
   CNEN1 &= 0b1001111111111110;
 #ifdef BPv4_SUMP_SOFT_WIRE // See hardwarev4.h
@@ -759,6 +761,8 @@ static void sump_disable_trigger(void) {
 #else
   CNEN2 = 0;
 #endif
+  (void)BP_SUMP_READ_PROBE();
+  IFS1bits.CNIF = OFF;
 }
 
 bool sump_handle_command_byte(unsigned char input_byte) {
@@ -897,9 +901,9 @@ bool sump_handle_command_byte(unsigned char input_byte) {
     switch (command_buffer.bytes[0]) {
     /* Set triggers. */
     case SUMP_TRIG:
+      sump_disable_trigger();
       trigger_armed = false;
       sump_trigger_mask = command_buffer.bytes[1];
-      sump_apply_trigger();
 
 #ifdef BUSPIRATEV4
       if (sump_trigger_mask & 0b10111111) {
@@ -1296,7 +1300,7 @@ static void sump_fast_capture_2mhz(uint8_t *buffer, unsigned int samples) {
 static bool sump_wait_for_fast_trigger(void) {
   unsigned int poll = 0;
 
-  IFS1bits.CNIF = OFF;
+  sump_apply_trigger();
 
   while (!IFS1bits.CNIF) {
     /* Do not poll the host on every pass: that would spin the wait. */
@@ -1305,6 +1309,7 @@ static bool sump_wait_for_fast_trigger(void) {
     }
   }
 
+  sump_disable_trigger();
   return true;
 }
 
@@ -1645,7 +1650,6 @@ bool sump_acquire_samples(void) {
           if (written >= pre_trigger) {
             armed = true;
             sump_apply_trigger();
-            IFS1bits.CNIF = OFF;
           }
         } else if (!triggered && IFS1bits.CNIF) {
           triggered = true;

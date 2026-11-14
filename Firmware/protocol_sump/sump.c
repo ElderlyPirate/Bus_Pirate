@@ -511,7 +511,7 @@ static unsigned int samples_to_acquire;
  * How many samples the host requested in the last SUMP_CNT command.  The
  * host reads exactly this many sample bytes back.
  */
-static unsigned int samples_requested;
+static uint32_t samples_requested;
 
 /**
  * How many samples after the trigger must fall inside the captured window
@@ -930,7 +930,7 @@ bool sump_handle_command_byte(unsigned char input_byte) {
                      1) *
                     4;
 
-      samples_requested = (unsigned int)read_count;
+      samples_requested = read_count;
 
       /*
        * Pick the storage format for the requested capture size: the
@@ -1318,14 +1318,15 @@ static bool sump_wait_for_fast_trigger(void) {
  * oldest edge of a full-size window) carry no data bits, only the
  * alternating pattern in the unrecorded channels.
  */
-static void sump_transmit_fast(unsigned int samples, unsigned int requested,
+static void sump_transmit_fast(unsigned int samples, uint32_t requested,
                                uint8_t mask, bool word_samples) {
   uint8_t pattern = 0x55;
   unsigned int index;
+  uint32_t padding;
 
   SUMP_STREAM_OPEN();
 
-  for (index = samples; index < requested; index++) {
+  for (padding = samples; padding < requested; padding++) {
     SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
@@ -1357,7 +1358,7 @@ static void sump_transmit_fast(unsigned int samples, unsigned int requested,
  * stored byte per sample), newest sample first.  See
  * sump_transmit_fast() for the padding rules.
  */
-static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
+static void sump_transmit_bytes(unsigned int samples, uint32_t requested,
                                 uint32_t end_index, uint32_t written,
                                 uint8_t mask) {
   const uint8_t *buffer = bus_pirate_configuration.terminal_input;
@@ -1367,10 +1368,11 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
   unsigned int slot = (unsigned int)(last % BP_SUMP_SAMPLE_MEMORY_SIZE);
   uint8_t pattern = 0x55;
   unsigned int index;
+  uint32_t padding;
 
   SUMP_STREAM_OPEN();
 
-  for (index = samples; index < requested; index++) {
+  for (padding = samples; padding < requested; padding++) {
     SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
@@ -1407,7 +1409,7 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
  * @param shift bit shift between consecutive samples in a word.
  * @param mask channel bits recorded in each sample.
  */
-static void sump_transmit_packed(unsigned int samples, unsigned int requested,
+static void sump_transmit_packed(unsigned int samples, uint32_t requested,
                                  uint32_t end_index, uint32_t written,
                                  unsigned int per_word, unsigned char shift,
                                  uint8_t mask) {
@@ -1424,10 +1426,11 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
   uint16_t packed = buffer[slot];
   uint8_t pattern = 0x55;
   unsigned int index;
+  uint32_t padding;
 
   SUMP_STREAM_OPEN();
 
-  for (index = samples; index < requested; index++) {
+  for (padding = samples; padding < requested; padding++) {
     SUMP_STREAM_BYTE(pattern);
     pattern ^= 0xFF;
   }
@@ -1467,7 +1470,7 @@ bool sump_acquire_samples(void) {
      set straight off the port; slower rates pack samples into 16-bit
      words and may record fewer channels to stretch the buffer. */
   unsigned int samples = samples_to_acquire;
-  unsigned int requested = samples_requested;
+  uint32_t requested = samples_requested;
   uint8_t mask = sump_channel_mask;
 
   if (sump_go_fast) {

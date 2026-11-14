@@ -1561,6 +1561,7 @@ bool sump_acquire_samples(void) {
     unsigned int pre_trigger;
     unsigned int capacity = (per_word == 1) ? BP_SUMP_SAMPLE_MEMORY_SIZE
                                           : BP_SUMP_STORAGE_WORDS;
+    uint32_t ring_samples = (uint32_t)capacity * per_word;
     uint32_t written = 0;    /* samples taken so far */
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
     uint32_t end_index = 0;  /* one past the newest sample of the window */
@@ -1596,6 +1597,12 @@ bool sump_acquire_samples(void) {
     }
 
     for (;;) {
+      /* A trigger wait may outlive the 32-bit sample counter. Rebase by
+         whole ring revolutions before wrap, retaining a full history and
+         the same slot/word phase. No trigger/end index exists yet. */
+      if (trigger_armed && !triggered && written >= 0xffff0000UL) {
+        written = ring_samples + written % ring_samples;
+      }
       /* Fragment size.  Sampling inside a fragment is tick-exact; the
          per-fragment bookkeeping is not, so it is amortised over about
          4ms worth of samples (fewer than one burst per capture in most

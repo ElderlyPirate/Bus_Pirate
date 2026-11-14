@@ -60,6 +60,8 @@ static uint8_t output[300000], cdc[64];
 static unsigned output_len, cdc_len, locked, samples_written, sample_calls;
 static unsigned abort_calls, ready_calls, max_chunk, event_sample;
 static uint32_t now_us;
+static uint32_t fixture_epoch, fixture_event_after;
+static uint64_t fixture_taken, fixture_trigger_taken;
 static bool user_serial_ready_to_read(void) {
     ++ready_calls;
     return abort_calls && sample_calls>=abort_calls;
@@ -100,13 +102,17 @@ static void checked_span(void *p,unsigned n) {
     if(n>max_chunk) max_chunk=n;
 }
 static void trigger_event(void) {
-    if(event_sample && samples_written>=event_sample && (CNEN1|CNEN2|CNEN4))
+    bool due=fixture_event_after ? fixture_taken>=fixture_event_after : event_sample && samples_written>=event_sample;
+    if(due && (CNEN1|CNEN2|CNEN4)) {
+        if(!fixture_trigger_taken) fixture_trigger_taken=fixture_taken;
         IFS1bits.CNIF=1;
+    }
 }
 static uint16_t sump_sample_bytes(uint8_t *p,uint16_t n) {
     checked_span(p,n); unsigned done=0;
     while(done<n) {
         p[done++]=sample_value(samples_written++);
+        ++fixture_taken;
         trigger_event(); if(IFS1bits.CNIF) break;
     }
     return done;
@@ -115,7 +121,7 @@ static uint16_t sump_sample_words(uint16_t *p,uint16_t n,uint16_t per,uint16_t s
     checked_span(p,n*2u); unsigned done=0;
     while(done<n) {
         uint16_t v=0;
-        for(unsigned j=0;j<per;++j) v=(uint16_t)((v<<shift)|(sample_value(samples_written++)&mask));
+        for(unsigned j=0;j<per;++j) { v=(uint16_t)((v<<shift)|(sample_value(samples_written++)&mask));++fixture_taken; }
         p[done++]=v; trigger_event(); if(IFS1bits.CNIF) break;
     }
     return done;
@@ -147,6 +153,7 @@ TEST = r'''
 static void clean(void) {
     memset(&arena,0xa5,sizeof(arena)); output_len=cdc_len=locked=0;
     samples_written=sample_calls=ready_calls=max_chunk=abort_calls=event_sample=0;
+    fixture_epoch=fixture_event_after=0;fixture_taken=fixture_trigger_taken=0;
     CNEN1=CNEN2=CNEN4=0; IFS1bits.CNIF=0; command_processor_state=RX_COMMAND_IDLE;
     now_us+=2000000u; sump_reset();
 }
@@ -270,6 +277,39 @@ static void led_matrix(void) {
     require(BP_LEDMODE==0x5aa5&&BP_LEDMODE_LAT,"RUN LED must use latch");
     puts("PASS MODE LED writes use LAT, not PORT read/modify/write");
 }
+static void rollover_matrix(void) {
+    unsigned checks=0;
+    const unsigned formats[]={1,4,8,16};
+    for(unsigned f=0;f<4;++f) {
+        unsigned per=formats[f],cap=BUFFER_SIZE/(per==1?1:2),n=cap*per;
+        for(unsigned side=0;side<2;++side)
+        for(unsigned d=0;d<3;++d) {
+            unsigned delay=d==0?4:d==1?n/2:n;
+            clean();
+            command(0x81,((uint32_t)(delay/4-1)<<16)|(n/4-1));
+            require(sump_samples_per_word==per,"rollover format setup");
+            command(0x80,99);command(0xc0,1);
+            uint8_t mask=sump_channel_mask;
+            fixture_epoch=0u-2u*n;
+            samples_written=fixture_epoch;
+            fixture_event_after=side?2u*n+47u:2u*n-47u;
+            sump_handle_command_byte(1);sump_acquire_samples();
+            require(fixture_taken>=fixture_trigger_taken+delay,"counter wrap ended post-trigger capture prematurely");
+            require(output_len==n,"rollover host count");
+            uint64_t written=(uint64_t)fixture_epoch+fixture_taken;
+            uint64_t end=(uint64_t)fixture_epoch+fixture_trigger_taken+delay;
+            uint64_t oldest=((written+per-1)/per)*per-n;
+            for(unsigned i=0;i<n;++i) {
+                uint64_t absolute=end-1-i;
+                uint8_t pattern=i%2?0xaa:0x55;
+                uint8_t expected=(pattern&~mask)|(absolute<oldest?0:sample_value((uint32_t)absolute)&mask);
+                require(output[i]==expected,"counter rollover readout/history/overwritten-word trim");
+            }
+            ++checks;
+        }
+    }
+    printf("PASS %u production captures with seeded32-bit rollover, before/after trigger, all formats and delays\n",checks);
+}
 int main(int argc,char **argv) {
     require(argc==2,"case required");
     if(!strcmp(argv[1],"capacity")) capacity_matrix();
@@ -279,6 +319,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"trigger")) trigger_matrix();
     else if(!strcmp(argv[1],"timer")) timer_matrix();
     else if(!strcmp(argv[1],"led")) led_matrix();
+    else if(!strcmp(argv[1],"rollover")) rollover_matrix();
     else return 2;
     return 0;
 }
@@ -288,7 +329,7 @@ int main(int argc,char **argv) {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--revision')
-    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led'])
+    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover'])
     args = parser.parse_args()
     path = 'Firmware/protocol_sump/sump.c'
     source = (subprocess.check_output(['git', 'show', args.revision + ':' + path], cwd=ROOT).decode()
@@ -298,7 +339,12 @@ def main():
     prefix = re.sub(r'^#include[^\n]*\n', '', prefix, flags=re.M)
     funcs = ['sump_wait_for_fast_trigger', 'sump_transmit_fast', 'sump_transmit_bytes',
              'sump_transmit_packed', 'sump_acquire_samples']
-    body = prefix + SAMPLERS + '\n'.join(function(source, name) for name in funcs)
+    parts=[function(source,name) for name in funcs]
+    # Seed only the local initial count to reach a multi-billion-sample boundary
+    # without spending an hour on a bench; execute the production loop unchanged.
+    assert parts[-1].count('uint32_t written = 0;')==1
+    parts[-1]=parts[-1].replace('uint32_t written = 0;','uint32_t written = fixture_epoch;')
+    body = prefix + SAMPLERS + '\n'.join(parts)
     failures = 0
     for board in ('V3', 'V4'):
         for size in (2048, 4096):
@@ -310,7 +356,7 @@ def main():
                             '-Wno-unused-variable', '-Wno-implicit-fallthrough',
                             '-DBUSPIRATE' + board, '-DBPv4_SUMP_SOFT_WIRE', '-DBUFFER_SIZE=' + str(size),
                             str(c), '-o', str(exe)], check=True)
-            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led']):
+            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover']):
                 print(board, size, case, flush=True)
                 result = subprocess.run([str(exe), case], timeout=20)
                 failures += result.returncode != 0

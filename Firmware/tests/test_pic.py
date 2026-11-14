@@ -1,17 +1,20 @@
-"""Native checks for the PIC ICSP bit engine (no board I/O).
+"""Native checks for the PIC ICSP mode (no board I/O).
 
-Compiles the extracted `read_bits`/`write_bits` from Firmware/pic.c against
-stub pin primitives, so the two historical failures are pinned without a
-board or a scope:
+Compiles functions extracted from Firmware/programmer_pic/pic.c against
+stub primitives, so the accepted findings are pinned without a board or a
+scope:
 
-  * `read_bits` must assemble the sampled stream LSB-first.  The audit
-    finding P1 was a shift count of `1 << (bits - 1)` (8192 for the 14-bit
-    device-ID read) instead of `bits - 1`; per DS70000157G "SL" a shift
+  * `read_bits` must assemble the sampled stream LSB-first.  Audit finding
+    P1 was a shift count of `1 << (bits - 1)` (8192 for the 14-bit
+    device-ID read) instead of `bits - 1`; per DS70000157G SL, a shift
     count above 15 loads the destination with 0, so every device-ID read
     returned 0x0000/0x00.
   * `write_bits` must clock out exactly `bits` data bits, LSB-first, from a
     16-bit mask.  The mask used to be `uint8_t`, so bits 8..13/14 of a
     14/16-bit transfer wrapped to 0 and were sent as 1.
+  * CO-8a: the static mode state must return to the data state on
+    setup/cleanup, or a command-state exit leaks into re-entry and
+    pic_read() refuses to read.
 
 Run directly (like the sibling tests):  python Firmware/tests/test_pic.py
 """
@@ -43,6 +46,8 @@ def extract(name, signature):
 
 read_bits = extract("read_bits", "uint16_t read_bits(const uint8_t bits)")
 write_bits = extract("write_bits", "void write_bits(const uint16_t data, const uint8_t bits)")
+reset_state = extract("pic_reset_mode_state", "void pic_reset_mode_state(void)")
+cleanup = extract("pic_cleanup", "void pic_cleanup(void)")
 
 (OUT / "test.c").write_text(r'''
 #include <assert.h>
@@ -54,6 +59,24 @@ write_bits = extract("write_bits", "void write_bits(const uint16_t data, const u
 #define MOSI 0x01
 #define HIGH 1
 #define PIC_PIN_DELAY 100
+
+/* Mode-state mirror (same fields the source uses). */
+#define PIC_MODE_6BITS 0
+#define PIC_MODE_4BITS 1
+#define PIC_MODE_DATA 0
+#define PIC_MODE_COMMAND 1
+#define YES 1
+#define NO 0
+
+typedef struct {
+    uint8_t opcode_bits : 1;
+    uint8_t delay : 2;
+    uint8_t mode : 1;
+    uint8_t reserved : 4;
+} pic_mode_t;
+static pic_mode_t mode_info;
+typedef struct { unsigned numbits; unsigned int16; } mode_configuration_t;
+static mode_configuration_t mode_configuration;
 
 /* read_bits scripts: the value bitbang_read_pin() returns, in call order. */
 static int read_queue[64];
@@ -71,7 +94,8 @@ void bitbang_set_pins(int high, int pin, int delay) {
 }
 void bitbang_set_pins_high(int pins, int delay) { (void)pins; (void)delay; }
 void bitbang_set_pins_low(int pins, int delay) { (void)pins; (void)delay; }
-''' + read_bits + "\n" + write_bits + r'''
+
+''' + read_bits + "\n" + write_bits + "\n" + reset_state + "\n" + cleanup + r'''
 
 int main(void) {
     unsigned checks = 0;
@@ -122,7 +146,19 @@ int main(void) {
     assert(half_period_ok);
     checks += 3;
 
-    puts("PIC bit engine: LSB-first reads and a 16-bit write mask PASS");
+    /* CO-8a: a command-state exit must return to the data state, and
+       cleanup must leave it there. */
+    mode_info.mode = PIC_MODE_COMMAND;
+    pic_reset_mode_state();
+    assert(mode_info.mode == PIC_MODE_DATA);
+    mode_info.mode = PIC_MODE_COMMAND;
+    mode_configuration.int16 = YES;
+    pic_cleanup();
+    assert(mode_info.mode == PIC_MODE_DATA);
+    assert(mode_configuration.int16 == NO);
+    checks += 3;
+
+    puts("PIC mode: LSB-first reads, 16-bit mask and CO-8a state PASS");
     printf("%u checks\n", checks);
     return 0;
 }

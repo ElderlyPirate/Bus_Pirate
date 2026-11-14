@@ -104,6 +104,16 @@ extern mode_configuration_t mode_configuration;
 static pic_mode_t mode_info = {0};
 
 /**
+ * Resets the persistent mode state to the neutral data state.
+ *
+ * The mode state is static.  Without this, a session that leaves PIC mode
+ * from the command state (pic_start()) re-enters still in command state:
+ * pic_read() then refuses to read and pic_write() sends 6/4-bit commands
+ * instead of 14/16-bit data (CO-8a).
+ */
+static void pic_reset_mode_state(void);
+
+/**
  * Writes a null byte to the bus.
  */
 static void write_zero(void);
@@ -129,7 +139,10 @@ static void write_bits(const uint16_t data, const uint8_t bits);
  */
 static uint16_t read_bits(const uint8_t bits);
 
+static void pic_reset_mode_state(void) { mode_info.mode = PIC_MODE_DATA; }
+
 void pic_setup_prepare(void) {
+  pic_reset_mode_state();
   consumewhitechars();
   int mode = getint();
   consumewhitechars();
@@ -164,7 +177,10 @@ void pic_setup_prepare(void) {
 
 void pic_setup_execute(void) { mode_configuration.int16 = YES; }
 
-void pic_cleanup(void) { mode_configuration.int16 = NO; }
+void pic_cleanup(void) {
+  pic_reset_mode_state();
+  mode_configuration.int16 = NO;
+}
 
 void pic_start(void) {
   mode_info.mode = PIC_MODE_COMMAND;

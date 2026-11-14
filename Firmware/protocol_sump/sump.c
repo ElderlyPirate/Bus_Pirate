@@ -329,6 +329,7 @@ static void sump_stream_close(void) {
  * How much memory is allocated for samples, in bytes.
  */
 #define BP_SUMP_SAMPLE_MEMORY_SIZE BP_TERMINAL_BUFFER_SIZE
+#define BP_SUMP_STORAGE_WORDS (BP_SUMP_SAMPLE_MEMORY_SIZE / sizeof(uint16_t))
 
 /**
  * The highest sample rate for the Bus Pirate to sample data at, in Hz.
@@ -394,7 +395,7 @@ static const uint8_t SUMP_METADATA[] = {
 #error "Invalid or unknown Bus Pirate version!"
 #endif /* BUSPIRATEV4 || BUSPIRATEV3 */
 
-    /* Sample memory (4096 bytes). */
+    /* Sample memory, in bytes (board/build dependent). */
 
     SUMP_METADATA_SAMPLE_MEMORY_AVAILABLE,
     (uint8_t)((uint32_t)BP_SUMP_SAMPLE_MEMORY_SIZE >> 24),
@@ -933,28 +934,27 @@ bool sump_handle_command_byte(unsigned char input_byte) {
 
       /*
        * Pick the storage format for the requested capture size: the
-       * sample buffer holds 4096 bytes (2048 packed words), so larger
-       * captures drop channels to fit - 8k samples keep four channels,
-       * 16k keep two and a full 32k capture keeps one.  This mirrors the
-       * enhanced logic analyzer's capture sizes (2k/4k/8k/16k/32k).
+       * byte and word capacities follow the actual shared allocation.
+       * With 4096 bytes the packed tiers hold 8k/16k/32k samples; a
+       * 2048-byte build holds half as many at the same channel widths.
        */
-      if (read_count >= 16ul * 2048ul) {
-        samples_to_acquire = 32768;
+      if (read_count >= 16ul * BP_SUMP_STORAGE_WORDS) {
+        samples_to_acquire = 16u * BP_SUMP_STORAGE_WORDS;
         sump_samples_per_word = 16;
         sump_pack_shift = 1;
         sump_channel_mask = 0x01;
-      } else if (read_count >= 8ul * 2048ul) {
-        samples_to_acquire = 16384;
+      } else if (read_count >= 8ul * BP_SUMP_STORAGE_WORDS) {
+        samples_to_acquire = 8u * BP_SUMP_STORAGE_WORDS;
         sump_samples_per_word = 8;
         sump_pack_shift = 2;
         sump_channel_mask = 0x03;
-      } else if (read_count >= 4ul * 2048ul) {
-        samples_to_acquire = 8192;
+      } else if (read_count >= 4ul * BP_SUMP_STORAGE_WORDS) {
+        samples_to_acquire = 4u * BP_SUMP_STORAGE_WORDS;
         sump_samples_per_word = 4;
         sump_pack_shift = 4;
         sump_channel_mask = 0x0F;
-      } else if (read_count >= 2048ul * 2ul) {
-        samples_to_acquire = 4096;
+      } else if (read_count >= BP_SUMP_SAMPLE_MEMORY_SIZE) {
+        samples_to_acquire = BP_SUMP_SAMPLE_MEMORY_SIZE;
         sump_samples_per_word = 1; /* one sample per stored byte */
         sump_pack_shift = 8;
         sump_channel_mask = BP_SUMP_SAMPLE_MASK;
@@ -1361,9 +1361,10 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
                                 uint32_t end_index, uint32_t written,
                                 uint8_t mask) {
   const uint8_t *buffer = bus_pirate_configuration.terminal_input;
-  uint32_t floor = (written > 4096u) ? (written - 4096u) : 0u;
+  uint32_t floor = (written > BP_SUMP_SAMPLE_MEMORY_SIZE)
+                       ? (written - BP_SUMP_SAMPLE_MEMORY_SIZE) : 0u;
   uint32_t last = end_index - 1u; /* the newest sample of the window */
-  unsigned int slot = (unsigned int)(last % 4096u);
+  unsigned int slot = (unsigned int)(last % BP_SUMP_SAMPLE_MEMORY_SIZE);
   uint8_t pattern = 0x55;
   unsigned int index;
 
@@ -1385,7 +1386,7 @@ static void sump_transmit_bytes(unsigned int samples, unsigned int requested,
     }
 
     pattern ^= 0xFF;
-    slot = (slot == 0) ? 4095 : slot - 1;
+    slot = (slot == 0) ? BP_SUMP_SAMPLE_MEMORY_SIZE - 1u : slot - 1u;
   }
 
   SUMP_STREAM_CLOSE();
@@ -1413,9 +1414,10 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
   const uint16_t *buffer =
       (const uint16_t *)bus_pirate_configuration.terminal_input;
   uint32_t words = (written + per_word - 1) / per_word;
-  uint32_t floor = (words > 2048u) ? (words - 2048u) * per_word : 0u;
+  uint32_t floor = (words > BP_SUMP_STORAGE_WORDS)
+                       ? (words - BP_SUMP_STORAGE_WORDS) * per_word : 0u;
   uint32_t last = end_index - 1u; /* the newest sample of the window */
-  unsigned int slot = (unsigned int)((last / per_word) % 2048u);
+  unsigned int slot = (unsigned int)((last / per_word) % BP_SUMP_STORAGE_WORDS);
   /* The newest sample of a word is the one packed last, i.e. at the low
      bits; up to a word of overshoot may sit below it. */
   unsigned int bitpos = (per_word - 1u - (unsigned int)(last % per_word)) * shift;
@@ -1447,7 +1449,7 @@ static void sump_transmit_packed(unsigned int samples, unsigned int requested,
     bitpos += shift;
     if (bitpos >= per_word * shift) {
       bitpos = 0;
-      slot = (slot == 0) ? 2047 : slot - 1;
+      slot = (slot == 0) ? BP_SUMP_STORAGE_WORDS - 1u : slot - 1u;
       packed = buffer[slot];
     }
   }
@@ -1476,10 +1478,11 @@ bool sump_acquire_samples(void) {
 #endif
 
 #ifdef BUSPIRATEV4
-    capacity = 2048; /* one 16-bit word per sample */
+    capacity = BP_SUMP_STORAGE_WORDS; /* one 16-bit word per sample */
 #else
     /* 2/4MHz store one byte per sample; 8/16MHz one word. */
-    capacity = (sump_go_fast >= 3) ? 2048 : 4096;
+    capacity = (sump_go_fast >= 3) ? BP_SUMP_STORAGE_WORDS
+                                 : BP_SUMP_SAMPLE_MEMORY_SIZE;
 #endif
     if (samples > capacity) {
       samples = capacity;
@@ -1546,7 +1549,8 @@ bool sump_acquire_samples(void) {
     unsigned char shift = sump_pack_shift;
     unsigned int delay = trigger_delay_samples;
     unsigned int pre_trigger;
-    unsigned int capacity = (per_word == 1) ? 4096u : 2048u;
+    unsigned int capacity = (per_word == 1) ? BP_SUMP_SAMPLE_MEMORY_SIZE
+                                          : BP_SUMP_STORAGE_WORDS;
     uint32_t written = 0;    /* samples taken so far */
     uint32_t trigger_at = 0; /* sample count when the trigger fired */
     uint32_t end_index = 0;  /* one past the newest sample of the window */

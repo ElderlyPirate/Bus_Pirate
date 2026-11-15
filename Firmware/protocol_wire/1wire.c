@@ -1381,13 +1381,17 @@ bool onewire_internal_bit_io(bool bit_value) {
     delay_short_inline(6);
   } else {
     /*
-     * Measured overdrive low settles around 1.2 us with the inlined
-     * delay: inside the AN126 window (1 min / 1.5 recommended / 1.85 max)
-     * and before the 2 us point where the slave samples write bits, so a
-     * write 1 releases in time.  The pre-inline ~2.4 us sat above the
-     * AN126 maximum and exactly on the slave's sample point.
+     * AN126 overdrive A: 1.0 us minimum, 1.5 recommended, 1.85 maximum.
+     * One 0.5 us timer tick plus loop jitter measured 0.8..1.2 us on the
+     * scope, so the low end fell below the minimum; two ticks measured
+     * 2.0..2.8 us and exceeded the maximum.  One tick plus four NOPs adds
+     * ~0.25 us, putting the pulse at ~1.2..1.6 us inside the window.
      */
     delay_short_inline(1);
+    Nop();
+    Nop();
+    Nop();
+    Nop();
   }
   if (bit_value) {
     ONEWIRE_DATA_DIRECTION = INPUT;

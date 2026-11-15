@@ -1231,6 +1231,16 @@ void binary_io_enter_1wire_mode(void) {
 
   mode_configuration.high_impedance = true;
 
+  /*
+   * The binary protocol has its own 0x2s speed command; do not inherit the
+   * speed of a previous terminal session.  Without this, a terminal `O`
+   * (overdrive) followed by entry into 1W01 would run every reset and bit
+   * slot at overdrive timing until the host happened to send 0x20, which
+   * is observable on the wire and not part of the binary entry contract.
+   */
+  mode_configuration.speed = 0;
+  mode_configuration.numbits = 8;
+
   /* Just in case. */
 
   mode_configuration.little_endian = NO;

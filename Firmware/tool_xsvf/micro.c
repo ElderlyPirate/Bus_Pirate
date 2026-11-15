@@ -1210,6 +1210,21 @@ int xsvfDoXSDRSIZE( SXsvfInfo* pXsvfInfo )
     iErrorCode  = XSVF_ERROR_NONE;
     readVal( &(pXsvfInfo->lvTdi), 4 );
     pXsvfInfo->lShiftLengthBits = value( &(pXsvfInfo->lvTdi) );
+
+    /* xsvfGetAsNumBytes() returns a short: a large 32-bit XSDRSIZE (say
+       0x7FFFFFFF) overflowed the +7 in its (bits+7)/8, narrowed to a tiny
+       byte count, and slipped past the MAX_LEN check below - xsvfShiftOnly()
+       then walked past the lenVal buffers for the full (untruncated) bit
+       count.  Validate the bit count against the buffer capacity before
+       narrowing, so the shift length and the stored lenVals always agree. */
+    if ( pXsvfInfo->lShiftLengthBits < 0 ||
+         pXsvfInfo->lShiftLengthBits > (long)( MAX_LEN * 8 ) )
+    {
+        iErrorCode  = XSVF_ERROR_DATAOVERFLOW;
+        pXsvfInfo->iErrorCode   = iErrorCode;
+        return( iErrorCode );
+    }
+
     pXsvfInfo->sShiftLengthBytes= xsvfGetAsNumBytes( pXsvfInfo->lShiftLengthBits );
     XSVFDBG_PRINTF1( 3, "   XSDRSIZE = %ld\n", pXsvfInfo->lShiftLengthBits );
     if ( pXsvfInfo->sShiftLengthBytes > MAX_LEN )

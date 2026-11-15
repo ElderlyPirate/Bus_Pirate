@@ -207,14 +207,26 @@ static void i2c_sniffer(bool interactive_mode);
  */
 static bool i2c_write_then_read(void);
 
-static bool i2c_check_error(void) {
-  bool failed = i2c_state.mode == I2C_TYPE_SOFTWARE && bitbang_i2c_error();
+/**
+ * Reports whether the selected driver has a sticky bus fault.  Unlike
+ * i2c_check_error(), this does not print or report the fault; callers that
+ * have already reported it (e.g. i2c_stop()) use this to avoid a duplicate
+ * message.
+ */
+static bool i2c_bus_failed(void) {
+  if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
+    return bitbang_i2c_error();
+  }
 #ifdef BP_I2C_USE_HW_BUS
   if (i2c_state.mode == I2C_TYPE_HARDWARE) {
-    failed = hardware_i2c_error;
+    return hardware_i2c_error;
   }
 #endif
-  if (failed) {
+  return false;
+}
+
+static bool i2c_check_error(void) {
+  if (i2c_bus_failed()) {
     i2c_state.acknowledgment_pending = false;
     bp_write_line("I2C bus error");
     mode_configuration.command_error = YES;
@@ -500,6 +512,17 @@ void i2c_macro(unsigned int c) {
     break;
 
   case 1:
+    /*
+     * A pending read acknowledge is still owed to the slave: finish it
+     * (NACK + STOP) before the scanner's own START, or the pending flag
+     * would leak into the next read and add a stray acknowledge clock.
+     */
+    if (i2c_state.acknowledgment_pending) {
+      i2c_stop();
+      if (i2c_bus_failed()) {
+        return;
+      }
+    }
     bitbang_i2c_clear_error();
     // setup both lines high first
     bitbang_set_pins_high(MOSI | CLK, 0);
@@ -569,6 +592,17 @@ void i2c_macro(unsigned int c) {
     break;
 
   case 2:
+    /*
+     * Do not abandon a read mid-byte: finish the owed ACK (NACK) and STOP
+     * before the sniffer releases the pins, so the next session starts on
+     * an idle bus instead of a stale ninth-bit state.
+     */
+    if (i2c_state.acknowledgment_pending) {
+      i2c_stop();
+      if (i2c_bus_failed()) {
+        break;
+      }
+    }
     i2c_cleanup();
 
     MSG_SNIFFER_MESSAGE;

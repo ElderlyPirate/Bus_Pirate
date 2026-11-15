@@ -1323,10 +1323,23 @@ void binary_io_enter_1wire_mode(void) {
       break;
     }
 
-    case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE:
-      mode_configuration.speed = (input_byte & 1);
-      user_serial_transmit_character(BP_BINARY_IO_RESULT_SUCCESS);
+    case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE: {
+      uint8_t speed = input_byte & 0b00000011;
+
+      /*
+       * 0b10 and 0b11 are reserved in the command definition; aliasing them
+       * to standard/overdrive (the old `& 1`) silently accepted an
+       * out-of-contract request.  Reject them and leave the speed unchanged.
+       */
+      if (speed > 1) {
+        REPORT_IO_FAILURE();
+        break;
+      }
+
+      mode_configuration.speed = speed;
+      REPORT_IO_SUCCESS();
       break;
+    }
 
     case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE_PERIPHERALS:
       bp_binary_io_peripherals_set(input_byte);

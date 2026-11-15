@@ -1077,6 +1077,12 @@ void binary_io_enter_i2c_mode(void) {
    */
   mode_configuration.numbits = 8;
   mode_configuration.int16 = NO;
+  /*
+   * The terminal can leave the extended-AUX target on CS.  Binary entry
+   * starts on AUX as documented; the host selects CS explicitly with the
+   * 0x09 0x20 sub-command when it wants it.
+   */
+  mode_configuration.alternate_aux = 0;
 
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;

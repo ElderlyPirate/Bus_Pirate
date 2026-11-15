@@ -59,7 +59,7 @@ int main(int argc, char **argv){
 			addrtype = 'S';
 		}
 
-	if(argv[3][0] == 'R' && !datalen){
+	if(argv[3][0] == 'R' && datalen <= 0){
 		printf("Must specify read length\n");
 		return 4;
 	}
@@ -199,6 +199,10 @@ int main(int argc, char **argv){
 			unsigned int code_value;
 			if(!sscanf((char *)curcode, "%X", &code_value)){
 				printf("Error processing code in file: %s", curcode);
+				return 6;
+			}
+			if(code_value > 0xFFu){
+				printf("Byte value out of range (0-FF): %s", curcode);
 				return 6;
 			}
 			curbincode = (unsigned char)code_value;

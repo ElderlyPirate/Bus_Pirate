@@ -1357,6 +1357,20 @@ void binary_io_enter_1wire_mode(void) {
 }
 
 bool onewire_internal_bit_io(bool bit_value) {
+  uint16_t saved_ipl;
+
+  /*
+   * AN126 requirement 3: the communication operations must not be
+   * interrupted while being generated.  The USB SOF/endpoint ISRs can
+   * stretch a slot by several microseconds; at standard speed that is
+   * mostly margin, but the overdrive read slot samples at ~2.4 us and the
+   * device's zero pulse is only ~3 us, so an ISR can turn a zero into a
+   * one (observed as random high bits in overdrive READ ROM).  Mask the
+   * CPU interrupts for the slot and restore the previous level per bit,
+   * so USB still gets serviced between slots.
+   */
+  SET_AND_SAVE_CPU_IPL(saved_ipl, 7);
+
   ONEWIRE_DATA_DIRECTION = INPUT;
   onewire_internal_drive_data_low();
   ONEWIRE_DATA_DIRECTION = OUTPUT;
@@ -1441,6 +1455,7 @@ bool onewire_internal_bit_io(bool bit_value) {
     delay_short_inline(5);
   }
 
+  RESTORE_CPU_IPL(saved_ipl);
   return bit_value;
 }
 

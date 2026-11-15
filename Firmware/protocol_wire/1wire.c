@@ -87,30 +87,6 @@ extern mode_configuration_t mode_configuration;
 #define ONEWIRE_DATA_DIRECTION BP_MOSI_DIR
 
 /**
- * @brief Inlined short-delay for the time-critical 1-Wire bit slots.
- *
- * This branch predates the shared inlined delay helper (the combined tree
- * uses base.h's delay_short_inline()).  Semantics are identical to
- * delay_short(): wait the given number of microseconds (1..16384) by
- * polling the 2 MHz timer, so the bit slots skip two nested calls per
- * delay.
- */
-static inline void onewire_delay_short(uint16_t microseconds) {
-  uint16_t ticks;
-  uint16_t start;
-
-  if (microseconds == 0) {
-    return;
-  }
-
-  ticks = (uint16_t)((microseconds << 1) - 1);
-  start = TMR1;
-
-  while ((uint16_t)(TMR1 - start) < ticks) {
-  }
-}
-
-/**
  * @brief Device ID for DS2404 EconoRAM Time Chip.
  */
 #define DS2404 0x04
@@ -977,7 +953,7 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
   ONEWIRE_DATA_DIRECTION = INPUT;
   if (mode_configuration.speed == 1) {
     /* AN126: Parameter G (2.5 us minimum in overdrive). */
-    onewire_delay_short(3);
+    delay_short_inline(3);
   }
   ONEWIRE_DATA_LINE = LOW;
   ONEWIRE_DATA_DIRECTION = OUTPUT;
@@ -988,18 +964,18 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
    * AN126: Parameter H
    */
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(500);
+    delay_short_inline(500);
   } else {
-    onewire_delay_short(70);
+    delay_short_inline(70);
   }
 
   /* Release the bus. */
   ONEWIRE_DATA_DIRECTION = INPUT;
   /* AN126: Parameter I (7.2 us minimum in overdrive). */
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(65);
+    delay_short_inline(65);
   } else {
-    onewire_delay_short(8);
+    delay_short_inline(8);
   }
 
   /* Read the data line. */
@@ -1010,9 +986,9 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
 
   /* AN126: Parameter J (39.5 us minimum in overdrive). */
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(500);
+    delay_short_inline(500);
   } else {
-    onewire_delay_short(40);
+    delay_short_inline(40);
   }
 
   /* Read the data line. */
@@ -1367,7 +1343,7 @@ bool onewire_internal_bit_io(bool bit_value) {
   /* AN126: Parameter A (5 min / 6 recommended).  Measured ~6.8 us with the
      inlined delay. */
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(6);
+    delay_short_inline(6);
   } else {
     /*
      * Measured overdrive low settles around 1.2 us with the inlined
@@ -1376,7 +1352,7 @@ bool onewire_internal_bit_io(bool bit_value) {
      * write 1 releases in time.  The pre-inline ~2.4 us sat above the
      * AN126 maximum and exactly on the slave's sample point.
      */
-    onewire_delay_short(1);
+    delay_short_inline(1);
   }
   if (bit_value) {
     ONEWIRE_DATA_DIRECTION = INPUT;
@@ -1391,9 +1367,9 @@ bool onewire_internal_bit_io(bool bit_value) {
    * the slave holds a zero bit (ow-slave ow_tx_bit).  Sampling at ~1.2 us
    * read the slave's bits as garbage on the bench. */
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(7);
+    delay_short_inline(7);
   } else {
-    onewire_delay_short(1);
+    delay_short_inline(1);
   }
 
   /*
@@ -1409,34 +1385,34 @@ bool onewire_internal_bit_io(bool bit_value) {
     bit_value = ONEWIRE_DATA_LINE;
     /* AN126: Parameter F (50 us minimum in standard mode). */
     if (mode_configuration.speed == 0) {
-      onewire_delay_short(50);
+      delay_short_inline(50);
     } else {
-      onewire_delay_short(7);
+      delay_short_inline(7);
     }
   } else {
     /* AN126: Parameter C (60 us minimum in standard mode; measured ~62 us
      with parameter A; overdrive measured ~7.2 us at argument 6 - too
      close to the 7 us minimum, so 7 here, measuring ~8.2 us). */
     if (mode_configuration.speed == 0) {
-      onewire_delay_short(49);
+      delay_short_inline(49);
     } else {
-      onewire_delay_short(7);
+      delay_short_inline(7);
     }
     ONEWIRE_DATA_DIRECTION = INPUT;
     /* AN126: Parameter D (8 us minimum standard / 2.5 us overdrive
        recovery).  Inlining shortened these by the wrapper overhead the
        constants had absorbed, so they are re-tuned here. */
     if (mode_configuration.speed == 0) {
-      onewire_delay_short(8);
+      delay_short_inline(8);
     } else {
-      onewire_delay_short(3);
+      delay_short_inline(3);
     }
   }
 
   /* Adjust timing to take 70us per bit for standard mode. */
 
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(5);
+    delay_short_inline(5);
   }
 
   return bit_value;
@@ -1466,7 +1442,7 @@ uint8_t onewire_internal_byte_io(uint8_t byte_value) {
   }
 
   if (mode_configuration.speed == 0) {
-    onewire_delay_short(8);
+    delay_short_inline(8);
   }
 
   return byte_value;

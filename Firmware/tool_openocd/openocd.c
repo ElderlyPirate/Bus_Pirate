@@ -244,7 +244,12 @@ void binOpenOCD(void) {
 
       int16_t bit_sequences = (int16_t)(j & 0x7FFF);
 
-      do {
+      /* A 0-bit TAP_SHIFT carries no TDI/TMS bytes and returns no TDO
+         byte.  The old do/while ran the body once for a zero count: it
+         blocked on two bytes the host never sent, then emitted a spurious
+         TDO byte (and shifted tdo_data_in by 16).  OpenOCD never asks for
+         0 bits, but a malformed/desynced host must not park the mode. */
+      while (bit_sequences > 0) {
         /* Read TDI and TMS. */
 
         uint16_t tdi_data_out = user_serial_read_byte();
@@ -317,7 +322,7 @@ void binOpenOCD(void) {
         }
 
         bit_sequences -= 16;
-      } while (bit_sequences > 0);
+      }
 
 #endif /* BUSPIRATEV4 */
 

@@ -823,7 +823,10 @@ void onewire_run_macro(const uint16_t macro) {
      */
 
     MSG_1WIRE_ADDRESS_MACRO_HEADER;
-    bp_write_dec_byte(macro + 1);
+    /* The roster prints entries as 1..N; the address macro is that same
+       number, so print the caller's identifier (macro_id + 1 after the
+       decrement above), not a second +1. */
+    bp_write_dec_byte(macro_id + 1);
     bp_write_string(": ");
     for (rom_index = 0; rom_index < ROM_BYTES_SIZE; rom_index++) {
       bp_write_formatted_integer(

@@ -466,8 +466,12 @@ void i2c_setup_execute(void) {
   if (i2c_state.mode == I2C_TYPE_SOFTWARE) {
     SDA_TRIS = INPUT;
     SCL_TRIS = INPUT;
-    SCL = LOW;
-    SDA = LOW;
+    /*
+     * Prepare the latches low through LAT, not PORT: a read-modify-write
+     * on PORTx reads the pins (DS39897C 10.1) and could copy unrelated
+     * pin states into the other PORTD latches.
+     */
+    IOLAT &= ~(CLK | MOSI);
     bitbang_setup(2, mode_configuration.speed);
   } else {
 #ifdef BP_I2C_USE_HW_BUS
@@ -643,7 +647,9 @@ void i2c_macro(unsigned int c) {
   case 4:
     if (i2c_state.to_eeprom) {
       MSG_ONBOARD_I2C_EEPROM_WRITE_PROTECT_DISABLED;
-      BP_EE_WP = LOW;
+      /* Write the latch, not PORTD: a PORTx bit write reads the pins
+         (DS39897C 10.1) and would copy unrelated latch states. */
+      LATDbits.LATD11 = LOW;
     }
 
     break;
@@ -921,8 +927,8 @@ void i2c_sniffer(bool interactive_mode) {
 
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;
-  SCL = LOW;
-  SDA = LOW;
+  /* Set the latches through LAT, not PORTx (DS39897C 10.1). */
+  IOLAT &= ~(CLK | MOSI);
 
   /* Enable change notice on SCL and SDA. */
   BP_MOSI_CN = ON;
@@ -1065,8 +1071,8 @@ void binary_io_enter_i2c_mode(void) {
 
   SDA_TRIS = INPUT;
   SCL_TRIS = INPUT;
-  SCL = LOW;
-  SDA = LOW;
+  /* Set the latches through LAT, not PORTx (DS39897C 10.1). */
+  IOLAT &= ~(CLK | MOSI);
 
   // set CS pin direction to output on setup
   BP_CS_DIR = OUTPUT;

@@ -23,10 +23,8 @@
 #include "bitbang.h"
 #include "proc_menu.h"
 
-/* Pin aliases. */
-
-#define R3WMOSI BP_MOSI
-#define R3WCLK BP_CLK
+/* Pin direction aliases.  The latch/mask operations below use the shared
+   MOSI/CLK masks from hardware.h, not these aliases. */
 
 #define R3WMOSI_TRIS BP_MOSI_DIR
 #define R3WCLK_TRIS BP_CLK_DIR

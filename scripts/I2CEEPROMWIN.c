@@ -147,8 +147,8 @@ int main(int argc, char **argv){
 		WriteFile(hComm, write_buf, 3, &bytes_written, 0);
 		ReadFile(hComm, receive_buf, 3, &bytes_received, 0);
 
-		// Read the data
-		for(; datalen; datalen--){
+		// Read all but the last byte, sending ACK after each.
+		for(; datalen > 1; datalen--){
 			// Send read command, ACK bit
 			WriteFile(hComm, "\x04\x06", 2, &bytes_written, 0);
 			ReadFile(hComm, receive_buf, 2, &bytes_received, 0);
@@ -156,10 +156,15 @@ int main(int argc, char **argv){
 			fprintf(inoutpfile, "%02X ", receive_buf[0]);
 		}
 
-		// Finish the read
-		// Send read command, NACK bit, stop bit.
-		// Then exit to bitbang mode and reset the buspirate
-		WriteFile(hComm, "\x04\x07\x03\x00\x0F", 5, &bytes_written, 0);
+		// Read the last byte and NACK it (UM10204 3.2.6: the master must
+		// not acknowledge the last byte before STOP), then stop and exit.
+		WriteFile(hComm, "\x04\x07", 2, &bytes_written, 0);
+		ReadFile(hComm, receive_buf, 2, &bytes_received, 0);
+		printf("%02X ", receive_buf[0]);
+		fprintf(inoutpfile, "%02X ", receive_buf[0]);
+
+		// Stop, exit to bitbang mode and return to the terminal.
+		WriteFile(hComm, "\x03\x00\x0F", 3, &bytes_written, 0);
 	}
 
 	// Write data

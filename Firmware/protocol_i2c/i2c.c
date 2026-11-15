@@ -947,17 +947,20 @@ void i2c_sniffer(bool interactive_mode) {
   uint8_t data_value = 0;
 
   for (;;) {
+    /*
+     * Service the host on every pass: under continuous bus traffic the
+     * change-notice flag is set again immediately, so handling the exit
+     * key (and draining buffered output) only in the idle branch could
+     * starve it indefinitely.
+     */
+    user_serial_ringbuffer_process();
+
+    if (user_serial_ready_to_read()) {
+      data_value = user_serial_read_byte();
+      break;
+    }
+
     if (!IFS1bits.CNIF) {
-      /* Change notice interrupt triggered. */
-
-      /* Handle user I/O. */
-      user_serial_ringbuffer_process();
-
-      if (user_serial_ready_to_read()) {
-        data_value = user_serial_read_byte();
-        break;
-      }
-
       continue;
     }
 
@@ -1019,6 +1022,12 @@ void i2c_sniffer(bool interactive_mode) {
   /* Disable I2C pin change interrupts. */
   BP_MOSI_CN = OFF;
   BP_CLK_CN = OFF;
+
+  /*
+   * Drain any buffered sniffed tokens before the prompt (or the binary
+   * reply) so the host sees the capture in order.  On v4 this is a no-op.
+   */
+  user_serial_ringbuffer_flush();
 
   if (interactive_mode) {
     bpBR;

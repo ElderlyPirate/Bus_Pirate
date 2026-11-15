@@ -20,6 +20,12 @@
 #define  JTAG_CHAIN_SCAN   0x02
 #define  XSVF_PLAYER       0x03
 
+/* Bounded chain-scan wait.  serial_read() reports "no data" as 0 on POSIX
+   and -1 on Windows; both are treated as "not yet".  Five attempts is the
+   same bound the Windows player uses, and it also keeps a dead port or a
+   firmware that never answers from spinning forever (CO-13). */
+#define  CHAIN_SCAN_MAX_TRIES  5
+
 
 #define XSVF_ERROR_NONE            0x00
 #define XSVF_ERROR_UNKNOWN         0x01
@@ -76,6 +82,48 @@ int print_usage(char * appname)
 		return 0;
 }
 
+/*
+ * Chain scan (0x02): the firmware resets the TAP and replies with one count
+ * byte (N*4) followed by N*4 ID bytes.  The original loop was
+ * `while (res == 0)`: on POSIX serial_read() returns 0 when the port is
+ * idle, so a missing or desynced reply looped forever; on Windows it returns
+ * -1, so the loop fell through after one attempt and the tool still
+ * reported success.  Bound the wait and return a status.
+ */
+int do_chain_scan(int fd)
+{
+	uint8_t buffer[MAX_BUFFER] = {0};
+	char cmd = JTAG_CHAIN_SCAN;
+	int res = -1;
+	int tries = 0;
+	int c;
+
+	printf(" Performing Chain Scan..\n");
+	if (serial_write(fd, &cmd, 1) != 1) {
+		printf(" Chain scan: failed to send the command\n");
+		return 2;
+	}
+
+	while (tries < CHAIN_SCAN_MAX_TRIES) {
+		res = serial_read(fd, (char *)buffer, sizeof(buffer));
+		if (res > 0)
+			break;
+		tries++;
+	}
+
+	if (res <= 0) {
+		printf(" Got no reply for a Chain scan (bounded timeout)\n");
+		return 2;
+	}
+
+	printf(" Chain Scan Result:");
+	for (c = 0; c < res; c++) {
+		printf(" %02X", buffer[c]);
+	}
+	printf("\n\n");
+	return 0;
+}
+
 int main(int argc, char** argv)
 {
 	int opt;
@@ -94,6 +142,7 @@ int main(int argc, char** argv)
 	char *param_bytechunks=NULL;
 	int  jtag_reset=FALSE;
     int  chainscan=FALSE;
+	int  status=0;   /* 0 = ok; 1 = player error; 2 = host/transport error */
 
     const char *XSVF_ERROR[]={  "XSVF_ERROR_NONE",
                                 "XSVF_ERROR_UNKNOWN",
@@ -198,8 +247,13 @@ int main(int argc, char** argv)
 
 	if (jtag_reset==TRUE){
         printf(" Performing Reset..\n");
-        temp[0]=0x01;
-        serial_write( fd, (char *)temp, 1 );
+        temp[0]=JTAG_RESET;
+        if (serial_write( fd, (char *)temp, 1 ) != 1) {
+            printf(" Reset: failed to send the command\n");
+            status=2;
+        }
+        /* The firmware's reset command (0x01) is fire-and-forget: it sends
+           no reply, so there is nothing to read back here. */
         Sleep(1);
         printf(" Done \n\n");
 	}
@@ -209,31 +263,7 @@ int main(int argc, char** argv)
      // Wait for 1 byte, the number of bytes that will be returned
      // Get that many bytes
 	if (chainscan==TRUE) {
-		printf(" Performing Chain Scan..\n");
-		temp[0]=0x02;
-		serial_write( fd, (char *)temp, 1 );
-		Sleep(1);
-		res=0;
-		timeout_counter=0;
-
-		while (res==0) {
-			res= serial_read(fd, (char *)buffer, sizeof(buffer));
-			Sleep(1);
-			timeout_counter++;
-			if (timeout_counter>=5) {
-			printf(" Got no reply for a Chain scan\n");
-			} else {
-			printf(" Waiting for a chain scan reply\n");
-			}
-		}
-		if (res >0) {
-			printf(" Chain Scan Result:" );
-			for(c=0;c<res;c++){
-			printf(" %02X",buffer[c]);
-			}
-			printf("\n\n");
-
-		}
+		status = do_chain_scan(fd);
 	}
 
    if (param_XSVF !=NULL) {
@@ -241,6 +271,7 @@ int main(int argc, char** argv)
             XSVF = fopen(param_XSVF, "rb");
             if (XSVF == NULL) {
                 printf(" Error opening file\n");
+                return -1;
             }
             fseek(XSVF, 0, SEEK_END);
             fileSize = ftell(XSVF);
@@ -264,8 +295,14 @@ int main(int argc, char** argv)
 
 
 	} else {
-		printf(" No file specified. Need an input xsvf file \n");
-		exit(-1);
+		/* -x and -r are standalone operations: -f is optional (see usage).
+		   Only a run with neither a file nor a scan/reset needs a file. */
+		if (!chainscan && !jtag_reset) {
+			printf(" No file specified. Need an input xsvf file \n");
+			return -1;
+		}
+		printf(" Thank you for playing! :-)\n\n");
+		return status;
 	}
 	printf(" Opening Bus Pirate on %s at %sbps, using XSVF file %s \n", param_port, param_speed,param_XSVF);
 
@@ -293,6 +330,13 @@ int main(int argc, char** argv)
 					    c=buffer[0];
 					    if (c==0xFF)
 					         c=8;
+					    else if (c > XSVF_ERROR_LAST)
+					         c=XSVF_ERROR_UNKNOWN;
+                        /* Any reply other than READY_FOR_DATA ends the run;
+                           carry its error into the process exit status. */
+                        if (buffer[0] != XSVF_ERROR_NONE &&
+                            buffer[0] != XSVF_READY_FOR_DATA)
+                            status=1;
                         printf(" End of operation reply: %s \n",XSVF_ERROR[c]);
                         switch (buffer[0]) {
                             case  XSVF_ERROR_NONE :
@@ -332,6 +376,8 @@ int main(int argc, char** argv)
                          }
 
                      }
+                     if (buffer[0] != XSVF_READY_FOR_DATA)
+                         timer_out=-1;   /* error/success reply: do not send more */
                      break; //break loop and send data
 				}else{
 					printf("\n Waiting for reply...");
@@ -341,6 +387,7 @@ int main(int argc, char** argv)
 						printf("\n No reply.... Quitting.\n ");
 						timeout_counter=0;
 						timer_out=-1;
+						status=2;
 						break;
 					}
 				}
@@ -370,12 +417,11 @@ int main(int argc, char** argv)
 
     printf(" Thank you for playing! :-)\n\n");
 #ifdef WIN32
-    fclose(XSVF);
 	FREE(param_port);
  	FREE(param_speed);
     FREE(param_bytechunks);
     FREE(param_XSVF);
     FREE( bin_buf);
 #endif
-    return 0;
+    return status;
  }  //end main()

@@ -959,9 +959,11 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
   ONEWIRE_DATA_DIRECTION = OUTPUT;
 
   /*
-   * According to specification a minimum of 480us need to be waited before
-   * reading the line in standard mode, or no more than 70us for overdrive.
-   * AN126: Parameter H
+   * AN126: Parameter H - hold the line low for the reset pulse itself:
+   * 480 us minimum in standard mode (500 us used here for margin) and
+   * 70 us in overdrive.  The presence pulse is sampled after the release
+   * delay I below; H is not a "wait before reading" in the sense of a
+   * maximum.
    */
   if (mode_configuration.speed == 0) {
     delay_short_inline(500);
@@ -971,7 +973,12 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
 
   /* Release the bus. */
   ONEWIRE_DATA_DIRECTION = INPUT;
-  /* AN126: Parameter I (7.2 us minimum in overdrive). */
+  /*
+   * AN126: Parameter I - release-to-sample delay: 70 us recommended in
+   * standard mode (65 us used here, still inside the 15..60 us start +
+   * 60..240 us duration presence window) and 8 us in overdrive (7.2 us
+   * minimum).
+   */
   if (mode_configuration.speed == 0) {
     delay_short_inline(65);
   } else {
@@ -1383,7 +1390,9 @@ bool onewire_internal_bit_io(bool bit_value) {
 
   if (bit_value) {
     bit_value = ONEWIRE_DATA_LINE;
-    /* AN126: Parameter F (50 us minimum in standard mode). */
+    /* AN126: Parameter F - read-slot recovery.  Table 2 recommends 55 us
+       standard / 7 us overdrive; 50 us here keeps the measured standard
+       slot at ~69 us, above the device's 60 us + 1 us minimum. */
     if (mode_configuration.speed == 0) {
       delay_short_inline(50);
     } else {
@@ -1399,9 +1408,12 @@ bool onewire_internal_bit_io(bool bit_value) {
       delay_short_inline(7);
     }
     ONEWIRE_DATA_DIRECTION = INPUT;
-    /* AN126: Parameter D (8 us minimum standard / 2.5 us overdrive
-       recovery).  Inlining shortened these by the wrapper overhead the
-       constants had absorbed, so they are re-tuned here. */
+    /* AN126: Parameter D - recovery after a write-0 slot.  Table 2
+       recommends 10 us standard / 2.5 us overdrive; the device minimum
+       is 1 us.  8 us keeps the measured standard slot at ~75 us while
+       leaving margin, and 3 us covers the overdrive recommendation.
+       Inlining shortened these by the wrapper overhead the constants
+       had absorbed, so they are re-tuned here. */
     if (mode_configuration.speed == 0) {
       delay_short_inline(8);
     } else {

@@ -1201,7 +1201,6 @@ void binary_io_enter_i2c_mode(void) {
 }
 
 bool i2c_write_then_read(void) {
-  bitbang_i2c_clear_error();
   /* Read the amount of bytes to write. */
   size_t bytes_to_write = user_serial_read_big_endian_word();
 
@@ -1223,6 +1222,13 @@ bool i2c_write_then_read(void) {
   if (bytes_to_write == 0) {
     return false;
   }
+
+  /*
+   * A refused request is not a bus operation: clearing here would make
+   * 0x0A report success and hide the previous operation's bus fault.  The
+   * next real bus operation still clears the sticky status.
+   */
+  bitbang_i2c_clear_error();
 
   uint8_t i2c_address = 0;
 
@@ -1264,8 +1270,8 @@ bool i2c_write_then_read(void) {
     }
   }
 
-  /* Read the rest of the data. */
-  bytes_to_write = bytes_to_read - 1;
+  /* Index of the byte that receives the NACK (the last one). */
+  bytes_to_write = (bytes_to_read > 0) ? (bytes_to_read - 1) : 0;
 
   for (size_t index = 0; index < bytes_to_read; index++) {
     /* Read the byte from the I2C bus. */

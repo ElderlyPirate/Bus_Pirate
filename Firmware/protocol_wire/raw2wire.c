@@ -240,7 +240,12 @@ void read_atr_header(void) {
   }
 
   MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH;
-  bp_write_dec_byte(DATA_UNIT_LENGTH_TABLE[buffer[1] & 0b00000111]);
+  /*
+   * The table values are 128..16384 bits.  bp_write_dec_byte() truncated
+   * every code above 0 (256 -> 0, 512 -> 0, ...); the ATR field is a
+   * 16-bit length, so print the full value like the data-unit field does.
+   */
+  bp_write_dec_dword(DATA_UNIT_LENGTH_TABLE[buffer[1] & 0b00000111]);
   bpBR;
 }
 

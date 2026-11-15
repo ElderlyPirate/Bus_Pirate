@@ -529,7 +529,7 @@ void i2c_macro(unsigned int c) {
     BPMSG1070;
 #ifdef BUSPIRATEV4
     if ((!i2c_state.to_eeprom && ((BP_CLK == LOW) || (BP_MOSI == LOW))) ||
-        (i2c_state.to_eeprom && ((BP_EE_SDA == LOW) && (BP_EE_SCL == LOW)))) {
+        (i2c_state.to_eeprom && ((BP_EE_SDA == LOW) || (BP_EE_SCL == LOW)))) {
 #else
     if ((BP_CLK == LOW) || (BP_MOSI == LOW)) {
 #endif /* BUSPIRATEV4 */

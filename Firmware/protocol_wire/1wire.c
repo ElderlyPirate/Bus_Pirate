@@ -87,6 +87,20 @@ extern mode_configuration_t mode_configuration;
 #define ONEWIRE_DATA_DIRECTION BP_MOSI_DIR
 
 /**
+ * @brief Drives the 1-Wire data line low through the output latch.
+ *
+ * A write to a PORTx bit is a read-modify-write whose read side returns
+ * the pin levels (DS39897C 10.1).  Several Bus Pirate signals share this
+ * port, so writing the data bit through PORTx can re-latch another pin
+ * from its external level.  LATx reads return the latch, so this form
+ * changes only the data line's latch; the direction change made by the
+ * caller still drives the pin low.
+ */
+static inline void onewire_internal_drive_data_low(void) {
+  IOLAT &= ~MOSI;
+}
+
+/**
  * @brief Device ID for DS2404 EconoRAM Time Chip.
  */
 #define DS2404 0x04
@@ -748,7 +762,7 @@ void onewire_setup_prepare(void) {
 void onewire_setup_execute(void) {
   /* Set up pins. */
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
 }
 
 void print_device_information(const size_t roster_id,
@@ -955,7 +969,7 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
     /* AN126: Parameter G (2.5 us minimum in overdrive). */
     delay_short_inline(3);
   }
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   ONEWIRE_DATA_DIRECTION = OUTPUT;
 
   /*
@@ -1207,7 +1221,7 @@ void binary_io_enter_1wire_mode(void) {
   uint8_t command;
 
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   BP_CS_DIR = OUTPUT;
 
   /* Set CS to open drain. */
@@ -1344,7 +1358,7 @@ void binary_io_enter_1wire_mode(void) {
 
 bool onewire_internal_bit_io(bool bit_value) {
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   ONEWIRE_DATA_DIRECTION = OUTPUT;
 
   /* AN126: Parameter A (5 min / 6 recommended).  Measured ~6.8 us with the

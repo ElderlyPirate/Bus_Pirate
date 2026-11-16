@@ -337,10 +337,8 @@ void bp_pwm_setup(void) {
 
   /* Get parameters. */
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  pwm_frequency = getint();
-  consumewhitechars();
-  pwm_duty = getint();
+  pwm_frequency = getint_with_spaces();
+  pwm_duty = getint_with_spaces();
 
   valid_arguments = !mode_configuration.command_error &&
                     ((pwm_frequency > 0) && (pwm_frequency <= 4000) &&
@@ -1205,8 +1203,7 @@ void bp_servo_setup(void) {
   keep_asking = false;
 
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  position = getint();
+  position = getint_with_spaces();
   if ((mode_configuration.command_error == YES) || (position < 0) ||
       (position > 180)) {
     mode_configuration.command_error = NO;

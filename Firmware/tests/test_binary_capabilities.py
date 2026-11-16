@@ -518,6 +518,8 @@ def cases(revision):
     aux = source("capability_aux/aux_pin.c", revision)
     smps = source("capability_smps/smps.c", revision)
     lcd = source("capability_hd44780/hd44780.c", revision)
+    parser = source("core_system/proc_menu.c", revision)
+    spaced = function(parser, "getint_with_spaces") + "\n" if "int getint_with_spaces(void)" in parser else ""
     pwm_macros = "\n".join("#define " + n + " 0" for n in sorted(set(
         re.findall(r"\b_OC5CON(?:1)?_\w+_POSITION\b", aux)))) + "\n"
     pwm_encoding = function(aux, "pwm_duty_register") if "static uint16_t pwm_duty_register(" in aux else ""
@@ -550,11 +552,11 @@ def cases(revision):
             "smps_start", "smps_stop", "_ADC1Interrupt", "smps_adc")) + SMPS_TEST,
         "lcd-cleanup": COMMON + LCD_CLEANUP + function(lcd, "hd44780_cleanup") + LCD_CLEANUP_TEST,
         "lcd-spi": COMMON + LCD_SPI + function(lcd, "hd44780_spi_write_byte") + LCD_SPI_TEST,
-        "g-pwm": COMMON + PWM + G_PWM + pwm_macros + pwm_encoding +
+        "g-pwm": COMMON + PWM + G_PWM + spaced + pwm_macros + pwm_encoding +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
-        "g-pwm-v3": COMMON.replace("#define BUSPIRATEV4", "#define BUSPIRATEV3") + PWM + G_PWM + pwm_macros + pwm_encoding +
+        "g-pwm-v3": COMMON.replace("#define BUSPIRATEV4", "#define BUSPIRATEV3") + PWM + G_PWM + spaced + pwm_macros + pwm_encoding +
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
-        "lcd-macro": COMMON + LCD_MACRO + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
+        "lcd-macro": COMMON + LCD_MACRO + spaced + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
         "lcd-pins": COMMON + LCD_PINS + function(lcd, "LCDpins") + LCD_PINS_TEST,
         "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +
         function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,

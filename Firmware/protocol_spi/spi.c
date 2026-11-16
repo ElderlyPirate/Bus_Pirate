@@ -535,8 +535,19 @@ void spi_disable_interface(void) {
 
   bp_disable_usb_led();
 
-    /* Disable interface. */
+  /* Disable interface. */
   SPI1STATbits.SPIEN = OFF;
+
+  /*
+   * Release the pads before changing peripheral ownership or output type.
+   * Disabling the module alone leaves the pins as GPIO outputs at their
+   * last levels, so a power-off (<w>) or clutch disengage would keep the
+   * bus driven instead of releasing it.
+   */
+  SPIMOSI_TRIS = INPUT;
+  SPICLK_TRIS = INPUT;
+  SPIMISO_TRIS = INPUT;
+  SPICS_TRIS = INPUT;
 
   /* Deassign pins. */
   RPINR20bits.SDI1R = 0b11111;

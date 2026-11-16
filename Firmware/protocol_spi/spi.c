@@ -781,10 +781,21 @@ static volatile uint8_t cs_edge_ring[SPI_CS_EDGE_RING_SIZE];
 static volatile uint8_t cs_edge_head;
 static volatile uint8_t cs_edge_tail;
 static volatile bool cs_edge_overflow;
+static volatile uint8_t cs_edge_last_state;
 
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void) {
   _CNIF = 0;
   uint8_t edge = (SPICS == HIGH) ? ']' : '[';
+  /*
+   * CN is a shared change-notification flag, not a CS edge FIFO.  Another
+   * enabled CN input (the NORMAL button on CN0) can invoke this handler
+   * without CS changing; only record an actual level transition so such an
+   * event cannot inject a spurious marker into the capture.
+   */
+  if (edge == cs_edge_last_state) {
+    return;
+  }
+  cs_edge_last_state = edge;
   uint8_t head = cs_edge_head;
   if ((uint8_t)(head - cs_edge_tail) >= SPI_CS_EDGE_RING_SIZE) {
     cs_edge_overflow = true;
@@ -828,6 +839,7 @@ restart:
   cs_edge_head = 0;
   cs_edge_tail = 0;
   cs_edge_overflow = false;
+  cs_edge_last_state = (SPICS == HIGH) ? ']' : '[';
   _CNIF = 0;
   _CNIP = 7;
   CNEN1bits.CN13IE = 1;

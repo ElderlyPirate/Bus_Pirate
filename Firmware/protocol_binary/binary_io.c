@@ -1041,7 +1041,7 @@ void handle_bulk_byte_transfer(const uint8_t command) {
       if (mode_configuration.little_endian == YES) {
         value = bp_reverse_integer(value, mode_configuration.numbits);
       }
-      bitbang_write_value(value & 0xFF, false);
+      user_serial_transmit_character(value & 0xFF);
     }
   }
 }

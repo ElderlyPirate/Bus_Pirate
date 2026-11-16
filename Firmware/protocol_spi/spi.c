@@ -469,7 +469,7 @@ void spi_setup(const uint8_t spi_speed) {
   RPINR20bits.SDI1R = BP_MISO_RPIN;
   BP_MOSI_RPOUT = SDO1_IO;
   BP_CLK_RPOUT = SCK1OUT_IO;
-  SPICS = HIGH;
+  SPICS = spi_state.cs_line_state;
   SPICS_TRIS = OUTPUT;
   SPICLK_TRIS = OUTPUT;
   SPIMISO_TRIS = INPUT;
@@ -1159,6 +1159,8 @@ void spi_enter_binary_io(void) {
   spi_state.clock_polarity = SPI_CLOCK_IDLE_LOW;
   spi_state.clock_edge = SPI_TRANSITION_FROM_ACTIVE_TO_IDLE;
   spi_state.data_sample_timing = SPI_SAMPLING_ON_DATA_OUTPUT_MIDDLE;
+  /* The binary protocol uses the conventional active-low CS. */
+  spi_state.cs_line_state = 1;
   mode_configuration.high_impedance = ON;
   spi_setup(spi_bus_speed[mode_configuration.speed]);
   MSG_SPI_MODE_IDENTIFIER;

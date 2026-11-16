@@ -171,11 +171,9 @@ void uart_setup_prepare(void) {
   uart_settings.autobaud = OFF;
 #endif /* BUSPIRATEV4 */
 
-  consumewhitechars();
-  speed = getint();
+  speed = getint_with_spaces();
   if (speed == 10) {
-    consumewhitechars();
-    brg = getint();
+    brg = getint_with_spaces();
 #ifdef BUSPIRATEV4
     /* BRGH=1: slower rates cannot fit the 16-bit BRG (DS39897C 17.1). */
     if (brg < 62) {
@@ -188,14 +186,10 @@ void uart_setup_prepare(void) {
     }
 #endif
   }
-  consumewhitechars();
-  dbp = getint();
-  consumewhitechars();
-  sb = getint();
-  consumewhitechars();
-  rxp = getint();
-  consumewhitechars();
-  output = getint();
+  dbp = getint_with_spaces();
+  sb = getint_with_spaces();
+  rxp = getint_with_spaces();
+  output = getint_with_spaces();
   consumewhitechars();
   hd = cmdbuf[cmdstart] == 0 ? 1 : getint();
 

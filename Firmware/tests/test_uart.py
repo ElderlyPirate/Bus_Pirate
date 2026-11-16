@@ -124,6 +124,29 @@ int main(void) {
   assert(prompts==6 && uart_settings.half_duplex && mode_configuration.high_impedance);
   load("5 1 1 1 2");uart_setup_prepare();
   assert(!uart_settings.half_duplex && !mode_configuration.high_impedance);
+  const char *spaced="   5   1  1   1  2     ";
+  load(spaced);uart_setup_prepare();
+  assert(!prompts && header==1 && !mode_configuration.command_error);
+  assert(cmdstart==strlen(spaced) && !uart_settings.half_duplex && !mode_configuration.high_impedance);
+  load("  0xA  0x2580  0b1  0x1  1  2  1");uart_setup_prepare();
+  assert(!prompts && header==1 && !mode_configuration.command_error && !uart_settings.half_duplex);
+#ifdef BUSPIRATEV4
+  assert(U2BRG==416);
+#else
+  assert(U2BRG==9600);
+#endif
+  const char *wrapped="  10  9600  1 1 1 2   ";
+  load(wrapped);memset(cmdbuf,0,sizeof(cmdbuf));
+  for(unsigned i=0;i<=strlen(wrapped);++i)cmdbuf[(250+i)&CMDLENMSK]=wrapped[i];
+  cmdstart=250;uart_setup_prepare();
+  assert(!prompts && header==1 && !mode_configuration.command_error && !uart_settings.half_duplex);
+  assert(cmdstart==((250+strlen(wrapped))&CMDLENMSK));
+  load("   10     ");uart_setup_prepare();assert(prompts && !header);
+  load("  5 1 1 1 2 2");char saved[sizeof(cmdbuf)];memcpy(saved,cmdbuf,sizeof(saved));
+  setup_defaults_mode=true;uart_setup_prepare();setup_defaults_mode=false;
+  assert(cmdstart==0 && !memcmp(saved,cmdbuf,sizeof(saved)) && !mode_configuration.command_error);
+  assert(mode_configuration.speed==0 && !uart_settings.half_duplex && mode_configuration.high_impedance);
+  puts("PASS setup whitespace: padded/mixed-radix/wrapped fields, omitted duplex, missing baud and non-consuming defaults");
   puts("PASS setup: zero/missing-rate sentinel and unrepresentable baud refuse before divide; valid presets/custom unchanged");
 }
 '''
@@ -335,7 +358,10 @@ def main():
             if case == "bridge" and board == "V3":
                 continue  # V3's legacy bridge has no physical button escape.
             restore = "\n".join(function(uart, n) for n in ("uart_get_closest_common_rate", "uart_setup_execute", "uart_run_macro"))
-            bodies = {"setup": function(core, "getint") + function(uart, "uart_setup_prepare"),
+            setup_parser = function(core,"consumewhitechars") + function(core,"getint")
+            if "int getint_with_spaces(" in core:
+                setup_parser += function(core,"getint_with_spaces")
+            bodies = {"setup": setup_parser + function(uart, "uart_setup_prepare"),
                        "binary": (function(uart, "uart_binary_service_rx") if "static void uart_binary_service_rx(" in uart else "") + function(uart, "binUART"), "bridge": restore,
                        "common": function(uart, "uart_get_closest_common_rate"), "restore": restore,
                        "baud": ""}
@@ -352,6 +378,8 @@ def main():
             c = directory / (case + ".c")
             exe = c.with_suffix(".exe")
             prefix = PREFIX
+            if case == "setup":
+                prefix = re.sub(r"static void consumewhitechars\(void\)[^\n]*\n", "", prefix)
             if case == "detection":
                 prefix = re.sub(r"static uint32_t uart_get_baud_rate[^\n]+\n", "", prefix)
             detection = DETECTION_PREFIX if case == "detection" else ""

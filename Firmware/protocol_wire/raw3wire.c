@@ -86,12 +86,9 @@ void raw3wire_setup_prepare(void) {
   int output;
   int cs_line_low;
 
-  consumewhitechars();
-  speed = getint();
-  consumewhitechars();
-  cs_line_low = getint();
-  consumewhitechars();
-  output = getint();
+  speed = getint_with_spaces();
+  cs_line_low = getint_with_spaces();
+  output = getint_with_spaces();
 
   user_prompt = !(((speed > 0) && (speed <= 4)) &&
                   ((cs_line_low > 0) && (cs_line_low <= 2)) &&

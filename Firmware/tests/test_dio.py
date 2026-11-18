@@ -140,6 +140,8 @@ def main():
                 encoding="ascii")
             (out / "base.h").write_text(BASE + pins + "\n", encoding="ascii")
             (out / "binary_io.h").write_text(BINARY, encoding="ascii")
+            (out / "protocol_binary").mkdir()
+            (out / "protocol_binary/binary_io.h").write_text(BINARY, encoding="ascii")
             for name in ("dio.c", "dio.h"):
                 (out / name).write_text(source("protocol_dio/" + name), encoding="utf-8")
             flags = ["gcc", "-std=gnu99", "-O1", "-Wall", "-Wextra", "-Werror", "-DBUSPIRATE" + board]

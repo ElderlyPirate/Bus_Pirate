@@ -76,7 +76,14 @@ def main():
                 cwd=ROOT, text=True, encoding="utf-8")
         return (ROOT / path).read_text(encoding="utf-8")
 
-    src = source("binary_io.c")
+    binary_path = "protocol_binary/binary_io.c"
+    if args.revision:
+        grouped = subprocess.run(
+            ["git", "cat-file", "-e", args.revision + ":Firmware/" + binary_path],
+            cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    else:
+        grouped = (ROOT / binary_path).is_file()
+    src = source(binary_path if grouped else "binary_io.c")
     helpers = "\n".join(function(src, name) for name in (
         "bitbang_pin_state_get", "bitbang_pin_direction_set", "bitbang_pin_state_set"))
     for board, port in (("V3", "B"), ("V4", "D")):

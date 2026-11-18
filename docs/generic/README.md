@@ -1,9 +1,9 @@
 # The prompt — shared terminal layer
 
-**Status:** current · the shared command layer.  v4 is the primary documented
-board; the v3 build is covered but not verified on v3 hardware.  Captures in
-this set are v4; inline notes and the delta table in
-[navigation.md](navigation.md#v3--v4-delta) list the differences.
+**Status:** current · the shared command layer.  Examples use v4 output; v3
+differences are noted inline and in the delta table in
+[navigation.md](navigation.md#v3--v4-delta).  The v3 build is included; its
+hardware behaviour is not verified.
 
 This folder documents what you talk to before any bus mode is active: the
 prompt, line editing, command grammar, value entry and display, macros, the

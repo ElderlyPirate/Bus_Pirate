@@ -1,4 +1,4 @@
-# 2WIRE — macros
+# 2-Wire — macros
 
 Part of the [2-Wire documentation set](README.md) in the
 [wire protocol set](../README.md).  This page owns the `(0)` macro list and
@@ -25,14 +25,14 @@ The firmware prints the menu entries without a space (`1.ISO7816-3 ATR`), but
 its banner and reply header print the same name with a space (`ISO 7816-3 ATR`,
 `ISO 7816-3 reply`).  This set writes `ISO 7816-3` in prose.
 
-There is **no bus-reset macro** in 2WIRE.  The `BUS RESET` string belongs to the
-1-Wire mode, not here; the only firmware reset available in 2WIRE is the base
-layer's `#`.
+There is **no bus-reset macro** in 2-Wire.  The `BUS RESET` string belongs to
+the 1-Wire mode, not here; the only firmware reset available in 2-Wire is the
+base layer's `#`.
 
 ## Macro `(1)` — ISO 7816-3 ATR
 
-`(1)` prints a two-line banner, drives the card reset, then parses the reply
-(format illustration):
+`(1)` prints a two-line banner, runs the CS reset sequence, then parses the
+four returned values:
 
 ```
 2WIRE>(1)
@@ -41,21 +41,32 @@ RESET HIGH, CLOCK TICK, RESET LOW
 ISO 7816-3 reply (uses current LSB setting): 0x3B 0x08 0x00 0x00
 Protocol: unknown
 Read type: to end
-Data units: 2
-Data unit length (bits): 128
+Data units: 2Data unit length (bits): 128
 2WIRE>
 ```
 
-The reset is on **CS**, not on the bus lines.  The banner's three words name the
-middle of the sequence; the macro's full edge order on CS is:
+**The `Data units` line is run together as shown.**  The firmware prints
+`Data units: 2` and `Data unit length (bits): 128` without a newline between
+them; this is a firmware formatting defect, not a transcription error.  The
+four printed values are examples.
+
+The reset is on **CS**, not on the bus lines.  The banner's three words name
+the middle of the sequence; the macro's full edge order on CS is:
 
 1. drive CS low and hold about 255 µs,
 2. drive CS high — the banner's `RESET HIGH`,
 3. advance one clock tick on SCL (CLK) — the banner's `CLOCK TICK`,
 4. drive CS low — the banner's `RESET LOW`,
 
-then read the reply.  See [smartcard.md](smartcard.md) for the card-contact
-mapping this implies.
+then read the reply.  The read happens after the final CS low, so the card's
+reset is asserted while the four values are sampled.  The macro **leaves CS
+low** after it finishes.  See [smartcard.md](smartcard.md) for the contact
+mapping and the release step.
+
+**The four values are not a valid ATR.**  `(1)` samples them while the card's
+reset is asserted, so a card cannot answer; this is a known firmware
+limitation.  Do not use the decoded protocol, read-type or data-unit fields as
+card data.
 
 ## Macro `(2)` — parse only
 
@@ -66,17 +77,16 @@ example by hand-driving CS and CLK) or when you want to re-read a reply.
 ## The parse
 
 Both macros read **four** values from SDA (MOSI) and print them as hex on one
-line, bit-reversed per value when LSB-first order is selected (`L`):
-
-```
-ISO 7816-3 reply (uses current LSB setting): <b0> <b1> <b2> <b3>
-```
+line after the header `ISO 7816-3 reply (uses current LSB setting): `;
+each value is bit-reversed when LSB-first order is selected (`L`).  The `(1)`
+example above shows the full line.
 
 The parse assumes the default **8-bit width**; if `;N` has set another width,
-each "value" is N bits.  The decoded fields come from the first two values.
-Bits are numbered 0 (least-significant) to 7 (most-significant).  The first
-value carries the protocol field in its high nibble; the second value carries
-all three bit fields:
+each "value" is N bits and the decode below no longer matches.  The decoded
+fields come from the first two values.  Bits are numbered 0
+(least-significant) to 7 (most-significant).  The first value carries the
+protocol field in its high nibble; the second value carries all three bit
+fields:
 
 | Second value bits | Mask | Field |
 |---|---|---|
@@ -129,7 +139,8 @@ Printed after `Data units: `.
 | `6` | `8192` |
 | `7` | `16384` |
 
-Printed after `Data unit length (bits): `.
+Printed after `Data unit length (bits): `, on the same line as the data-units
+field (see the run-together note above).
 
 ## Limits
 
@@ -143,8 +154,7 @@ Printed after `Data unit length (bits): `.
   own table; a standard ATR does not exercise those codes.
 - The macros print no error when no card answers; the four values are just
   whatever the floating or idle lines read.
-
-## v3 / v4
-
-The macro menu, the trigger and the parse are the same in both builds.  The v3
-path is **not verified**.
+- The parse's field decode is only meaningful at 8-bit width.
+- The `(1)` output is not a valid ATR (see the warning above).
+- `(1)` leaves CS low; release it (or leave the mode) before using the card
+  for a different purpose.

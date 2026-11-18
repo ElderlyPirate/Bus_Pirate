@@ -4,7 +4,7 @@ Part of the generic-layer documentation set (`docs/generic/`).  Every session
 here is an example: the commands and replies are the firmware's own strings,
 while voltages and pin levels depend on what is connected.
 
-Every session starts at `HiZ>` and the capture shows that prompt.  The
+Every session starts at `HiZ>` and the example shows that prompt.  The
 sessions are independent; if you are following straight through from the
 previous one, run `m1` first to return to HiZ.
 
@@ -208,7 +208,7 @@ settings form).
 
 ```
 HiZ>m6 2 1
-R2W (spd hiz)=( 1 1 )
+R2W (spd hiz)=( 1 1  )
 Ready
 2WIRE>W
 POWER SUPPLIES ON

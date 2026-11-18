@@ -1,7 +1,7 @@
-# 2WIRE — binary `RAW1` (2-wire specifics)
+# 2-Wire — binary `RAW1` (2-Wire specifics)
 
 Part of the [2-Wire documentation set](README.md) in the
-[wire protocol set](../README.md).  This page covers the 2-wire side of the
+[wire protocol set](../README.md).  This page covers the 2-Wire side of the
 scriptable binary interface.  The shared raw-wire framing — entry/exit, the
 command groups, generic actions, peripherals, configuration bits and the
 speed/pull-up commands — is owned by [the shared `RAW1` page](../binary.md).
@@ -10,35 +10,56 @@ speed/pull-up commands — is owned by [the shared `RAW1` page](../binary.md).
 
 1. Enter the binary bitbang layer from the terminal by sending 20 × `0x00`;
    it prints `BBIO1`.
-2. Send `0x05` (enter raw wire mode).  The mode prints `RAW1` and starts in
-   the **2-wire** configuration; for 2-Wire nothing needs to change.
+2. Send `0x05` (enter raw wire mode).  The mode prints `RAW1` and starts with
+   **2 wires** configured; for 2-Wire nothing needs to change.
 3. Send `0x00` to leave raw wire (back to `BBIO1`); from BBIO, `0x0F` returns
    to the interactive terminal.
 
-## 2-wire specifics
+Entry applies open drain, 2 wires, 8-bit, MSB-first and the maximum timing
+profile (while recording speed 1).  There is no width command.
 
-- **Read byte (`0x06`)** clocks a full value in from SDA (MOSI), MSB-first
-  unless LSB-first is configured.
-- **Bulk byte (`0x1x`)** — the low nibble is `n`; the host sends `n + 1` data
-  bytes.  The per-byte sequence is:
+## 2-Wire specifics
 
-  1. host → `0x1n` (the request),
-  2. host ← `0x01` (the command is accepted),
-  3. for each of the `n + 1` bytes: host → data byte, host ← `0x01`.
+| Request | Meaning | Host sends | Reply | Terminal equivalent |
+|---|---|---|---|---|
+| `0x06` | read one byte from SDA | — | one data byte | `r` |
+| `0x1n` | bulk byte, `n + 1` bytes | `n + 1` data bytes | `0x01`, then `0x01` per data byte | a value (`0xNN`, `0b…`, decimal, `"text"`) |
+| `0x8x` | configuration: bit 3 open drain, bit 2 wire count, bit 1 LSB-first | — | `0x01` | — (see mode entry and `l` / `L`) |
+| `0x6x` | speed profile 0–3 | — | `0x01` | speed menu |
+| `0x04` / `0x05` | CS low / high (the card reset in 2-Wire) | — | `0x01` | `C`, then `A` / `a` |
+| `0x02` / `0x03` | I2C-style start / stop | — | `0x01` | `[` and `]` |
+| `0x5x` | pull-up feed: `0x51` 3.3 V, `0x52` 5.0 V, other off | — | `0x01` applied / `0x00` refused | `e2` / `e3` / `e1` |
 
-  Each byte is clocked out on SDA (MOSI); the trailing `0x01` is the **Bus
+Notes:
+
+- Each byte is clocked out on SDA (MOSI); the trailing `0x01` is the **Bus
   Pirate's own result byte**, not a slave ACK.  There is no slave-ACK byte in
-  2-wire (compare I2C's binary mode, which returns the slave ACK per byte).
-- **Configuration (`0x8x`)** sets the mode flags from the low bits: bit 3 =
-  high-impedance/open drain, bit 2 = 3-wire, bit 1 = LSB-first.  On entry the
-  handler starts open-drain, 8-bit, MSB-first and in 2-wire.  For 2-Wire leave
-  bit 2 clear (`0x88` = open drain + 2 wires + MSB-first).
-- **Set speed (`0x6x`)** selects the same four bit-bang profiles as the
-  terminal (`0` ≈ 6 kHz … `3` maximum).
-- **Pull-up feed (`0x5x`)** reproduces the v4 `e` choices: `0x51` = 3.3 V,
-  `0x52` = 5.0 V, any other value disables both.  The reply is `0x01` when the
-  source is applied and `0x00` when it is not, i.e. in non-open-drain mode or
+  2-Wire (compare I2C's binary mode, which returns the slave ACK per byte).
+- For 2-Wire leave configuration bit 2 clear (`0x88` = open drain + 2 wires +
+  MSB-first).  `0x8x` and `0x6x` both drive CS high.
+- The pull-up feed reply is `0x00` when it is not applied: in normal output or
   when VPU already has a voltage.  On v3 the request returns `0x00`.
+- `0x1n` consumes exactly `n + 1` bytes.  A command byte sent early becomes
+  bus data.
+- In 2-Wire the CS pin is only the smart-card reset line; the bus start/stop
+  do not use it.
+
+## Start and stop
+
+`0x02` sends an I2C-style start condition and `0x03` an I2C-style stop; both
+reply `0x01`.  In 2-Wire these mirror the terminal `[` and `]`.  As in the
+terminal, a start is skipped when a line already reads low, but the reply is
+still `0x01`.
+
+## Differences from 3-Wire
+
+| Item | 2-Wire | 3-Wire |
+|---|---|---|
+| bulk byte reply | one `0x01` per byte (Bus Pirate ack) | one sampled MISO byte per byte |
+| start/stop (`0x02`/`0x03`) | the terminal `[`/`]` | I2C-style waveform only; not the CS wrappers |
+| CS wrappers | `0x04`/`0x05` are the card reset | `0x04`/`0x05` are the terminal `[`/`]` |
+| read path | clocks SCL and samples SDA | clocks CLK and samples MISO |
+| data direction | one bidirectional line | separate MOSI and MISO |
 
 ## Worked exchange
 
@@ -49,21 +70,13 @@ after the write is the Bus Pirate's own result byte, not a slave ACK.
 
 ## Limits
 
-- The `RAW1` binary path is 2-wire until reconfigured; the same mode also
-  serves 3-wire, so a host must set the wire count deliberately.
-- The bulk bit-transfer command takes its data level from bit 7 of the command
-  byte; the host byte it reads is consumed but not used.
+- The `RAW1` binary path starts as 2 wires until reconfigured; the same mode
+  also serves 3 wires, so a host must set the wire count deliberately.
+- The width is fixed at 8 bits; there is no `;N` equivalent.
+- The bulk bit-transfer group (`0x3x`) writes only low bits; see the shared
+  page.
 - The `0x5x` pull-up feed group is v4 only; on v3 it returns `0x00`.
+- There is no ATR macro, no settings read-back and no macro command set.
 - The full PIC and SMPS sub-protocols are not covered here.
-- The binary path is unverified; the terminal path in the other topic files is
-  the described reference.
-
-## v3 / v4
-
-| | v3 | v4 |
-|---|---|---|
-| `RAW1` raw-wire mode | present | present |
-| generic / bulk / config / speed groups | present | present |
-| pull-up feed (`0x5x`) | — (request returns `0x00`) | present |
-
-The v3 column is **not verified**.
+- The binary path is **unverified**; the terminal path in the other topic files
+  is the described reference.

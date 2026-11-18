@@ -16,13 +16,14 @@ equivalent entries:
 
 | Input | Behaviour | Notes |
 |---|---|---|
-| `m`, then `2` | lists the mode menu, then runs the setup prompt | menu form also prints `Clutch disengaged!!!` |
-| `m2` | direct entry, runs the setup prompt | no `Clutch` line |
-| `m 2 1` | direct entry, speed supplied on the same line | no `Clutch` line |
+| `m`, then `2` | lists the mode menu, then runs the speed prompt | menu form also prints `Clutch disengaged!!!` |
+| `m2` | direct entry, runs the speed prompt | no `Clutch` line |
+| `m2 1` | direct entry, speed supplied on the same line | no prompt, no `Clutch` line |
 
-The mode menu and the shared entry grammar are owned by `docs/generic/` (see
-[navigation.md](../../../generic/navigation.md) §Mode menu).  After a menu-form
-change the firmware prints:
+The mode menu and the shared entry grammar are owned by
+[docs/generic/](../../../generic/README.md); see
+[navigation.md](../../../generic/navigation.md) §Mode menu.  After a menu-form
+change the firmware prints the speed prompt first, then:
 
 ```
 Clutch disengaged!!!
@@ -32,12 +33,26 @@ Ready
 ```
 
 The direct form prints only `Ready` and the prompt.  Until `W` is sent the bus
-is parked (`Clutch disengaged`); the 1-Wire I/O line is not driven.
+is parked (`Clutch disengaged`); the 1-Wire I/O line is not driven, so it sits
+at the pull-up level if a pull-up is fitted.
 
-The direct form as an example:
+The menu form, abridged (other modes elided):
 
 ```
-HiZ>m 2 1
+HiZ>m
+1. HiZ
+...
+2. 1WIRE
+...
+x. exit(without change)
+
+(1)>2
+Set speed:
+ 1. Standard (~16.3kbps)
+ 2. Overdrive (~160kps)
+(1)>1
+Clutch disengaged!!!
+To finish setup, start up the power supplies with command 'W'
 Ready
 1WIRE>
 ```
@@ -55,6 +70,19 @@ Ready
 1WIRE>
 ```
 
+The complete direct form supplies the speed as the menu number; it prints no
+prompt and no settings header:
+
+```
+HiZ>m2 1
+Ready
+1WIRE>
+```
+
+1-Wire has **no settings header** (unlike 2-Wire's `R2W (spd hiz)` header and
+3-Wire's `R3W (spd csl hiz)` header); the chosen speed is visible only when it
+is toggled or from the speed messages.
+
 ## The speed setup menu
 
 Entering 1-Wire asks one question.  The exact firmware wording is:
@@ -69,6 +97,8 @@ Entering 1-Wire asks one question.  The exact firmware wording is:
   wording defect, not a different rate.  Transcribe it as shown.
 - The answer is stored as the mode's speed setting and applies to resets and
   to every bit from then on.
+- A speed number outside `1`–`2`, or a partial one-line form such as `m2 3`,
+  falls back to this prompt and the typed value is discarded.
 
 ## In-place speed toggle — `O`
 
@@ -114,12 +144,7 @@ The toggle on its own (the full sequence is in
 1WIRE>
 ```
 
-## v3 / v4
-
-| | v3 | v4 |
-|---|---|---|
-| mode number 2, speed menu, `O` toggle | present | present |
-| `O` behaviour | **not verified** | present |
-
-The `O` handler and the speed-menu strings are the same in both builds; v3
-behaviour is not verified.
+Because `O` does not touch the bus, a part that has not received `0x3C` stays
+at standard while the host runs overdrive, or the reverse; the mismatch
+produces garbled reads and writes, not an error.  See
+[edge-cases.md](edge-cases.md).

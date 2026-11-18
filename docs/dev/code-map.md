@@ -49,9 +49,10 @@ a A @ W w d D & % s S O < ( " [ { ] } r
 
 | Area | Where |
 |---|---|
-| 1-Wire | `protocol_wire/1wire.c` — `onewire_setup_prepare()` / `_execute()`, `perform_bus_reset()`, `perform_device_search()`, `lookup_device_model()`, `binary_io_enter_1wire_mode()` |
+| 1-Wire | `protocol_wire/1wire.c` — `onewire_setup_prepare()` / `_execute()`, `onewire_reset()`, `perform_bus_reset()`, `onewire_run_macro()`, `perform_device_search()`, `lookup_device_model()`, `binary_io_enter_1wire_mode()` |
 | 2-Wire | `protocol_wire/raw2wire.c` — `raw2wire_setup_prepare()` / `_execute()`, `raw2wire_start()` / `_stop()`, `trigger_atr()`, `read_atr_header()` |
 | 3-Wire | `protocol_wire/raw3wire.c` — `raw3wire_setup_prepare()` / `_execute()`, `raw3wire_start()` / `_stop()`, `setup_raw3wire()` |
+| Raw wire binary (`RAW1`) | `protocol_binary/binary_io.c` — `binary_io_raw_wire_mode_handler()`, `handle_wire_generic_command()`, `handle_bulk_byte_transfer()`, `handle_bulk_clock_ticks_advance()`, `handle_bulk_bit_transfer()`, `handle_configure_peripherals()`, `handle_set_pullup()`, `handle_set_speed()`, `handle_configuration()`, `handle_wait_command()` |
 | SPI | `protocol_spi/spi.c` — `spi_setup()`, `spi_setup_prepare()` / `_execute()`, `spi_start()` / `_stop()`, `spi_write()` / `spi_read()`, `spi_run_macro()`, `spi_disable_interface()` |
 | I2C | `protocol_i2c/i2c.c` — `i2c_setup_prepare()` / `_execute()`, `i2c_start()` / `i2c_stop()`, `i2c_write()` / `i2c_read()`, `i2c_macro()`, `hardware_i2c_abort()` |
 | UART | `protocol_uart/uart.c` — `uart_setup_prepare()` / `_execute()`, `uart_get_baud_rate()`, `uart_write()` / `uart_read()`, `uart_run_macro()`, `binUART()`; `protocol_uart/uart2.c` — `uart2_enable()`, `uart2_tx()` / `uart2_rx()`, `uart2_rx_flags()` |

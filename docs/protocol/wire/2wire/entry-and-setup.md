@@ -1,16 +1,16 @@
-# 2WIRE — entry & setup
+# 2-Wire — entry & setup
 
 Part of the [2-Wire documentation set](README.md) in the
 [wire protocol set](../README.md).  How the mode is entered, what it asks, and
 what the one-line settings form accepts.  Wiring and the electrical
 requirements are in [wiring.md](wiring.md).
 
-## Entering 2WIRE
+## Entering 2-Wire
 
 `2WIRE` is mode number **6** in the mode menu (HiZ is 1).  The menu form is
 `m` then `6`; the direct form is `m6`.  The shared mode-menu grammar is owned
-by `docs/generic/` — see [navigation.md](../../../generic/navigation.md)
-§Mode menu.
+by [docs/generic/](../../../generic/README.md) — see
+[navigation.md](../../../generic/navigation.md) §Mode menu.
 
 Entering asks two questions, in this order:
 
@@ -24,9 +24,7 @@ Entering asks two questions, in this order:
 | | `2` | `Normal (H=3.3V, L=GND)` |
 
 Both prompts default to `(1)`, so pressing Enter through both selects
-**~6kHz open-drain**.  The speed labels are approximate; the four profiles are
-the same software bit-bang profiles used by software I2C, and the actual clock
-rate is set by the profile's delays.
+**~6kHz open-drain**.
 
 The output-type answer sets the high-impedance state:
 
@@ -41,8 +39,9 @@ A pull-up is required for **open drain** and not for **normal** — see
 
 ## Example entry — `m` menu
 
-The full menu is in `docs/generic/`; it is abridged here.  Entering through the
-menu prints the parking lines:
+The full menu is in [docs/generic/](../../../generic/README.md); it is
+abridged here (other modes elided).  Entering through the menu prints the
+parking lines:
 
 ```
 HiZ>m
@@ -58,12 +57,10 @@ Set speed:
  2. ~60kHz
  3. ~150kHz
  4. Maximum speed
-
 (1)>1
 Select output type:
  1. Open drain (H=Hi-Z, L=GND)
  2. Normal (H=3.3V, L=GND)
-
 (1)>1
 Clutch disengaged!!!
 To finish setup, start up the power supplies with command 'W'
@@ -72,13 +69,12 @@ Ready
 ```
 
 Entering with the direct form `m6` (no settings on the line) asks the same two
-prompts but prints only `Ready` — the `Clutch disengaged!!!` /
-`To finish setup…` pair is printed by the menu path.  The bus is inert until
-`W`.
+prompts but prints only `Ready` — the `Clutch disengaged!!!` / `To finish
+setup…` pair is printed by the menu path.  The bus is inert until `W`.
 
 ## The one-line settings form
 
-Like the other modes, 2WIRE can take its settings on the mode line.  After the
+Like the other modes, 2-Wire can take its settings on the mode line.  After the
 mode number it reads two numbers:
 
 | Typed | Field | Accepted | Meaning |
@@ -95,55 +91,76 @@ Ready
 2WIRE>
 ```
 
-The header is printed only when the whole form is supplied; the interactive
-prompt path prints the prompt menus instead.  The header text is
-`R2W (spd hiz)=( `, then the two values, then ` )`.  **The printed values are
-zero-based**, and the output field is printed as `hiz`:
+The header is printed only when the whole form is supplied and valid; the
+interactive prompt path prints the prompt menus instead.  The exact line is
+`R2W (spd hiz)=( `, then the two values, then ` )`.  **The double space before
+`)` is correct**: each value is followed by a space, and the closing token
+itself begins with a space.
+
+**The printed values are zero-based**, and the output field is printed as
+`hiz`:
 
 | Header field | Printed value | Means |
 |---|---|---|
 | `spd` | `0`–`3` | menu entry 1–4 (so `0` is `~6kHz`) |
 | `hiz` | `1` / `0` | `1` = open drain, `0` = normal |
 
+| Typed form | Printed header |
+|---|---|
+| `m6 1 1` | `R2W (spd hiz)=( 0 1  )` |
+| `m6 2 1` | `R2W (spd hiz)=( 1 1  )` |
+| `m6 4 2` | `R2W (spd hiz)=( 3 0  )` |
+
 So `R2W (spd hiz)=( 1 1  )` is the second speed + open drain, and the form is a
 *display* of the current settings, not the text to type back.  Type the menu
-numbers (`1`–`4` and `1`–`2`).
+numbers (`1`–`4` and `1`–`2`).  The same header is repeated at the end of
+the `i` status block; it is the only settings read-back the mode has.
 
 **`m6 2` is not a one-field form.**  It supplies the speed only; the mode then
 runs both interactive prompts and discards the typed `2`.  Pressing Enter at
 the prompts therefore selects the default ~6kHz open-drain setting, not
 ~60kHz.  Answer both prompts, or type the complete form `m6 2 1`.
 
+## Clock speeds
+
+The four menu entries are the same software bit-bang profiles used by software
+I2C and 3WIRE.  The firmware's per-phase delays are:
+
+| Menu | Profile | Settle | Clock | Derived bit rate |
+|---|---|---|---|---|
+| `1` `~6kHz` | 0 | 19 µs | 80 µs | ≈ 5.6 kHz |
+| `2` `~60kHz` | 1 | 1 µs | 9 µs | ≈ 53 kHz |
+| `3` `~150kHz` | 2 | 1 µs | 4 µs | ≈ 111 kHz |
+| `4` `Maximum speed` | 3 | 0 | 0 | as fast as the loop runs |
+
+A bit write is one settle phase plus two clock phases.  The rate column is
+derived from those delays and excludes loop and transport overhead; the menu
+labels are the firmware's nominal names, not measured rates.  The same profile
+sets the delays used by `^`, `/`, `\`, `-`, `_` and every byte transfer.
+
 ## Power and pull-ups
 
-Entering the mode only parks the bus.  To bring it up:
+Entering the mode only parks the bus.  A common bring-up order:
 
 | Step | Command | Effect |
 |---|---|---|
 | engage | `W` | `POWER SUPPLIES ON` + `Clutch engaged!!!` |
-| source the pull-up voltage (v4) | `e2` / `e3` | `3.3V` / `5.0V` on-board pull-up voltage enabled |
+| source the pull-up voltage (v4) | `e2` / `e3` | `3.3V` / `5V` on-board pullup voltage enabled |
 | enable the pull-ups (open drain) | `P` | `Pull-up resistors ON` |
-| park again | `w` (`p` releases pull-ups) | `Clutch disengaged!!!` |
+| park again | `w` (`p` releases pull-ups) | `Clutch disengaged!!!` + `POWER SUPPLIES OFF` |
 
-`P` only works if a voltage is on the VPU pin; on v4 `e2`/`e3` provides it, on
-v3 it must be fed externally.  **Feed VPU before `P`** — running `P` first on
-v4 only prints `Warning: no voltage on Vpullup pin`.  The shared `P`/`e`
-commands are in [commands.md](../../../generic/commands.md); the 2-Wire wiring
-notes are in [wiring.md](wiring.md).
+`P` switches the pull-ups on but they only produce an idle high if a voltage is
+already on the VPU pin; on v4 `e2`/`e3` provides it, on v3 it must be fed
+externally.  **Feed VPU before `P`** — running `P` first on v4 only prints
+`Warning: no voltage on Vpullup pin` after `Pull-up resistors ON`.  `P` can be
+enabled before `W`; it needs a non-HiZ mode.  The `e` source selection needs a
+non-HiZ open-drain mode and no voltage already on VPU.  The shared `P`/`e`
+commands are in
+[commands.md](../../../generic/commands.md); the 2-Wire wiring notes are in
+[wiring.md](wiring.md).
 
 If the mode was entered with **normal** output, `P` prints
 `WARNING: pins not open drain (HiZ)` because driven pins make the pull-up
-pointless; the pull-ups are still switched on.  See
-[edge-cases.md](edge-cases.md).
-
-## v3 / v4
-
-| | v3 | v4 |
-|---|---|---|
-| mode number 6 | present | present |
-| speed menu | present | present |
-| output-type menu | present | present |
-| `e` VPU source | — (feed externally) | present |
-
-The two builds ask the same two questions with the same wording.  The v3 column
-is **not verified** (v3 is build-only here).
+pointless; the pull-ups are still switched on.  `e` is also refused in normal
+output (`WARNING: pins not open drain (HiZ)` + syntax error), because the VPU
+source requires open-drain outputs.

@@ -37,7 +37,7 @@ Notes:
   entry sequence, shared framing and worked exchange are owned by
   [the shared `RAW1` page](../wire/binary.md).  The per-wire behaviour is in
   [2-Wire binary](../wire/2wire/binary.md) and
-  [3-Wire bus operations](../wire/3wire/bus-operations.md).
+  [3-Wire binary](../wire/3wire/binary.md).
 - OpenOCD (`0x06`) and XSVF (`0x18`) have no terminal mode — these bytes are
   the only way to reach the JTAG hardware.
 - SMPS has no entry byte of its own; it is a command group inside `RAW1` — see

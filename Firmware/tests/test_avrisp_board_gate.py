@@ -43,10 +43,12 @@ for source in (ROOT / "programmer_avrisp").glob("avrisp_*.c"):
                     "-c", str(source), "-o", str(obj)], check=True, capture_output=True)
     symbols = subprocess.run([nm, "-g", str(obj)], check=True, capture_output=True, text=True).stdout
     assert not re.search(r"\b_avrisp_", symbols), source.name
+grouped = ROOT / "protocol_binary" / "binary_io.c"
+dispatch_source = grouped if grouped.exists() else ROOT / "binary_io.c"
 dispatch = subprocess.run([compiler, "-mcpu=24FJ64GA002", "-I", str(ROOT),
                            "-I", str(ROOT/"core_system"), "-I", str(ROOT/"core_bitbang"),
                            "-I", str(ROOT/"core_messages"), "-I", str(ROOT/"core_eeprom"),
-                           "-E", "-P", str(ROOT/"binary_io.c")],
+                           "-E", "-P", str(dispatch_source)],
                           check=True, capture_output=True, text=True).stdout
 assert "avrisp_mkii_enter(" not in dispatch
 print("XC16 board gate: BPv4 enabled; BPv3 excluded, forced enable rejected, no programmer symbols/dispatch")

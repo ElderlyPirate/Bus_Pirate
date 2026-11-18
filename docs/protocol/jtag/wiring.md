@@ -70,8 +70,8 @@ pull-ups to the target's own rail for a 1.8 V or 2.5 V chain.
   3.3 V push-pull output into a 1.8 V chain.
 - **Power.**  VREG drives the `3.3V` and `5.0V` header rails; see
   [Power](#power).  The regulator stays on after the XSVF player exits;
-  send `0x0F` twice (the second send returns to the terminal); `#` is
-  then available and also clears it.  See
+  a raw-serial host can send `0x0F` twice (the second returns to the
+  terminal); `#` is then available and also clears it.  See
   [xsvf.md](xsvf.md) §Entry and exit.
 
 ## Pull-ups
@@ -108,8 +108,9 @@ reachable here).  See [openocd.md](openocd.md) §Features.
   target schematic; the firmware does not invert either line.
 - The XSVF player does not drive SRST or TRST.  A pin write inside `BBIO1`
   can leave AUX (SRST) low; a terminal AUX write on the v4 `A1` target can
-  leave AUX1 (TRST) low even after binary entry.  Release it or reset the
-  board before entering the player.
+  leave AUX1 (TRST) low even after binary entry.  At the terminal, reset,
+  then press `c` and `A` for AUX (SRST) or `k` and `A` for AUX1 (TRST); or
+  reset the board before entering the player.
 
 ## v3 / v4
 

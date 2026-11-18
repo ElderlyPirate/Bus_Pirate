@@ -48,6 +48,7 @@ dispatch_source = grouped if grouped.exists() else ROOT / "binary_io.c"
 dispatch = subprocess.run([compiler, "-mcpu=24FJ64GA002", "-I", str(ROOT),
                            "-I", str(ROOT/"core_system"), "-I", str(ROOT/"core_bitbang"),
                            "-I", str(ROOT/"core_messages"), "-I", str(ROOT/"core_eeprom"),
+                           "-I", str(ROOT/"programmer_pic"),
                            "-E", "-P", str(dispatch_source)],
                           check=True, capture_output=True, text=True).stdout
 assert "avrisp_mkii_enter(" not in dispatch

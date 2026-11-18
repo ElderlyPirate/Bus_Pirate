@@ -1,14 +1,16 @@
 # USB (`core_usb/`)
 
-**Status:** maintainer-facing.  Covers the BPv4 USB CDC device stack: the
-transport that carries the terminal, the binary layer and the SUMP stream.  v3
-does not compile this group; it uses its FTDI serial link and the v3 UART code
-in [`base.c`](system.md).
+**Status:** current · maintainer-facing.  Covers the BPv4 USB CDC device
+stack: the transport that carries the terminal, the binary layer and the SUMP
+stream.  v3 does not compile this group; it uses its FTDI serial link and the
+v3 UART code in [`base.c`](system.md).
 
 The stack derives from JTR's PIC USB/CDC implementation (CC-BY 3.0 headers in
 the files).  It is a full-speed, bus-powered device with no hardware ping-pong
 buffers; the CDC bulk path does its own **software A/B buffering** (two 64-byte
-buffers per direction, one BD).
+buffers per direction, one BD).  The stack selects the internal transceiver,
+internal pull-ups and internal VREG, so the USB port needs no external pull-up
+or supply rail from the firmware's point of view.
 
 ## Scope and files
 
@@ -49,14 +51,11 @@ The PIC24 buffer descriptor table is `usb_bdt[2 + 2 * MAX_EPNUM_USED]` (six
 |---|---|
 | device | `bcdUSB 0x0200`; class `0x02` (CDC); EP0 max packet 8; VID `0x04d8`, PID `0xfb00`; `bcdDevice 0x0002`; 1 configuration; 3 named strings plus the language ID |
 | configuration | 67 bytes; 2 interfaces; value 1; `bmAttributes 0x80` (bus powered, remote wakeup not advertised); `bMaxPower 0x64` = 100 × 2 mA = 200 mA |
-| interface 0 | CDC communications: class `0x02`, subclass `0x02` (ACM), protocol `0x01`; header, ACM and union functional descriptors; 1 endpoint |
+| interface 0 | CDC communications: class `0x02`, subclass `0x02` (ACM), protocol `0x01`; header, ACM, union and call-management functional descriptors; 1 endpoint |
 | interface 1 | CDC data: class `0x0A`; 2 endpoints |
-| endpoint 1 | `0x81`, interrupt IN, 10-byte max packet, interval `0x40`; advertised but not driven by this firmware |
+| endpoint 1 | `0x81`, interrupt IN, 10-byte max packet, interval `0x40`; configured with a zero-length BD but no notification data is queued by this firmware |
 | endpoint 2 | `0x02` bulk OUT and `0x82` bulk IN, 64-byte max packet |
-| strings | lang `0x0409`, manufacturer `Dangerous Prototypes`, product `Bus Pirate V4 `, serial `00000001` |
-
-The inline comment next to `bMaxPower` still says "50=100 mA"; the actual byte
-is `0x64` (200 mA).  Treat the descriptor arithmetic as authoritative.
+| strings | lang `0x0409`, manufacturer `Dangerous Prototypes`, product `Bus Pirate V4 ` (trailing space), serial `00000001` |
 
 ## Initialisation and enumeration
 
@@ -75,17 +74,22 @@ is `0x64` (200 mA).  Treat the descriptor arithmetic as authoritative.
    `cdc_setup` and the SOF flush handler are registered, and the A/B CDC
    pointers are reset.
 
+`usb_init()` clears all handler pointers, including the class handler that
+`initCDC()` installed.  The class and SOF handlers are therefore live again
+only after `user_configured_init()` runs during `SET_CONFIGURATION`.
+
 The state values are ordered flags:
 
 | State | Value | Meaning |
 |---|---|---|
 | `DETACHED_STATE` | 0x00 | no bus |
 | `ATTACHED_STATE` | 0x01 | pull-up seen, waiting for SE0 |
-| `POWERED_STATE` | 0x02 | defined; not assigned by this stack |
 | `DEFAULT_STATE` | 0x04 | after reset, address 0 |
-| `ADR_PENDING_STATE` | 0x08 | defined; the pending address lives in `usb_addr_pending` |
 | `ADDRESS_STATE` | 0x10 | address assigned, not configured |
 | `CONFIGURED_STATE` | 0x20 | configured; CDC endpoints live |
+
+The pending address is kept in `usb_addr_pending` and applied by the IN status
+handler; there is no separate pending-address state value in this tree.
 
 ## Interrupt and transaction flow
 
@@ -123,12 +127,12 @@ dispatches on the OUT BD's token: SETUP, OUT or IN.
 | `GET_STATUS` | device: `usb_device_status`; interface: zeros; endpoint: stall bit from the even BD, bounded to allocated/enabled endpoints |
 | `CLEAR_FEATURE` / `SET_FEATURE` (device) | remote wakeup only, and only when the configuration advertises it (it does not) |
 | `SET_FEATURE` (endpoint) | saves the BD state and publishes a STALL BD |
-| `CLEAR_FEATURE` (endpoint) | clears the EP stall, restores the saved BD, restarts at DATA0 |
+| `CLEAR_FEATURE` (endpoint) | clears the EP stall, restores the saved BD, and re-arms the data toggle for a fresh packet |
 | `SET_ADDRESS` | accepted for `0..0x7F`; the address is applied by the IN status handler (`usb_set_address`) |
 | `GET_DESCRIPTOR` | device, configuration and string descriptors are streamed from ROM with the host's `wLength` bound; interface/endpoint/unknown types stall |
 | `GET_CONFIGURATION` | current configuration value |
 | `SET_CONFIGURATION` | value 0 deconfigures (disables non-control endpoints, clears the SOF/class handlers, `ADDRESS_STATE`); value 1 configures and calls `user_configured_init()` |
-| `GET_INTERFACE` / `SET_INTERFACE` | interface 0 / alternate 0 only |
+| `GET_INTERFACE` / `SET_INTERFACE` | either interface (0 or 1), alternate 0 only |
 | `SET_DESCRIPTOR`, `SYNCH_FRAME` | stall |
 
 Descriptor streaming (`usb_start_rom_reply`/`usb_send_rom`) sends at most the
@@ -154,7 +158,8 @@ both EP0 BDs.
 Line coding is seven wire bytes (CDC PSTN 1.2 Table 17) of virtual-port
 metadata.  Validation checks the length, stop bits `<= 2`, parity `<= 4` and
 data bits in `{5,6,7,8,16}`.  The baud field is stored, never used to divide or
-to program a UART; a zero baud is therefore harmless.
+to program a UART; a zero baud is therefore harmless.  DTR and RTS are
+metadata for the host and do not gate the console.
 
 ## Bulk data path
 
@@ -171,10 +176,13 @@ when done.
 | `setLock()` / `freeLock()` | exclude the SOF flusher while a multi-buffer producer writes; `freeLock()` flushes the partial tail first |
 
 `CDC_Flush_In_Now()` and `putc_cdc()` save and restore the outer lock state, so
-nesting is safe but not a reference count.  The SOF handler flushes only when
-the producer lock is clear and the IN BD is free; it never waits for the host.
-A full 64-byte packet leaves `ZLPpending` set so a host that expects a short
-packet still sees one.
+nesting through those calls is safe.  The lock is one flag, not a reference
+count: do not call `setLock()` twice and then `freeLock()` once.  The SOF
+handler flushes only when the producer lock is clear and the IN BD is free; it
+never waits for the host.  A full 64-byte packet leaves `ZLPpending` set so a
+host that expects a short packet still sees one.  A zero-length `write_cdc(0)`
+when the buffer is full publishes the full packet and makes progress rather
+than spinning.
 
 | Consumer API | Contract |
 |---|---|
@@ -187,9 +195,12 @@ packet still sees one.
 OUT ZLPs and DMA counts larger than the buffer are recycled without being
 reported as application bytes.  Bus reset/reconfiguration invalidates any span
 previously returned by `getinbuf_cdc()`/`getoutbuf_cdc()`; a producer must not
-retain or commit one across a reconnect.  When the host is configured but not
-reading, the IN path waits for BD ownership to return (lossless backpressure);
-there is no timeout that drops data.
+retain or commit one across a reconnect.  There is no generation counter:
+treat a drop of `usb_device_state` below `CONFIGURED_STATE` or a new
+`SET_CONFIGURATION` as invalidation, and re-fetch the span after the state
+returns to configured.  When the host is configured but not reading, the IN
+path waits for BD ownership to return (lossless backpressure); there is no
+timeout that drops data.
 
 ## AVRISP-MKII personality hook
 
@@ -202,25 +213,19 @@ uses EP2 directly.  This is the only place `core_usb` calls into
 
 ## Failure modes and edge cases
 
-- **Unplug / bus reset while a producer holds a span.**  The BD is reset by the
-  stack; the retained span is invalid.  Producers must discard it.
-- **Host not reading.**  The IN path blocks for BD ownership instead of
-  dropping data.  A producer in the SOF handler does not block; it leaves the
-  data queued for the next flush.
-- **Malformed control request.**  Length, interface, direction, request-type
-  and field-range checks stall the request; a new SETUP always recovers.
-- **Deconfiguration.**  `SET_CONFIGURATION(0)` disables EP1/EP2, clears the
-  SOF/class handlers and their BDs, and returns to `ADDRESS_STATE`.
-- **Line coding.**  A malformed seven-byte payload stalls the request and does
-  not modify the stored line coding.
-- **Invalid OUT count / ZLP.**  Recycled silently; the application never sees a
-  phantom byte.
-- **Suspended bus.**  The production `usb_suspend()` is a no-op; the stack
-  clears the idle flag and continues.  A `WakeupUsb` macro exists in the
-  register layer but is not called by the live path.
-- **Startup held in SE0.**  `usb_start()` waits indefinitely for the bus to
-  leave SE0.  The AVRISP personality uses its own bounded attach for the same
-  wait; the core startup path has no timeout.
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| Unplug or bus reset while a producer holds a span | state drops below `CONFIGURED_STATE`; the retained pointer is stale | `usb_handle_reset()` resets the BDT and endpoints; the span is invalid | do not commit it; re-fetch after reconfiguration |
+| Host configured but not reading IN data | prompt stops after the pipe fills; a producer blocks in `WaitInReady()`/`putda_cdc()` | IN path waits for BD ownership; no timeout drops data; a SOF producer does not block and leaves the data queued | drain or reopen the host port; the firmware cannot drop |
+| Malformed control request | request stalls | length, interface, direction, request-type and field-range checks stall; a new SETUP always recovers | issue a valid request |
+| `SET_CONFIGURATION(0)` | CDC endpoints disappear | EP1/EP2 disabled, handlers and BDs cleared, `ADDRESS_STATE` | reconfigure with value 1 |
+| Malformed line coding | request stalls; stored coding unchanged | the seven-byte payload is validated before it replaces the stored value | resend a valid payload |
+| Invalid OUT count or ZLP | no application byte | recycled silently | none |
+| Suspended bus | no traffic | `usb_suspend()` is a no-op; the stack clears the idle flag and continues | resume the host |
+| Startup held in SE0 | `usb_start()` never returns | waits indefinitely for the bus to leave SE0; the AVRISP personality uses a bounded attach | fix the D+/D- connection or host port |
+| Endpoint 1 | a host waiting for a CDC notification waits forever | EP1 has a zero-length BD and no notification is queued | use the EP2 data path; do not wait on notifications |
+
+`WakeupUsb` exists in the register layer but the live path never calls it.
 
 ## Invariants
 
@@ -232,27 +237,32 @@ uses EP2 directly.  This is the only place `core_usb` calls into
 - `getinbuf_cdc()`/`write_cdc()` form one span contract: never commit more than
   the returned free space.
 - `setLock()`/`freeLock()` protect a producer span from the SOF flusher; the
-  lock is a flag, not a counter.
+  lock is a flag, not a counter, so match each `setLock()` with one
+  `freeLock()`.
 - All shared CDC pointers/counts and BD publications are updated with USB
   interrupts excluded; waits for the host happen outside those sections.
 
 ## Native test coverage
 
-`tests/test_usb.py` (run from the repository root:
-`python Firmware/tests/test_usb.py`) host-compiles the production control and
-CDC functions with fake BDs and explicit IRQ state.  Its cases cover line
-coding (including zero baud), endpoint status/bounds/halt, SETUP termination,
-buffer state, poll/reset interleaving, descriptor termination,
-deconfiguration, personality-specific requests, OUT ZLPs and a static PIC24
-write-one-to-clear assertion.  It is a standalone harness; `test_native.py`
-does not run it.  It is not an SIE model or a bus-analyzer trace, and it does
-not model a physical unplug race.
+`tests/test_usb.py` host-compiles the production control and CDC functions with
+fake BDs and explicit IRQ state.  Its cases cover line coding (including zero
+baud), CDC class requests, endpoint status/bounds/halt, SETUP termination,
+buffer state, poll/reset interleaving, descriptor termination, deconfiguration,
+OUT ZLPs and a static PIC24 write-one-to-clear assertion.  Run it directly from
+the repository root:
+
+```
+python Firmware/tests/test_usb.py
+```
+
+It is not an SIE model or a bus-analyzer trace: it does not model a physical
+unplug race, bus timing or the electrical layer.
 
 ## Related docs
 
 - [system.md](system.md) — startup, dispatcher and the serial abstraction.
-- `docs/dev/building.md` — build and native tests.
-- `docs/programmers/avrisp/README.md` — the personality that reuses this
-  stack.
-- `docs/protocol/binary/README.md`, `docs/protocol/sump/README.md` — the
-  protocols that share the CDC transport.
+- [building](../dev/building.md) — build and native tests.
+- [avrisp](../programmers/avrisp/README.md) — the personality that reuses
+  this stack.
+- [binary](../protocol/binary/README.md), [sump](../protocol/sump/README.md)
+  — the protocols that share the CDC transport.

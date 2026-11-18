@@ -94,9 +94,10 @@ line until `EXIT`.  The full reset description is in
 The mode menu is dynamic: it lists only the modes compiled into the build and
 numbers them in a fixed order.  The default v4 menu is 1 `HiZ` … 10 `DIO`; the
 default v3 build omits `KEYB`, so `PIC` and `DIO` are one number lower.  The
-`HiZ` through `DIO` rows below are the default menu modes; `LCD` and `SMPS`
-join the menu when built in, and the rest are entered another way (binary NULs,
-`s`, a USB personality, or base-layer commands).  The exact lists are in
+`HiZ` through `DIO` rows below are the default menu modes; `LCD` joins the
+menu when built in, and the rest are entered another way (binary NULs, `s`, a
+USB personality, or base-layer commands).  `SMPS` is a binary capability, not
+a menu mode.  The exact lists are in
 [navigation.md](navigation.md).
 
 | Mode or entry | v3 | v4 | Documentation |
@@ -112,7 +113,7 @@ join the menu when built in, and the rest are entered another way (binary NULs,
 | `PIC` | yes | yes | [PIC](../programmers/pic/README.md) |
 | `DIO` | yes | yes | [DIO](../protocol/dio/README.md) |
 | `LCD` | optional | optional | [LCD](../capabilities/lcd/README.md) |
-| `SMPS` | — | optional | [SMPS](../capabilities/smps/README.md) |
+| `SMPS` (binary `0xF0`) | — | optional | [SMPS](../capabilities/smps/README.md) |
 | Binary, SUMP | yes | yes | [binary](../protocol/binary/README.md) · [SUMP](../protocol/sump/README.md) |
 | AVRISP-MKII | — | yes | [AVRISP](../programmers/avrisp/README.md) |
 | JTAG, OpenOCD | binary only | binary only | [JTAG](../protocol/jtag/README.md) · [OpenOCD](../tools/openocd/README.md) |

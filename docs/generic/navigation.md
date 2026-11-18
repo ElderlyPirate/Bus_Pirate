@@ -199,7 +199,7 @@ then a blank line, then the `(1)>` prompt.
 | Input | Result |
 |---|---|
 | `m`, then a number | runs the new mode's setup prompts, then `Clutch disengaged!!!`; a non-HiZ mode adds `To finish setup, start up the power supplies with command 'W'`; then `Ready` |
-| `m<N>` (for example `m6`) | runs the same setup prompts and prints `Ready`; the `Clutch` line is printed only by the menu form |
+| `m<N>` (for example `m6`) | runs the same setup prompts and prints `Ready`; the `Clutch` line and the finish-setup prompt are printed only by the menu form |
 | `m<N> <answers…>` | a complete answer set skips the prompts, prints the settings summary (when the mode has one), then `Ready`; an incomplete set falls back to the prompts |
 | `m0` | the zero counts as "no argument", so the menu opens |
 | Enter at the `(1)>` prompt | accepts the default `1` (HiZ) |

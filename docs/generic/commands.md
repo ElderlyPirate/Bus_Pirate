@@ -94,7 +94,7 @@ The full grammar, examples and limits are in [values.md](values.md).
 | `~` | self-test | HiZ only; prompts before running |
 | `&:N` / `%:N` | busy delay N µs / N ms | prints `DELAY <N>us` / `DELAY <N>ms` |
 
-`t` reads a 32-bit microsecond count, so it wraps after about 71 minutes.
+`t` reads a 31-bit microsecond count, so it wraps after about 35.8 minutes.
 `&` and `%` take their count only as `:N`, not as a bare number; a bare `&` or
 `%` is a 1 µs or 1 ms delay.
 

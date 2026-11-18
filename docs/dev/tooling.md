@@ -51,10 +51,9 @@ PIC24 timing, USB enumeration or electrical behaviour.
 
 | Suite | Covers | Runner / needs |
 |---|---|---|
-| `test_native.py` | **Only** the three shared-machinery harnesses below, in sequence | `python Firmware/tests/test_native.py`; Python 3 + `gcc` |
-| `test_protocol_access.py` | live mode-descriptor accessors: `bp_current_protocol()`, `bp_protocol_by_index()`, mode/index pointer identity | via `test_native.py` or directly |
-| `test_shared_format.py` | decimal formatter plus parser result/cursor/error/buffer equivalence | via `test_native.py` or directly |
-| `test_messages.py` | packed-message reader: both address models, byte lanes, page crossings | via `test_native.py` or directly |
+| `test_protocol_access.py` | live mode-descriptor accessors: `bp_current_protocol()`, `bp_protocol_by_index()`, mode/index pointer identity | direct; `gcc` |
+| `test_shared_format.py` | decimal formatter plus parser result/cursor/error/buffer equivalence | direct; `gcc` |
+| `test_messages.py` | packed-message reader: both address models, byte lanes, page crossings | direct; `gcc` |
 | `test_core_system.py` | production `core_system`, `capability_aux` and `protocol_dio` functions: formatting, command-line ring, `getint`/`getrepeat`/`getnumbits`/`getnumber`/`getlong`, baud confirmation, flash read, escape/prefix, macro/history, UART interrupts, VPU/AUX latches, DIO setup (25 cases) | direct, `--case` selects one |
 | `test_usb.py` | USB stack: line coding/baud, endpoint state, bounds, halt, setup, CDC, ROM table, config/control, hardware, ready | direct; `gcc` |
 | `test_bitbang.py` | setup/profile selection, waiting-clock bounds, raw and waiting paths, profile-at-entry order in the three clients, MPLAB paths | direct; `gcc` |
@@ -70,9 +69,8 @@ mock harness) and `eeprom_diagnostic_selftest.c`.  The two XC16 gate scripts
 default to the MPLAB-X installer path and accept the compiler as the first
 argument.
 
-`test_native.py` is **not** the whole test set: it runs three of the twelve
-harnesses above, so its pass says nothing about the core-system, USB, bitbang,
-catalog, EEPROM, PIC or AVRISP suites.
+There is no aggregate runner: each suite is run directly, so a pass in one says
+nothing about the others.
 
 ## Release assembly
 

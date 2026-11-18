@@ -1,11 +1,12 @@
 # Messages (`core_messages/`)
 
-**Status:** maintainer-facing.  Covers the packed string catalogs, the
-program-memory reader, the help block and the confirmation helper.  Most
+**Status:** current · maintainer-facing.  Covers the packed string catalogs,
+the program-memory reader, the help block and the confirmation helper.  Most
 user-visible text comes from this group; a few messages are literals in the
-module that owns them (for example the v4 baud notice in `proc_menu.c` and the
-version strings in `base.h`).  The wording itself is documented by the user
-sets.
+module that owns them (for example the v4 baud notice in `proc_menu.c`, the
+version strings in `base.h`, and some mode-specific lines).  The wording itself
+is documented by the user sets.  v3 is build-only here: its catalog is
+source-derived and **not verified on v3 hardware**.
 
 ## Scope and files
 
@@ -21,16 +22,12 @@ Authoritative inputs and the generator live in `tools/packstrings/`
 `bus_pirate_v4_strings.txt`, `packstrings.py`).  The build consumes the
 committed `.s`/`.h` files; it does not regenerate them.
 
-Current catalog size:
-
-| Board | Message entries |
-|---|---|
-| v3 | 288 |
-| v4 | 308 |
-
-The v4 catalog carries the extra AUX1/AUX2, VPU-source and XSVF text; the v3
-catalog carries its bootloader/version text.  Shared strings appear in both
-catalogs because each board links its own table.
+The v4 catalog carries the shared set plus the AUX1/AUX2, VPU-source and XSVF
+text; the v3 catalog carries the shared set plus its bootloader/version text.
+Shared strings appear in both catalogs because each board links its own table.
+Counts are build artifacts, not a contract: read the committed `.s` files or
+the generator output.  The identifier mix is `BPMSG*` (numeric legacy),
+`MSG_*` (symbolic) and `HLP1000`..`HLP1022` (the help block).
 
 ## Storage model
 
@@ -56,15 +53,18 @@ Consequences:
 - The generator emits exactly one quoted literal per message, using fixed-width
   octal escapes for arbitrary non-NUL bytes, so an embedded escape cannot
   introduce an unintended early terminator.
+- The generated `.s` is sorted by identifier, not by catalog order.  The help
+  order is explicit in `messages.c`.
 
 Every generated identifier has both a declaration and a statement macro:
 
 ```c
-void MSG_EXAMPLE_str(void);
-#define MSG_EXAMPLE bp_message_write_line(__builtin_tbladdress(MSG_EXAMPLE_str))
+void MSG_RESET_MESSAGE_str(void);
+#define MSG_RESET_MESSAGE \
+    bp_message_write_line(__builtin_tbladdress(MSG_RESET_MESSAGE_str))
 ```
 
-Callers write `MSG_EXAMPLE;` (no parentheses).  The macro already selects
+Callers write `MSG_RESET_MESSAGE;` (no parentheses).  The macro already selects
 buffer output or buffer-plus-CRLF.
 
 ## Reader
@@ -83,17 +83,17 @@ void bp_message_write_line(unsigned long strptr);
 4. Stop after transmitting a NUL; restore the caller's `TBLPAG`.
 
 `bp_message_write_line()` runs the buffer writer, then emits one CRLF pair.
-The reader is re-entrant with respect to table memory: it restores the caller's
-`TBLPAG` even when the serial writer uses table memory.  Page boundaries are
-handled because `TBLPAG` is recomputed from the full address on every word.
+The reader restores the caller's `TBLPAG`, so a nested table read is safe.
+Page boundaries are handled because `TBLPAG` is recomputed from the full
+address on every word.
 
-The API has **no length parameter**.  Callers must pass a valid, even,
+The API has **no length parameter**.  Callers must supply a valid, even,
 NUL-terminated message address produced by the generated catalog.  It is not an
 arbitrary flash-range reader, and there is no over-read guard.
 
 ## Naming
 
-Three identifier families exist, all generated from the same catalog:
+Three identifier families exist, all produced from the same catalog inputs:
 
 | Family | Example | Use |
 |---|---|---|
@@ -125,26 +125,35 @@ The generator rejects, before writing anything:
 - invalid or duplicate identifiers;
 - payloads that are not byte strings.
 
-Includes resolve relative to the input file, and output is UTF-8 without BOM
-with LF line endings, so generation is deterministic from any working
-directory.  Regeneration is checked by comparing normalized text, so a CRLF
-checkout does not create a false mismatch; payload bytes, flags and identifiers
-are checked independently.
+Includes (`#include` lines) resolve relative to the input file, not the
+process working directory.  Output is UTF-8 without BOM with LF line endings,
+and entries are written in identifier order, so the contents are deterministic.
+The output prefix is relative to the process working directory; run the
+generator from `tools/packstrings/` so the checked-in paths resolve:
+
+```
+cd tools/packstrings
+python packstrings.py bus_pirate_v3_strings.txt ../../Firmware/core_messages/messages_v3 v3
+python packstrings.py bus_pirate_v4_strings.txt ../../Firmware/core_messages/messages_v4 v4
+```
+
+The third argument is the header include-guard tag (`v3` ->
+`BP_MESSAGES_V3_H`).  A wrong prefix writes a pair the Makefile never compiles.
+
+Regeneration is checked by comparing normalized text, so a CRLF checkout does
+not create a false mismatch; payload bytes, flags and identifiers are checked
+independently.
 
 ## Failure modes and edge cases
 
-- **Bad pointer.**  A non-catalog address, an odd address or a message without
-  a terminator reads unrelated program memory until a zero byte appears.  There
-  is no bounds check.
-- **Page crossing.**  Handled by recomputing `TBLPAG` per word; a caller does
-  not need to split messages at a page boundary.
-- **Embedded NUL.**  A generated payload cannot contain one; the generator
-  refuses it.  Hand-written `.pasciz` strings could, and would truncate output.
-- **Missing string for a compiled-out feature.**  The per-message section lets
-  the linker drop it; a call site that remains compiled in must not reference a
-  dropped identifier.
-- **Confirmation input.**  `agree()` consumes exactly one byte; a terminal that
-  sends CRLF leaves the LF for the next read.
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| Bad pointer | unrelated program memory is printed until a zero byte | no bounds check; an odd address or missing terminator is not detected | pass only a generated, even, NUL-terminated table address |
+| Page crossing | none | `TBLPAG` is recomputed per word | no split needed |
+| Embedded NUL | output truncates at the NUL | the generator refuses NUL; a hand-written `.pasciz` string can contain one | remove the NUL from the payload |
+| Missing string for a compiled-out feature | link error | the per-message section lets the linker drop it; a call site that stays compiled in must not reference it | guard the call site or include the string |
+| Confirmation input | the LF of a CRLF remains for the next read | `agree()` consumes exactly one byte, echoes it, and returns true for `y`/`Y` only | type `y` or `n` alone |
+| Feature text on the wrong board | link error, not a blank line | a message compiled out of a board is absent | compile it for that board or guard the caller |
 
 ## Invariants
 
@@ -154,36 +163,43 @@ are checked independently.
   on its own.  `bp_message_write_line()` adds exactly one CRLF.
 - The generated header and assembly are a pair; edit the catalog inputs and
   regenerate, never patch one artifact alone.
-- Message identifiers are stable ABI within the catalog; the displayed text may
+- Message identifiers are stable within the catalog; the displayed text may
   change without renaming call sites.
 - `print_help()` ordering is explicit in `messages.c`, not derived from the
   catalog order.
+- The generator sorts by identifier; a diff that only reorders the inputs does
+  not change the generated files.
 
 ## Native test coverage
 
-`tests/test_messages.py` (run from the repository root:
-`python Firmware/tests/test_messages.py`) compiles the production reader and
-runs it on both address models with mocked table reads, including page
-crossings, `TBLPAG` restoration and every `agree()` input byte.  Coverage
-includes messages up to 1 KiB and table addresses near the top of a page.  It
-is also part of the `test_native.py` shared-machinery battery.
+`tests/test_messages.py` compiles the production reader and runs it on both
+address models with mocked table reads, including page crossings, `TBLPAG`
+restoration and every `agree()` input byte.  Coverage includes messages up to
+1 KiB and table addresses near the top of a page.
 
 `tests/test_message_catalog.py` checks the generated artifacts against the
 canonical inputs: identifiers, flags, per-message payloads and lengths, every
 real macro at three table addresses plus lengths 0..512, all three NUL lanes,
 upper bytes, page carry, no read past the final program word, nested `TBLPAG`
-restoration, and malformed-input rejection.  Run it standalone from the
-repository root: `python Firmware/tests/test_message_catalog.py`.
+restoration, and malformed-input rejection.
+
+Run either directly from the repository root:
+
+```
+python Firmware/tests/test_messages.py
+python Firmware/tests/test_message_catalog.py
+```
 
 Both are host-side tests with deterministic mocks; they do not execute the
-assembler's `.pasciz` encoding on target.  Actual assembled payloads are
-covered by the catalog/object comparison described in
-`core_messages/README.md`.
+assembler's `.pasciz` encoding on target.
 
 ## Related docs
 
 - [system.md](system.md) — where the help block, confirmation and status text
   are used.
-- `docs/generic/navigation.md` — the user-visible navigation and help text.
-- `docs/dev/tooling.md` — the message generator workflow.
-- `core_messages/README.md` — pack/reader proof and catalog policy.
+- [navigation](../generic/navigation.md) — the user-visible navigation and
+  help text.
+- [macros](../generic/macros.md) — the user macro layer that prints through
+  these catalogs.
+- [building](../dev/building.md) and [tooling](../dev/tooling.md) — the message
+  generator workflow and the broader test inventory.

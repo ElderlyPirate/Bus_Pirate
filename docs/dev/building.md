@@ -251,17 +251,19 @@ directory), so the version file itself may be given by any path.
 ## Native (hardware-free) tests
 
 `Firmware/tests/` compiles real production functions against small mocks with
-a host compiler; nothing here touches a board or emulates USB/timing.
+a host compiler; nothing here touches a board or emulates USB/timing.  Run a
+suite directly from the repository root, for example:
 
 ```
-python Firmware/tests/test_native.py
+python Firmware/tests/test_core_system.py
 ```
 
-`test_native.py` is **only** the three shared-machinery harnesses:
-`test_protocol_access.py` (mode-descriptor accessors), `test_shared_format.py`
-(the decimal formatter and parser) and `test_messages.py` (the packed-message
-reader on both address models).  Each needs Python 3 and `gcc` on `PATH`;
-generated test files stay under `Firmware/build/`.
+Each page in `docs/core/` names its suite.  The three shared-machinery
+harnesses are `test_protocol_access.py` (mode-descriptor accessors),
+`test_shared_format.py` (the decimal formatter and parser) and
+`test_messages.py` (the packed-message reader on both address models).  Each
+needs Python 3 and `gcc` on `PATH`; generated test files stay under
+`Firmware/build/`.
 
 The module suites (core system, USB, bitbang, message catalog, EEPROM, PIC,
 AVRISP and the two XC16 gates) are separate scripts run directly.  The

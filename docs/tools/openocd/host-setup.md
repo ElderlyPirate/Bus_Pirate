@@ -1,104 +1,104 @@
-# OpenOCD adapter — host setup and configuration
+# Host setup — OpenOCD, the Bus Pirate driver and the port
 
-Part of the OpenOCD adapter set (`docs/tools/openocd/`).  This page covers what
-the host must provide, how OpenOCD is configured to drive the Bus Pirate, and a
-reference configuration.  The byte protocol is in
-[protocol/jtag/openocd.md](../../protocol/jtag/openocd.md); the end-to-end
-startup and command sequence is in [workflow.md](workflow.md).
+Part of the OpenOCD adapter set.  This page covers what the host must
+provide, the POSIX-only build, the OpenOCD options, and reference
+configurations.  The startup sequence and the run commands are in
+[workflow.md](workflow.md); the byte protocol is in
+[commands.md](commands.md).
 
 ## Scope
 
-- **Covered:** what the adapter is and is not, host and driver requirements,
-  serial-port handling, the OpenOCD interface options, a reference target
-  example, and reference configs.
-- **Not covered:** the in-mode `OCD1` command table, which the JTAG set owns;
-  the exact target script and part-specific settings beyond the reference
-  example; the XSVF path.
-
-## What the adapter is
-
-The firmware's `0x06` path shifts one TMS bit and one TDI bit per clock and
-returns the TDO bit.  It has no idea what those bits mean.  The host supplies
-the meaning:
-
-| Layer | Role |
-|---|---|
-| host debugger (OpenOCD) | TAP state machine, IR/DR layouts from the target config, flash algorithms, GDB server |
-| `OCD1` byte protocol | pin modes, features, 16-bit TAP-shift blocks, ADC read, link speed, clock delay |
-| Bus Pirate firmware (`0x06`) | drives TCK/TMS/TDI, samples TDO, reports TDO bytes |
-| target TAP | the scan chain being driven |
-
-Consequences:
-
-- The firmware does not know IR lengths, DR layouts, IDCODEs, chain order or
-  reset sequences.  All of that comes from the host's target configuration.
-- The interface is not "JTAG over serial" in any standard sense.  It is a
-  device-specific byte protocol (`OCD1`), so the host must be a driver that
-  speaks it.  OpenOCD's Bus Pirate interface is the reference driver.
-- A terminal cannot drive the chain.  There is no JTAG menu entry and no
-  interactive JTAG command set.
-
-The full entry, command and reply detail is in
-[protocol/jtag/openocd.md](../../protocol/jtag/openocd.md).
+- **Covered:** host and driver requirements, the port, the OpenOCD option
+  names across releases, reference interface and target configurations, and
+  the rules for a custom host.
+- **Not covered:** part-specific target settings beyond the reference
+  example, the in-mode command set, and the XSVF path.
 
 ## Host requirements
 
 | Requirement | Detail |
 |---|---|
 | OpenOCD with the Bus Pirate driver | the reference host; the adapter driver is named `buspirate` |
-| host OS | POSIX serial ports; **native Windows (MinGW) builds exclude the driver** — a Cygwin/POSIX layer may work, otherwise use Linux, macOS or BSD |
-| serial device | v4 presents a USB CDC port (`/dev/ttyACM0` or similar); v3 presents an FTDI port (`/dev/ttyUSB0`) |
-| port access | your user must be able to open the device read/write (serial group or a udev rule on Linux) |
-| exclusive access | close the terminal, `screen`, `minicom`, PulseView or anything else holding the port |
-| baud rate | leave it to the driver; do not configure the port by hand |
-| board state | at the terminal prompt (`HiZ>`), with no configuration menu open |
-| target power | the target must be powered and grounded before the adapter probes the chain |
+| host OS | **POSIX only** — Linux, macOS or BSD; on Windows see the routes below |
+| serial device | v4: a USB CDC port (`/dev/ttyACM0` or similar); v3: an FTDI port (`/dev/ttyUSB0` or similar) |
+| port access | the user must be able to open the device read/write (serial group or a udev rule) |
+| exclusive access | no terminal, `screen`, `minicom` or other program may hold the port |
+| board state | at the terminal prompt (`HiZ>`) with no menu open, or a board that can be reset to it |
+| target power | the target must be powered and grounded before the chain is probed |
 
-Packaged OpenOCD builds vary: some distributions omit optional adapters.  If
-the driver is missing, OpenOCD fails at startup with an unknown-adapter error
-before it tries to open the port.  Check the build's configure summary (it
-lists `Bus Pirate`) or the installed interface files.
+### The driver is not built on native Windows
 
-### Port and baud handling
+OpenOCD's Bus Pirate driver is POSIX-only.  A MinGW or MSYS build disables
+the adapter, and asking for it explicitly is rejected by the configure step.
+Native Windows builds of OpenOCD therefore do not contain it.
 
-The driver owns the serial port for the whole session:
+| Host | Driver present |
+|---|---|
+| Linux, macOS, BSD | yes, if the build includes the adapter |
+| Cygwin | yes, if built there (runtime unverified) |
+| native Windows (MinGW/MSYS) | **no** — disabled by the build |
 
-- It opens at **115200 baud, 8N1, no flow control** and discards stale bytes
+This is a host-build limit, not a firmware one: the firmware path is present
+in both Bus Pirate builds.
+
+On Windows, the workable routes are:
+
+| Route | Requirement |
+|---|---|
+| Cygwin build | build OpenOCD inside Cygwin (runtime unverified) |
+| WSL | USB passthrough of the Bus Pirate port to the Linux instance (unverified) |
+| Linux VM | USB passthrough of the Bus Pirate port to the VM |
+
+Native Windows cannot be made to work by adding a flag: the configure step
+forces `--enable-buspirate` off on MinGW/MSYS and rejects it if asked
+explicitly.
+
+### Check the build
+
+Not every packaged OpenOCD includes every adapter.  List the built-in
+drivers before wiring anything:
+
+```
+$ openocd -c "adapter list" -c "shutdown"
+buspirate { jtag swd }
+```
+
+The output is a Tcl dictionary: the adapter name, then the transports it
+supports.  `buspirate` must appear.  On OpenOCD 0.10 the command is
+`interface_list`.  If `buspirate` is not in the
+list, build OpenOCD from source with the adapter enabled:
+
+```
+$ ./configure --enable-buspirate
+$ make
+$ sudo make install
+```
+
+The configure summary lists `Bus Pirate` with `yes` or `no`; confirm it says
+`yes` before building.  A distro package cannot be extended this way; use a
+release that includes the driver or install the local build.
+
+### The serial port
+
+The driver owns the port for the whole session:
+
+- It opens at **115200 baud, 8N1, no flow control**, and discards bytes
   left over from a terminal session.
+- v4 presents a USB CDC port; the baud rate is host metadata and the
+  firmware does not reconfigure the link.
+- v3 presents an FTDI port; the baud rate is real and the firmware can
+  change it.  The driver opens at 115200, so a board whose terminal rate was
+  changed with `b` is not reachable until it is reset (or set back to
+  115200).
 - `buspirate speed fast` switches the host port to **1 Mbaud** and asks the
   firmware to do the same.  On v3 that changes the physical UART rate; on v4
-  the CDC rate is host metadata and the firmware change is a no-op.
+  the CDC rate does not change.
 - `buspirate speed normal` is the safe default and the value used at exit.
 
-### Binary entry is automatic
-
-You do not pre-enter a binary mode.  The driver sends the two entry bytes
-itself: 20 × `0x00` (the board answers `BBIO1`), then `0x06` (the board
-answers `OCD1`).
-
-The full startup sequence — the optional speed change, the pin mode and
-features, the reset release, and the chain probe/examine — is owned by
-[workflow.md](workflow.md) §5.  The entry bytes belong to the binary layer —
-see [the binary entry page](../../protocol/binary/entering-and-framing.md).
-Leaving is the driver's job too; see
-[limits-and-errors.md](limits-and-errors.md) §Leaving cleanly.
-
-## Host-side configuration
-
-This repository does **not** ship an OpenOCD configuration.  Everything in
-this section is reference material for the host program.
-
-| Item | Shipped here |
-|---|---|
-| firmware OpenOCD path (`0x06`) | yes — enabled on both builds |
-| OpenOCD host program | no — separate project |
-| OpenOCD interface config for the Bus Pirate | no — reference only |
-| target config | no — OpenOCD's own target tree |
-
-### Option names and the OpenOCD version matrix
+## OpenOCD option names across releases
 
 The option spelling changed across OpenOCD releases.  Pick the row that
-matches your installed OpenOCD; if a name is still rejected, open the
+matches the installed version; if a name is still rejected, open the
 installed `interface/buspirate.cfg` and copy its spelling.
 
 | OpenOCD | Driver selection | Option names |
@@ -107,12 +107,11 @@ installed `interface/buspirate.cfg` and copy its spelling.
 | 0.11 | `adapter driver buspirate` | `buspirate_port`, `buspirate_speed`, `buspirate_mode`, `buspirate_vreg`, `buspirate_pullup` |
 | 0.10 and earlier | `interface buspirate` | the same flat `buspirate_*` names |
 
-The reference configs below use the 0.12-and-later form.  For 0.11 and
-earlier, use the flat names:
+The tables and configs below use the 0.12-and-later form.  For 0.11 and
+earlier:
 
 ```
-# 0.11 and earlier — flat option names
-adapter driver buspirate       # 0.11; on 0.10 use: interface buspirate
+adapter driver buspirate
 buspirate_port /dev/ttyACM0
 buspirate_speed normal
 buspirate_mode normal
@@ -121,35 +120,37 @@ buspirate_pullup 0
 reset_config srst_only
 ```
 
-The option table below uses the 0.12-and-later form.
+On 0.10 and earlier, replace the first line with `interface buspirate`.
 
-| Option | Values | Default | Effect |
-|---|---|---|---|
-| `buspirate port` | serial device path | none — required | the port the driver opens |
-| `buspirate speed` | `normal` / `fast` | `normal` | 115200 vs 1 Mbaud link; v4 ignores the rate change |
-| `buspirate mode` | `normal` / `open-drain` | `open-drain` | push-pull vs open-drain pin drive |
-| `buspirate vreg` | `0` / `1` | `0` | on-board regulator feeding VCC |
-| `buspirate pullup` | `0` / `1` | `0` | on-board pull-ups to Vpullup |
+## Options
 
-Two runtime commands are also available while OpenOCD is running:
+| Option | Values | Default | Set at | Effect |
+|---|---|---|---|---|
+| `buspirate port` | serial device path | none — required | config | the port the driver opens |
+| `buspirate speed` | `normal` / `fast` | `normal` | config | 115200 or 1 Mbaud link; v4 ignores the rate change |
+| `buspirate mode` | `normal` / `open-drain` | `open-drain` | config | push-pull or open-drain pin drive |
+| `buspirate vreg` | `0` / `1` | `0` | config | on-board regulator, feeding the `3.3V` and `5.0V` rails |
+| `buspirate pullup` | `0` / `1` | `0` | config | on-board pull-ups to Vpullup |
+| `buspirate adc` | — | — | runtime | print the four ADC readings |
+| `buspirate led` | `0` / `1` | — | runtime | drive the mode LED |
 
-| Command | Effect |
-|---|---|
-| `buspirate adc` | prints the ADC pin, Vpullup, 3.3 V and 5.0 V readings |
-| `buspirate led 0` / `buspirate led 1` | drives the mode LED off / on |
+"Config" options are accepted while OpenOCD reads its configuration; they
+cannot be changed from a running session.  "Runtime" options work at the
+telnet prompt after the adapter is initialised; before init, `buspirate adc`
+returns without sending anything.
 
-On 0.11 and earlier the runtime commands use the flat names `buspirate_adc`
-and `buspirate_led`.
-
-**The driver's default pin mode is open-drain.**  The interface file shipped
-with current OpenOCD keeps its `buspirate mode normal` line commented out, so
-a configuration that only sets the port runs open-drain and needs pull-ups.
+**The default pin mode is open-drain.**  The interface file shipped with
+current OpenOCD keeps its `buspirate mode normal` line commented out, so a
+configuration that only sets the port runs open-drain and needs pull-ups.
 Set the mode explicitly for every session.
 
-### Reference interface config
+On 0.11 and earlier the runtime commands are `buspirate_adc` and
+`buspirate_led`.
+
+## Reference interface config
 
 ```
-# interface.cfg — reference, 0.12 and later form; not shipped
+# interface.cfg — reference; OpenOCD ships interface/buspirate.cfg
 adapter driver buspirate
 buspirate port /dev/ttyACM0
 buspirate speed normal
@@ -160,34 +161,13 @@ reset_config srst_only
 ```
 
 `reset_config srst_only` matches the interface file and tells OpenOCD that
-only SRST is wired.  The firmware can drive both SRST and TRST as features;
-adjust the reset configuration if both are connected.
+only SRST is wired.  Use `reset_config trst_and_srst` if TRST is connected
+too.
 
-### Target config — reference example only
-
-```
-source [find target/stm32f1x.cfg]
-```
-
-- OpenOCD's installed `scripts/target/` tree holds the supported parts;
-  source the matching `.cfg`.  `stm32f1x.cfg` above is one example, not the
-  only or a generic target.
-- The target script supplies the chain description (IR length, IDCODE), the
-  flash banks and the reset behaviour.  Use the script for the exact part on
-  the board.
-- A script for a similar part can still probe the chain, but usually fails at
-  examine or at the first flash access.
-- Target scripts often contain `adapter speed`.  The Bus Pirate driver does
-  not forward a JTAG clock setting, so that value does not change TCK.  The
-  shift rate is fixed by the firmware loop and the serial link.
-- The target script's transport selection must be JTAG.  OpenOCD's Bus Pirate
-  driver also has an SWD transport, which uses a different firmware path and
-  is outside this set.
-
-### Complete reference config
+## Reference target config
 
 ```
-# openocd.cfg — reference, 0.12 and later form; not shipped
+# openocd.cfg — reference; source OpenOCD's installed interface file
 source [find interface/buspirate.cfg]
 buspirate port /dev/ttyACM0
 buspirate speed normal
@@ -199,6 +179,18 @@ reset_config srst_only
 source [find target/stm32f1x.cfg]
 ```
 
+- OpenOCD's installed `scripts/target/` tree holds the supported parts.
+  Source the `.cfg` for the exact part; `stm32f1x.cfg` is one example, not a
+  generic target.
+- The target script supplies the chain description (IR length, IDCODE), the
+  flash banks and the reset behaviour.
+- A script for a similar part can still probe the chain but usually fails at
+  examine or at the first flash access.
+- Target scripts often contain `adapter speed`.  The Bus Pirate driver does
+  not forward a JTAG clock setting, so that value does not change TCK.
+- The transport must be JTAG.  OpenOCD's Bus Pirate driver also has an SWD
+  transport, which uses a different firmware path and is outside this set.
+
 The same configuration can be given on the command line:
 
 ```
@@ -206,35 +198,33 @@ $ openocd -f interface/buspirate.cfg -f target/stm32f1x.cfg \
       -c "buspirate port /dev/ttyACM0"
 ```
 
-Once the port is open and the target script is loaded, OpenOCD starts the
-adapter and probes the chain.  The startup sequence, the startup log and the
-reference command session are in [workflow.md](workflow.md) §5–§6; the clean
-exit is in §7.
-
 ## If you write your own host
 
 A custom driver must match the `OCD1` framing, not just send JTAG patterns.
-The rules a host must honour:
 
 | Rule | Why |
 |---|---|
-| read the 3-byte echo before the TDO bytes | the TDO reply follows the echoed command header |
-| send TDI/TMS low byte first; add the high bytes for groups of 9–16 bits | the shift data is grouped per 16 bits |
-| keep each scan at or below 8192 bits | a longer scan overflows the host's driver buffer; the firmware clamp leaves stray payload |
+| read the 3-byte echo before the TDO bytes | the TDO reply follows the echoed header |
+| send TDI/TMS in groups of up to 16 bits, low byte first | that is the only payload layout the path accepts |
+| keep the whole `0x05` request, including TAP moves, at or below 8192 bits | a longer request is clamped and the surplus desyncs the next command |
 | set a pin mode before the first shift | entry leaves every pin an input |
-| re-drive SRST/TRST after a mode change | the mode byte parks all five outputs low |
+| release SRST/TRST with feature action `1` | the pin mode drives both lines low |
+| do not wait for a reply to `0x01`, `0x02` or `0x08` | those requests have no reply |
+| on v3, send the `0x07` selector and the `0xAA 0x55` confirmation in separate writes | the firmware changes its UART before the confirmation |
+| on v3, follow a `0x07` rate change and its revert | a failed confirmation returns the firmware to normal |
 | leave with `0x00`, then `0x0F` | `0x0F` is not an `OCD1` command |
+| do not use `0x04` for the shift | the current TAP shift is `0x05` |
 
-Link pins, features and the exact byte framing from
-[protocol/jtag/openocd.md](../../protocol/jtag/openocd.md); do not guess them.
+The exact byte values, the ADC reply and the speed handshake are in
+[commands.md](commands.md).
 
-## Related docs
+## Related
 
 | Doc | Why |
 |---|---|
-| [protocol/jtag/openocd.md](../../protocol/jtag/openocd.md) | the in-mode protocol |
-| [protocol/jtag/wiring.md](../../protocol/jtag/wiring.md) | pins, levels, pull-ups |
-| [protocol/binary/entering-and-framing.md](../../protocol/binary/entering-and-framing.md) | `BBIO1` entry and reply framing |
-| [workflow.md](workflow.md) | wire, connect, run, exit |
-| [limits-and-errors.md](limits-and-errors.md) | limits, messages, recovery |
-| [../../SPEC.md](../../SPEC.md) | capability matrix |
+| [workflow.md](workflow.md) | startup sequence, health check, run and exit |
+| [commands.md](commands.md) | the command set a custom host must speak |
+| [wiring.md](wiring.md) | pins, rails, pull-ups |
+| [limits-and-errors.md](limits-and-errors.md) | driver messages and recovery |
+| [../../protocol/binary/entering-and-framing.md](../../protocol/binary/entering-and-framing.md) | `BBIO1` entry and framing |
+| [../../generic/README.md](../../generic/README.md) | terminal port settings before a session |

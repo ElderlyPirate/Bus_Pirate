@@ -29,7 +29,7 @@ in-mode byte protocol only.  OpenOCD performs the binary entry and the
 
 | Request | Followed by | Meaning | Reply |
 |---|---|---|---|
-| `0x00` | — | leave OpenOCD mode | `BBIO1` (from the bitbang layer) |
+| `0x00` | — | leave the OpenOCD path | `BBIO1` (from the bitbang layer) |
 | `0x06` | — | report the identifier | `OCD1` |
 | `0x01` | 1 byte mode | set the pin mode (see below) | — |
 | `0x02` | feature, action | set a feature (see below) | — |

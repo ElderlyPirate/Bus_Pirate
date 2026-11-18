@@ -72,8 +72,9 @@ no settings menu and no read-back.
 | TCK delay | `0x08` + 2 bytes | `1` | larger = slower TCK; no reply |
 | Link speed | `0x07` + selector + `0xAA 0x55` | normal at boot | v3 UART rate; v4 no-op |
 
-`0x06` entry resets the pin mode, VREG, pull-ups, TRST/SRST levels and
-TCK delay, but not the mode LED or the link rate.
+`0x06` entry resets the pin mode, VREG, pull-ups, SRST (`AUX0`) level and
+TCK delay, but not the mode LED, the link rate or TRST (`AUX1` on v4, `PGD`
+on v3).
 
 The pin mode byte drives the five outputs (TDI, TMS, TCK, SRST, TRST) low
 before it applies the direction; TDO is always an input.  A mode change

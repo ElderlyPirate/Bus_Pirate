@@ -1,29 +1,31 @@
-# OpenOCD limits, errors and recovery
+# Limits, errors and recovery
 
-Part of the OpenOCD adapter set (`docs/tools/openocd/`).  This page owns what
-the firmware path and the host driver cannot do, what their messages mean, and
-how to recover.  The byte-level protocol is defined in
-[protocol/jtag/openocd.md](../../protocol/jtag/openocd.md); this page is the
-host-side reading of it.
+Part of the OpenOCD adapter set.  This page owns what the firmware path and
+the host driver cannot do, what their messages mean, and how to recover.
+The byte-level rules are in [commands.md](commands.md); the host options are
+in [host-setup.md](host-setup.md).
 
 ## Scope
 
-Firmware limits (TAP shifter only, shift clamp, speed and delay), host-driver
-limits, the exit rules, the message tables and the recovery steps.  It does not
-repeat the in-mode command table; follow the link for that.
+Firmware limits (TAP shifter only, the 8192-bit block, zero counts, speed and
+delay), host-driver limits, the exit rules, the message tables and the
+recovery steps.  It does not repeat the command table.
 
 ## Firmware limits
 
 | Limit | Value | Host-side consequence |
 |---|---|---|
-| shift per `0x05` command | 8192 bits | keep each scan at or below 8192 bits; OpenOCD does not split a longer scan |
+| shift per `0x05` | 8192 bits per request, clamped | keep the whole request, including its TAP moves, at or below 8192 bits |
 | TAP knowledge | none | the host and its target config own IR/DR/chain |
-| persistent state | pin levels only | the host tracks the TAP position across commands |
-| default pin state at entry | all inputs (Hi-Z) | set a pin mode before the first shift |
-| JTAG clock | no host control | `adapter speed` does not change TCK |
-| inter-bit delay | default `1` | OpenOCD never changes it, so the default applies |
-| link speed | normal / fast | v4 accepts `fast` but does not change the rate |
-| v3 | build-only | not verified |
+| TAP state kept by the firmware | none; only the pin levels persist | the host tracks the TAP position across commands |
+| pin state at entry | TDI, TMS, TCK and SRST inputs; TDO input; TRST not touched | set a pin mode before the first shift |
+| JTAG clock | only the `0x08` loop delay | `adapter speed` does not change TCK |
+| TCK delay | default `1` | OpenOCD never sends `0x08`, so the default applies |
+| link speed | normal / fast | v4 accepts fast but does not change the rate |
+| zero count | v4 no-op; v3 unsupported | do not send one; OpenOCD never does |
+
+The v3 path is compiled into the build; its hardware behaviour is not
+verified on v3.  The byte protocol is the same on both boards.
 
 ### The TAP-shifter boundary
 
@@ -34,146 +36,163 @@ The firmware shifts bits; it does not model the TAP.  It has:
 - no automatic TMS reset pattern or state-transition shortcuts;
 - no knowledge of the target's reset behaviour or flash layout.
 
-All of that is the host's.  The target configuration in OpenOCD supplies the
-IR lengths, the IDCODEs, the flash banks and the reset sequence.  If the
-target script names a different part or chain order, the probe can still read
-an IDCODE but examine and flash fail.  Do not read a successful entry as a
-successful target probe.
+All of that is the host's.  The target configuration supplies the IR
+lengths, the IDCODEs, the flash banks and the reset sequence.  If the target
+script names a different part or chain order, the probe can still read an
+IDCODE but examine and flash fail.  A successful entry is not a successful
+target probe.
 
-### The 8192-bit shift clamp
+### The 8192-bit block
 
-`0x05` carries a 16-bit count of bit sequences, capped at 8192 bits.  The
-reply echoes the **requested** count even when the firmware clamped it, so a
-host cannot detect the clamp from the echo.
+`0x05` carries a 16-bit count of bits, capped at 8192.  The reply echoes the
+**requested** count even when the firmware clamped it, so a host cannot
+detect the clamp from the echo.  The TDO reply is sized for the clamped
+count, not the requested count.
 
-OpenOCD flushes its scan queue at the 8192-bit boundary, but it does **not**
-split a single scan that is longer.  One scan above 8192 bits overflows the
-driver's chain buffer (`tap_chain overflow`) and aborts the session.  Keep
-any one scan at or below 8192 bits.
+The clamp is not a clean truncation: only the clamped payload is consumed,
+and the leftover TDI/TMS bytes stay in the serial stream and are read as
+requests.  The mode may leave, shift, or answer an unknown-command `0x00`;
+the session no longer matches the host's model.
 
-The firmware clamp is not a safe way to truncate an oversized shift: it
-consumes only the clamped payload, and the leftover TDI/TMS bytes stay in the
-serial stream and desynchronise the next command.  A custom host must split
-long scans itself before sending them.
+On the host side, OpenOCD packs queued scans and their TAP moves into one
+`0x05` request.  The driver has two 1024-byte lane buffers, one for TDI and
+one for TMS, so the request holds at most 8192 bits.  It flushes when the
+next scan does not fit, but does **not** split one scan that is longer than
+the buffer: a single scan above 8192 bits overflows, logs
+`tap_chain overflow, bad things will happen` and exits.  A scan of 8192 bits
+also overflows if TAP moves precede it in the same request.
+
+Keep the whole `0x05` request, including its TAP moves, at or below 8192
+bits with margin.  A custom host must split long scans before sending them.
+
+### Zero-count shifts
+
+- **v4:** the 3-byte echo is sent; no payload is read and no TDO byte
+  follows.
+- **v3:** a zero count is not supported.  The v3 path has no zero-count
+  guard; use at least one bit.  The v3 outcome is unverified.
+
+No host needs a zero-bit shift.
 
 ### Speed and delay
 
 | Setting | Behaviour |
 |---|---|
 | `buspirate speed normal` | 115200 link; always safe |
-| `buspirate speed fast` (v3) | 1 Mbaud physical link |
+| `buspirate speed fast` (v3) | about 1 Mbaud on the UART |
 | `buspirate speed fast` (v4) | accepted and acknowledged; the CDC rate does not change |
+| `0x07` handshake | not a status: the reply repeats the selector, and a bad `0xAA 0x55` forces normal |
 | `0x08` clock delay | two bytes, default `1`; a larger value slows TCK |
 
-`0x07` (link speed) is not a success code: the reply repeats the selector, and
-a bad `0xAA 0x55` confirm forces the link back to normal.  A custom host must
-switch its own port to the requested rate after the command byte, then send
-the confirm at that rate; OpenOCD does this for you.
+A custom host must send the selector, switch its own port to the requested
+rate, then send the confirmation in a separate write; on v3 the firmware
+changes its UART first.  A failed confirmation reverts the firmware to
+normal, and the reply arrives at normal.
 
-OpenOCD's Bus Pirate driver has no JTAG clock control and never sends the
-`0x08` delay command.  A stock session therefore runs at the firmware's
-default delay, and `adapter speed` in a target script is cosmetic for this
-adapter.  If a chain needs a slower clock, a custom host must set `0x08`
-itself.
+OpenOCD's driver has no JTAG clock control and never sends `0x08`.  A stock
+session therefore runs at the firmware's default delay, and `adapter speed`
+in a target script is cosmetic for this adapter.
 
 ## Host-driver limits
 
 | Limit | Detail |
 |---|---|
-| POSIX serial only | native Windows (MinGW) builds exclude the driver; a Cygwin/POSIX layer may work |
+| POSIX serial only | native Windows (MinGW/MSYS) builds do not include the driver; use Cygwin (runtime unverified), WSL or a Linux VM with USB passthrough |
 | one owner of the port | a terminal or another program holding the port blocks the driver |
-| one OpenOCD session | a second instance cannot open the adapter |
+| one OpenOCD session | do not start a second instance on the same port; the two byte streams interleave and corrupt each other |
 | open-drain by default | an unconfigured session needs pull-ups |
-| reset commands need SRST | without SRST wiring, reset commands do not reset the CPU |
-| no config shipped | interface, target and clock settings are the host's responsibility |
+| reset commands need SRST | without SRST wiring, a reset request drives a line that goes nowhere |
+| no project config shipped | OpenOCD's installed interface file is the starting point; target and clock settings are the host's responsibility |
+| no clock control | `adapter speed` is not forwarded |
+| runtime vs config | `buspirate mode`, `speed`, `vreg` and `pullup` are config-stage only |
 
-## Leaving cleanly
+## Leaving and recovery
+
+Entry (`0x06`, and the 20-NUL binary entry before it) switches VREG and the
+on-board pull-ups off; the exit chain below does the same on `0x00`.
+
+The exit chain and its effect:
 
 | Action | Effect | Next |
 |---|---|---|
-| `0x00` inside `OCD1` | leaves the mode; pins and regulator reset; `BBIO1` | `0x0F` to the terminal |
-| `0x0F` inside `BBIO1` | `0x01`, terminal reset; v4 prints `HiZ>` | re-enter with 20 × `0x00` |
-| OpenOCD `shutdown` | sets Hi-Z, normal speed, then `0x00` and `0x0F` | board at `HiZ>`, supplies off |
+| `0x00` inside `OCD1` | leaves the mode; the five BBIO pins (`AUX`, `CS`, `MISO`, `CLK`, `MOSI`) become inputs; TRST keeps its last level; **VREG and the on-board pull-ups switch off**; `BBIO1` | `0x0F` from `BBIO1` |
+| `0x0F` inside `BBIO1` | `0x01`, then the terminal reset; v4 prints the banner and `HiZ>`, v3 restarts | re-enter with 20 × `0x00` |
+| OpenOCD `shutdown` | Hi-Z mode, normal speed, then `0x00` and `0x0F` | board at `HiZ>`, supplies off |
 
-Three rules matter when recovering by hand:
+`0x00` already switches the regulator and the on-board pull-ups off;
+`0x0F` adds the terminal return (v4: banner and `HiZ>`; v3: hardware reset).
+A hand-driven exit may stop after `0x00` if the board is to stay in
+`BBIO1`; the supplies are already off.  TRST keeps its last level until a
+pin mode or the terminal reset takes it over.
 
-- **`0x0F` is not an `OCD1` command.**  Inside the mode it is answered as an
-  unknown command with a single `0x00`; it does not leave.  Send `0x00`
-  first.
-- **A killed host leaves the board in `OCD1`.**  OpenOCD normally performs
-  the exit sequence.  If it is killed **between commands**, send `0x00`
-  (back to `BBIO1`), then `0x0F`.
-- **A kill mid-shift needs a reset.**  While a `0x05` shift is in progress
-  the firmware is still reading TDI/TMS payload, so `0x00` and `0x0F` are
-  consumed as shift data and do not leave the mode.  Press reset (the
-  reliable action), or send enough remaining TDI/TMS bytes to finish the
-  shift before sending `0x00`.
+### Edge cases and recovery
 
-The XSVF player is the exception to the shared exit pattern (it ignores
-`0x00` and leaves on `0x0F`); the comparison table is in
-[protocol/jtag/README.md](../../protocol/jtag/README.md) §Leaving the modes.
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| OpenOCD killed between commands | no prompt; `0x0F` does nothing | the loop waits for a command byte | send `0x00`, then `0x0F` |
+| OpenOCD killed mid-shift | no prompt; `0x00` and `0x0F` are consumed | the loop still reads payload | press reset, or finish the payload |
+| `0x0F` inside `OCD1` | a single `0x00`, no exit | unknown command | send `0x00` first |
+| `0x04` where the shift belongs | a single `0x00`, no shift | unknown command | use `0x05` |
+| a new pin mode with SRST/TRST wired | target held in reset; chain reads zero | both resets driven low | release with feature action `1` |
+| an even action such as `0x02` on a reset feature | the line stays low | only the low bit of the action is used | use `0x00` or `0x01` |
+| full payload after a clamped count | the next reply is misaligned; the mode may leave | surplus bytes read as requests | reset; resend with the whole request at or below 8192 bits |
+| a zero count on v3 | no defined reply; the shift does not complete normally | the v3 path has no zero-count guard | send at least one bit |
+| a `0x07` confirmation at the wrong rate on v3 | the speed reply is unreadable | firmware reverts to normal | set the port back to 115200 |
+| open-drain with no pull-ups | chain reads all zeroes | lines never go high | fit 2–10 kΩ, or use push-pull |
+| on-board pull-ups with no Vpullup | the pull-ups have no effect | no high level on the lines | feed Vpullup externally |
+| entry fails after a previous session | no `BBIO1` | port held, or the board is still in a binary sub-mode | close the other program or reset |
+| a v3 terminal baud changed with `b` | no `BBIO1` after entry | the driver opens the port at 115200 | reset the board, or set `b` back to 115200 |
+| a v3 session killed at fast | the next 115200 open gets no `BBIO1` | the UART stays at 1 Mbaud and the board stays in `OCD1` | reset the board |
+| chain probes but the part is wrong | examine or flash fails | wrong target config | use the script for the exact part |
+| VREG enabled with the target's own supply | contention risk | the board back-drives the target | set `buspirate vreg 0` |
+| programming fails after a good probe | flash error | wrong flash driver or image | check `flash banks` |
 
-## Driver messages
+The XSVF player is the exception to the shared exit pattern: it ignores
+`0x00` and leaves on `0x0F`.  The comparison is in
+[protocol/jtag/README.md](../../protocol/jtag/README.md).
 
-Wording varies between OpenOCD versions; these are the current driver strings.
+## Driver messages and startup symptoms
 
-| Message | Cause | Recovery |
+Wording is from current OpenOCD; other releases differ.
+
+| Message or symptom | Cause | Recovery |
 |---|---|---|
 | `You need to specify the serial port!` | no `buspirate port` | add the option |
 | `Could not open serial port` | missing device, permissions, or port in use | check the device; close the terminal |
-| `Buspirate error. Is binary/OpenOCD support enabled?` | no `BBIO1` after entry | check board state, port and firmware |
+| `Error configuring the serial port.` | the port rejected the settings | check the device and permissions |
+| `Buspirate error. Is binary/OpenOCD support enabled?` | no `BBIO1` after entry | check the board state, the port and the firmware |
 | `Buspirate did not answer correctly! Do you have correct firmware?` | unexpected reply | reset; close other programs |
 | `Unsupported binary protocol` | a `BBIOx` other than `BBIO1` | use matching firmware |
 | `Buspirate did not ack speed change` | the `0x07` handshake failed | use `speed normal`; check the link |
 | `Buspirate did not reply as expected to the speed change command` | speed reply mismatch | use `speed normal` |
+| `Buspirate switched to FAST mode` | informational after a fast switch | — |
 | `Unable to restart buspirate!` | `0x00` did not return `BBIO1` | press reset; the next session re-enters |
 | `Some stale data from a previous connection was discarded.` | leftover terminal bytes | informational |
+| `tap_chain overflow, bad things will happen` | a scan plus its TAP moves exceeds the 8192-bit block | split the scan; the session exits |
+| `error writing :(` / `error reading` | the link failed mid-transfer | reset and retry |
+| `Buspirate JTAG Interface ready!` | the driver reached the TAP stage | — |
+| `Shutting down buspirate.` | a clean `shutdown` started | — |
+| unknown adapter driver at startup | OpenOCD built without the Bus Pirate driver | use a POSIX build that includes it |
 
-## Target and chain messages
+## Target and chain messages and symptoms
 
 These come from OpenOCD and the target config, not from the Bus Pirate.
 
-| Message | Cause | Recovery |
+| Message or symptom | Cause | Recovery |
 |---|---|---|
-| `JTAG scan chain interrogation failed: all zeroes` | TDO low: no power, open TDO, SRST low | power/ground; check TDO and SRST |
-| `JTAG scan chain interrogation failed: all ones` | TDO high: TDI/TDO swapped or floating | check the signal map and TDO driver |
+| `JTAG scan chain interrogation failed: all zeroes` | TDO low: no power, open TDO, SRST low | power and ground; check TDO and SRST |
+| `JTAG scan chain interrogation failed: all ones` | TDO high: TDI/TDO swapped or floating | check the signal map and the TDO driver |
 | `Target not examined yet` | a target command before examine | run `examine`, then retry |
-| IDCODE found, then examine/flash fails | wrong target script or chain order | use the script for the exact part |
-| unknown adapter driver at startup | OpenOCD built without the driver | use a build that includes it |
+| `tap/device found` with the wrong IDCODE | wrong target script, chain order or IR length | use the script for the exact part |
+| IDCODE found, then examine or flash fails | wrong target script or chain order | use the script for the exact part |
 
-## Recovery
-
-| Situation | Recovery |
-|---|---|
-| OpenOCD exited normally | board is at `HiZ>`; reopen the terminal or start a session |
-| OpenOCD was killed between commands | board is in `OCD1`; send `0x00` (back to `BBIO1`), then `0x0F` |
-| OpenOCD was killed mid-shift | the shift is still reading payload; press reset, or finish the shift with the remaining TDI/TMS bytes, then send `0x00` |
-| entry fails after a previous session | port held elsewhere, or board still in a binary sub-mode; close or reset |
-| chain probes but the part is wrong | fix the target config (IR length, IDCODE, chain order) |
-| no clock or data in open-drain | fit 2–10 kΩ pull-ups, or set `buspirate mode normal` |
-| target stays in reset | check SRST/TRST wiring and levels; the driver deasserts both |
-| VREG enabled with the target's own supply | set `buspirate vreg 0`; never back-drive the target |
-| pull-ups on with no Vpullup | no effect; feed Vpullup or use per-line pull-ups |
-| programming fails after a good probe | wrong flash driver or image; check `flash banks` |
-
-## v3 and unverified
-
-- The OpenOCD path is present on both builds, but **v3 behaviour is
-  build-only and not verified**.  The shift loop and the fast-link change
-  differ between builds; the byte protocol is the same.
-- The 8192-bit clamp, the v4 no-op speed change and the default delay are
-  code-derived; their effect on a given target is **unverified**.
-- OpenOCD-side details (driver default open-drain, no clock control,
-  MinGW-excluded POSIX build) are properties of current OpenOCD releases and
-  can change between versions.
-
-## Related docs
+## Related
 
 | Doc | Why |
 |---|---|
-| [protocol/jtag/openocd.md](../../protocol/jtag/openocd.md) | the in-mode protocol and reply shapes |
-| [protocol/jtag/edge-cases.md](../../protocol/jtag/edge-cases.md) | the JTAG set's failure table |
-| [protocol/jtag/README.md](../../protocol/jtag/README.md) | exit rules and availability |
+| [commands.md](commands.md) | the command set and reply shapes |
+| [entry-and-exit.md](entry-and-exit.md) | entry state and the two-step exit |
 | [host-setup.md](host-setup.md) | options, defaults and reference configs |
 | [workflow.md](workflow.md) | the end-to-end sequence and health checks |
+| [../../protocol/jtag/edge-cases.md](../../protocol/jtag/edge-cases.md) | the JTAG set's failure table |
 | [../xsvf/limits-and-errors.md](../xsvf/limits-and-errors.md) | the sibling tool's limits |

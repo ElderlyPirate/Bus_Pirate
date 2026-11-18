@@ -198,9 +198,9 @@ with `XSIR` followed by `XSDR`.
 | Reset | What it resets | How it is applied |
 |---|---|---|
 | TAP reset (TMS) | TAP state machine and IR | TMS high for at least 5 TCK |
-| TRST | test logic | optional pin; OpenOCD feature `0x04`; XSVF does not use it |
+| TRST | test logic | optional pin; OpenOCD feature selector `0x04` (sent as `0x02 0x04 action`); XSVF does not use it |
 | SRST | system/CPU, not the TAP | optional pin; OpenOCD feature `0x08` |
-| Bus Pirate board reset | pins, supplies, pull-ups | `#`, reset button, or second `0x0F` |
+| Bus Pirate board reset | pins, supplies, pull-ups | `#`, reset button, `0x00` then `0x0F` on the OpenOCD path, `0x0F` twice on the XSVF path |
 | XSVF `0x01` | TAP reset, then idle | player command |
 | XSVF `0x0F` | TAP reset, then leave | player command |
 

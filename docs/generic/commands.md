@@ -36,7 +36,8 @@ on the reference card; the firmware calls it "Vpullup".  The route is:
   **External (or None)**, `e2` routes the on-board **3.3 V** rail, and `e3`
   routes the on-board **5.0 V** rail.  Enter a non-HiZ mode whose setup answers
   `Select output type:` with open drain (most bus modes default to it; DIO has
-  no such prompt), then issue `e2`/`e3`, then `P`.  From `HiZ>` the command is
+  no such prompt), then issue `e2`/`e3`, switch the on-board rails on with
+  `W`, then `P`.  From `HiZ>` the command is
   refused.
 - **v3** — there is no `e` command, and the v3 firmware does not switch any
   on-board source onto Vpullup.  Feed the pin from an external 0–5 V supply.

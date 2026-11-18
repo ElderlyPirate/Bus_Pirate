@@ -135,7 +135,7 @@ start and stop wrappers, and its direct-form settings header is prefixed
 | terminal modes in the default build | 9 (no `KEYB`) | 10 |
 | command history `h` | 7 entries | 15 entries |
 | user macros `<n>` | 3 slots × 24 B | 5 slots × 32 B |
-| terminal command buffer | 128 B | 256 B |
+| command buffer | 128 B | 256 B |
 | VPU pull-up source `e` | — | present |
 | terminal baud `b` | rate menu | one-line notice |
 | reset `#` | hardware reset | terminal reset to HiZ + banner |

@@ -166,10 +166,8 @@ static void pic_set_display_width(void) {
 
 void pic_setup_prepare(void) {
   pic_reset_mode_state();
-  consumewhitechars();
-  int mode = getint();
-  consumewhitechars();
-  int delay = getint();
+  int mode = getint_with_spaces();
+  int delay = getint_with_spaces();
   bool interactive =
       !(((mode > 0) && (mode <= 2)) && ((delay >= 0) && (delay <= 3)));
 

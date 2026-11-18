@@ -80,16 +80,17 @@ without `:N` runs once.  The repeat count is per command, not persistent.
 
 ## Width — `;N`
 
-`;N` sets the display width and, in modes that can move more than one byte per
-value, the transfer width.  In byte-only modes (for example SPI) it changes only
-the displayed width and the bit-order window; the transfer stays one byte.  It
+`;N` sets the display width and, in modes whose driver can move more than one
+byte per value (including the I2C software driver), the transfer width.  In
+byte-only modes (for example SPI) it changes only the displayed width and the
+bit-order window; the transfer stays one byte.  It
 must follow the value or the repeat suffix — the order is value, `:N`, `;N`:
 
 | Input | Effect |
 |---|---|
 | `0x55;4` | write the low 4 bits of 0x55 |
 | `0x55:3;4` | the same 4-bit write, three times |
-| `r;16` | a 16-bit display/bit-order window; byte-only modes still clock one byte |
+| `r;16` | a 16-bit display/bit-order window; the I2C software driver clocks 16 bits, SPI still clocks one byte |
 | `rx:4;16` | four 16-bit reads in HEX for this command only |
 
 N is 1–16; `;0` and widths above 16 are syntax errors.  The width is **not**

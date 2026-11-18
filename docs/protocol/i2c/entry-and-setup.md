@@ -1,70 +1,78 @@
 # I2C — entry & setup
 
-Part of the I2C documentation set (`docs/protocol/i2c/`).  How the mode is
-entered, how the driver and its speed are chosen, and what the one-line
-settings form accepts.  Wiring is in [wiring.md](wiring.md).
+Part of the I2C documentation set (`docs/protocol/i2c/`). This page owns how the
+mode is entered, the driver and speed choices, the one-line settings form, and
+the bring-up commands that power the bus. Wiring is in [wiring.md](wiring.md);
+the numbers behind the speed labels are in [speeds.md](speeds.md); the binary
+interface has its own entry path in [binary.md](binary.md).
 
 ## Entering I2C
 
-`I2C` is mode number **4** in the mode menu (HiZ is 1).  As with every mode the
-menu form is `m` then `4`; the direct form is `m4`.  The shared mode-menu
-grammar is owned by [docs/generic/](../../generic/README.md) — see
-[navigation.md](../../generic/navigation.md) §Mode menu.
+`I2C` is mode number **4** on both boards (HiZ is 1). The default v4 menu lists
+ten modes; the default v3 build omits `KEYB`, so `PIC` and `DIO` move up one
+place, but `I2C` stays 4. Take the number from the `m` menu of the build in
+front of you. The shared menu grammar is in
+[docs/generic/navigation.md](../../generic/navigation.md).
 
-On **v4** — and on a custom v3 build that compiles in the hardware engine, not
-the default v3 build — entering the mode first asks the driver sub-menu:
+Three forms enter the mode:
+
+| Form | What happens |
+|---|---|
+| `m` [Enter], then `4` at `(1)>` | menu form; the setup prompts run |
+| `m4` or `m 4` | direct form; the setup prompts run |
+| `m4 <values>` | direct form with settings on one line; the header is printed |
+
+Only `m` with no number on the same line (or `m0`, which counts as no number)
+opens the menu.
+
+The menu form and the direct form differ in what they print after the settings
+are applied:
+
+| Form | After the settings are applied |
+|---|---|
+| `m` then `4` | `Clutch disengaged!!!`, the finish-setup prompt, `Ready` |
+| `m4` | `Ready` only |
+| `m4 <values>` | the settings header, then `Ready` |
+
+All three end at the `I2C>` prompt. The bus is not driven until the first bus
+operation; `W` is what powers the target rails (see §Bring-up).
+
+### The driver prompt
+
+On v4, and on a v3 build that compiles the hardware engine in (not the default
+v3 build), the first prompt chooses the driver:
 
 | Prompt | Option | Text | Driver |
 |---|---|---|---|
 | `I2C mode:` | `1` | `Software` | bit-banged SDA/SCL |
 | | `2` | `Hardware` | the on-chip I2C engine |
 
-**Rule of thumb:** choose **Software** unless you need the on-board EEPROM
-macros (v4 only) or want the hardware engine's rates.  Software works on both
-boards and is what the binary `I2C1` path always uses.
+The default is `1` (`Software`). A default v3 build has no hardware engine
+compiled in, so it skips this prompt and goes straight to the software speed
+prompt.
 
-A default **v3** build has no hardware engine compiled in, so it **skips the
-sub-menu** and goes straight to the software speed prompt.  The sub-menu
-strings still exist in the v3 message table, but that build never shows them.
+**Choosing:** Software works on both boards and is what the binary `I2C1` path
+always uses. Choose Hardware for the engine's clock timing, or for the on-board
+EEPROM macros 3/4 (v4 only), which are refused under Software (see
+[macros.md](macros.md)).
 
-### Software driver speed menu
+### The speed prompt
 
-| Prompt | Option | Text |
-|---|---|---|
-| `Set speed:` | `1` | `~6kHz` |
-| | `2` | `~60kHz` |
-| | `3` | `~150kHz` |
-| | `4` | `Maximum speed` |
+Both drivers use the prompt title `Set speed:` but offer different lists:
 
-### Hardware driver speed menu
+| Driver | Options |
+|---|---|
+| Software | `1. ~6kHz`, `2. ~60kHz`, `3. ~150kHz`, `4. Maximum speed` |
+| Hardware | `1. 100kHz`, `2. 400kHz`, `3. 1MHz` |
 
-| Prompt | Option | Text |
-|---|---|---|
-| `Set speed:` | `1` | `100kHz` |
-| | `2` | `400kHz` |
-| | `3` | `1MHz` |
+The default answer is `1` in both menus, so pressing Enter selects `~6kHz`
+(Software) or `100kHz` (Hardware). The labels are nominal; the actual SCL rate
+and what each profile changes are in [speeds.md](speeds.md).
 
-The rates are nominal: the actual SCL rate is lower and depends on bus rise
-time and load (see [wiring.md](wiring.md)).  _not verified_
+### Menu-form example
 
-The two menus are **different**: the software driver offers four bit-bang
-profiles, the hardware driver three engine rates.  The default answer to both
-is `(1)`, so pressing Enter selects `~6kHz` (software) or `100kHz` (hardware).
-
-After the speed answer the mode prints the standard parking lines; the bus is
-inert until `W`:
-
-```
-Clutch disengaged!!!
-To finish setup, start up the power supplies with command 'W'
-Ready
-I2C>
-```
-
-## Example entry — software driver
-
-The mode menu is abridged (the full menu is in
-[docs/generic/](../../generic/README.md)):
+The default v4 menu is shown and the remaining lines are abridged. Both prompts
+accept their defaults:
 
 ```
 HiZ>m
@@ -99,58 +107,88 @@ Ready
 I2C>
 ```
 
-The hardware branch is **not verified**.
+The blank line before each `(1)>` marker is printed by the prompt reader, not
+typed.
 
 ## The one-line settings form
 
-Like the other modes, I2C can be entered with its settings on one line.  On
-v4, after the mode number it reads an optional driver and an optional speed:
+On v4 the form is `m4 <driver> <speed>`, where the driver is `1` (Software) or
+`2` (Hardware) and the speed is the menu number: software 1–4, hardware 1–3.
 
 | Line | Enters |
 |---|---|
 | `m4 1 1` | Software, `~6kHz` |
+| `m4 1 4` | Software, `Maximum speed` |
 | `m4 2 1` | Hardware, `100kHz` |
+| `m4 2 3` | Hardware, `1MHz` |
 
-- driver (`mod`): **1** = Software, **2** = Hardware;
-- speed (`spd`): the menu number (software 1–4, hardware 1–3).
+Rules:
 
-`mod 2` with `spd 4` is **rejected**: the firmware sets the speed to zero and
-re-runs the driver and speed prompts.  There is no fourth hardware rate; use
-`spd 1`–`3` with Hardware.
+- **Hardware with speed 4 is rejected** — the engine has three rates. The
+  firmware sets the speed to zero and reruns the driver and speed prompts. Use
+  `1`–`3` with Hardware.
+- A missing or out-of-range value also falls back to the prompts; nothing is
+  reported as an error.
+- On a default v3 build the driver digit does not exist: the first number is
+  the speed. `m4 3` selects `~150kHz`. A v4-style line (`m4 2 1`) is read as
+  speed 2 on v3 and the trailing digit is discarded.
 
-A settings line with the driver present is only directly usable on v4, or on
-a custom v3 build with the hardware engine.  On a default v3 build the form
-takes the **speed only** (`m4 3` for `~150kHz`); there is no driver digit.
+### The settings header
 
-The header is printed as `I2C (mod spd)=( ` followed by the **current**
-values, and those printed values are **zero-based**:
+```
+I2C (mod spd)=( 0 0 )
+```
 
-| Quirk | Detail |
-|---|---|
-| driver prints zero-based | `0` = Software, `1` = Hardware |
-| speed prints zero-based | `0` = the first menu entry, not `1` |
+The header is **what the firmware prints**, and its numbers are **zero-based**,
+unlike the one-based menu numbers typed into the settings line:
 
-A fresh v4 software session prints `I2C (mod spd)=( 0 0 )`.  The header
-displays the current settings; type the menu numbers (`1`–`2`, `1`–`4`).
+| Field | Meaning | Printed | Typed |
+|---|---|---|---|
+| `mod` | driver | `0` Software, `1` Hardware | `1` Software, `2` Hardware |
+| `spd` | speed | `0`–`3`, zero-based | `1`–`4`, menu number |
+
+A v4 Software session at the first speed prints `( 0 0 )`; a v4 Hardware
+session at `1MHz` prints `( 1 2 )`; a default v3 session always prints `0` for
+`mod`.
+
+The header appears in two places:
+
+- when the mode is entered with values on the line: `m4 1 1` prints
+  `I2C (mod spd)=( 0 0 )` then `Ready`;
+- in the `i` status block, which reprints it with the current values.
+
+Entering through the prompts does **not** print the header. Typing the header
+as the arguments to `m4` fails, because its labels, brackets and `=` are not
+numbers; the prompts then run. Typing it at the `I2C>` prompt is a syntax
+error.
 
 ## Output type — not asked
 
-Unlike SPI, UART and the raw modes, **I2C does not prompt for an output type**.
-Its two lines are always driven open-drain, and the mode forces the high-Z
-(open-drain) state itself.  The bus requirement this creates is the pull-up —
-see [wiring.md](wiring.md).
+I2C has **no `Select output type:` prompt**, unlike SPI, UART and the raw
+modes. Its two lines are always driven open drain, and the mode forces that
+state itself. There is no push-pull option in the terminal and no `0x8x` group
+in the binary layer.
 
-## Power and pull-ups
+The consequence is unconditional: the high level of both lines must come from a
+pull-up. See [wiring.md](wiring.md).
 
-Entering the mode only parks the bus.  Recommended bring-up order:
+## Bring-up: supplies, VPU and pull-ups
 
 | Step | Command | Effect |
 |---|---|---|
-| engage | `W` | `POWER SUPPLIES ON` + `Clutch engaged!!!` |
-| source the pull-up voltage (v4) | `e2` / `e3` | `3.3V` / `5V` on-board pullup voltage enabled |
+| select the VPU source (v4) | `e2` / `e3` | on-board 3.3 V or 5 V source on |
+| power the rails | `W` | `POWER SUPPLIES ON`, then `Clutch engaged!!!` |
 | enable the pull-ups | `P` | `Pull-up resistors ON` |
 | release the pull-ups | `p` | `Pull-up resistors OFF` |
-| park again | `w` | `Clutch disengaged!!!` |
+| park and remove the target rails | `w` | `Clutch disengaged!!!`, then `POWER SUPPLIES OFF` |
+
+Recommended order is `e2`/`e3` first, then `W`, then `P`. `W` and `e` are
+independent and may be issued in either order; only `P` must follow the VPU
+source. A bus with an external pull-up to the target rail needs neither `e` nor
+`P`.
+
+`w` removes the target rails only: it leaves `P` and the VPU source as they
+were. Use `p` and, on v4, `e1` to switch them off before rewiring.
 
 ```
 I2C>W
@@ -163,9 +201,8 @@ Pull-up resistors ON
 I2C>
 ```
 
-`P` enables the pull-up resistors, but they have no idle-high until a voltage
-is on the VPU pin: on v4 `e2`/`e3` supplies it, on v3 it must be fed
-externally.  Doing `P` first is allowed but warns:
+Doing `P` first, with nothing on Vpullup, is allowed but warns because the
+pull-ups have no reference:
 
 ```
 I2C>P
@@ -176,17 +213,58 @@ I2C>e2
 I2C>
 ```
 
-These are base-layer elements — see [commands.md](../../generic/commands.md)
-and [wiring.md](wiring.md).
+The resistor switch is on in both cases; without a voltage on **Vpullup** the
+bus simply has no idle high. The exact strings and the `e` refusal cases are in
+[docs/generic/commands.md](../../generic/commands.md#feeding-the-vpullup-pin).
+
+Notes:
+
+- `W` puts the Bus Pirate's 3.3 V and 5.0 V rails on their header pins. Leave
+  those pins disconnected from a self-powered target.
+- `W` is not needed to configure the driver: the software path is set up at mode
+  entry, and the hardware engine initialises on its first start. `W` is the step
+  that powers the target; skip it only for a self-powered target.
+- The success check reads the Bus Pirate's own rails, not the target's VCC.
+- A mode change, `#` or reset turns the rails off, turns the pull-ups off,
+  clears the on-board VPU source to External (or None) on v4, and re-asserts the
+  on-board EEPROM write protect. Re-issue `e`/`W`/`P` after re-entering.
+
+## Edge cases
+
+| Trigger | Symptom | Behaviour / recovery |
+|---|---|---|
+| `m4 2 4` is typed | the driver and speed prompts run | the engine has no fourth rate; use `1`–`3` |
+| A value is missing or out of range | the prompts run, nothing is reported | answer the prompts, or type valid menu numbers |
+| The header is typed after `m4` | the prompts run | type menu numbers; at the `I2C>` prompt the header is a syntax error |
+| The printed `mod` is `1` after `2` was typed | the header is zero-based | `0` in the header is Software (typed `1`); `1` is Hardware (typed `2`) |
+| The printed `spd` is one lower than typed | the header is zero-based | type the menu number; read the index |
+| `m4` on a default v3 build | only the speed prompt appears | there is no hardware engine in the default v3 build |
+| A v4 settings line is used on v3 | the first number is the speed; trailing digits are dropped | use `m4 <speed>` on v3 |
+| `e` is issued with a voltage already on Vpullup | `Warning: already a voltage on Vpullup pin` plus a syntax error | remove the external source first |
+| `P` is issued with no VPU voltage | `Pull-up resistors ON` then `Warning: no voltage on Vpullup pin` | select `e2`/`e3` on v4, or feed Vpu externally |
+| `e` is issued on v3 | syntax error | v3 has no `e`; feed Vpullup externally |
+| An output-type prompt is expected | it never appears | I2C is fixed open drain; the pull-up is mandatory |
 
 ## v3 / v4
 
-| | v3 | v4 |
+| Item | v3 | v4 |
 |---|---|---|
-| mode number 4 | present | present |
-| driver sub-menu | not in the default build | always asked |
-| software speed menu | present | present |
-| hardware speed menu | optional build | present |
+| mode number 4 | yes | yes |
+| driver prompt | not in the default build | always asked |
+| software speed menu | same four entries | same four entries |
+| hardware speed menu | only in an optional build | same three entries |
+| one-line settings form | speed only | driver + speed |
+| settings header `mod` field | always `0` | `0`/`1` |
 | output-type prompt | not asked | not asked |
+| on-board VPU source (`e`) | no | yes |
 
 The v3 column is **not verified**.
+
+## Related docs
+
+- [speeds.md](speeds.md) — the speed profiles, labels and binary operands.
+- [wiring.md](wiring.md) — pins, pull-ups, Vpullup and the voltage limit.
+- [bus-operations.md](bus-operations.md) — start, stop, read and write.
+- [macros.md](macros.md) — the `(0)` list and macros 1–4.
+- [binary.md](binary.md) — the `I2C1` entry and its own defaults.
+- [edge-cases.md](edge-cases.md) — setup and bring-up failures.

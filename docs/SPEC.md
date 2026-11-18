@@ -56,7 +56,7 @@ elements/features they control are listed here.
 | · custom BRG | x | x | — | ✓ |
 | **I2C** | x | x | — | ✓ [protocol/i2c/](protocol/i2c/README.md) |
 | · software (bit-banged) | x | x | ~6k/~60k/~150k/max | ✓ |
-| · hardware engine | - | x | 100k/400k/1M | ✓ |
+| · hardware engine | off | x | 100k/400k/1M | ✓ |
 | · clock stretching | x | x | per-bit wait + timeout count | ✓ |
 | · address scanner / sniffer macros | x | x | — | ✓ |
 | · on-board EEPROM macros 3/4 | - | x | connect + write-enable | ✓ |

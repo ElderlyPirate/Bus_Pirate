@@ -1,30 +1,78 @@
 # I2C — bus operations
 
-Part of the I2C documentation set (`docs/protocol/i2c/`).  This page owns the
-on-bus commands: start/stop, byte read/write, the ACK/NACK model, and the
-address scanner.  Shared prompt grammar — value entry, repetition `:N`,
-width `;N`, wrappers, `(n)` macros — is owned by
+Part of the I2C documentation set (`docs/protocol/i2c/`). This page owns the
+on-bus terminal commands: start, stop and repeated start; byte writes and reads;
+the deferred ACK/NACK model; the address scanner; and a worked EEPROM
+transaction. Shared prompt grammar — value entry, repetition `:N`, width `;N`,
+display format `o`, bit order, `(n)` macros — is owned by
 [docs/generic/](../../generic/README.md); only the I2C effect is described here.
+Clock-stretch failures are in [clock-stretching.md](clock-stretching.md); the
+on-board EEPROM is in [eeprom.md](eeprom.md).
 
-## Start and stop
+## Start, stop and repeated start
 
 | Input | Action | Firmware output |
 |---|---|---|
 | `[` | start condition | `I2C START BIT` |
-| `{` | start-with-read form; same I2C start | `I2C START BIT` |
+| `{` | start condition (same as `[`) | `I2C START BIT` |
 | `]` | stop condition | `I2C STOP BIT` |
-| `}` | stop-from-read form; same I2C stop | `I2C STOP BIT` |
+| `}` | stop condition (same as `]`) | `I2C STOP BIT` |
 
-A start or stop that resolves a still-pending read ACK first prints `NACK` and
-sends a NACK bit (see [Reading a byte](#reading-a-byte--the-acknack-model)).
+The braces are the shared grammar's read-oriented start/stop forms. **I2C has
+no read-back flag**: `{` is not different from `[`, and `}` is not different
+from `]`. Use either form.
 
-If the bus cannot complete the condition — for example a slave holds SCL low
-past the bound — the command reports `I2C bus error`, releases both pins, and
-is abandoned; see [clock-stretching.md](clock-stretching.md).
+A start or stop that resolves a still-pending read ACK prints `NACK` first and
+sends a NACK bit, then sends the condition:
+
+```
+I2C>r
+READ: 0xAA
+I2C>]
+NACK
+I2C STOP BIT
+I2C>
+```
+
+If the condition cannot be completed, the command reports `I2C bus error`,
+releases both pins, and is abandoned; the `I2C START BIT` / `I2C STOP BIT` line
+is not printed. See [clock-stretching.md](clock-stretching.md).
+
+### Repeated start
+
+A second `[` while a transaction is still open — that is, with no `]` in
+between — sends a **repeated start**. On the wire it is a new start condition
+after the previous byte, not a stop followed by a start. The firmware prints
+the same `I2C START BIT` line and keeps the transaction open.
+
+```
+I2C>[
+I2C START BIT
+I2C>0xA0
+WRITE: 0xA0 ACK
+I2C>0x00
+WRITE: 0x00 ACK
+I2C>[
+I2C START BIT
+I2C>0xA1
+WRITE: 0xA1 ACK
+I2C>r
+READ: 0xAA
+I2C>]
+NACK
+I2C STOP BIT
+```
+
+Repeated start is the normal way to switch from a pointer write to a read on a
+register device without releasing the bus. If a read ACK is still pending, the
+repeated start first prints `NACK` and sends it, which ends the read part.
+
+There is no separate repeated-start character and no different output line; the
+distinction is only whether a stop was sent before the start.
 
 ## Writing a byte
 
-Any number written in the mode is an I2C byte and the slave's ACK is checked
+A number written in the mode is one I2C byte, and the slave's ACK is checked
 immediately:
 
 | Input | Meaning |
@@ -40,10 +88,11 @@ WRITE: 0xA0 ACK
 WRITE: 0x60 NACK
 ```
 
-**A write also resolves a pending read bit first.**  The line prints the
-`WRITE: ` header and the value, then the deferred ACK of the previous read,
-then the slave's response to this write.  Both ACKs look the same, so read
-them in order:
+The `ACK`/`NACK` here is the **slave's** response to the byte just written.
+
+**A write also resolves a pending read bit first.** The `WRITE: ` header and
+the value print first, then the deferred ACK of the previous read, then the
+slave's response to this write. Both ACKs look the same, so read them in order:
 
 ```
 I2C>r
@@ -52,8 +101,8 @@ I2C>0xA0
 WRITE: 0xA0 ACK ACK
 ```
 
-The first `ACK` belongs to the previous read byte (sent before the write);
-the second is the slave's ACK of `0xA0`.  A NACK in the slave position reads:
+The first `ACK` belongs to the previous read byte (sent before this write); the
+second is the slave's ACK of `0xA0`. A NACK in the slave position reads:
 
 ```
 I2C>r
@@ -62,23 +111,36 @@ I2C>0x60
 WRITE: 0x60 ACK NACK
 ```
 
+The value is masked to the current width before it is sent (8 bits by default),
+so a value above `0xFF` is truncated. The shared `:N` repeat sends the same
+value N times and prints all replies on **one** line:
+
+```
+I2C>0x55:3
+WRITE: 0x55 ACK WRITE: 0x55 ACK WRITE: 0x55 ACK
+I2C>
+```
+
 ## Reading a byte — the ACK/NACK model
 
 **Quick tell:** if a `READ:` line shows **two spaces** after the colon, the
 `ACK`/`NACK` that follows is the deferred ninth bit of the **previous** byte;
 the value printed after it is this byte.
 
-`r` reads one byte; `r:N` reads N bytes.  The read byte's **ninth bit is not
-sent when the byte is read**.  The Bus Pirate remembers it as *pending* and
+`r` reads one byte; `r:N` reads N bytes. The read byte's **ninth bit is not
+sent when the byte is read**. The Bus Pirate remembers it as *pending* and
 sends it with the next command:
 
-- the next **read or write** sends the pending bit as **ACK**;
-- a **start or stop** sends it as **NACK** (ending the read);
-- a command that does not access the bus (`v`, `o`, `P`, `t`, `(0)`, …)
-  leaves it pending.
+| Next command | What happens to the pending bit |
+|---|---|
+| a read (`r`) or a write (value) | sent as **ACK**, then the new byte |
+| a start (`[` / `{`) | sent as **NACK**, then the start |
+| a stop (`]` / `}`) | sent as **NACK**, then the stop |
+| a command that does not touch the bus (`v`, `o`, `P`, `t`, `i`, `(0)`, …) | stays pending |
+| a macro that runs bus traffic (`(1)`, `(2)`, or `(3)` in Hardware) | the macro first sends NACK and a stop |
+| `w` (power off) | cleared by the mode cleanup |
 
-This is why reading two bytes in a row prints an `ACK` before the second
-value:
+This is why reading two bytes in a row prints an `ACK` before the second value:
 
 ```
 I2C>r
@@ -90,29 +152,34 @@ NACK
 I2C STOP BIT
 ```
 
-The two spaces after `READ:` are the header followed by the deferred `ACK`;
-the final `]` resolves the second byte's pending bit as `NACK` and then sends
-the stop.
+The two spaces after `READ:` are the header followed by the deferred `ACK`; the
+final `]` resolves the second byte's pending bit as `NACK` and then sends the
+stop.
 
 Notes:
 
-- A bulk read `r:N` prints one `READ: ` header; the **first** byte prints
-  directly after it.  Each later byte is preceded by the deferred ACK of the
-  previous one.  The last byte's bit stays pending until the next command.
-- A single write (`0xNN` / `0b…` / decimal) does not defer anything: the
-  slave's ACK is read during the write itself.
-- No explicit "pending" warning is printed when a read is left unresolved;
-  the state shows only as the `ACK`/`NACK` prefix or as the ACK inside the
-  next write line.
-- If you break a transaction early, send a stop (`]`) or a start (`[`) to
-  resolve the pending bit as NACK rather than leaving it pending.
+- `r:N` prints one `READ: ` header. The **first** byte prints directly after it;
+  each later byte is preceded by the deferred ACK of the previous one. The last
+  byte's bit stays pending.
+- A single write does not defer anything: the slave's ACK is read during the
+  write itself.
+- No explicit "pending" warning is printed when a read is left unresolved; the
+  state shows only as the `ACK`/`NACK` prefix or as the ACK inside the next
+  write line.
+- While the ninth bit is pending, the transfer is still open and the bus is not
+  idle. Resolve it with `]` (or `[`) before a bring-up command (`W`, `e`, `P`)
+  or a mode change. A mode change runs the mode cleanup and releases the bus,
+  which ends the transaction abruptly.
+- A read that times out is not reported as `NACK`. The read returns `0xFF`, the
+  command reports `I2C bus error`, and the line is abandoned — see
+  [clock-stretching.md](clock-stretching.md).
 
 ## Address scanner — macro `(1)`
 
-The scanner checks every 8-bit address (`0x00`–`0xFF`) with a start, the
-address byte, and an ACK read.  Each hit prints the raw 8-bit address, then
-the 7-bit address in parentheses with `W` (R/W bit 0) or `R` (R/W bit 1).
-All hits print on one line.
+The scanner checks every 8-bit address from `0x00` to `0xFF` with a start, the
+address byte, an ACK read, and a stop. Each hit prints the raw 8-bit address,
+then the 7-bit address in parentheses with `W` (R/W bit 0) or `R` (R/W bit
+1). All hits print on one line.
 
 **Hit example** — default HEX display format:
 
@@ -126,34 +193,36 @@ I2C>
 The printed values follow the current display format (`o`); with decimal
 display the same hit prints `160(80 W) 161(80 R)`.
 
-**Empty bus** (no device responds): the header prints, then one blank line,
-then the prompt.
-
-```
-I2C>(1)
-Searching I2C address space. Found devices at:
-
-I2C>
-```
+**Empty bus** (no device responds): the header prints, no addresses follow, and
+the prompt returns.
 
 Behaviour:
 
-- Before scanning, both lines are driven high through the pull-up.  The
+- Before scanning, both lines are released high through the pull-up. The
   pre-check trips **only when a line still reads low** (a short, or a target
-  holding it): it prints `Warning: *Short or no pull-up` and returns
-  **without scanning**.  A floating line that reads high passes the check,
-  the scan runs, and every address ACKs — the no-pull-up symptom in
-  [wiring.md](wiring.md).
+  holding it); it prints the header, then
+  `Warning: *Short or no pull-up`, and returns **without scanning**. A floating
+  line that reads high passes the check, the scan runs, and every address ACKs
+  — the no-pull-up symptom in [wiring.md](wiring.md).
+- If a read ACK is pending when `(1)` is issued, the scanner first sends NACK
+  and a stop, so the scan starts on an idle bus.
+- Every probe ends with a stop, hit or no hit, so the bus is idle between
+  addresses.
 - For a **read** address that ACKs, the scanner reads one byte, NACKs it, and
-  sends a stop.  This ends the transaction cleanly and avoids "ghost"
-  addresses from a slave that started driving data.
+  sends a stop. This ends the transaction cleanly and avoids ghost addresses
+  from a slave that started driving data.
+- The scan uses the selected speed profile and, in the software driver, the
+  current width. A scan at a width other than 8 sends N-bit addresses and
+  normally finds nothing; return the width to 8 first.
+- After `(3)`, the scan follows the on-board EEPROM bus instead of the external
+  pins; see [macros.md](macros.md).
+- The warning is printed **only** by this scanner. A start, stop, read or write
+  that cannot complete reports `I2C bus error` instead.
 
-The strings and format above are **not verified**.
+## Worked session — EEPROM write and read-back
 
-## Worked session
-
-The device is a 24xx64-style EEPROM at 7-bit `0x50` (write `0xA0`, read
-`0xA1`) with a two-byte memory address.  The bring-up is in
+The device is a 24xx64-style EEPROM at 7-bit `0x50` (write `0xA0`, read `0xA1`)
+with a two-byte memory address. The bring-up is in
 [entry-and-setup.md](entry-and-setup.md); this is the on-bus flow.
 
 Write `0xAA 0xBB` at address `0x0020`, commit it, then read it back:
@@ -175,20 +244,21 @@ I2C>]
 I2C STOP BIT
 ```
 
-The EEPROM starts its internal write cycle at the **STOP**; until it
-finishes, it answers its address with NACK.  Poll it, then stop:
+The first data bytes after the address are the **memory address**, not stored
+data. The chip commits the burst at the **STOP** and then runs an internal write
+cycle; until it finishes, it answers its address with NACK. Poll it:
 
 ```
 I2C>[
 I2C START BIT
 I2C>0xA0
-WRITE: 0xA0 ACK
+WRITE: 0xA0 NACK
 I2C>]
 I2C STOP BIT
 ```
 
-Repeat that start/address/stop poll until `0xA0` is ACKed.  Then set the
-pointer and read:
+Repeat the start/address/stop poll until `0xA0` is ACKed. Then set the pointer
+and read with a repeated start:
 
 ```
 I2C>[
@@ -213,13 +283,63 @@ I2C STOP BIT
 I2C>
 ```
 
-The first data bytes after the address are the memory address, not stored
-data: the write cycle commits only at STOP, and the pointer must be set again
-before a read.  The same transaction in binary form is in
-[binary.md](binary.md).
+Set the pointer again before each read transaction; bytes within one
+transaction auto-increment. A new read address does not continue the previous
+write's pointer. Keep a burst inside one 32-byte page. The
+same transaction in binary form is in [binary.md](binary.md#worked-exchange);
+the on-board chip's geometry is in [eeprom.md](eeprom.md).
+
+## Bit-level commands and write width
+
+I2C has no free-running clock or data-pin model, so the shared bit-level
+commands have no bus effect here:
+
+| Input | Firmware prefix | Result |
+|---|---|---|
+| `/` `\` | `CLOCK, 1` / `CLOCK, 0` | no clock change; no-effect error |
+| `-` `_` | `DATA OUTPUT, 1` / `DATA OUTPUT, 0` | no data change; no-effect error |
+| `.` | `DATA STATE: ` | no state read; no-effect error |
+| `^` | `CLOCK TICKS: ` | no clocks; no-effect error |
+| `!` | `READ BIT: ` | no read; no-effect error |
+
+Each prints its normal prefix and then
+`ERROR: command has no effect here`; the line is followed by
+`Syntax error at char N`. The prefix and the error can end up on the same line,
+so the output looks mangled. Use the byte and bit forms above instead.
+
+### Width `;N`
+
+I2C is a byte protocol: leave the width at the default 8. The shared `;N`
+suffix does more than change the display here:
+
+| Driver | Any width other than 8 |
+|---|---|
+| Software | a value or read transfers exactly N bits; the slave sees N clocks, not a byte |
+| Hardware | the engine still transfers 8 bits; only the display and bit-order window change |
+| Scanner, software | the scan writes N-bit addresses and normally finds nothing |
+| Scanner, hardware | the engine still writes 8-bit addresses |
+
+A mode change or reset restores 8 bits. If a transfer starts behaving as if
+every byte is shifted, check the width before anything else.
 
 ## v3 / v4
 
-Start/stop, read/write and the ACK/NACK rules are the same in both builds.
-Scanner timing follows the software speed profile.  The v3 path is **not
-verified**.
+| Item | v3 | v4 |
+|---|---|---|
+| start / stop / repeated start | same | same |
+| byte write and read | same | same |
+| deferred ninth bit | same | same |
+| scanner | same, software profile | same; follows the on-board EEPROM redirect |
+| bit-level commands | no effect | no effect |
+| width other than 8 on the wire | N bits (software) | software N bits / hardware still 8 |
+
+The v3 column is **not verified**.
+
+## Related docs
+
+- [clock-stretching.md](clock-stretching.md) — timeout, bus error,
+  recovery.
+- [macros.md](macros.md) — the scanner, sniffer and EEPROM macros.
+- [eeprom.md](eeprom.md) — the on-board EEPROM geometry and the Windows tool.
+- [binary.md](binary.md) — the same operations from a host.
+- [docs/generic/values.md](../../generic/values.md) — `:N`, `;N` and `o`.

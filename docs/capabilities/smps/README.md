@@ -30,8 +30,9 @@ Keep the order: enter, start, read, stop, leave.
 6. Leave raw wire: `0x00` → `BBIO1`; then `0x0F` → `0x01` and `HiZ>`.
 
 Stopping is a separate request.  Leaving raw wire does not stop the board;
-only `0xF1` sent while still in raw wire is confirmed to stop it (a hardware
-reset also stops it; the v4 terminal reset is not confirmed to).  See
+only `0xF1` sent while still in raw wire is the in-band stop.  A hardware
+reset also stops it, and the v4 terminal reset stops it through the board
+reset.  See
 [edge-cases.md](edge-cases.md).
 
 ## The five-minute version

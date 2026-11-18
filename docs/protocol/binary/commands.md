@@ -216,16 +216,16 @@ survives this reset; see [PWM](#pwm-0x12-0x13).  See
 
 ### Self-test (`0x10`, `0x11`)
 
-- `0x10` — **short self-test**: the pass without the external-jumper steps and
-  without the jumper-only pin group.  The per-check `0x10` column in
+- `0x10` — **short self-test**: the pass without the external-jumper steps.
+  The per-check `0x10` column in
   [the self-test check reference](../../capabilities/selftest/checks.md)
   defines exactly what it skips.
 - `0x11` — **full self-test**: every check.  Disconnect the target first and
-  fit the same jumpers as the interactive full run: `ADC`→`+3.3 V` on both
-  boards, plus `Vpu`→`+5 V` on v3.
+  fit the same jumpers as the interactive full run: `ADC`→`+3.3V` on both
+  boards, plus `Vpu`→`+5V` on v3.
 
 The reply is a single byte: the **number of failed checks** (`0x00` = no
-errors).  While the test is idle it reads input — any byte other than `0xFF`
+errors).  If the SMPS owns the ADC, the reply is `0x01` and no check runs.  While the test is idle it reads input — any byte other than `0xFF`
 is echoed back as `byte + errors` (one byte, wrapping), and `0xFF` leaves the
 test with a reply of `0x01`.  Leaving the test returns to the bitbang layer
 **without re-printing `BBIO1`**, so the host must track the current layer
@@ -234,8 +234,8 @@ are.  Full detail:
 [the self-test binary page](../../capabilities/selftest/binary.md).
 
 On a build with SMPS support, while the SMPS feedback loop owns the ADC, both
-commands report a count of `0x01` (one error) without running the test, then
-enter the same idle loop.  See
+commands report a count of `0x01` (refusal count; no check ran) without
+running the test, then enter the same idle loop.  See
 [edge-cases.md](edge-cases.md#adc-is-busy--the-smps-feedback-owns-the-converter)
 §ADC is busy.
 

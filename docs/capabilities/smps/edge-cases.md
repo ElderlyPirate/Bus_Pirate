@@ -62,8 +62,8 @@ a concrete trigger → symptom → behaviour → recovery.
   still running.
 - **Behaviour:** the raw-wire exit path does not stop the board, and the PWM
   and ADC are not otherwise cleaned up — only `0xF1` sent while still in raw
-  wire stops them.  A hardware reset also stops the board; whether the
-  terminal reset that returns from the binary layer stops it is `unverified`.
+  wire stops them.  A hardware reset also stops the board; the v4 terminal
+  reset that returns from the binary layer also stops it.
 - **Recovery:** always send `0xF1` before leaving raw wire.  (`unverified`:
   the state seen on re-entry is inferred from the firmware.)
 

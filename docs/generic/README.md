@@ -72,9 +72,10 @@ and limits are on their own pages: [ADC](../capabilities/adc/README.md),
 HiZ is the firmware's idle mode.  Every header I/O pin is an input
 (high-impedance), the on-board supply is off, and the pull-up resistors are
 off.  It is the mode at power-up and the state every board reset returns to;
-the prompt reads `HiZ>`.  Nothing is driven except the selected AUX pin:
-`a`/`A` can drive it from HiZ and `@` reads it.  This is the safe state to
-leave the board in.
+the prompt reads `HiZ>`.  In the idle state nothing is driven except the
+selected AUX pin: `a`/`A` can drive it from HiZ and `@` reads it.  (`~` runs
+the self-test and drives its check pins.)  This is the safe state to leave the
+board in.
 
 The self-test runs here only: `~`.  In any other mode it prints
 `Self-test in HiZ mode only`; disconnect the target before running it.  HiZ has

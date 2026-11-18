@@ -212,8 +212,8 @@ The setup answer order belongs to the mode's page.  A direct change prints no
 `Clutch disengaged!!!` line, but the mode starts in the same parked state.
 `W` starts the supplies and runs the mode's bus setup (the engage routine); it
 does not repeat the setup prompts.  The mode's page states what it drives and
-when (DIO, for example, writes pins without `W`).  The menu form only announces
-the parked state.
+when.  In DIO the setup hook is empty, so `W` only switches the supplies.  The
+menu form only announces the parked state.
 
 `m1` returns to HiZ and runs the board-state reset; it prints `Ready`, not the
 banner.  `#` also returns to HiZ and additionally restores HEX and prints the

@@ -1,116 +1,155 @@
 # DIO — wiring
 
 Part of the DIO documentation set (`docs/protocol/dio/`).  This page owns the
-pin header, the pins DIO controls, and the electrical limits; the README
-carries the headline only.
+header pins, the supply and pull-up requirements, and the electrical limits.
+The bit values are in [pin-control.md](pin-control.md); the AUX-target command
+path is in [aux-pin.md](aux-pin.md).
 
-## Wiring
+## Scope
 
-DIO has no bus and needs no external component for basic pin control.  Each
-of the five controlled pins is an independent general-purpose I/O — connect
-each one to whatever you are driving or reading.  Ground is always common
-with the target.
+Covers what to connect to a board running direct I/O, which pins a value can
+address, and the optional pull-up reference.  It does not describe a target
+circuit or a protocol.
 
-| Bus Pirate pin | DIO controls | Value bit |
+## The five signal pins
+
+Direct I/O treats five header pins as independent general-purpose I/O.  Each
+pin has a direction bit and a level bit in a write value:
+
+| Header pin | Direction | Value bit | Also an AUX target |
+|---|---|---|---|
+| `AUX` | input or output | 4 (`0x10`) | yes, `A0` (v4) / `aux` (v3) |
+| `MOSI` | input or output | 3 (`0x08`) | no |
+| `CLK` | input or output | 2 (`0x04`) | no |
+| `MISO` | input or output | 1 (`0x02`) | no |
+| `CS` | input or output | 0 (`0x01`) | yes, token `CS` |
+
+`MISO` is normally a bus input and `CS` normally an output; in direct I/O both
+are ordinary pins.  A value above `0x1F` does not add pins: only bits 4–0
+exist, and bits 6–5 are ignored in a direction value.
+
+The header order and the `v`-table order agree on v4 but differ on v3; the
+value-bit order is different from both.  This table maps them:
+
+| Header pin | Value bit | `v` column, v3 | `v` column, v4 |
+|---|---|---|---|
+| `AUX` | 4 (`0x10`) | 6 | 8 |
+| `MOSI` | 3 (`0x08`) | 8 | 12 |
+| `CLK` | 2 (`0x04`) | 7 | 11 |
+| `MISO` | 1 (`0x02`) | 10 | 10 |
+| `CS` | 0 (`0x01`) | 9 | 9 |
+
+Column numbers are 1-based.
+
+The v4 header also carries `AUX1` and `AUX2`.  They are **not** in a value;
+use the AUX-target path ([aux-pin.md](aux-pin.md)).  Their `v` columns are 7
+(`AUX1`) and 6 (`AUX2`).
+
+## Header order per board
+
+The physical order differs by board.  The `GND` end comes first:
+
+| Board | Header order, `GND` end first |
+|---|---|
+| v3 | `GND` `3.3V` `5.0V` `ADC` `VPU` `AUX` `CS` `MISO` `CLK` `MOSI` |
+| v4 | `GND` `5.0V` `3.3V` `VPU` `ADC` `AUX2` `AUX1` `AUX` `CS` `MISO` `CLK` `MOSI` |
+
+The `ADC` pin is the separate ADC probe input, not one of the five.  The v3
+`v` table lists the pins in a different order from the header; the mapping
+table above gives both column numbers, and the shared description is in
+[usage.md](../../generic/usage.md#v-in-hiz).
+
+## Ground and target supply
+
+**Ground is always common with the target.**  Connect `GND` even when the
+target is self-powered.
+
+`W` switches the on-board `+5.0V` and `+3.3V` rails on.  Both rails are live
+on the header while the supply is on; connect only the rail the target uses.
+Do not tie the two rails together and do not back-drive them.  For a
+self-powered target, leave both rails unconnected.
+
+| Step | Command | Result |
 |---|---|---|
-| `CS` | direction + level | bit 0 |
-| `MISO` | direction + level | bit 1 |
-| `CLK` | direction + level | bit 2 |
-| `MOSI` | direction + level | bit 3 |
-| `AUX` | direction + level | bit 4 |
-| `GND` | — | common ground with the target |
-| `+3.3V` / `+5.0V` | supply rails | the on-board supply enabled by `W` |
-| `Vpu` / `VPU` | pull-up reference | used only if the pull-ups are enabled |
+| rails on | `W` | both rails on after a check; `POWER SUPPLIES ON`, `Clutch engaged!!!` |
+| rails off, five signal pins parked | `w` | `Clutch disengaged!!!`, `POWER SUPPLIES OFF`; stays in `DIO>` |
+| state bit 6 set | a state value | same rails, switched silently and without the check |
 
-`MISO` is normally a mode *input*; DIO can drive it too, like any other pin.
+The rail check is the shared one: if either rail does not come up, the supply
+is switched off and the reply is `VREG too low, is there a short?` followed by
+`POWER SUPPLIES OFF`.  The full park behaviour is in
+[park-and-reset.md](park-and-reset.md).
 
-**Pull-up: not required.**  DIO is direct pin control, not an open-drain bus.
-The on-board pull-up resistors are optional and are enabled either with
-`P`/`p` or with bit 5 of a state value.
+## Pull-up: not required
 
-### Pin naming
+Direct I/O is not an open-drain bus, so **no pull-up is required**.  The
+on-board pull-up resistors are optional; they connect the I/O lines to
+whatever voltage is on the `VPU` pin.  That reference must be supplied
+externally on both boards: direct I/O is push-pull only, and the v4 on-board
+3.3 V/5.0 V source cannot be selected in this mode.
 
-The firmware's own names for the five pins, as shown by `v`, are `AUX`,
-`MOSI`, `CLK`, `MISO`, `CS`.  `AUX` is the pin the AUX-assignment commands
-call target `A0`; on v4 the header also carries `AUX1` and `AUX2`, which a DIO
-value **cannot** address.  The mapping used throughout this set: a direction
-or state bit drives the pin named in the table above, and `AUX` means the
-`AUX0` pin.
-
-The pull-up reference pin is labelled `Vpu` / `VPU` on the board and header;
-the firmware calls it **Vpullup** (the name it uses in `Warning: no voltage on
-Vpullup pin`).  This set writes the pin `VPU` and the firmware name `Vpullup`
-only in quoted output.
-
-### Header per board
-
-| v3 label | v4 label | Role |
+| Step | Input | Result |
 |---|---|---|
-| `GND` | `GND` | ground |
-| `+3.3V` | `+5.0V` | rail |
-| `+5.0V` | `+3.3V` | rail |
-| `ADC` | `ADC` | ADC / probe pin (not a DIO pin) |
-| `VPU` | `VPU` | pull-up reference |
-| `AUX` | `AUX` | DIO bit 4 |
-| `CS` | `CS` | DIO bit 0 |
-| `MISO` | `MISO` | DIO bit 1 |
-| `CLK` | `CLK` | DIO bit 2 |
-| `MOSI` | `MOSI` | DIO bit 3 |
-| — | `AUX1` | not a DIO pin |
-| — | `AUX2` | not a DIO pin |
+| pull-ups on | `P` | `WARNING: pins not open drain (HiZ)`, then `Pull-up resistors ON` |
+| pull-ups off | `p` | `Pull-up resistors OFF` |
+| pull-ups on, silently | state bit 5 set | resistors on; no warning and no VPU sample |
+| pull-ups off, silently | state bit 5 clear | resistors off |
 
-The v3 label row is ordered `GND 3.3V 5.0V ADC VPU AUX CS MISO CLK MOSI`; the
-v4 label row is `GND 5.0V 3.3V VPU ADC AUX2 AUX1 AUX CS MISO CLK MOSI`.
+The open-drain warning on `P` is informational: `P` still enables the
+resistors in a push-pull mode.  `(HiZ)` in that string names the open-drain
+high state, not the `HiZ` mode.  `P` then samples VPU once and adds
+`Warning: no voltage on Vpullup pin` if the pin is low; the resistors stay on
+either way.  A state value with bit 5 set does the same without the sample, so
+it can enable the resistors with no high reference and no warning.
 
-## Voltage limits
+With no voltage on `VPU` (a plain example):
 
-The I/O pins are **5 V class**: the on-board supply tops out at 5.0 V and the
-Vpullup pin is specified as 0–5 V.  Keep applied signals within 0–5 V and
-ground common with the target.  The exact absolute-maximum rating of the pins
-is not documented here (unverified).
+```
+DIO>P
+WARNING: pins not open drain (HiZ)
+Pull-up resistors ON
+Warning: no voltage on Vpullup pin
+DIO>p
+Pull-up resistors OFF
+DIO>
+```
+
+Feed `VPU` from the target's logic supply (0–5 V) or another reference in that
+range.  On v4, `e` is refused in direct I/O with `WARNING: pins not open drain
+(HiZ)` plus a syntax error; on v3 there is no `e` command.  Entering the mode
+also deselects any on-board source chosen in an earlier mode.
+
+## Output type and voltage
+
+Outputs are **push-pull only**.  There is no output-type prompt and no
+open-drain setting in direct I/O.
+
+The I/O pins are 5 V class: keep applied signals within 0–5 V and keep ground
+common.  The on-board rails are 5.0 V and 3.3 V, and `Vpullup` is specified as
+0–5 V.  The exact absolute-maximum rating of the pins is not documented here
+and remains unverified.
 
 ## Safety
 
-- Do not short the rails (`+3.3V`, `+5.0V`) to ground or to each other; `W`
-  reports `VREG too low, is there a short?` if the rails do not come up.
-- Never drive a pin against an external source.  Set a pin to input (its
-  direction bit = 1) before attaching a driver to the same net — see
-  [edge-cases.md](edge-cases.md).
-
-## Power and pull-ups
-
-DIO drives its five pins **push-pull only**; it never selects an open-drain
-output type.  As a result the on-board VPU source cannot be selected from DIO:
-`e` (v4) is refused with `WARNING: pins not open drain (HiZ)`, and entering
-DIO also clears any source selected earlier.  Feed the **VPU** pin from an
-external supply on both boards when the pull-ups are used.
-
-| Step | Command | Effect |
-|---|---|---|
-| supply on | `W` | on-board rails on, `POWER SUPPLIES ON` + `Clutch engaged!!!` |
-| supply off | `w` | rails off, `Clutch disengaged!!!` + `POWER SUPPLIES OFF`; pin directions, levels and pull-ups stay as set |
-| pull-ups on | `P` | ties the I/O lines to VPU; prints `WARNING: pins not open drain (HiZ)` first, then `Pull-up resistors ON` |
-| pull-ups off | `p` | releases the pull-ups |
-
-`P` also prints `Warning: no voltage on Vpullup pin` when its single VPU
-sample is low.  A state value with bit 5 set enables the same resistors
-without that warning (and without the open-drain warning).  The pull-ups are
-optional for DIO; without a VPU feed they have no high reference.  See
-[commands.md](../../generic/commands.md) §Feeding the VPU pin.
-
-The same two functions are reachable from a state value: bit 6 = power,
-bit 5 = pull-up (see [pin-control.md](pin-control.md)).
+- Do not short the rails to ground or to each other.  `W` reports
+  `VREG too low, is there a short?` if a rail does not come up.
+- Never drive a pin against an external source.  Set the pin to input (its
+  direction bit = 1) before connecting a driver to the same net.
+- Direct I/O does not detect contention.  An output drives its level
+  regardless of what else is on the net, and the firmware gives no warning.
+- Park the five signal pins with `w`, or release every I/O pin with `#`;
+  confirm with `v` before changing the wiring.  A driven `AUX1` / `AUX2` is
+  not released by `w`; see [park-and-reset.md](park-and-reset.md).
 
 ## v3 / v4
 
 | | v3 | v4 |
 |---|---|---|
-| DIO pins | `AUX` `MOSI` `CLK` `MISO` `CS` | `AUX` `MOSI` `CLK` `MISO` `CS` |
-| extra header pins | — | `AUX1`, `AUX2` (not DIO pins) |
-| supply | on-board VREG via `W` | on-board VREG via `W` |
+| header pins | 10 | 12 |
+| signal pins in a value | `AUX` `MOSI` `CLK` `MISO` `CS` | same |
+| `AUX1` / `AUX2` | — | on the header, not in a value |
+| supply | on-board regulator via `W` | same |
+| pull-up reference | external only | external only |
 | output type | push-pull only | push-pull only |
-| `e` command | not present | refused in DIO |
-| `VPU` source | external only | external only |
+| `e` | absent | refused |
 | pull-up required | no | no |
-
-The v3 column is **not verified**.

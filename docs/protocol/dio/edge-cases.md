@@ -1,145 +1,129 @@
-# DIO — edge cases & failure modes
+# DIO — edge cases and failure modes
 
 Part of the DIO documentation set (`docs/protocol/dio/`).  Each entry gives
 the trigger, the observable symptom, what the firmware does, and the recovery.
+The normal behaviour is in [pin-control.md](pin-control.md),
+[park-and-reset.md](park-and-reset.md) and [read-back.md](read-back.md).
+
+## Symptom index
+
+| Symptom | Command | Section |
+|---|---|---|
+| `WRITE: 0x01`; nothing is driven | `1` | [Values and writes](#values-and-writes) |
+| `WRITE: 0x04`; `CLK` stays `I` | `0x04` | [Values and writes](#values-and-writes) |
+| all five pins become outputs unexpectedly | `0x40`, `0x20` | [Values and writes](#values-and-writes) |
+| pull-ups or other pins turn off | any state value | [Values and writes](#values-and-writes) |
+| rails come up with no `POWER SUPPLIES ON` | `0xC0`, `0xE0` | [Values and writes](#values-and-writes) |
+| an input pin does not take a written level | a state value on an input | [Values and writes](#values-and-writes) |
+| an output comes up at an old level | a direction value | [Values and writes](#values-and-writes) |
+| the echo shows a different value | a value above `0xFF` | [Values and writes](#values-and-writes) |
+| the echo hides the action bit | `;N` below 8 | [A width below 8 hides the action bit](#a-width-below-8-hides-the-action-bit) |
+| repeated writes alternate | `L` with `:N` | [LSB-first reverses the value](#lsb-first-reverses-the-value-before-the-pins-see-it) |
+| pull-ups turn on with the supply | `0xE0` with pin bits | [Supply and pull-ups](#supply-and-pull-ups) |
+| `WARNING: pins not open drain (HiZ)` on `P` | `P` | [Supply and pull-ups](#supply-and-pull-ups) |
+| `Warning: no voltage on Vpullup pin` | `P` or state bit 5 | [Supply and pull-ups](#supply-and-pull-ups) |
+| `e` refused | `e`, `e2`, `e3` | [Supply and pull-ups](#supply-and-pull-ups) |
+| `VREG too low, is there a short?` | `W` | [Supply and pull-ups](#supply-and-pull-ups) |
+| an extra pin stays driven | `w` after `k` / `K` then `A` | [`w` leaves `AUX1` / `AUX2` driven](#w-leaves-aux1--aux2-driven-v4) |
+| bit order, AUX target or display survive `w` | `L`, `C`, `o2` | [Parking and leaving](#parking-and-leaving) |
+| `m10` releases all pins and drops the supply | `m10` in `DIO>` | [Parking and leaving](#parking-and-leaving) |
+| `m` then `x` leaves the pins as they were | `m`, `x` | [Parking and leaving](#parking-and-leaving) |
+| `W` does not restore the drives | `w` then `W` | [Parking and leaving](#parking-and-leaving) |
+| `r` shows no direction or rails | `r` | [Reads and commands](#reads-and-commands) |
+| an `r` bit changes between reads | floating input | [Reads and commands](#reads-and-commands) |
+| `ERROR: command has no effect here` | `{`, wrappers, `(n)` | [Wrappers and mode macros](#wrappers-and-mode-macros-report-an-error) |
+| an output fights an external driver | output against a driver | [An output fights an external driver](#an-output-fights-an-external-driver) |
+
+## Values and writes
+
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| typing `1` to drive a pin high | `WRITE: 0x01`; `v` shows `CS` as `I`; nothing is driven | `0x01` is a direction value: bit 0 = 1 makes `CS` an input | use a state value: `0xC1` is supply on and `CS` high, `0x81` the same with the supply off; or select `CS` with `C` and send `A` |
+| typing `0x04` to raise `CLK` | `WRITE: 0x04`; `v` shows `CLK` as `I`, not `H` | bit 7 clear selects a direction write; `0x04` sets bit 2, which makes `CLK` an input | send `0xC4` (supply on) or `0x84` (supply off) for `CLK` high |
+| `0x40` to turn the supply on, or `0x20` to turn the pull-ups on | all five pins become outputs; the supply and pull-ups do not change | bit 7 is clear, so both are direction bytes; a direction write ignores bits 6–5 | `0xC0` turns the supply on with the pull-ups off; `0xE0` also turns the pull-ups on; `0xA0` turns the pull-ups on with the supply off |
+| `0xC4` after the pull-ups were on, or after another pin was high | the pull-ups turn off and the other pins go low; the supply state is taken from bit 6 | a state value is absolute: it sets the supply, the pull-ups and all five latches from the one byte | include every bit you want; `0xC0` plus pin bits keeps the supply on with the pull-ups off, `0xE0` plus pin bits also keeps the pull-ups on |
+| sending `0xC0` or `0xE0` without `W` | the rails come up, but there is no `POWER SUPPLIES ON` line and no rail check | state bit 6 drives the regulator directly | check the rails with `v`; use `W` when you want the check and the two engagement lines |
+| a state value for a pin whose direction is still input | the pin does not change on `v`; it stays `I` and floating | the state bit is stored in the output latch, but the pin does not drive until its direction bit is 0 | send a direction value for that pin after the state value; state first, direction second avoids a glitch |
+| making a pin an output without setting its level first | the pin can come up at an old level, not low | a direction change does not set a level; it enables the latch, which a previous mode or state write may have left high | send the state value first, then the direction value; after `w` the latches are low, so the pin comes up low |
+| `0x100`, `0x180`, or any value above `0xFF` | the echo shows `0x00` or `0x80`; only the low byte took effect | the pin map sees the low byte only, and bit 7 of that byte selects direction or state | send a value in `0x00`–`0xFF` |
+
+### LSB-first reverses the value before the pins see it
+
+- Trigger: `L` followed by a value.
+- Symptom: `0x01` is echoed as `WRITE: 0x01` but arrives as `0x80`, which is a
+  state write instead of a direction write.
+- Behaviour: `L` reverses the value after the echo and before the write; `r`
+  reverses the printed read value within the width.
+- Recovery: send `l` to return to MSB-first, or use `#` / a mode change.  Do
+  not combine `L` with `:N`: the shared parser reverses the value again on
+  each repeat, so the repeated writes alternate between the two forms.
+
+### A width below 8 hides the action bit
+
+- Trigger: `0x84;4`.
+- Symptom: the echo is `WRITE: 0x04;4`, but the pin change is a state write.
+- Behaviour: the echo is masked to the selected width; the full low byte is
+  still applied.
+- Recovery: set `;8` before using pin values.  A width above 8 can show bits
+  the pins ignore, so keep the default 8 bits for direct I/O.
 
 ## Supply and pull-ups
 
-### `w` does not park the pins
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| using `0xE0` with pin bits only to keep the supply on | the pull-up resistors turn on as well | bit 5 is the pull-up bit; `0xE0` sets both bit 6 and bit 5 | use `0xC0` with the pin bits when the pull-ups must stay off, and feed `VPU` when they should be on |
+| `P` in direct I/O | `WARNING: pins not open drain (HiZ)`, then `Pull-up resistors ON` | direct I/O is push-pull, so the shared command prints the informational warning; `(HiZ)` names the open-drain high state, not the mode | none; the resistors are on.  `p` turns them off |
+| `P` with nothing on `VPU`, or state bit 5 set with `VPU` unpowered | `P` adds `Warning: no voltage on Vpullup pin`; a state value does not warn at all | `P` samples VPU once after enabling; the state bit only switches the resistors | feed `VPU` externally (both boards) before relying on the pull-ups; they are optional for direct I/O |
+| `e`, `e2` or `e3` in direct I/O on v4 | `WARNING: pins not open drain (HiZ)` followed by `Syntax error at char 1`; nothing changes | `e` needs an open-drain mode, and direct I/O is push-pull; entering the mode also deselects an on-board source chosen earlier | feed `VPU` externally.  On v3 there is no `e` command at all |
+| `W` with a shorted rail or a target holding a rail down | `VREG too low, is there a short?` then `POWER SUPPLIES OFF` | the regulator is switched off; the pins are unchanged | clear the fault or disconnect the target, then `W` again |
 
-- Trigger: `w` in DIO.
-- Symptom: `Clutch disengaged!!!` + `POWER SUPPLIES OFF`; the prompt stays
-  `DIO>`; a pin that was an output stays an output.
-- Behaviour: `w` only switches the supply off and restores the 8-bit
-  read/write width.  Directions, levels and pull-ups are unchanged.  `#` is
-  the command that parks all pins as inputs and returns to `HiZ` (on v3 `#`
-  reboots the firmware).
-- Recovery: send a direction value with the pins you need as inputs (bit = 1;
-  `0x1F` makes all five inputs), or use `#`.  No re-entry is needed.
+## Parking and leaving
 
-### A state value clears POWER or PULLUP
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| `L`, `C` or `o2`, then `w` | the next writes are still LSB-first, still target `CS`, still print in decimal | `w` parks the five signal pins and resets the width, but does not clear the other mode settings | use `#` for a full reset, or set each item back explicitly |
+| `m10` while already in `DIO>` | the pins are released and the supply turns off; `Ready` is printed again | every mode change runs the cleanup and the board reset before the mode is re-entered | none needed; re-send the values you want |
+| `m`, then `x` at `(1)>` | `no mode change`; the pins, supply and settings stay as they were | cancelling the menu skips the cleanup | `#` (or a mode change) if `AUX1` / `AUX2` may be driven; `w` releases only the five signal pins if that is all you need |
+| `w` then `W` | the rails come up, but the pins stay inputs and the latches stay low (the pin levels float) | `W` only starts the supply; its setup hook is empty, so it does not restore the drives | send the state value, then the direction value |
 
-- Trigger: after `W`, send a state value with bit 6 clear — for example
-  `0x80` or `0x87`.
-- Symptom: the next `v` shows the rails at `0.00V`; `POWER SUPPLIES ON` is
-  not printed again.
-- Behaviour: every state value carries POWER (bit 6) and PULLUP (bit 5); the
-  whole byte is applied, so a clear bit 6 disables the supply and a clear
-  bit 5 releases the pull-ups.
-- Recovery: include the bits you want.  `0xC0 | pins` keeps power on and
-  leaves the pull-ups off; `0xE0 | pins` keeps power on and enables the
-  pull-ups.  Or send `W` again.
+### `w` leaves `AUX1` / `AUX2` driven (v4)
 
-### `0xE0` also enables the pull-ups
+- Trigger: `k` then `A` (or `K` then `A`), followed by `w`.
+- Symptom: the selected extra pin stays driven while the five direct I/O
+  pins are released.
+- Behaviour: the park covers the five signal pins only; `AUX1` / `AUX2` are
+  not in the value or the park mask.
+- Recovery: `@` with that target selected, or `#` / a mode change before
+  touching the wiring.
 
-- Trigger: using `0xE0 | pins` to keep power on while changing a pin.
-- Symptom: the pull-ups turn on as well; they may have no high reference.
-- Behaviour: bit 5 adds the pull-ups.  Keeping power on needs only bit 6, so
-  `0xC0 | pins` is the power-only recipe.
-- Recovery: use `0xC0 | pins` when the pull-ups must stay off; feed VPU if
-  you want them on.
+## Reads and commands
 
-### Pull-ups on with no VPU reference
+| Trigger | Symptom | Behaviour | Recovery |
+|---|---|---|---|
+| expecting `r` to show a direction, the supply or the pull-ups | `READ: 0x04`; bits 7–5 are 0 with the default MSB-first order | `r` returns the five levels only | use `v` for directions and rails ([read-back.md](read-back.md)) |
+| reading a pin that is an input with nothing connected | the bit changes between reads | the pin is floating; the value is the level on the header, not a stored state | drive the pin from the target or enable the pull-ups with a VPU reference |
 
-- Trigger: `P` when nothing is on the VPU pin, or a state value with bit 5
-  set.
-- Symptom: `P` prints `WARNING: pins not open drain (HiZ)`, then
-  `Pull-up resistors ON`, then `Warning: no voltage on Vpullup pin`.  A state
-  value enables the resistors with no warning.
-- Behaviour: `P` samples VPU once after enabling and warns if it is low.  The
-  state bit only switches the resistors.  Either way the lines have no high
-  reference until VPU is fed.
-- Recovery: feed VPU externally (both boards), then enable the pull-ups.  A
-  pull-up is optional for DIO.
+### Wrappers and mode macros report an error
 
-### `e` is refused in DIO
+- Trigger: `{` then a value, expecting a `READ:` companion; or `[`, `]`, `}`,
+  `/`, `\`, `-`, `_`, `.`, `^`, `!`, or `(n)`.
+- Symptom: `ERROR: command has no effect here`, then
+  `Syntax error at char <n>`; a bit op such as `/` prints its normal
+  `CLOCK, 1` label first.  `{` adds no `READ:`, so the write still prints
+  `WRITE:` only.  `(n)` adds a blank line before the syntax line.
+- Behaviour: direct I/O has no start-with-read, stop, clock, data or macro
+  callbacks; it clears any read-on-write setting when it is entered.
+- Recovery: use `r` or `v` after the write; use values and user macros `<n>`.
 
-- Trigger: `e`, `e2` or `e3` in DIO on v4.
-- Symptom: `WARNING: pins not open drain (HiZ)`; nothing changes.
-- Behaviour: DIO drives push-pull only.  `e` is accepted only in a mode whose
-  output type is open drain, and entering DIO clears any source selected
-  earlier.
-- Recovery: feed VPU from an external supply.  There is no on-board VPU route
-  from DIO on either board.
-
-### `W` with a short or no supply
-
-- Trigger: `W` with a shorted rail or no supply.
-- Symptom: `VREG too low, is there a short?` followed by
-  `POWER SUPPLIES OFF`.
-- Behaviour: the supply is switched off; the pin state is unchanged.
-- Recovery: clear the short (or connect the supply), then `W` again.
-
-## Pin writes
-
-### A level is written while the pin is still an input
-
-- Trigger: a state write for a pin whose direction is still input.
-- Symptom: the pin does not change on `v`; the level appears only after the
-  pin becomes an output.
-- Behaviour: a level is driven only when the direction bit is 0 (output).
-  The state bit is stored but the pin stays Hi-Z.
-- Recovery: send the direction value first, then the state value.  For
-  example `0x00` makes all five outputs.
-
-### A value larger than a byte
-
-- Trigger: a value above `0xFF`, for example `0x1FF`.
-- Symptom: only the low byte is applied and echoed.
-- Behaviour: only the low byte reaches the pin-control function, and only
-  bit 7 of that byte selects direction versus state.
-- Recovery: send a value in `0x00`–`0xFF`.
-
-### A binary command code is applied as a pin value
-
-- Trigger: a binary-layer command code such as `0x01` (SPI) or `0x0F`
-  (return to terminal).
-- Symptom: no mode change; a pin value is applied instead.
-- Behaviour: the binary command codes are interpreted by the binary layer,
-  not by DIO.  In DIO every value is a direction (`0x00`–`0x7F`) or state
-  (`0x80`–`0xFF`) write, so `0x01` sets `CS` as an input.
-- Recovery: none needed; use the numeric direction/state values.
+## Electrical
 
 ### An output fights an external driver
 
 - Trigger: a pin is an output while an external driver holds the same net at
   the opposite level.
-- Symptom: excessive current; the target or the Bus Pirate pin may be
-  damaged.  The firmware gives no warning.
-- Behaviour: DIO does not detect contention; an output drives the pin
-  regardless of what is on the net.
-- Recovery: set the pin to input (direction bit = 1) before connecting an
-  external driver; never drive a pin against a supply.
-
-### The v4 `AUX1` / `AUX2` pins do not respond
-
-- Trigger: driving the v4 `AUX1` or `AUX2` header pin with a DIO value.
-- Symptom: no bit in the value changes those pins; they stay inputs.
-- Behaviour: a DIO value only addresses `AUX` (`AUX0`), `MOSI`, `CLK`,
-  `MISO` and `CS`.
-- Recovery: on v4, reach those pins through the AUX route — select the target
-  with `c` / `C` / `k` / `K`, then drive it with `a` / `A` (see
-  [commands.md](../../generic/commands.md) §Elements).
-
-## Reads and commands
-
-### `r` does not show direction or rails
-
-- Trigger: expecting `r` to show a pin's direction, the supply or the
-  pull-ups.
-- Symptom: `r` returns only the five levels; the value looks like a write
-  byte but bits 7–5 are clear.
-- Behaviour: `r` is a level read in the compact layout (bits 4–0, 1 = high).
-  Direction, power and pull-up are not part of it.
-- Recovery: use `v` for directions and rails; see
-  [read-back.md](read-back.md).
-
-### Wrappers or mode macros report an error
-
-- Trigger: `[`, `{`, `]`, `}`, `/`, `\`, `-`, `_`, `.`, `^`, `!`, or `(n)`.
-- Symptom: `ERROR: command has no effect here` followed by
-  `Syntax error at char N`.
-- Behaviour: DIO has no start/stop, clock, data, bit-read or macro callbacks,
-  so these shared commands do nothing and flag an error.  Shared user macros
-  `<n>` still run.
-- Recovery: none needed; use the value commands, `r`/`v`, and `<n>`.
+- Symptom: excessive current, and possible damage to the target or the Bus
+  Pirate pin.
+- Behaviour: direct I/O does not detect contention; the output drives its
+  level regardless.
+- Recovery: set the pin to input before connecting a driver; never drive a
+  pin against a supply.

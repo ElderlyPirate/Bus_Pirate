@@ -95,7 +95,8 @@ must follow the value or the repeat suffix — the order is value, `:N`, `;N`:
 
 N is 1–16; `;0` and widths above 16 are syntax errors.  The width is **not**
 per line: it stays in force for later values and reads until you change it, or
-until a mode change or reset restores 8 bits.
+until a mode change, reset, or a mode cleanup restores 8 bits (DIO's `w`
+restores 8).
 
 When the width is neither 8 nor 16, the firmware appends `;N` to each value or
 read it prints, so the echo tells you which width produced it:

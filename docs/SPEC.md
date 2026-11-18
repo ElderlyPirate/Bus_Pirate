@@ -10,7 +10,8 @@ internals) and [dev/](dev/README.md) (build, flash and tooling).
 **Legend —** `x` = present in that build · `-` = not in that build ·
 `off` = optional feature, not in the default build · `tbi` = planned, not in
 the firmware yet.
-The BPv3 column means *present in the v3 build*; v3 is build-only.
+The BPv3 column means *present in the v3 build*; the v3 build is documented
+but not verified on v3 hardware.
 "Docs" is the documentation set for the row: the set's README, or the named
 page where a set splits a topic.
 
@@ -95,7 +96,7 @@ custom-baud form are v4-only.
 | SUMP protocol | x | x | client: sigrok / PulseView | ✓ [protocol/sump/](protocol/sump/README.md) |
 | · regular capture | x | x | — | ✓ |
 | · extended (enhanced LA, #32) | x | x | 2k–32k samples, 1/2/4/8/16 MHz engines, trigger position; v3 unverified | ✓ |
-| entry sequence | x | x | hidden: ≥5× `0x00` then raw STX (`0x02`) | ✓ |
+| entry sequence | x | x | hidden: 5–19× `0x00` then raw STX (`0x02`); 20 NULs enter binary instead | ✓ |
 
 ## 5. Script engine — BASIC
 

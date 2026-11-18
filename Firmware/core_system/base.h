@@ -197,6 +197,10 @@ bool bp_adc_foreground_available(void);
  */
 bool bp_adc_check_foreground(void);
 
+/* The ADC capability owns the implementation; capability_adc/adc.h carries
+ * the full documented declaration. Keep this prototype for translation units
+ * that only include base.h. */
+uint16_t bp_read_adc(const uint16_t channel);
 
 /**
  * @brief Prints the given value to the user terminal according to the format

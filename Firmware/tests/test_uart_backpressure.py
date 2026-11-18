@@ -22,6 +22,7 @@ static bool stream_ready(void) { return queued!=0; }
 static uint8_t stream_pending(void) { return queued; }
 static uint16_t stream_rx(void) { assert(queued);--queued;++dequeued;return 0x55; }
 static bool getInReady(void) { return host_ready; }
+static void handle_wait_command(uint8_t c) { (void)c; }
 static bool button(void) {
  if(!polls)queued=4;
  ++polls;assert(polls<=4);
@@ -144,6 +145,7 @@ def main():
                    "uart_setup_execute", "uart_run_macro", "uart_binary_service_rx", "binUART"))
     prefix = PREFIX.replace("#define BP_BUTTON_ISDOWN() (++button_polls>1)", "")
     prefix = prefix.replace("static bool getInReady(void) { return true; }", "")
+    prefix = prefix.replace("static void handle_wait_command(uint8_t c) { (void)c; }", "")
     run(directory, "loops", "\n".join(("#define BUSPIRATEV4", prefix, settings, tables,
                                        macros, definitions, LOOP_TEST, body, LOOP_MAIN)))
     cdc = (ROOT / "Firmware/core_usb/cdc.c").read_text()

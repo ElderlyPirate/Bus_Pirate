@@ -74,6 +74,7 @@ static uint8_t user_serial_read_byte(void) { assert(input_left); --input_left; r
 static void user_serial_transmit_character(uint8_t c) { assert(output_count<sizeof(output)); output[output_count++]=c; }
 static void bp_binary_io_peripherals_set(uint8_t c) { (void)c; }
 static uint8_t bp_binary_io_pullup_control(uint8_t c) { (void)c; return 1; }
+static void handle_wait_command(uint8_t c) { (void)c; }
 #define BP_BUTTON_ISDOWN() (++button_polls>1)
 #define LOW 0
 #define INPUT 1

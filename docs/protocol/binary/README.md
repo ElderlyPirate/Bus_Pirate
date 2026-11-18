@@ -1,7 +1,7 @@
 # Binary bitbang layer (BBIO1)
 
-**Status:** v4 documented; v3 is unverified (built for v3, not tested on v3
-hardware).
+**Status:** v4 documented; v3 is unverified (built for v3, hardware not
+verified).
 
 The binary bitbang layer is the Bus Pirate's byte-oriented control layer: a host
 program sends single request bytes and receives raw bytes instead of typing

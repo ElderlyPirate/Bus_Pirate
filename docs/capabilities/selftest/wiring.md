@@ -74,6 +74,10 @@ Before:
 3. Fit the jumpers in the table above.
 4. Leave the Bus Pirate powered and connected to the terminal.
 
+After the run, remove the self-test jumpers before using the probe or
+reconnecting a target: a fitted `ADC`→`+3.3V` jumper is a plain wire to the
+3.3 V rail, and a connected source back-drives it.
+
 After a completed run the firmware restores the idle state:
 
 | Item | State after the run |

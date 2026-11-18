@@ -118,15 +118,17 @@ rows need the setup jumpers; the other rows use an internal source.
 | `Vusb` | reads the USB 5V input rail in the 5V window | the USB input is out of band; check the USB power |
 | `5V` | reads the 5V rail in the 5V window | the rail is out of band: supply fault or short |
 | `5V VPU` | selects the v4 5V pull-up source and reads it in the 5V window | the source is out of band; if `5V` also fails, suspect the rail |
-| `ADC` | reads the `ADC` pin in the 3.3V window; the jumper ties it to `+3.3V` | the jumper is missing or loose, the probe input is faulty, or `3.3V` is low |
-| `3.3V` | reads the 3.3V rail in the 3.3V window | the rail is out of band: regulator fault or short |
+| `ADC` | reads the `ADC` pin in the 3.3V window; the jumper ties it to `+3.3V` | the jumper is missing or loose, or the probe input is faulty |
+| `3.3V` | reads the 3.3V rail channel in the 3.3V window; the channel is ratiometric to the rail, so it proves the divider/channel is present, not the absolute rail voltage | near zero: divider or channel fault; a small droop is not detectable |
 | `3.3V VPU` | selects the v4 3.3V pull-up source and reads it in the 3.3V window | the source is out of band; if `3.3V` also fails, suspect the rail |
 | `VPU` | reads the v3 pull-up pin in the 5V window; the jumper ties it to `+5V` | the jumper is missing or loose, the pull-up output is faulty, or `5V` is low |
 
 The v3 supply block prints `5V`, `VPU`, `3.3V`, `ADC` in that order.  The v4
 block prints the table order.  A reading near `0.00` on a rail means the rail
 is off or shorted; a reading inside the window is a pass even if it is a few
-hundred millivolts from nominal.  The limits are in
+hundred millivolts from nominal.  The `3.3V` channel is ratiometric to the
+rail: it is a divider/presence check, not an absolute rail measurement.  The
+limits are in
 [Voltage checks](#voltage-checks).
 
 ## Pin-state checks

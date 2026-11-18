@@ -1,93 +1,167 @@
-# PC keyboard (KEYB) — edge cases & failure modes
+# PC-AT keyboard (KEYB) — edge cases and failure modes
 
 Part of the KEYB documentation set (`docs/protocol/keyboard/`).  Each table
-gives one condition per row and the symptom it produces.
+gives one condition per row and the symptom it produces; recovery steps follow
+the table.
 
-A silent or garbled monitor: check in this order — **power** (`W`, VCC, GND),
-then **pull-up** (both lines idle high between exchanges), then
-**clock/data** (DATA on MOSI, CLOCK on CLK).  Every failed read also prints
-`0x00` after its error word (or appended, for `TIMEOUT`) — that value is a
-sentinel, not a scancode ([usage.md](usage.md#reading-with-r)).
+When the monitor is silent or reads fail, check in this order: **power**
+(`W` for a keyboard on `5.0V`, VCC, GND), then **DATA** (it must idle high
+through a pull-up; CLOCK is driven low by the mode between exchanges), then
+**clock/data wiring** (DATA on MOSI, CLOCK on CLK).  Every failed read prints
+its error word and then `0x00`; that value is a sentinel, not a scancode
+([usage.md §Reading](usage.md#reading--r-and-rn)).
 
-## Read and monitor
+## Reads and the monitor
 
 | Trigger | Symptom |
 |---|---|
-| Keyboard unpowered: no `W`, or VCC/GND open | `TIMEOUT` on every read; monitor silent |
-| Keyboard powered but nothing to send: idle, or scanning off | `NONE` on each read; monitor silent |
-| Lines held high, keyboard unpowered | `NONE` on each read; monitor silent |
-| Typing on the keyboard does not end the monitor | scancodes keep printing |
+| keyboard unpowered: no supply (`W` off and no external supply), or VCC/GND open, lines floating low | `TIMEOUT` on every read; monitor silent |
+| keyboard unpowered but the lines are pulled high | `NONE` on every read; monitor silent |
+| keyboard powered and idle | `NONE`; monitor silent |
+| first read after power-up | `AA`, `FC` or `FD` (BAT), or `NONE` while the keyboard boots |
+| scanning disabled with `0xF5` | `NONE`; writes still answer |
+| no keyboard attached, pull-ups on | `NONE` |
+| no keyboard attached, lines floating low | `TIMEOUT` or `*startbit error` |
+| typing on the keyboard does not end the monitor | scancodes keep printing |
+| a terminal key was already pending before `(1)` | the monitor exits at the first check |
+| a key pressed while the prompt is idle | the next `r` normally returns it; a burst can lose later codes |
 
-- `TIMEOUT` — send `W` and check VCC and GND.
-- `NONE` — normal when the keyboard is idle; press a key.  After `0xF5`
-  (scanning off) writes still work but no scancodes arrive; `0xF4` re-enables
-  scanning.  If the lines are high but the keyboard has no supply, check that
-  its VCC is on the 5.0V pin.
-- The monitor's exit key is on the terminal, not the keyboard.
+- `TIMEOUT` — send `W` and check VCC and GND; then check the DATA pull-up.
+  CLOCK is held low by the mode between exchanges, so an idle low CLK is
+  normal, not a missing pull-up.
+- `NONE` — normal at idle.  Press a key.  If nothing arrives, run the Echo
+  presence test below; after `0xF5`, send `0xF4` to re-enable scanning.
+- The monitor exit key is on the terminal, not the keyboard.  Clear any
+  type-ahead before starting `(1)`.
+- A burst of typing while the mode is idle is limited by the keyboard's own
+  output buffer.  Read promptly or use the monitor; the buffer depth is
+  keyboard-specific.
+
+## Is a keyboard there?
+
+`NONE` alone cannot separate an idle keyboard from an absent or unpowered one.
+Use Echo as a presence test, with no keys pressed:
+
+```
+KEYB>0xEE
+WRITE: 0xEEACK
+KEYB>r
+READ: 0xAA
+KEYB>r
+READ: 0xEE
+KEYB>
+```
+
+The first read after power-up may be a BAT byte (`0xAA`, `0xFC` or `0xFD`).
+Read again; a BAT byte means the keyboard is alive, but it is not the echo.
+The returned `0xEE` is the positive evidence.  An `ACK` alone is weak: a DATA
+line stuck low acknowledges every write.  If the write reports `NACK` or
+`TIMEOUT`, check power and wiring; if reads keep returning `NONE` or `TIMEOUT`
+and never `0xEE`, check the wiring too ([wiring.md](wiring.md)).
 
 ## Frame errors
 
 | Trigger | Symptom |
 |---|---|
-| No pull-up, or a weak one | `TIMEOUT` if the clock never goes high; else `*parity error` / `*stopbit error` |
+| no pull-up; the clock never reaches its high phase | `TIMEOUT` |
+| weak pull-up; the 1 bits or the stop bit read low | `*parity error` or `*stopbit error` |
 | DATA on the wrong pin, or DATA held high | `*startbit error` |
-| CLOCK held low by the keyboard or a short | `*startbit error` |
-| One `*startbit error` that clears on retry | the read caught the keyboard's own clock-low window |
-| A bit misread: noise, long wires, no ground | `*parity error` |
-| The frame ends without a high stop bit | `*stopbit error` |
-| Any other read result | `UNKNOWN ERROR` |
+| CLOCK held low by a short | `*startbit error` or `TIMEOUT` |
+| noise, long wires, no common ground | `*parity error` |
+| the frame ends without a high stop bit | `*stopbit error` |
+| the clock stalls in the middle of a frame or a bit | `TIMEOUT` |
+| any other result | `UNKNOWN ERROR` — a defensive label the read path does not produce |
 
-- `TIMEOUT`, `*parity error`, `*stopbit error` — both lines must idle high
-  between exchanges: `P` after `W`, or external 1–10 kΩ to 5 V.  Then check
-  the common ground and shorten the wiring.
+- `TIMEOUT`, `*parity error`, `*stopbit error` — DATA must idle high through a
+  pull-up.  CLOCK is driven low by the mode between exchanges; check its high
+  phase during a frame, not at the idle prompt.  Then check the common ground
+  and shorten the wiring.
 - `*startbit error` — DATA must be on MOSI and driven by the keyboard; CLOCK
-  must not be held low.  A single one that clears on retry is the keyboard's
-  clock-low window before its frame.
+  must not be held low by a short.  A single one that clears on retry can be
+  the keyboard's own clock-low window before its frame.
 - A disconnected DATA line reads as a fixed level: high fails the start-bit
-  check, low fails parity.  Check DATA is on MOSI.
-- `UNKNOWN ERROR` — a defensive label; the current read path cannot produce
-  it.  Retry.
+  check; low fails parity or times out.  Check DATA is on MOSI.
+- `UNKNOWN ERROR` is not expected.  Retry; if it repeats, treat it as a
+  wiring fault.
 
-The `NONE`, `TIMEOUT`, `*startbit error`, `*parity error`, `*stopbit error` and
-`UNKNOWN ERROR` words are the mode's own error labels; the meanings are in
-[usage.md](usage.md#reading-with-r).
-
-## Writing
+## Host writes
 
 | Trigger | Symptom |
 |---|---|
-| Write before `W`, or to an unpowered keyboard | `TIMEOUT` — send `W` |
-| Scanning disabled (`0xF5`) | `ACK`; scancodes stay off — `0xF4` re-enables |
-| Command not accepted, or a full buffer | `NACK` — check the byte; `0xFF` resets |
-| Two-byte command sent without its data byte | the command byte `ACK`s, then waits — send the mask byte |
+| write to an unpowered keyboard (no supply) | `TIMEOUT` |
+| CLOCK stuck or shorted, or the keyboard not clocking | `TIMEOUT` |
+| keyboard rejects the byte | `NACK` |
+| DATA low at the acknowledge slot (stuck or shorted) | `ACK` for every write, even nonsense |
+| keyboard clocks but leaves DATA released at the acknowledge slot | `NACK` |
+| DATA stuck high or on the wrong pin | `TIMEOUT` — the keyboard sees no start |
+| a two-byte command sent without its data byte | the command byte ACKs; the next value is taken as the data byte |
+| `L` set (at 8 bits) | the write sends a bit-reversed byte while the reply shows the typed value |
+| `;N` set | the reply is masked and suffixed `;N`; the frame stays 8 bits — reset to 8 for host commands |
+| a strict keyboard and the mode's host timing | `TIMEOUT` or `NACK` ([protocol.md](protocol.md#host-write-timing--unverified)) |
 
-`TIMEOUT` on a write usually means the keyboard is unpowered (send `W`): the
-write sets up the clock and data pins itself, so the keyboard has to be powered
-for its clocks and acknowledge to arrive.  A stuck or shorted CLOCK, or a wrong
-pin, also times out — check the wiring if the keyboard is powered.
+- Check `W`, VCC, GND and the CLOCK/DATA wiring first.
+- Check the shared settings: `l` to leave values alone, and a width of 8 (`w`
+  then `W` resets it, or `r;8` sets it).
+- If the keyboard stays unresponsive, send `0xFF` (reset) or cycle the supply
+  with `w`, then `W`.
+- A `0xFF` reset can take time before the keyboard answers again.
 
 ## Power and pull-up
 
 | Trigger | Symptom |
 |---|---|
-| Short on the 5 V rail | `VREG too low, is there a short?` + `POWER SUPPLIES OFF` |
-| Keyboard over-loads the 5 V rail | rail sags, or `W` refuses — use external 5 V |
-| `P` sent before the 5 V rail is up | `Warning: no voltage on Vpullup pin` |
+| short on the 5 V rail | `VREG too low, is there a short?` + `POWER SUPPLIES OFF` |
+| keyboard over-loads the 5 V rail | the rail sags, or `W` refuses |
+| `P` sent before `W` or before `e3` | `Pull-up resistors ON` + `Warning: no voltage on Vpullup pin` |
+| Bus Pirate pull-ups on with no Vpullup reference | they do nothing; reads rely on the keyboard's own |
+| `w` sent with the pull-ups on | the rail is off but `P` stays set (and `e3`, if used) |
 
-- A short: clear it and retry `W`.
-- Over-load: use an external 5 V supply with a common ground.
-- `P` warning: the pull-up source has no voltage — run `W` and `e3` first,
-  then `P`.  The warning is about the order, not a failed pull-up.
+- Short: clear it and retry `W`.
+- Over-load: use an external 5 V supply with a common ground.  Power the
+  keyboard from that supply directly; never connect it to the `5.0V` pin
+  ([wiring.md §Supply](wiring.md#supply)).
+- `P` warning: the pull-up source had no voltage at that moment.  Run `W` and
+  `e3`, then `P` again, or select `e1`, connect the external feed, then `P`.
+  The warning is about the order, not a failed pull-up.
+- After `w`, turn the pull-ups off with `p` and the source off with `e1`
+  before rewiring.
 
-## Macros
+## Shared settings
 
 | Trigger | Symptom |
 |---|---|
-| A number that is not a macro (`(2)` …) | `Unknown macro, try ? or (0) for help` |
+| `[`, `{`, `]`, `}`, `/`, `\`, `^`, `-`, `_`, `.` or `!` | `ERROR: command has no effect here` + `Syntax error at char 1` |
+| `L` set | read values print bit-reversed; writes send a reversed byte |
+| `;N` set | printed values are masked and suffixed `;N`; the frame stays 8 bits |
+| RAW display (`o4`) during `(1)` | the monitor emits the byte itself, not readable text |
+| `(2)` or any number other than 0 / 1 | `Unknown macro, try ? or (0) for help` |
+| `m8` on a default v3 build | selects PIC, not KEYB; the mode is absent |
 
-## Unverified paths
+- The wrappers and bit operations belong to bus modes.  KEYB moves whole
+  keyboard frames, so those commands are refused.  Use `r` and a value write.
+- Reset the shared settings: `l` for bit order, `o1` for HEX, and a width of 8
+  (`r;8`, or `w` then `W`).
+- The mode has no binary path; do not look for a `KEYB` entry in the binary
+  sub-protocol table ([binary/sub-protocols.md](../binary/sub-protocols.md)).
 
-- **Unverified:** whether a given keyboard keeps acknowledging host commands
-  while its scanning is disabled.  That is standard PC/AT behaviour and the
-  mode's write path does not depend on scanning, so the table above lists the
-  normal case.
+## What is not established
+
+These are properties of the keyboard or the optional build, not of the mode's
+frame handling:
+
+| Item | Why it matters |
+|---|---|
+| keyboard's internal DATA/CLOCK pull-ups | if absent, fit 1–10 kΩ or enable `P` |
+| keyboard's 5 V current draw | the rail can sag or `W` can refuse |
+| host-write timing against a real keyboard | a strict keyboard may `TIMEOUT` or `NACK` ([protocol.md](protocol.md#host-write-timing--unverified)) |
+| scancodes a keyboard buffers while inhibited | a burst can lose later codes |
+| scancode set and BAT behaviour | the roster or first bytes may differ |
+| optional v3 build | the mode is unverified on v3 |
+
+## Related docs
+
+- [usage.md](usage.md) — the monitor, reads and writes.
+- [protocol.md](protocol.md) — the frame and timeout mechanics.
+- [wiring.md](wiring.md) — the pull-up and supply checks.
+- [generic/edge-cases.md](../../generic/edge-cases.md) — shared prompt
+  failures.

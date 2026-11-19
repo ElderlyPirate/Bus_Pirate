@@ -82,14 +82,14 @@ pages: [aux-pin.md](aux-pin.md), [pwm-servo.md](pwm-servo.md),
   whichever is active.
 - Do: none needed; run `g` or `S` with values to start again.
 
-### A stop command with a trailing space
+### Trailing spaces after `g` or `S`
 
-- Trigger: `g ` or `S ` (a space before Enter) while a generator runs.
-- You see: `g ` prints `PWM disabled` and then starts the interactive setup;
-  `S ` stops the old output silently and starts the interactive servo setup.
-- Why: the stop form is detected only when the byte after `g` / `S` is the end
-  of the line; a space makes the command take the parameter path.
-- Do: send `g` or `S` with no trailing space to stop and return to the prompt.
+- Trigger: `g ` or `S ` (a space before Enter).
+- You see: the same as the bare command: `PWM disabled` when a generator runs,
+  the interactive setup when none does.
+- Why: spaces are skipped before the bare-command check, so a trailing space is
+  not an argument.
+- Do: none; the trailing space is accepted.
 
 ### A valid one-line `g` while running
 
@@ -156,12 +156,12 @@ pages: [aux-pin.md](aux-pin.md), [pwm-servo.md](pwm-servo.md),
 
 - Trigger: `mN` or `#` with a generator active.
 - You see: the output disappears with no `PWM disabled` line.
-- Why: on v4 the reset clears the generator flag and detaches the output;
-  Timer2 is not stopped.  On v3 `#` is a hardware reset and stops everything;
-  a mode change is the software reset.  A later bare `g` in a mode starts the
-  interactive setup instead of acting as a stop.
+- Why: the reset clears the generator flag, stops Timer2 and detaches the
+  output.  It does not disable the OC5 channel or clear its period/duty setup.
+  On v3 `#` is a hardware reset; a mode change is the software reset.  A later
+  bare `g` in a mode starts the interactive setup instead of acting as a stop.
 - Do: none; the output is already stopped.  Send binary `0x13` first if the
-  timer must be idle.
+  OC5 module must be fully idle.
 
 ### `g` or `S` in a mode that uses `AUX`
 
@@ -242,12 +242,11 @@ pages: [aux-pin.md](aux-pin.md), [pwm-servo.md](pwm-servo.md),
 ### `0x70` with a timeout of `0x0000`
 
 - Trigger: a wait with a zero timeout.
-- You see: normally result `0x00` with the current level, immediately.
-- Why: the command does not wait; it samples the pin once.  Result `0x00`
-  means "no edge waited for", not a failure of the pin.  A change that lands
-  between arming and the first sample can still be reported as `0x01`.
-- Do: none for a plain read; use a non-zero timeout to actually wait, and do
-  not rely on a zero timeout as a guaranteed edge test.
+- You see: result `0x00` with the current level, immediately.
+- Why: expiry is checked before the change flag, so a zero timeout expires on
+  the first pass and no edge can be reported.  Result `0x00` means "no edge
+  waited for", not a failure of the pin.
+- Do: none for a plain sample; use a non-zero timeout to wait for an edge.
 
 ### An edge arrives while the payload is still being sent
 
@@ -296,14 +295,14 @@ pages: [aux-pin.md](aux-pin.md), [pwm-servo.md](pwm-servo.md),
 - Do: use the I2C binary mode for `0x09` AUX/CS, or the terminal for
   `a` / `A` / `@`.
 
-### `0x09 0x00`, `0x01` or `0x02` in I2C binary
+### `0x09` drive, release or select replies
 
-- Trigger: a drive or release sub-command.
-- You see: the reply contains `AUX LOW`, `AUX HIGH` or `AUX INPUT/HI-Z`
-  between the acknowledgement and the sub-result.
-- Why: the I2C handler reuses the terminal pin messages.
-- Do: read the text, or use `0x03`, `0x10` and `0x20` for clean replies; a
-  host that needs one-pin control should use the terminal `a` / `A` / `@`.
+- Trigger: `0x09` followed by `0x00`, `0x01`, `0x02`, `0x10` or `0x20`.
+- You see: exactly two bytes, `0x01` then `0x01`; nothing is printed.
+- Why: the binary handler writes the pads directly and does not reuse the
+  terminal pin messages.
+- Do: read two bytes for every sub-command; `0x03` returns the pin level as
+  the second byte, and an unknown sub-command returns `0x01 0x00`.
 
 ### `0x70` on `AUX1` / `AUX2` in I2C binary
 
@@ -347,9 +346,9 @@ pages: [aux-pin.md](aux-pin.md), [pwm-servo.md](pwm-servo.md),
 - You see: on v4 the pin stops being driven and the terminal reset runs; on v3
   the board resets.
 - Why: `0x0F` is a terminal/hardware reset, not the PWM-clear command.  The v4
-  reset clears the generator flag and detaches the output, but it does not
-  stop Timer2.
-- Do: send `0x13` before leaving if the PWM module must be idle.
+  reset clears the generator flag, stops Timer2 and detaches the output, but
+  it does not disable the OC5 channel or clear its period/duty setup.
+- Do: send `0x13` before leaving if the OC5 module must be fully idle.
 
 ### `0x12` or `0x13` while the SMPS owns the channel
 

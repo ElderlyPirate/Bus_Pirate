@@ -19,7 +19,7 @@ self-test, the ADC or the SMPS command group; those have their own pages.
 
 | Byte | Where it works | Action | Payload | Reply |
 |---|---|---|---|---|
-| `0x09` | I2C binary only | extended AUX: select, drive or read `AUX` / `CS` | one sub-command | `0x01`, optional text for drive/release, then the sub-result |
+| `0x09` | I2C binary only | extended AUX: select, drive or read `AUX` / `CS` | one sub-command | `0x01`, then the sub-result (always two bytes) |
 | `0x12` | BBIO1 only | set up PWM on `AUX` | prescaler, duty, period | `0x01`; `0x00` if the SMPS owns the channel |
 | `0x13` | BBIO1 only | clear PWM and detach `AUX` | none | `0x01`; `0x00` if the SMPS owns the channel |
 | `0x16` | BBIO1 only | count frequency on `AUX` | none | four bytes, big-endian, in Hz |
@@ -82,10 +82,10 @@ SMPS-enabled build it replies `0x00` while the SMPS owns the channel and
 leaves the SMPS alone.
 
 `0x0F` is not a substitute for `0x13`.  On v4 it returns to the terminal and
-runs the board reset, which clears the generator flag and detaches the output;
-the reset does not stop Timer2, so the timer may still run.  On v3 it is a
-hardware reset and stops everything.  Send `0x13` before `0x0F` if the PWM
-module must be left idle.
+runs the board reset, which clears the generator flag, stops Timer2 and
+detaches the output.  It does not disable the OC5 channel or clear its
+period/duty setup; send `0x13` if the PWM module must be left fully idle.  On
+v3 it is a hardware reset and stops everything.
 
 ## Frequency count — `0x16`
 
@@ -117,41 +117,29 @@ modes.  The payload, reply, timeout and direction contracts are in
 ## I2C extended AUX (0x09)
 
 `0x09` is a command of the **I2C binary mode**, not BBIO1.  The host sends one
-sub-command byte.  The first reply byte is always `0x01`: it reports that the
-command byte was recognised, not that the sub-command succeeded.  The
-sub-result follows.
+sub-command byte.  Every reply is exactly **two bytes**: the first byte is
+always `0x01` and reports that the command byte was recognised, not that the
+sub-command succeeded; the sub-result follows.
 
-| Sub-command | Action | Reply after the leading `0x01` |
+| Sub-command | Action | Sub-result after the leading `0x01` |
 |---|---|---|
-| `0x00` | drive the selected pin low | `AUX LOW` CR LF, then `0x01` |
-| `0x01` | drive the selected pin high | `AUX HIGH` CR LF, then `0x01` |
-| `0x02` | release the selected pin to high impedance | `AUX INPUT/HI-Z` (no line break), then `0x01` |
+| `0x00` | drive the selected pin low | `0x01` |
+| `0x01` | drive the selected pin high | `0x01` |
+| `0x02` | release the selected pin to high impedance | `0x01` |
 | `0x03` | read the selected pin (it is made an input first) | the level, `0x00` or `0x01` |
 | `0x10` | select `AUX` as the target | `0x01` |
 | `0x20` | select `CS` as the target | `0x01` |
 | other | none | `0x00` |
 
-The drive and release sub-commands reuse the terminal pin messages, so their
-reply is not two bytes:
+The drive and release sub-commands write the pads directly and print nothing,
+so `0x09 0x00`, `0x09 0x01` and `0x09 0x02` each answer `0x01 0x01`.  An
+unknown sub-command gives `0x01 0x00`.
 
 ```
-host -> 0x09                  extended AUX
-host <- 0x01                  command accepted (always)
-
-host -> 0x00                  drive the selected pin low
-host <- "AUX LOW" CR LF       the same text the terminal prints
-host <- 0x01                  sub-result
-
-host -> 0x09 0x02             extended AUX: release the selected pin
-host <- 0x01                  command accepted
-host <- "AUX INPUT/HI-Z"      no line break
-host <- 0x01                  sub-result
+host -> 0x09 0x00             extended AUX: drive the selected pin low
+host <- 0x01 0x01             command accepted, sub-command done
 ```
 
-`0x03`, `0x10` and `0x20` are clean: `0x01`, then the sub-result.  An unknown
-sub-command gives `0x01 0x00`.  A host must read the text for `0x00`–`0x02`;
-do not assume a fixed two-byte reply.  If a host needs a clean reply for a
-drive or release, the terminal `a` / `A` / `@` commands act on one pin only.
 There is no per-pin write in BBIO1: its state byte rewrites all five latches
 plus the supply and pull-up bits, and its direction byte rewrites all five
 directions.

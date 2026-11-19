@@ -145,10 +145,11 @@ a mode change (`mN`), the SUMP exit or the binary return; on v3 `#` is a
 hardware reset.
 
 `w` is a mode cleanup, not a board reset.  It is not a generator control.
-It may park the pins of the active mode (DIO parks its five signal pins, for
-example) but it does not guarantee that a manually driven `AUX1` / `AUX2` is
-released.  Confirm the directions with `v` before changing
-the wiring, or use a board reset when every pin must be an input.
+It may park the pins of the active mode (DIO parks its five signal pins and,
+on v4, `AUX1` and `AUX2` — seven in total; other modes may release fewer) but
+it does not guarantee that every manually driven pin is released.  Confirm the
+directions with `v` before changing the wiring, or use a board reset when
+every pin must be an input.
 
 ## v3 / v4
 

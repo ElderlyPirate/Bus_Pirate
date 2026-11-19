@@ -71,11 +71,9 @@ host <- 0x00 0x01              timeout, pin is still high
 ## Timeout contract
 
 - The timeout is a 16-bit count of milliseconds, 0 to 65535 (about 65.5 s).
-- `0` does not wait for an edge: the command samples the pin once and
-  normally returns result `0x00` with the current level.  It is the
-  documented way to read the selected pin with this command.  A change that
-  lands between arming and the first sample can still be reported as an edge,
-  so `0x01` is possible; do not use a zero timeout as a guaranteed edge test.
+- `0` does not wait: it always returns result `0x00` followed by the current
+  level.  It is the documented way to read the selected pin with this command;
+  use a non-zero timeout to wait for an edge.
 - The command reports an edge only if the pin changes after the command is
   armed.  An edge that occurs while the three payload bytes are still being
   received is not latched.

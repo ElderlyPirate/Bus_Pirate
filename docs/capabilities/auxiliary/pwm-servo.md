@@ -74,11 +74,12 @@ stops at 99 %.  If you need 100 % duty, use the binary PWM command or BASIC
 `DUTY`.  The binary command is in [binary.md](binary.md); the BASIC form is
 in [BASIC board pins](../../tools/basic/board-pins.md).
 
-`PWM active` is the start/change confirmation.  Any `g` line other than the
-bare letter, while a generator is running, stops it first, before the
-arguments are validated: `PWM disabled` prints first, then the new settings
-are applied or, if the values fail, the interactive prompts ask for both
-values again.
+`PWM active` is the start/change confirmation.  A `g` line with arguments,
+while a generator is running, stops it first, before the arguments are
+validated: `PWM disabled` prints first, then the new settings are applied or,
+if the values fail, the interactive prompts ask for both values again.  A
+line with nothing but spaces after `g` is the bare form: when a generator runs
+it stops and returns.
 
 ### Timer and prescaler
 
@@ -125,18 +126,18 @@ matters.  On v3 the duty encoding differs and is not verified on v3 hardware.
 | `S<position>` while running | `Servo active`; the output is reprogrammed, with no `PWM disabled` line |
 | `S` with an invalid position while running | the current output stops without `PWM disabled`, then `Position in degrees` and `(90)>` |
 | `w` | not a generator control; the active mode's cleanup may park `AUX` |
-| a mode change (`mN`) | board reset clears the generator flag and detaches the output; no `PWM disabled` line; Timer2 is not stopped |
-| `#` | v4 terminal reset: clears the flag and detaches the output, Timer2 is not stopped; v3 hardware reset |
+| a mode change (`mN`) | board reset clears the generator flag, stops Timer2 and detaches the output; no `PWM disabled` line |
+| `#` | v4 terminal reset: clears the flag, stops Timer2 and detaches the output; v3 hardware reset |
 | binary `0x13` | stops the timer and detaches the `AUX` output |
 | binary `0x16` | stops the generator timers and measures `AUX` |
-| binary `0x0F` | v4 terminal reset: clears the flag and detaches the output, Timer2 is not stopped; v3 hardware reset |
-| SUMP exit | terminal reset on both boards: clears the flag and detaches the output; no `PWM disabled` line |
+| binary `0x0F` | v4 terminal reset: clears the flag, stops Timer2 and detaches the output; v3 hardware reset |
+| SUMP exit | terminal reset on both boards: clears the flag, stops Timer2 and detaches the output; no `PWM disabled` line |
 
 A **bare** `g` is a stop only when a generator is already running.  With no
 generator running it starts the interactive setup instead, so `g` is not a
-safe "do nothing" command.  The letter must be the end of the line: a trailing
-space is read as an argument, so `g ` and `S ` take the setup path, stopping
-a running output first (`g ` prints `PWM disabled`; `S ` stops silently).
+safe "do nothing" command.  Trailing spaces are ignored: `g ` and `S ` behave
+exactly like `g` and `S` — a stop when a generator runs, the setup when none
+does.
 
 ## Servo — `S`
 
@@ -214,21 +215,25 @@ column is the actual pulse.  On v3 the compare value is used directly
 ## Mode and timer side effects
 
 PWM and servo share the same timer and output channel.  Three separate pieces
-of state change independently:
+of state change independently: the **generator flag** (while set, `f` refuses
+and a bare `g` / `S` stops instead of setting up), the **output path**
+(whether the timer reaches the `AUX` pin), and the **timer registers** (Timer2
+and the OC5 compare/period setup).
 
-| Layer | What it controls | Cleared or stopped by |
-|---|---|---|
-| generator flag | `f` refuses while it is set, and a bare `g` / `S` stops instead of setting up | a bare `g` / `S`; a new `g` / `S` with values replaces the setup; a board reset; an SMPS start |
-| output path | whether the timer drives the `AUX` pin | `@` on `AUX`; entering BBIO1 or SUMP, which makes the pin an input; `a` / `A` on `AUX`, which make it an output again; binary `0x13`; a board reset, which detaches the timer source |
-| timer registers | Timer2 and the OC5 compare | a new `g` / `S`; binary `0x12`, `0x13` or `0x16`; a v3 hardware reset |
+| Layer | Changed by |
+|---|---|
+| generator flag | a bare `g` / `S`; a new `g` / `S` with values; a board reset; an SMPS start |
+| output path | `@` on `AUX`; BBIO1 or SUMP entry; `a` / `A`; `0x13`; a board reset |
+| timer registers | a new `g` / `S`; `0x12`, `0x13` or `0x16`; a board reset (stops Timer2; the OC5 setup stays); a v3 hardware reset |
 
 A v4 reset (`#`, a mode change, the binary return, or the SUMP exit) clears
-the generator flag and detaches the output, but it does not stop Timer2.
-Send `0x13` before `0x0F` if the timer must be idle.  On an SMPS-enabled v4
-build the reset also runs the SMPS stop path, which disables the OC5 channel;
-Timer2 still runs.  On v3, `#` and the binary return are hardware resets and
-stop everything; a mode change and the SUMP exit still clear the flag and
-detach the output.
+the generator flag, stops Timer2 and detaches the output.  It does not disable
+the OC5 channel or clear its period/duty setup; send `0x13` if the module must
+be fully idle.  On an SMPS-enabled v4 build the reset also runs the SMPS stop
+path, which disables the OC5 channel, then stops Timer2.  On v3, `#` and the
+binary return are hardware resets; a mode change and the SUMP exit run the
+software reset, which also clears the flag, stops Timer2 and detaches the
+output.
 
 Consequences:
 

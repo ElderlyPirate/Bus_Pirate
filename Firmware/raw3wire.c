@@ -30,7 +30,6 @@
 #define R3WMISO_TRIS BP_MISO_DIR
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 /**
  * Raw 3 Wire mode chip select initial line state.
@@ -114,6 +113,14 @@ void raw3wire_setup_prepare(void) {
 
   mode_configuration.write_with_read = NO;
   mode_configuration.int16 = NO;
+
+  /*
+   * Apply the timing profile here as well: the interactive flow only runs
+   * setup_execute() on the first power-on request (`W`), so a mode that is
+   * never powered would otherwise clock with the previous mode's profile.
+   * The pins themselves are still configured by setup_execute().
+   */
+  bitbang_setup(3, mode_configuration.speed);
 }
 
 void raw3wire_setup_execute(void) {

@@ -25,7 +25,6 @@
 #include "uart2.h"
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 #define UART_COMMON_BAUD_RATES_COUNT 15
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25
@@ -135,6 +134,9 @@ void UARTsettings(void) {
   bp_write_dec_byte(uart_settings.receive_polarity);
   bpSP;
   bp_write_dec_byte(mode_configuration.high_impedance);
+  bpSP;
+  /* This standalone UART is full-duplex; match the shared seven-field header. */
+  bp_write_dec_byte(0);
   MSG_MODE_HEADER_END;
 }
 

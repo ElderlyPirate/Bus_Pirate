@@ -435,9 +435,10 @@ differs (the scripted path calls `setup_execute()` immediately):
 1. `cleanup()` on the current mode.
 2. `bp_reset_board_state()`: the full ordered sequence is under
    [Board-state reset](#board-state-reset-bp_reset_board_state).  It releases
-   the bus and AUX pins, stops SMPS, parks the onboard EEPROM, clears the mode
-   configuration, disables the pull-ups and regulator, and reconfigures the
-   ADC; `bus_mode` ends at `BP_HIZ`.
+   the bus and AUX pins, stops SMPS and Timer2, clears the v4 `AUX1` ODC bit,
+   parks the onboard EEPROM, clears the mode configuration, disables the
+   pull-ups and regulator, and reconfigures the ADC; `bus_mode` ends at
+   `BP_HIZ`.
 3. Set `bus_mode` to the new index.
 4. `setup_prepare()`: the mode's setup prompts; the pins are prepared but the
    bus is not driven.
@@ -506,7 +507,7 @@ the prompt cannot drift.
 | Menu | Keys / defaults | Notes |
 |---|---|---|
 | display mode `o` | 1 HEX, 2 DEC, 3 BIN, 4 RAW | `o1`..`o4` apply directly; `o0`, an invalid value or no argument prints the menu and uses `getnumber` default 1 |
-| terminal baud `b` (v3) | 1..9 fixed (300…115200), 10 custom BRG | invalid or no argument prints the menu; the blocking menu default is 9 (115200); entry 10 asks for the raw `U1BRG` (blank default 34) |
+| terminal baud `b` (v3) | 1..9 fixed (300…115200), 10 custom BRG | invalid or no argument prints the menu; the blocking menu default is 9 (115200); entry 10 asks for the raw `U1BRG` (1–32767; blank uses 34; zero, malformed or overflow re-prompts at `(34)>`). |
 | VPU source `e` (v4) | `External (or None)`, `Onboard 3.3v`, `Onboard 5.0v` | requires a non-HiZ mode, open-drain pins, and no external voltage already on VPU; invalid or no argument prints the menu, default 1 |
 | history `h` | entry number, `x` exit | only initialized entries are listed; default 0 means no recall |
 | mode menu `m` | 1..count, `x` exit | default 1 (HiZ); `x` prints `no mode change`; `m0` opens the menu; an invalid direct `m<n>` prints `Nonexistent protocol!` |
@@ -534,16 +535,19 @@ mode configuration cleared.  Order:
 1. Release the bus pins (MOSI, CLK, MISO, CS) and `AUX` (`BP_AUX0`): direction
    input.
 2. v4: release AUX1/AUX2; on SMPS builds run `smps_stop()`; detach the
-   AUX1/AUX2 peripheral outputs and clear their latches.
+   AUX1/AUX2 peripheral outputs, and clear `AUX1`'s open-drain bit
+   (`BP_AUX1_ODC = OFF`), then clear their latches.
 3. Disable the mode LED and enable the USB LED.
 4. v4: set up the secondary hardware I2C/SPI pins (input, low) and the
    button, disable the onboard 3.3 V and 5 V VPU sources, and call
    `eeprom_initialize()` (see [eeprom.md](eeprom.md)).
-5. Detach the source from the currently selected AUX pin.
-6. Set `bus_mode = BP_HIZ` and call `clear_mode_configuration()`.
-7. Call `bp_disable_pullup()`, `bp_disable_voltage_regulator()` and
+5. Stop Timer2 (`T2CONbits.TON = OFF`); leave its pairing and an independent
+   Timer3 unchanged.
+6. Detach the source from the currently selected AUX pin.
+7. Set `bus_mode = BP_HIZ` and call `clear_mode_configuration()`.
+8. Call `bp_disable_pullup()`, `bp_disable_voltage_regulator()` and
    `bp_adc_pin_setup()`.
-8. Reconfigure the ADC: automatic sample trigger, no scan, 3*Tcy conversion
+9. Reconfigure the ADC: automatic sample trigger, no scan, 3*Tcy conversion
    clock, one 16-bit result buffer.
 
 Callers:

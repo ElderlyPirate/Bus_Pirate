@@ -1539,7 +1539,13 @@ int xsvfDoXCOMMENT( SXsvfInfo* pXsvfInfo )
        // {
        //     putchar( ucText ? ucText : '\n' );
        // }
-    } while ( ucText );
+    /* A stalled host stream makes readByte() serve 0xFF, which is never a
+       NUL terminator, so an XCOMMENT that interrupts a chunk request used
+       to loop forever (reset-only recovery).  Leave the loop on a stall:
+       the next command boundary then unwinds the run with the normal
+       stalled-stream result (XSVF_ERROR_UNKNOWN, 0x01) and the 0x0F escape
+       still works.  Other commands keep their 0xFF-derived results. */
+    } while ( ucText && !xsvf_stream_stalled );
 
     pXsvfInfo->iErrorCode   = XSVF_ERROR_NONE;
 

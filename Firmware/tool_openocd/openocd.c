@@ -222,23 +222,31 @@ void binOpenOCD(void) {
       bp_write_buffer(buf, 3);
 
 #if defined(BUSPIRATEV3)
-      i = (j + 7) / 8; // number of bytes used
+      /* A 0-bit TAP_SHIFT carries no TDI/TMS bytes and returns no TDO byte
+         (the 3-byte header was already echoed above).  This mirrors the v4
+         guard: binOpenOCDTapShiftFast() computes bits-1 in w6, so a zero
+         count becomes 0xFFFF and its transfer loop waits for data the host
+         never sent.  Treat zero as a no-op and leave the non-zero path
+         untouched. */
+      if (j) {
+        i = (j + 7) / 8; // number of bytes used
 
-      // prepare the interrupt transfer
-      UART1RXBuf = (unsigned char *)bus_pirate_configuration.terminal_input;
-      UART1RXToRecv = 2 * i;
-      UART1RXRecvd = 0;
+        // prepare the interrupt transfer
+        UART1RXBuf = (unsigned char *)bus_pirate_configuration.terminal_input;
+        UART1RXToRecv = 2 * i;
+        UART1RXRecvd = 0;
 
-      UART1TXBuf =
-          (unsigned char *)(bus_pirate_configuration.terminal_input +
-                            2100); // 2048 bytes + 3 command header + to be sure
-      UART1TXSent = 0;
-      UART1TXAvailable = 0;
+        UART1TXBuf =
+            (unsigned char *)(bus_pirate_configuration.terminal_input +
+                              2100); // 2048 bytes + 3 command header + to be sure
+        UART1TXSent = 0;
+        UART1TXAvailable = 0;
 
-      // enable RX interrupt
-      IEC0bits.U1RXIE = 1;
+        // enable RX interrupt
+        IEC0bits.U1RXIE = 1;
 
-      binOpenOCDTapShiftFast(UART1RXBuf, UART1TXBuf, j, openocd_jtag_delay);
+        binOpenOCDTapShiftFast(UART1RXBuf, UART1TXBuf, j, openocd_jtag_delay);
+      }
 
 #else
 

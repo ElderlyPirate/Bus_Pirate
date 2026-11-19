@@ -22,7 +22,7 @@ Flashing the result is [flashing.md](flashing.md).
 
 | Requirement | Detail |
 |---|---|
-| Microchip **XC16** | The PIC24 C compiler and linker.  On Unix-like hosts the Makefile falls back to `/opt/microchip/xc16/v2.10` when it exists.  The Windows fallback under `C:/Program Files (x86)` is not matched: the Makefile's `$(wildcard ...)` path is unquoted and splits at the space.  Pass `XC16_DIR` explicitly on Windows (or put the compiler's `bin` directory on `PATH`). |
+| Microchip **XC16** | The PIC24 C compiler and linker.  The Makefile auto-detects the installer defaults `/opt/microchip/xc16/v2.10` and `C:/Program Files (x86)/Microchip/MPLABXC16/v2.10`, then falls back to `PATH`.  Set `XC16_DIR` only for a non-default install root. |
 | GNU **make** + POSIX shell utilities | The Makefile is a standard GNU makefile; its recipes call `sh`, `date`, `mkdir` and `rm`.  On Windows, use a native MinGW GNU make (for example the scoop `mingw` package) and put Git for Windows' `usr\bin` first on `PATH`.  A command-line `SHELL=` assignment is not honoured by that make; `sh.exe` on `PATH` is what it uses. |
 | **Git** | The Makefile bakes `git rev-parse --short HEAD` into the banner as `VERSION`.  A non-git source copy builds with an empty version component. |
 | (optional) **MPLAB-X** | The graphical IDE route; requires MPLAB-X and the XC16 plugin.  Download from Microchip's [MPLAB-X page](http://www.microchip.com/mplab/mplab-x-ide). |
@@ -35,17 +35,16 @@ Obtaining XC16 is the one step that happens outside this repository:
 2. On Linux, make the installer executable and run it:
    `chmod +x xc16-*.run && ./xc16-*.run`.
 3. At the edition prompt select the **free** edition.
-4. Let the installer add XC16 to `PATH`; if you skip that option, either
-   select the toolchain in MPLAB-X (Embedded → Build Tools → Scan for Build
+4. The Makefile auto-detects the installer default.  For a different install
+   root, either select it in MPLAB-X (Embedded → Build Tools → Scan for Build
    Tools, or Add → the XC16 install root) or pass `XC16_DIR` to the make
    command below.
 
 The XC16 version is pinned in two places: the MPLAB-X project
 (`Firmware/busPirate.X/nbproject/configurations.xml`, both configurations) and
-the Makefile's installer-default paths both name **v2.10** (the Windows path
-is not auto-detected; see Prerequisites).  The release notes (`CHANGELOG.md`)
-still state the minimum as XC16 **1.35 or later** and MPLAB-X **5.00 or
-later**.
+the Makefile's auto-detected installer defaults both name **v2.10**.  The
+release notes (`CHANGELOG.md`) still state the minimum as XC16 **1.35 or
+later** and MPLAB-X **5.00 or later**.
 
 ## Command-line build
 
@@ -75,25 +74,26 @@ defined as the same recipe.
 | Variable | Meaning | Default |
 |---|---|---|
 | `BP_VERSION` | `V3` or `V4` board build | `V4` |
-| `XC16_DIR` | XC16 install root; used as `$(XC16_DIR)/bin/xc16-` | `/opt/microchip/xc16/v2.10` if present, else `PATH`; pass it explicitly on Windows |
+| `XC16_DIR` | XC16 install root; used as `$(XC16_DIR)/bin/xc16-` | auto-detected `/opt/microchip/xc16/v2.10` or the Windows installer default, else `PATH`; override for a non-default install |
 | `OPT` | optimisation level | `-O1` |
 | `EXTRA_CFLAGS` | extra compiler flags (also the way to pass a preprocessor define) | empty |
 | `SAVE_TEMPS` | when set, add `-save-temps=obj` (keeps `.i`/`.s` under `build/`) | unset |
 | `HEAP_SIZE` / `STACK_SIZE` | override the linker heap/stack | unset |
 
 Windows example (native MinGW `make`; Git for Windows `usr\bin` supplies the
-POSIX utilities; XC16 path given explicitly):
+POSIX utilities; the installer-default XC16 is found automatically):
 
 ```powershell
 $env:Path = 'C:\Program Files\Git\usr\bin;' + $env:Path
-make -C Firmware BP_VERSION=V4 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
-make -C Firmware BP_VERSION=V3 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
+make -C Firmware BP_VERSION=V4
+make -C Firmware BP_VERSION=V3
 ```
 
-Use the native MinGW GNU make (for example the scoop `mingw` package); a
-Cygwin or MSYS make uses a different path model.  Do not add a `SHELL=`
-assignment: this make ignores it, and `sh.exe` on `PATH` is what the recipes
-use.
+Add `'XC16_DIR=C:/path/to/xc16'` only if XC16 is installed outside the
+installer default.  Use the native MinGW GNU make (for example the scoop
+`mingw` package); a Cygwin or MSYS make uses a different path model.  Do not
+add a `SHELL=` assignment: this make ignores it, and `sh.exe` on `PATH` is
+what the recipes use.
 
 ## Feature sets
 
@@ -156,27 +156,21 @@ Guards that reject a wrong-board combination:
 
 For the all-features list instead of one switch, define `BP_CUSTOM_FEATURE_SET`
 without editing the header — the Makefile appends `EXTRA_CFLAGS` to the
-compiler flags.  Changing only `EXTRA_CFLAGS` does not invalidate the existing
-objects: the Makefile has no dependency on it, so after a default build the
-custom command prints `Nothing to be done` and leaves the old image.  Clean
-first, then build:
+compiler flags.  The per-target `build/<target>/.build-flags` stamp records
+the effective flag set: a flag-only change (`EXTRA_CFLAGS`, `OPT`,
+`SAVE_TEMPS`) rewrites the stamp and recompiles every object, while a rebuild
+with unchanged flags does not recompile or relink.  No `clean` is needed:
 
 ```
-make -C Firmware BP_VERSION=V4 clean
 make -C Firmware BP_VERSION=V4 EXTRA_CFLAGS=-DBP_CUSTOM_FEATURE_SET
 ```
-
-The same applies to any change that only affects compiler flags (`OPT`,
-`SAVE_TEMPS`).  `build/bpv4/` separates the boards, not the feature sets.
 
 - The all-features v4 list enables both the HD44780 adapter and SPI.  That
   combination links: the LCD driver uses its own bounded byte helper
   (`hd44780_spi_write_byte()` in `capability_hd44780/hd44780.c`) and the SPI
   family exports `spi_write_byte()`.
-- The v4 all-features build with XC16 2.10 at `-O1` links at **79,485 bytes
-  program (31%)** and **11,898 bytes data (72%)**, with no warnings.  The
-  banner's seven-character git hash accounts for a few bytes; an empty
-  `VERSION` shifts the program figure slightly.
+- The v4 all-features build with XC16 2.10 at `-O1` links at **79,734 bytes
+  program (31%)** and **11,898 bytes data (72%)**, with no warnings.
 - To confirm the feature set took effect, the compile lines show
   `-DBP_CUSTOM_FEATURE_SET` and `Firmware/bpv4.map` contains `LCDsetup` and
   `smps_start`; the default v4 map contains neither.
@@ -307,7 +301,7 @@ The authoritative table, with coverage and runner per suite, is
 | Symptom | Cause | Fix |
 |---|---|---|
 | `BP_VERSION must be V3 or V4 (got '...')` | misspelled `BP_VERSION` | use `V3` or `V4` |
-| `xc16-gcc: command not found` (or `.../bin/xc16-gcc` missing) | XC16 not on `PATH` and `XC16_DIR` not set (the Windows installer default is not auto-detected) | install XC16 and pass `XC16_DIR=/path/to/xc16/vX.Y` |
+| `xc16-gcc: command not found` (or `.../bin/xc16-gcc` missing) | XC16 not on `PATH` and not at the installer default | install XC16, put it on `PATH`, or pass `XC16_DIR=/path/to/xc16/vX.Y` if installed elsewhere |
 | `process_begin: CreateProcess(NULL, date ...) failed` or `mkdir ... failed` (Windows) | make cannot find the POSIX utilities the recipes call | put `C:\Program Files\Git\usr\bin` first on `PATH`; keep `SHELL` unset (see §Command-line build) |
 | `The AVRISP-MKII personality requires Bus Pirate v4 hardware.` | AVRISP enabled in a v3 build | remove `BP_ENABLE_AVRISP_MKII_SUPPORT` for v3 |
 | `SMPS support is not available on Bus Pirate v3 boards.` | SMPS enabled in a v3 build (the custom block does this) | use a v4 build for SMPS |

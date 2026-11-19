@@ -39,7 +39,7 @@ not a test report.  Native fixtures are named in [tooling.md](tooling.md)
 | [i2c](../protocol/i2c/README.md) | source + v4 history | terminal legs, sniffer, tester matrix, onboard EEPROM path; scanner, hardware rates and binary source-only |
 | [uart](../protocol/uart/README.md) | source + v4 history | HDUART, bridge, loopback, error flags; the receive path is a **127-usable-word ring** (128 slots, one held free) and the terminal output buffer is **4096 bytes** on both builds; binary presets source-only |
 | [jtag](../protocol/jtag/README.md) | source + v4 history | XSVF player history; OpenOCD adapter source-only; host-tool caveats in the XSVF set |
-| [dio](../protocol/dio/README.md) | source + v4 history | read-back (`r` bits 4–0); the safe-park contract covers the five signal pins, not `AUX1`/`AUX2`; v3 unverified |
+| [dio](../protocol/dio/README.md) | source + v4 history | read-back (`r` bits 4–0); the safe-park contract covers five pins on v3 and seven on v4 (`AUX1`/`AUX2` included); v3 unverified |
 | [keyboard](../protocol/keyboard/README.md) | source-only | frame/parity/ACK from source; `TIMEOUT` is a line message; host-write timing and pull-ups unverified |
 | [binary](../protocol/binary/README.md) | source-only | byte layer and sub-protocol entry; v3 unverified |
 | [sump](../protocol/sump/README.md) | source-only | entry, exit bytes, tiers and capacities; the v3 sample buffer is **4096 bytes**; v3 large captures unverified |

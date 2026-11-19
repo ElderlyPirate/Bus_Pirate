@@ -70,16 +70,17 @@ Consequences:
   A timeout with the PGC/PGD jumper still fitted also stays in the loader.
   A reset-time entry with no jumper and no `$` flag returns to the
   application.
-- The running loader refuses to write its own page: a write that starts in
-  the loader page is rejected with `'P'`.  Replacing the loader therefore
-  needs the upgrader trampoline or a hardware programmer (§v3 update route).
+- The running loader refuses writes that would reach its own page: the last
+  safe row starts at `0xA780`; a row whose write reaches `0xA800` or beyond is
+  rejected with `'P'`.  Replacing the loader therefore needs the upgrader
+  trampoline or a hardware programmer (§v3 update route).
 
 ## v4 bootloader (USB)
 
 Source: `Bootloaders/BPv4-bootloader/firmware-v1/` (`main.c`, `bootloader.c`,
 `bootloader.h`, the USB stack and descriptors).  It builds with MPLAB-X
 (project `bpv4-bootloader.X`); its hello reply reports bootloader version
-**4.12** (`VER_H = 0x04`, `VER_L = 0x0c`).  The USB bootloader enumerates as
+**4.14** (`VER_H = 0x04`, `VER_L = 0x0e`).  The USB bootloader enumerates as
 `04d8:FAFF`.
 
 At reset `main()` makes **one** decision: the entry block runs when the
@@ -88,10 +89,11 @@ held.
 
 1. Entry block (signature mismatch `||` `skip_pgc_pgd_check` clear `||`
    button down): disable the flag, wait out a 35 × 65,000 loop, light the
-   MODE/USB/VREG LEDs, and sample PGD twenty times.  If PGD reads high **and**
-   the button is released, it jumps to the application at `0x2000`.  Anything
-   else stays in the bootloader: a low PGD (the PGC/PGD jumper), a held
-   button, or a jump that was not taken.
+   MODE/USB/VREG LEDs, and sample PGD twenty times.  If PGD reads high, the
+   button is released, and the application reset vector word is not erased, it
+   jumps to the application at `0x2000`.  Anything else stays in the
+   bootloader: a low PGD (the PGC/PGD jumper), a held button, an erased
+   application vector, or a jump that was not taken.
 2. No entry block (valid signature **and** flag set **and** button released):
    it goes straight to `startpoint()` and the bootloader.  This is the `$`
    path.
@@ -100,11 +102,11 @@ held.
    the VREG LED off while it waits for enumeration, then turns it on again
    before `bootloader()`; the command loop runs with VREG lit.
 
-The loader does **not** validate the application image.  A missing signature
-alone therefore does not keep the board in the bootloader: a blank-signature
-board with PGD high and the button released jumps to `0x2000` even if that
-region is erased.  Use the NORMAL button or the PGC/PGD jumper on a blank or
-suspect board.
+The loader does **not** fully validate the application image: it checks only
+the first word of the application reset vector at `0x2000`.  An erased
+`0xFFFF` word keeps the board in the bootloader; a corrupt non-erased vector
+still passes that check and can be jumped into.  Use the NORMAL button or the
+PGC/PGD jumper on a suspect board.
 
 The host protocol (`bootloader.c`):
 
@@ -134,7 +136,7 @@ protected.
 The loader protects the bootloader region (`PROT_BL`), the config page
 (`PROT_CONFIG`) and the reset-vector jump (`PROT_GOTO`), so an application
 write cannot overwrite the bootloader.  This last point is why the current v4
-loader is described as the "4.12 erase-guard" loader.
+loader is described as the "4.14 erase-guard" loader.
 
 ### v3 host framing
 

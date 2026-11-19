@@ -31,8 +31,9 @@ This README is a map, not the manual — the details live in the files below.
 
 ## The five-minute version
 
-- **Toolchain:** Microchip **XC16** on `PATH` (or selected with `XC16_DIR`);
-  the tracked `Firmware/Makefile` builds both boards without MPLAB-X.
+- **Toolchain:** Microchip **XC16** from the auto-detected installer default
+  or `PATH` (`XC16_DIR` overrides a non-default root); the tracked
+  `Firmware/Makefile` builds both boards without MPLAB-X.
 - **Build v4:** `make -C Firmware BP_VERSION=V4` → `Firmware/bpv4.hex`.
 - **Build v3:** `make -C Firmware BP_VERSION=V3` → `Firmware/bpv3.hex`.
 - **Flash:** enter the bootloader (`$` then `y`; v3 also accepts the PGC/PGD
@@ -44,13 +45,15 @@ This README is a map, not the manual — the details live in the files below.
 
 ## Shortest path: clean checkout to a flashed board
 
-1. Install XC16 and put it on `PATH` (download from Microchip; see
+1. Install XC16 — the installer default is auto-detected, and a `PATH`
+   installation also works (download from Microchip; see
    [building.md](building.md) §Prerequisites).  On Windows, put Git's
-   `usr\bin` on `PATH` and pass `XC16_DIR` explicitly — see
+   `usr\bin` on `PATH` — see
    [building.md §Command-line build](building.md#command-line-build).
 2. Build the image: `make -C Firmware BP_VERSION=V4` (or `V3`).
-3. Build the loader (Unix; on Windows the Visual Studio route is unverified —
-   see [flashing.md §Building pirate-loader](flashing.md#building-pirate-loader)):
+3. Build the loader (Unix; on Windows use the MinGW Makefiles or Visual
+   Studio route — see
+   [flashing.md §Building pirate-loader](flashing.md#building-pirate-loader)):
 
    ```
    cd Bootloaders/pirate-loader

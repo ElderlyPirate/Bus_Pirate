@@ -66,10 +66,11 @@ and type `$` there.
   the bootloader path, `startpoint()` turns MODE/USB off and VREG on, turns
   VREG off for the USB enumeration wait, then turns it on again before the
   command loop; the command loop runs with VREG lit.
-- **Blank v4 application:** the loader does not validate the application
-  image.  With PGD high and the NORMAL button released it jumps to `0x2000`
-  even if that region is erased.  Use the NORMAL button or the PGC/PGD jumper
-  on a blank or suspect board.
+- **Blank v4 application:** the loader checks only the first word of the
+  application reset vector at `0x2000`.  An erased `0xFFFF` word keeps the
+  board in the bootloader; a corrupt non-erased vector still passes that check
+  and can be jumped into.  Use the NORMAL button or the PGC/PGD jumper on a
+  blank or suspect board.
 
 Either way, **the terminal application must be closed before flashing** — the
 bootloader and `pirate-loader` cannot share the port.  With `screen`, for
@@ -91,17 +92,17 @@ cmake ..
 make
 ```
 
-Windows: run the same `cmake ..` in the build directory, then open the
-generated `pirate-loader.sln` in Visual Studio and build.  That route is
-**unverified**: the CMake project sets GCC-style linker flags
-(`-static -static-libgcc`), so confirm the link.  A MinGW build of the
-checked-in project does not compile its Windows serial wrappers.
+Windows: from the same `build` directory, use the MinGW Makefiles generator
+(`cmake -G "MinGW Makefiles" ..`, then `make`), or run the Visual Studio
+generator and open the generated `pirate-loader.sln` to build.  CMake selects
+compiler-appropriate static flags: `-static -static-libgcc` for GCC, `-static`
+for Clang, and `/MT` for MSVC.
 
 Prebuilt binaries from an older bootloader-update bundle are also present under
 `Bootloaders/BPv3-bootloader/v4xtov43-bootloader-update/utilities/`
-(`pirate-loader.exe`, `pirate-loader_lnx`, `pirate-loader_mac`).  Building from
-`Bootloaders/pirate-loader/` is the current source of truth; the prebuilt
-Windows binary's port speed is **unverified**.
+(`pirate-loader.exe`, `pirate-loader_lnx`, `pirate-loader_mac`).  They are
+release artifacts from that bundle, not built from the current source; the
+prebuilt Windows binary's port speed is **unverified**.
 
 - There is no `package/` directory in this repository; older instructions that
   pointed at `package/BPv3-firmware` are stale.
@@ -157,7 +158,7 @@ Expected milestones:
 | Step | v4 | v3 |
 |---|---|---|
 | hello | `Sending Hello to the Bootloader...OK` | same |
-| bootloader version | `Bootloader version: 4,12` | `Bootloader version: 1,02` |
+| bootloader version | `Bootloader version: 4,14` | `Bootloader version: 1,02` |
 | device | `Device ID [0x…]:PIC24FJ256GB106` | `Device ID [0x…]:PIC24FJ64GA002` |
 | pages | `Erasing page … OK` / `Writing page … OK` | same |
 | final | `Firmware updated successfully! :)` | same |

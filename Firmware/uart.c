@@ -20,12 +20,11 @@
 #ifdef BP_ENABLE_UART_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "proc_menu.h"
 #include "uart2.h"
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 #define UART_COMMON_BAUD_RATES_COUNT 15
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25
@@ -135,6 +134,9 @@ void UARTsettings(void) {
   bp_write_dec_byte(uart_settings.receive_polarity);
   bpSP;
   bp_write_dec_byte(mode_configuration.high_impedance);
+  bpSP;
+  /* This standalone UART is full-duplex; match the shared seven-field header. */
+  bp_write_dec_byte(0);
   MSG_MODE_HEADER_END;
 }
 
@@ -822,6 +824,10 @@ void binUART(void) {
       break;
 #endif /* BUSPIRATEV4 */
       
+    case 0b01110000: // wait for an edge on the AUX pin
+      handle_wait_command(input_byte);
+      break;
+
     case 0b01100000:
       input_byte &= 0b00001111;
       if (input_byte > 0b1010) {

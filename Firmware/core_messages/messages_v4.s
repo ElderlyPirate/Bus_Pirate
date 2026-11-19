@@ -1652,7 +1652,7 @@ _MSG_UART_BAUD_ESTIMATED_str:
 	.section .text.MSG_UART_BAUD_OVERFLOW, code
 	.global _MSG_UART_BAUD_OVERFLOW_str
 _MSG_UART_BAUD_OVERFLOW_str:
-	.pasciz "** Baud>16m: The BP cannot measure above 16000000, Done."
+	.pasciz "** Baud>150k: The BP cannot measure above 150000, Done."
 
 	; MSG_UART_BITS_PARITY_PROMPT
 	.section .text.MSG_UART_BITS_PARITY_PROMPT, code

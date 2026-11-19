@@ -222,7 +222,7 @@ int main(void){
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--revision')
-    p.add_argument('--case',choices=('inventory','regen','colors','crlf','packed','agree','cdc_zero','uart_fields','generator','help','nested','keyboard_timeout'))
+    p.add_argument('--case',choices=('inventory','regen','colors','crlf','packed','agree','cdc_zero','uart_fields','uart_overflow','generator','help','nested','keyboard_timeout'))
     p.add_argument('--dump',type=Path)
     args=p.parse_args()
     src=source('messages.c',args.revision)
@@ -330,6 +330,15 @@ int main(void){for(unsigned i=0;i<256;++i){answer=i;used=0;assert(agree()==(i=='
             subprocess.run([sys.executable,str(tools/'packstrings.py'),str(src),str(out),'test'],cwd=ROOT,check=True)
             assert assembly(out.with_suffix('.s').read_text(encoding='utf-8'))=={'MSG_OK':b'ok\x1b','MSG_EMPTY':b'','MSG_BYTES':b'\x08A\xff9'}
         print('PASS generator rejects malformed/duplicate/non-byte/NUL inputs before output; includes resolve relative to source',flush=True)
+    if wanted('uart_overflow'):
+        uart=source('uart.c',args.revision)
+        limit=int(re.search(r'if\s*\(bit_sample\s*>\s*(\d+)\)',uart)[1])
+        assert limit==150000
+        expected=('** Baud>150k: The BP cannot measure above %d, Done.'%limit).encode('ascii')
+        for board in tables:
+            assert tables[board]['MSG_UART_BAUD_OVERFLOW']==expected,board
+            assert flags[board]['MSG_UART_BAUD_OVERFLOW'],board
+        print('PASS both-board auto-baud warning matches unchanged 150000 boundary and retains line output',flush=True)
     if wanted('uart_fields'):
         uart=source('uart.c',args.revision)
         name='UARTsettings' if 'void UARTsettings(' in uart else 'uart_print_settings'

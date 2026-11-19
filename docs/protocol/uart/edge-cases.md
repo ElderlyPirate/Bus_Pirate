@@ -33,9 +33,9 @@ concrete trigger, the observable symptom, and the behaviour or recovery.
 | `r;N` wider than 9 | only the display widens | UART frames 8 or 9 data bits |
 | `W` was skipped | `WRITE:` still echoes, but nothing is transmitted; `r` fails; `v` shows `TxD` as `I` | run `W` |
 | `W` prints `VREG too low, is there a short?` | `POWER SUPPLIES OFF` follows; the setup did not run | clear the fault, then `W` again; the new settings were not applied |
-| `w` was used | the port is off and the rails are down | `W` re-engages with the stored settings and clears the ring |
-| `r` before `W` (after entry or after `w`) | a stale word from an earlier session can still be returned | the port is disabled but the ring is not cleared until the next enable; `W` clears it |
-| `W`, `(4)`, or a binary speed/frame change | words queued before the step are lost | read the queue before changing speed, or expect the loss |
+| `w` was used | the port is off and the rails are down | `W` re-engages with the stored settings; the `w` cleanup already cleared the receive ring |
+| `r` before `W` (after entry or after `w`) | `READ: FAILED, NO DATA0x00`; the disable cleared the ring | run `W`; the overrun counter survives until then |
+| `W`, `(4)`, a binary speed/frame change, or a disable (`w`, a mode change) | words queued before the step are lost | read the queue before changing speed, or expect the loss |
 
 ## Half duplex (HDUART)
 
@@ -77,7 +77,7 @@ concrete trigger, the observable symptom, and the behaviour or recovery.
 | A number other than 0–4 as a macro | `Unknown macro, try ? or (0) for help` | use `(0)` to list the valid macros |
 | `(4)` with words already queued | if the port is engaged, the setup re-run clears the receive ring | read the queue before measuring |
 | `(4)` while the measurement timer is in use | `** Early Exit!`; no rate is reported | stop the other timer user, then retry |
-| `(4)` above about 150 kbaud | `** Baud>16m: The BP cannot measure above 16000000, Done.` | the printed ceiling is the message text; the check is at 150 kbaud |
+| `(4)` above about 150 kbaud | `** Baud>150k: The BP cannot measure above 150000, Done.` | no measurement is reported |
 | `(2)` exit key | the key is consumed and not echoed | normal; the prompt returns |
 
 ## Binary interface

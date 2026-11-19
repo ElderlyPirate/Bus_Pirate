@@ -148,9 +148,11 @@ Two buffer sizes are often confused:
 
 The 4096-byte terminal output buffer is not extra receive capacity for UART.
 
-The ring is reset when the port is enabled: after `W`, after a binary
-speed/frame change, and when `(4)` re-runs the setup.  Words queued before
-one of those steps are lost.
+The ring is reset when the port is enabled — after `W`, after a binary
+speed/frame change, and when `(4)` re-runs the setup — and it is also cleared
+when the port is disabled (`w`, a mode change, a reset).  Words queued before
+one of those steps are lost.  The overrun counter is different: a disable
+leaves it intact, and the next enable resets it.
 
 ## Example session
 

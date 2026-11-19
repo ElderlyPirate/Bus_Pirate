@@ -92,8 +92,7 @@ UART>
   five-second window with no usable activity, or a measurement timer that is
   already in use.
 - Above about 150000 bps neither line is printed; the firmware prints
-  `** Baud>16m: The BP cannot measure above 16000000, Done.`  The printed
-  16,000,000 is the message text; the check is at 150 kbaud.
+  `** Baud>150k: The BP cannot measure above 150000, Done.`
 - It follows the **active receive path**, so it also works in half-duplex
   single-wire mode — have the peer transmit during the wait.  See
   [hduart.md](hduart.md).

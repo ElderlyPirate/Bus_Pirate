@@ -47,7 +47,8 @@ The counter counts **events** since the port was last enabled.  It is **not a
 lost-character count**: one hardware-overrun event can correspond to more
 than one missing character.  The counter resets whenever the port is enabled
 — after `W`, after a binary speed/frame change, and when `(4)` re-runs the
-setup.  **The count is internal: no command or status field prints it.**
+setup.  A `w` disable leaves it intact.  **The count is internal: no command
+or status field prints it.**
 
 Outside a bridge/monitor nothing is printed and no LED changes; no
 `*Bytes dropped*` message is produced.  In the **terminal bridge `(1)`**, the
@@ -108,7 +109,7 @@ macro), not as data errors:
 | `Waiting activity...` | listening for edges on the active receive input (MISO in full duplex, MOSI in half duplex) |
 | `Estimated:  <n> bps` | measured rate |
 | `Calculated: <n> bps` | nearest common rate from the measurement |
-| `** Baud>16m: The BP cannot measure above 16000000, Done.` | the measured rate exceeded the 150 kbaud check |
+| `** Baud>150k: The BP cannot measure above 150000, Done.` | the measured rate exceeded the 150 kbaud check |
 | `** Early Exit!` | a key was pressed, the five-second window expired, or the measurement timer was busy; aborted |
 
 See [macros.md](macros.md) and [entry-and-setup.md](entry-and-setup.md).

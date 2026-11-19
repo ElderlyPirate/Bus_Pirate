@@ -60,7 +60,9 @@ This README is a map, not the manual — the details live in the files below.
   (3.3 V typical) — the pull-up is required**; MISO is unused (see
   [hduart.md](hduart.md)).
 - `P` enables the on-board pull-ups and needs a voltage on Vpullup (`e2` on
-  v4); `p` disables them.  `w` turns the supplies off and disables the port.
+  v4); `p` disables them.  `w` turns the supplies off, disables the port and
+  clears the queued receive words; the overrun counter is kept until the next
+  `W`.
 - Send with `0xNN`, `0b…`, a decimal (`0`–`255`, or `0`–`511` in 9-bit
   mode), or `"text"`; `r` reads one value; `r:N` reads N.  `[`/`{` open the
   live display, `]`/`}` stop it; the receive ring keeps filling while UART is

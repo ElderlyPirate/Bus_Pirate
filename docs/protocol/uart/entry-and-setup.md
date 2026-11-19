@@ -173,7 +173,10 @@ same way.
 
 On **v3** the value is the divider itself.  The relationship is
 `rate = 4,000,000 / (BRG + 1)`, so `127` is 31250 bps (MIDI), `34` is about
-115200 bps, and `416` is about 9592 bps.
+115200 bps, and `416` is about 9592 bps.  An empty line takes the default 34.
+Zero, a value above 32767, or an over-long entry prints
+`Invalid choice, try again` and re-asks at `(34)>`; non-digit characters are
+ignored.
 
 ```
 (1)>10
@@ -249,7 +252,7 @@ UART>
 | no usable activity within five seconds | `** Early Exit!` |
 | measurement timer already in use | `** Early Exit!` |
 | early exit, or no rate matched | the port stays at **115200 bps**, not the 300 bps menu default |
-| measured rate above about 150000 bps | `** Baud>16m: The BP cannot measure above 16000000, Done.`; a reading up to the 256000 table end still maps to 128000 or 256000, above it falls back to 115200 |
+| measured rate above about 150000 bps | `** Baud>150k: The BP cannot measure above 150000, Done.`; a reading up to the 256000 table end still maps to 128000 or 256000, above it falls back to 115200 |
 | later `W` | no second measurement; the first result is stored |
 
 Until `W` runs, the stored speed is the temporary 115200 (`spd 8` in the `i`
@@ -259,8 +262,7 @@ and 31250 bps.  The port is configured to that rate (shown as `spd 9` with the
 divider in `brg`).  A measured rate above 150000 prints the overflow message
 instead of the `Estimated:`/`Calculated:` pair; the entry-time path still
 selects 128000 or 256000 from the table, and a reading above the 256000 end
-falls back to 115200.  The printed 16,000,000 is the message text, not the
-check.
+falls back to 115200.
 
 ## Frame and line settings
 
@@ -399,12 +401,13 @@ UART>
   and 5.0 V pins disconnected from a self-powered target.  The success check
   reads the Bus Pirate's own rails, not the target's VCC.
 - After mode entry, the UART port is not configured until a `W` succeeds:
-  writes are not transmitted and no new words are received.  A word left in
-  the ring by an earlier session can still be returned by `r` until `W`
-  clears it.  Before `W`, `v` shows `TxD` as an input; after `W`, `TxD` is an
-  output.
-- `W` re-runs the setup and clears the receive ring.  Anything queued from a
-  previous session is lost.
+  writes are not transmitted and no new words are received.  The disable that
+  ended the previous session cleared the queued receive words and last-word
+  flags, so `r` before `W` reports `READ: FAILED, NO DATA0x00`; the overrun
+  counter survives until the next `W`.  Before `W`, `v` shows `TxD` as an
+  input; after `W`, `TxD` is an output.
+- `W` re-runs the setup and enables the port.  Enabling resets the receive
+  ring and the overrun counter.
 - If the rails do not come up, `W` prints the failure pair and does **not**
   run the setup:
 
@@ -418,7 +421,9 @@ UART>
   Clear the fault and run `W` again.  The setup did not run, so this `W` did
   not (re)configure the port.
 - `w` does the reverse: it runs the mode cleanup, switches the rails off and
-  disables the port.  The stored settings remain; `W` re-engages with them.
+  disables the port.  The cleanup also clears the queued receive words and
+  last-word flags; the overrun counter survives until the next `W`.  The
+  stored settings remain; `W` re-engages with them.
 
 ```
 UART>w

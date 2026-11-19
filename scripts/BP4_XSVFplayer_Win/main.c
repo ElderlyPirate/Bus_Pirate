@@ -19,6 +19,7 @@
 #define  JTAG_RESET        0x01
 #define  JTAG_CHAIN_SCAN   0x02
 #define  XSVF_PLAYER       0x03
+#define  CHAIN_SCAN_MAX_TRIES 5
 
 
 #define XSVF_ERROR_NONE            0x00
@@ -77,6 +78,48 @@ int print_usage(char * appname)
 		return 0;
 }
 
+/* The scan count is a byte count, not a device count. Consume its entire
+ * payload before 0x03 so IDCODE bytes cannot become player result codes. */
+static int read_serial_exact(int fd, uint8_t *buffer, int length)
+{
+    int received = 0, tries = 0;
+    while (received < length) {
+        int res = serial_read(fd, (char *)buffer + received, length - received);
+        if (res <= 0) {
+            if (++tries >= CHAIN_SCAN_MAX_TRIES)
+                return 0;
+        } else {
+            if (res > length - received)
+                return 0;
+            received += res;
+            tries = 0;
+        }
+    }
+    return 1;
+}
+
+static int do_chain_scan(int fd)
+{
+    uint8_t count, buffer[255];
+    char command = JTAG_CHAIN_SCAN;
+    int c;
+    printf(" Performing Chain Scan..\n");
+    if (serial_write(fd, &command, 1) != 1) {
+        printf(" Chain scan: failed to send the command\n");
+        return 2;
+    }
+    if (!read_serial_exact(fd, &count, 1) ||
+        !read_serial_exact(fd, buffer, count)) {
+        printf(" Chain scan: incomplete reply (bounded timeout)\n");
+        return 2;
+    }
+    printf(" Chain Scan Result: %02X", count);
+    for (c = 0; c < count; ++c)
+        printf(" %02X", buffer[c]);
+    printf("\n\n");
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
 	int opt;
@@ -95,6 +138,7 @@ int main(int argc, char** argv)
 	char *param_bytechunks=NULL;
 	int  jtag_reset=FALSE;
     int  chainscan=FALSE;
+    int status=0;
 
     const char *XSVF_ERROR[]={  "XSVF_ERROR_NONE",
                                 "XSVF_ERROR_UNKNOWN",
@@ -213,41 +257,10 @@ int main(int argc, char** argv)
      // Wait for 1 byte, the number of bytes that will be returned
      // Get that many bytes
 	if (chainscan==TRUE) {
-		printf(" Performing Chain Scan..\n");
-		temp[0]=0x02;
-		serial_write( fd, (char *)temp, 1 );
-		Sleep(1);
-		res=0;
-		timeout_counter=0;
-
-//		while (res==0) {
-        while ((res<=0) && (timeout_counter < 5)) {  // Modified JM
-			res= serial_read(fd, (char *)buffer, sizeof(buffer));
-			Sleep(1);
-			timeout_counter++;
-        }  // Line Added JM
-
-/* //--- Removed JM        
-		if (timeout_counter>=5) {
-			printf(" Got no reply for a Chain scan\n");
-			} else {
-			printf(" Waiting for a chain scan reply\n");
-			}
-		}  //--- End removed JM */
-	
-		if (res >0) {
-			printf(" Chain Scan Result:" );
-			for(c=0;c<res;c++){
-			printf(" %02X",buffer[c]);
-			}
-//---  Added JM
-         }
-		else
-			printf(" Got no reply for a Chain scan. res = %x, timeout_counter = %x",res,timeout_counter);
-//--- End added JM
-			printf("\n\n");
-
-		}
+        status = do_chain_scan(fd);
+        if (status != 0)
+            return status;
+    }
 //---	}
 
    if (param_XSVF !=NULL) {
@@ -308,7 +321,9 @@ int main(int argc, char** argv)
 					    c=buffer[0];
 					    if (c==0xFF)
 					         c=8;
-                        printf(" End of operation reply: %s \n",XSVF_ERROR[c]);
+                        else if (c > XSVF_ERROR_LAST)
+                            c=XSVF_ERROR_UNKNOWN;
+                        printf(" End of operation reply: %s (0x%02X) \n",XSVF_ERROR[c],buffer[0]);
                         switch (buffer[0]) {
                             case  XSVF_ERROR_NONE :
                                 printf(" Success!\n");

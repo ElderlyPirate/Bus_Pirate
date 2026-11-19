@@ -90,38 +90,44 @@ int print_usage(char * appname)
  * -1, so the loop fell through after one attempt and the tool still
  * reported success.  Bound the wait and return a status.
  */
+static int read_serial_exact(int fd, uint8_t *buffer, int length)
+{
+    int received = 0, tries = 0;
+    while (received < length) {
+        int res = serial_read(fd, (char *)buffer + received, length - received);
+        if (res <= 0) {
+            if (++tries >= CHAIN_SCAN_MAX_TRIES)
+                return 0;
+        } else {
+            if (res > length - received)
+                return 0;
+            received += res;
+            tries = 0;
+        }
+    }
+    return 1;
+}
+
 int do_chain_scan(int fd)
 {
-	uint8_t buffer[MAX_BUFFER] = {0};
-	char cmd = JTAG_CHAIN_SCAN;
-	int res = -1;
-	int tries = 0;
-	int c;
-
-	printf(" Performing Chain Scan..\n");
-	if (serial_write(fd, &cmd, 1) != 1) {
-		printf(" Chain scan: failed to send the command\n");
-		return 2;
-	}
-
-	while (tries < CHAIN_SCAN_MAX_TRIES) {
-		res = serial_read(fd, (char *)buffer, sizeof(buffer));
-		if (res > 0)
-			break;
-		tries++;
-	}
-
-	if (res <= 0) {
-		printf(" Got no reply for a Chain scan (bounded timeout)\n");
-		return 2;
-	}
-
-	printf(" Chain Scan Result:");
-	for (c = 0; c < res; c++) {
-		printf(" %02X", buffer[c]);
-	}
-	printf("\n\n");
-	return 0;
+    uint8_t count, buffer[255];
+    char command = JTAG_CHAIN_SCAN;
+    int c;
+    printf(" Performing Chain Scan..\n");
+    if (serial_write(fd, &command, 1) != 1) {
+        printf(" Chain scan: failed to send the command\n");
+        return 2;
+    }
+    if (!read_serial_exact(fd, &count, 1) ||
+        !read_serial_exact(fd, buffer, count)) {
+        printf(" Chain scan: incomplete reply (bounded timeout)\n");
+        return 2;
+    }
+    printf(" Chain Scan Result: %02X", count);
+    for (c = 0; c < count; ++c)
+        printf(" %02X", buffer[c]);
+    printf("\n\n");
+    return 0;
 }
 
 int main(int argc, char** argv)
@@ -264,6 +270,8 @@ int main(int argc, char** argv)
      // Get that many bytes
 	if (chainscan==TRUE) {
 		status = do_chain_scan(fd);
+        if (status != 0)
+            return status;
 	}
 
    if (param_XSVF !=NULL) {

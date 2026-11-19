@@ -59,6 +59,9 @@
 #define BP_LEDMODE PORTAbits.RA1 // single MODE led on v2a
 #define BP_VREGEN PORTAbits.RA0  // single vreg enable pin on v2a
 #define BP_PULLUP PORTBbits.RB11 // Pull-up pin on V2a
+#define BP_VREGEN_LAT LATAbits.LATA0
+#define BP_PULLUP_LAT LATBbits.LATB11
+#define BP_LEDMODE_LAT LATAbits.LATA1
 #define BP_PGD PORTBbits.RB0     // PGD pin on programming header
 
 // these macros set the direction registers for each IO pin
@@ -114,7 +117,7 @@
 #define BP_AUX_RPIN 10
 #define BP_AUX_RPOUT RPOR5bits.RP10R
 #define BP_CS_RPIN 6
-#define BP_CS_RPOUT RPOR5bits.RP6R
+#define BP_CS_RPOUT RPOR3bits.RP6R
 
 // define the PPS input/output for CLK pin
 #define BP_CLK_RPIN 8

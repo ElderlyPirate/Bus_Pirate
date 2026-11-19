@@ -16,7 +16,7 @@ v3/v4 difference.  Not covered: the prompt grammar and the binary framing.
 
 - 10-bit converter, one conversion per reading.
 - The result is an integer count, 0..1023 (1024 steps).
-- The converter's reference is the board's 3.3 V rail — the converter's own
+- The converter's reference is the main 3.3 V rail — the converter's own
   supply, AVdd — and the firmware assumes 3.3 V.  The probe input is divided
   by two before the converter, which is why the nominal full scale is 6.6 V.
 - The firmware does not average or filter: `d` and `0x14` are one conversion,
@@ -24,8 +24,9 @@ v3/v4 difference.  Not covered: the prompt grammar and the binary framing.
 - No calibration constant is applied; the count is scaled by a fixed ratio.
 - The probe reading is ratiometric to the 3.3 V rail: if that rail is not at
   its nominal value, the probe and the other external channels shift with it.
-  The 3.3 V channel is the exception: it is the same rail through a divider,
-  so it is measured against itself (see [The channels](#the-channels)).
+  The `3.3V` channel is not that rail: it watches the separate switched 3.3 V
+  output through a divider, measured against AVdd (see
+  [The channels](#the-channels)).
 
 ## The divider and the scale
 
@@ -77,8 +78,8 @@ count in parentheses is the unrounded figure.  The top of the scale prints
 | one count | 6.6 V / 1024 = 6.45 mV |
 | displayed resolution | 0.01 V (about 1.55 counts) |
 | arithmetic error | under 1 mV (fixed-point conversion) |
-| reference | the board's 3.3 V rail (converter supply), nominal |
-| 3.3 V channel | ratiometric to that rail; divider/rail-present check only |
+| reference | the main 3.3 V rail (AVdd, converter supply), nominal |
+| 3.3 V channel | switched 3.3 V output, measured against AVdd; branch-present/gross-droop check |
 | overall accuracy | not specified (unverified) |
 
 - The raw count is finer than the display: use the `(raw n)` value, or the
@@ -96,7 +97,7 @@ dedicated commands.
 | Channel | v3 | v4 | Reaches the user through |
 |---|---|---|---|
 | probe | yes | yes | `d` / `D`, binary `0x14` / `0x15`, BASIC `ADC`, AVRISP VTARGET, OpenOCD `buspirate adc` |
-| 3.3 V rail | yes | yes | `v`, the `W` rail check, the self-test, OpenOCD `buspirate adc` (ratiometric; see below) |
+| 3.3 V channel (`3.3V`) | yes | yes | `v`, the `W` rail check, the self-test, OpenOCD `buspirate adc` (switched output; see below) |
 | 5.0 V rail | yes | yes | `v`, the `W` rail check, the self-test, OpenOCD `buspirate adc` |
 | VPU (the `Vpullup` pin) | yes | yes | `v`, the `P` warning, the self-test, OpenOCD `buspirate adc` |
 | Vusb | — | yes | the self-test |
@@ -107,15 +108,18 @@ dedicated commands.
 - The firmware applies the same 2:1 scale to every channel it displays.
 - Binary `0x14` / `0x15` read the probe only.
 
-The 3.3 V channel is the rail that supplies the converter, brought in through
-its own divider.  It is therefore ratiometric too: the displayed figure is the
-divider ratio expressed on the firmware scale, not an independent measurement
-of the rail.  A rail that sags while the board still runs can still read about
-3.3 V, because the reference moves with it.  The `v` column, the `W` rail
-check and the self-test 3.3 V window are go/no-go checks on the divider and
-on the channel being present; they cannot prove the rail is at 3.3 V or catch
-a small droop.  The 5.0 V, Vusb and VPU channels are measured against the
-3.3 V reference, so those readings do move with it.
+The `3.3V` channel watches the switched 3.3 V output (the header `+3.3V`
+branch) through its own divider.  It is not the rail that supplies the
+converter: the converter and the ADC reference run from the separate main
+3.3 V rail (AVdd).  The channel is measured against AVdd like the others, so
+its displayed figure is the switched output's divider ratio expressed on the
+firmware scale.  It can show that the switched output is present and catch a
+gross droop; a small droop may be within the divider and reference tolerance,
+and the reading cannot verify the AVdd rail itself.  The `v` column, the `W`
+rail check and the self-test 3.3 V window are therefore checks on the switched
+3.3 V output, not on the converter supply.  The 5.0 V, Vusb and VPU channels
+are measured against the same AVdd reference, so those readings also move with
+it.
 
 ## Who owns the converter
 

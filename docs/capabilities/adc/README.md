@@ -84,9 +84,9 @@ The full wiring table is in [wiring.md](wiring.md).
 - Continuous sampling has no rate setting, no length and no timestamps; it is
   not a data logger.
 - Only the probe channel has dedicated commands (`d` / `D`, binary `0x14` /
-  `0x15`).  The 3.3 V rail, 5.0 V rail, VPU and (v4) Vusb channels are
-  housekeeping, displayed by `v` and read by the self-test and the features
-  that check them.
+  `0x15`).  The switched 3.3 V output (the `3.3V` channel), the 5.0 V rail,
+  VPU and (v4) Vusb channels are housekeeping, displayed by `v` and read by
+  the self-test and the features that check them.
 - Shared prompt grammar (`:N`, `o`, mode entry) is owned by
   [docs/generic/](../../generic/README.md); the binary framing is owned by
   [docs/protocol/binary/](../../protocol/binary/README.md).  This set does

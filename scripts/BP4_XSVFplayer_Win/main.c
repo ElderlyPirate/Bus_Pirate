@@ -70,6 +70,7 @@ int print_usage(char * appname)
 		printf("                  -f Filename of XSVF file \n");
 		printf("                  -x Perform a JTAG Chain Scan by sending 0x02 command. -f is optional. \n");
 		printf("                  -r Perform a JTAG Reset  Scan by sending 0x01 command. -f is optional. \n");
+		printf(" Exit status: 0 = success; 1 = player result error; 2 = host/transport error.\n");
 		printf("\n");
 
         printf("-----------------------------------------------------------------------------\n");
@@ -300,7 +301,11 @@ int main(int argc, char** argv)
 	//Open the port and send 0x03 to enter XSVF player mode
 	printf(" Entering XSVF Player Mode\n");
 	temp[0]=0x03;
-	serial_write( fd, (char *)temp, 1 );
+	if (serial_write(fd, (char *)temp, 1) != 1) {
+        printf(" Failed to send player start\n");
+        status=2;
+        goto cleanup;
+    }
 
 	// Wait for 0xFF, if <0xFF then it is finished or error codes (see below)
     bytePointer=0; //where we are in the byte buffer array
@@ -313,7 +318,7 @@ int main(int argc, char** argv)
 			timeout_counter=0;
 			timer_out=0;   // 0 if ok, else -1 if exit
 			while(1) {
-				res= serial_read(fd, (char *)buffer, sizeof(buffer));
+				res= serial_read(fd, (char *)buffer, 1);
 				if(res>0){
                     printf("ok\n");
 				  // wait for 0xFF and send data, or error
@@ -323,6 +328,9 @@ int main(int argc, char** argv)
 					         c=8;
                         else if (c > XSVF_ERROR_LAST)
                             c=XSVF_ERROR_UNKNOWN;
+                        if (buffer[0] != XSVF_ERROR_NONE &&
+                            buffer[0] != XSVF_READY_FOR_DATA)
+                            status=1;
                         printf(" End of operation reply: %s (0x%02X) \n",XSVF_ERROR[c],buffer[0]);
                         switch (buffer[0]) {
                             case  XSVF_ERROR_NONE :
@@ -349,9 +357,10 @@ int main(int argc, char** argv)
                             case XSVF_ERROR_LAST:
                              printf(" Some other error I don't remember, probably isn't active: XSVF_ERROR_LAST \n");
                                 break;
-                            case XSVF_READY_FOR_DATA:
-                                if (fileSize==0) {
-                                    printf(" End of file reached. \n");
+                             case XSVF_READY_FOR_DATA:
+                                 if (fileSize==0) {
+                                     printf(" End of file reached. \n");
+                                     status=2; /* More input requested, not completion. */
                                 } else {
 									printf(" Programmer says more data: XSVF_READY_FOR_DATA \n");
                                 }
@@ -362,7 +371,9 @@ int main(int argc, char** argv)
                          }
 
                      }
-                     break; //break loop and send data
+                      if (buffer[0] != XSVF_READY_FOR_DATA)
+                          timer_out=-1; /* A result terminates the run before any write. */
+                      break;
 				}else{
 					printf("\n Waiting for reply...");
 				//	Sleep(1);
@@ -371,6 +382,7 @@ int main(int argc, char** argv)
 						printf("\n No reply.... Quitting.\n ");
 						timeout_counter=0;
 						timer_out=-1;
+						status=2;
 						break;
 					}
 				}
@@ -391,13 +403,18 @@ int main(int argc, char** argv)
 			cnt=cnt+readSize;
 
 			printf(" Sending %i Bytes (%04X)...",readSize, cnt);
-			serial_write( fd, (char *)temp,2 );
-			serial_write( fd, (char *) &bin_buf[bytePointer],readSize );
+			if (serial_write(fd, (char *)temp, 2) != 2 ||
+                serial_write(fd, (char *)&bin_buf[bytePointer], readSize) != readSize) {
+                printf(" Failed to send XSVF data\n");
+                status=2;
+                break;
+            }
 			bytePointer=bytePointer+readSize;//start 1 chunk in next itme
 			fileSize=fileSize-readSize; //deincrement the remaining byte count
 
 	}
 
+cleanup:
     printf(" Thank you for playing! :-)\n\n");
 #ifdef WIN32
     fclose(XSVF);
@@ -407,5 +424,6 @@ int main(int argc, char** argv)
     FREE(param_XSVF);
     FREE( bin_buf);
 #endif
-    return 0;
+    serial_close(fd);
+    return status;
  }  //end main()

@@ -141,11 +141,11 @@ no sample arrives within your timeout, then send the next command.
 
 ## PWM set and clear
 
-Prescaler `0x02` = 1:64 (250 kHz timer tick), duty `0x0064` = 100, period
+Prescaler `0x02` = 1:64 (250 kHz timer tick), duty `0x0063` = 99, period
 `0x00C7` = 199: about 1250 Hz at about 50 % on the `AUX` pin.
 
 ```
-host -> 0x12 0x02 0x00 0x64 0x00 0xC7   set up PWM
+host -> 0x12 0x02 0x00 0x63 0x00 0xC7   set up PWM
 host <- 0x01                            accepted
 host -> 0x13                            clear PWM
 host <- 0x01                            accepted

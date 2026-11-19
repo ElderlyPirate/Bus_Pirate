@@ -1,9 +1,8 @@
 # AUX family — wiring and electrical limits
 
-Part of the AUX capability documentation set.  This page owns the header
-mapping, the logic levels, the load rules and the safety limits for the AUX
-pin, its alternate targets, PWM/servo output, the frequency input and the
-edge wait.
+Part of the AUX capability set.  This page owns the header mapping, the logic
+levels, the load rules and the safety limits for the `AUX` pin, its alternate
+targets, PWM/servo output, the frequency input and the edge wait.
 
 ## Scope
 
@@ -37,33 +36,35 @@ header, using the same convention as the [ADC wiring page](../adc/wiring.md):
 |---|---|---|---|
 | `AUX` | pin 5 | `A0` | drive/read, PWM, servo, frequency, edge wait |
 | `AUX1` | pin 6 | `A1` | drive/read, edge wait (v4); optional SMPS supply PWM (v4) |
-| `AUX2` | pin 7 | `A2` | drive/read, edge wait (v4 only) |
+| `AUX2` | pin 7 | `A2` | drive/read, edge wait (v4) |
 | `CS` | pin 4 | `CS` | drive/read, edge wait; also the bus chip select |
 
 The optional v4 SMPS build routes its supply PWM to the pin labelled `AUX1`
-through the same output-compare channel the terminal generator uses; see
+through the same output channel the terminal generator uses; see
 [SMPS](../smps/README.md).
 
 On v3 the header has the pin labelled `AUX` and the pin labelled `CS`; there
 is no `AUX1` or `AUX2`.  Use the silkscreen: the v3 pin numbering is not
-documented here.  The v3 build is **unverified**.
+documented here.
 
-The pin names are the header and `v`-table names.  The `?` tokens (`A0`,
-`CS`, `A1`, `A2`) are the assignment names for the same pins
+The pin names are the header and `v`-table names.  The `?` tokens (`A0`, `CS`,
+`A1`, `A2`) are the assignment names for the same pins
 ([aux-pin.md](aux-pin.md)).
 
 ## Logic levels
 
-- The AUX pins are **3.3 V logic I/O**, not 5 V outputs and not open-drain by
-  default.  A high is the board's 3.3 V rail; a low is ground.
+- The AUX pins are **3.3 V logic outputs** when driven push-pull, not 5 V
+  outputs.  A high is the board's 3.3 V rail; a low is ground.
 - As an input the pin is high impedance.  `f` makes the pin an input; `@`
   also does, as part of the read.  The edge wait does not change direction,
   so configure the pin as an input before using it.
+- The v4 header I/O is **5 V class**: keep applied signals within 0–5 V and
+  use a common ground.  Treat **5.5 V as the absolute maximum**, the same
+  limit used by the SPI, JTAG and keyboard pages; the exact rating of this pin
+  is not documented here (unverified).  The board's 3.3 V output high is not a
+  5 V logic high; use a driver or level shifter for a 5 V logic input.
 - The output type is whatever the active mode configured for that pin.  In a
   mode that set it open drain, a high is a released pin, not 3.3 V.
-- A 5 V push-pull source is not documented as safe to connect directly; the
-  board's input tolerance is **unverified**.  Use a level shifter when the
-  source is 5 V.
 
 ## PWM loads
 
@@ -95,8 +96,10 @@ motor, relay or speaker from the pin.
 
 ## Frequency and edge-wait inputs
 
-- Drive the pin with a clean logic signal between ground and 3.3 V.  A slowly
-  changing or noisy edge can be counted more than once.
+- Drive the pin with a clean logic signal that swings between ground and a
+  permitted logic level.  3.3 V is the board's own high; the input is 5 V
+  class, so a 5 V swing is within the class.  A slowly changing or noisy edge
+  can be counted more than once.
 - An open-collector or open-drain source needs a pull-up to a permitted logic
   rail.  A bare switch needs a pull-up or pull-down and will bounce.
 - The frequency input measures rate, not amplitude.  A signal that is too
@@ -110,8 +113,9 @@ motor, relay or speaker from the pin.
   [docs/generic/commands.md](../../generic/commands.md)).  They are not a
   per-pin bias control for the AUX pins; do not rely on `P` to define an AUX
   input level.
-- `W` / `w` control the target supply on the `VCC` pin.  They do not power
-  the AUX output; the generator runs from the board's own rail.
+- `W` / `w` control the on-board target supply rails (`5.0V` / `3.3V`).
+  They do not power the AUX output; the generator runs from the board's own
+  rail.
 - On v4, `e` selects the source feeding the pull-up network.  It is not an
   AUX output-level control.
 - Fit an external pull-up or pull-down (1–10 kΩ is typical) when the AUX
@@ -121,8 +125,7 @@ motor, relay or speaker from the pin.
 
 - A voltage source into a pin that is configured as an output.
 - A load directly from the pin; use a driver.
-- More than 3.3 V logic without checking the board's input tolerance (which
-  is unverified here).
+- More than 5.5 V on any AUX pin; keep within the 5 V class.
 - The `CS` pin while the active bus mode is using it as its chip select.
 - The `ADC` pin as if it were a digital I/O; it is the analogue probe input.
 - Mains, or any circuit not isolated from the mains.  The Bus Pirate shares
@@ -130,14 +133,22 @@ motor, relay or speaker from the pin.
 - Two outputs on the same net, including a manual `a` / `A` on a pin the
   active mode is also driving.
 - `AUX1` while the optional SMPS build is running: the supply PWM owns the
-  pin and the output-compare channel ([SMPS](../smps/README.md)).
+  pin and the output channel ([SMPS](../smps/README.md)).
 
-Before leaving, release a manually driven `AUX1` / `AUX2` with `@`.  A board
-reset returns the assignment to `A0` and releases `AUX`, `CS` and the bus
-lines, but it does not release a pin left driven on `AUX1` / `AUX2`
-([aux-pin.md](aux-pin.md)).  Do not leave a driven `AUX1` / `AUX2` wired to a
-target input when you power down: the reset will not release it, so the target
-keeps seeing the driven level.
+## Leaving the board
+
+A board reset returns the assignment to `AUX` (`A0`) and releases every AUX
+target: `AUX` and `CS` (and, on v4, `AUX1` / `AUX2`) become inputs and the
+generator output routing is detached
+([aux-pin.md](aux-pin.md#reset-and-persistence)).  On v4 that reset is `#`,
+a mode change (`mN`), the SUMP exit or the binary return; on v3 `#` is a
+hardware reset.
+
+`w` is a mode cleanup, not a board reset.  It is not a generator control.
+It may park the pins of the active mode (DIO parks its five signal pins, for
+example) but it does not guarantee that a manually driven `AUX1` / `AUX2` is
+released.  Confirm the directions with `v` before changing
+the wiring, or use a board reset when every pin must be an input.
 
 ## v3 / v4
 
@@ -145,11 +156,10 @@ keeps seeing the driven level.
 |---|---|---|
 | AUX targets | `AUX`, `CS` | `AUX`, `AUX1`, `AUX2`, `CS` |
 | PWM / servo / frequency pin | `AUX` | `AUX` |
-| logic level | 3.3 V (build-only, unverified) | 3.3 V |
+| logic level | 3.3 V outputs, 5 V class inputs | 3.3 V outputs, 5 V class inputs |
 | on-board pull-up source `e` | — | present |
 | header numbering in this set | by silkscreen only | key = pin 1 |
-
-The v3 column is code-derived and **unverified**.
+| SMPS supply PWM on `AUX1` | — | optional build; off in the default image |
 
 ## Related
 
@@ -157,6 +167,7 @@ The v3 column is code-derived and **unverified**.
 - [pwm-servo.md](pwm-servo.md) — the generator.
 - [frequency.md](frequency.md) — the counter.
 - [edge-wait.md](edge-wait.md) — the binary wait.
+- [binary.md](binary.md) — the binary AUX commands.
 - [docs/generic/commands.md](../../generic/commands.md) — `P` / `p`,
   `W` / `w`, `e`.
 - [docs/capabilities/adc/wiring.md](../adc/wiring.md) — the analogue input,

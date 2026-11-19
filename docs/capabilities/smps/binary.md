@@ -19,8 +19,8 @@ choosing the raw-wire mode, framing and leaving are owned by
    to the interactive terminal with `0x01` and the `HiZ>` prompt.
 
 Leaving raw wire does **not** stop the board.  Only `0xF1` sent while still in
-raw wire stops it; a hardware reset also stops it, but whether the terminal
-reset that returns from the binary layer stops it is `unverified` (see
+raw wire stops it in-band; a hardware reset also stops it, and the v4 terminal
+reset that returns from the binary layer stops it through the board reset (see
 [edge-cases.md](edge-cases.md)).  After `0x00` leaves raw wire, `0xF1` is no
 longer a stop — in the binary layer it is a pin-state byte.
 
@@ -30,9 +30,8 @@ session, and the read/stop bytes — see the quick-start recipe in
 
 On a build without SMPS support the group is still routed, and the fixed
 requests `0xF0`/`0xF1` are answered with the failure byte `0x00`.  A start
-request is also refused with `0x00`, but its operand byte is **not** consumed,
-so it is read as the next raw-wire request (see
-[edge-cases.md](edge-cases.md)).
+request is also refused with `0x00`, but it **consumes** its operand byte, so
+the next request stays aligned (see [edge-cases.md](edge-cases.md)).
 
 ## Command group `0b1111xxxx`
 
@@ -45,7 +44,7 @@ request that reads a value returns the data instead of a result byte.
 | `0xF0` | get the last output sample (raw counts) | 2 bytes, big-endian (high byte first); no result byte |
 | `0xF1` | stop the board | `0x01` |
 | `0xF2`–`0xFF` | start; one operand byte with the requested value follows (see below) | `0x01` |
-| any, when the feature is not built | request refused; a start leaves its operand unread | `0x00` |
+| any, when the feature is not built | request refused; a start consumes its operand | `0x00` |
 
 `0xF0` and `0xF1` are fixed meanings.  Every value from `0xF2` upward is a
 **start**.  There is no separate start opcode beyond the value encoding below:
@@ -146,8 +145,8 @@ built in.
   electrical result is `unverified`.
 - `0xF0` on a feature-disabled build returns a single `0x00` failure byte, not
   the two-byte reading.
-- A start on a feature-disabled build also returns `0x00` but does not consume
-  its operand; the operand becomes the next request.
+- A start on a feature-disabled build also returns `0x00` but consumes its
+  operand, so the next request stays aligned.
 - There is no reply that proves the PWM is actually running — `0x01` only
   means the request was accepted.
 - The useful closed-loop range is `0x200`–`0x526` (see above); above it the

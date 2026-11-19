@@ -9,18 +9,15 @@ a concrete trigger → symptom → behaviour → recovery.
   v3 build.
 - **Symptom:** every request is answered with `0x00`; in particular `0xF0`
   returns a single failure byte, not the two-byte reading.  A start
-  (`0xF2`–`0xFF`) leaves its operand byte unread, so the operand is then
-  parsed as the next raw-wire request: `0xF2 0x00` answers `0x00` and then
-  leaves raw wire (`BBIO1`); `0xF2 0x58` answers `0x00` and then treats
-  `0x58` as a pull-up request.
+  (`0xF2`–`0xFF`) also replies `0x00` but **consumes** its operand byte, so the
+  next byte is the next request: `0xF2 0x58` answers `0x00` and stays aligned.
 - **Behaviour:** the command group is still routed, but the handler refuses
-  all requests when support is not compiled in.  The disabled path does not
-  consume a start's operand.
+  all requests when support is not compiled in.  The disabled path consumes a
+  start's operand.
 - **Recovery:** enabling SMPS is a source build change, not a runtime setting
   (see [README.md](README.md) §Availability); on v3 it cannot be enabled at
-  all.  If a stray operand left you in raw wire, send `0x01` to reprint the
-  mode identifier (`RAW1`) and resynchronise; if the operand was `0x00`, you
-  are back in `BBIO1` — re-enter raw wire with `0x05`.
+  all.  If you are unsure of the layer, send `0x01` to reprint the mode
+  identifier (`RAW1`).
 
 ## A requested value below `0x200`
 
@@ -71,11 +68,10 @@ a concrete trigger → symptom → behaviour → recovery.
 
 - **Trigger:** start the board while `AUX1` was being used as a GPIO output
   or another peripheral.
-- **Symptom:** `AUX1` no longer follows the `a`/`A` controls, and a stop
-  detaches the PWM — the pin keeps its port direction and output latch state,
-  so from a GPIO-output state it stays an output at its last level.
-- **Behaviour:** starting reassigns `AUX1` to the PWM output; stopping detaches
-  the PWM source but does not reset the pin's direction or latch.
+- **Symptom:** `AUX1` no longer follows the `a`/`A` controls; a stop detaches
+  the PWM and drives `AUX1` to input, clearing its routing and latch.
+- **Behaviour:** starting reassigns `AUX1` to the PWM output; stopping sets
+  `AUX1` to input, clears the routing and drives the latch low.
 - **Recovery:** stop the board before using `AUX1` for anything else, and set
   the pin's direction and level explicitly if you need a known state.
 
@@ -83,13 +79,14 @@ a concrete trigger → symptom → behaviour → recovery.
 
 - **Trigger:** run `d`/`D`, or binary `0x14`/`0x15`, while the SMPS is
   running.
-- **Symptom:** the reading follows the SMPS feedback, not a source connected
-  to the `ADC` pin; a probe command also turns the converter off at the end,
-  so the feedback loop stops updating until the next start.
-- **Behaviour:** start selects the probe channel for SMPS feedback and enables
-  continuous sampling; the probe commands read that same channel.
-- **Recovery:** stop the SMPS before using the probe for an external source,
-  or start the SMPS again afterwards.  Scale and limits:
+- **Symptom:** the terminal `d`/`D` is refused with
+  `ADC busy: SMPS feedback active; command rejected.` plus
+  `Syntax error at char 1`; binary `0x14`/`0x15` return `0xFF 0xFF` once, and
+  `0x15` does not stream.
+- **Behaviour:** while the loop owns the converter, foreground probe commands
+  are refused; the loop continues until `0xF1` or a reset.
+- **Recovery:** stop the SMPS (`0xF1`, or `0x0F`/`#`/reset through the board
+  reset) before using the probe for an external source.  Scale and limits:
   [ADC probe](../adc/README.md).
 
 ## Starting again while running

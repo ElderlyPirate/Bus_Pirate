@@ -210,8 +210,10 @@ The Bus Pirate replies `0x01`, then resets.  On v3 this is a real hardware
 reset.  On v4 it runs the **terminal reset** — pins to inputs, pull-ups
 released, supplies off, an SMPS feedback loop stopped, the AUX output source
 detached and the AUX assignment back to `AUX`, display format back to HEX,
-BASIC left — then prints the banner and the `HiZ>` prompt.  A PWM timer setup
-survives this reset; see [PWM](#pwm-0x12-0x13).  See
+BASIC left — then prints the banner and the `HiZ>` prompt.  On v4 this reset
+detaches the AUX output and clears the generator flag, but the timer itself
+still runs; send `0x13` before leaving if you want the module idle.  See
+[PWM](#pwm-0x12-0x13).  See
 [entering-and-framing.md](entering-and-framing.md#leaving) §Leaving.
 
 ### Self-test (`0x10`, `0x11`)
@@ -225,7 +227,8 @@ survives this reset; see [PWM](#pwm-0x12-0x13).  See
   boards, plus `Vpu`→`+5V` on v3.
 
 The reply is a single byte: the **number of failed checks** (`0x00` = no
-errors).  If the SMPS owns the ADC, the reply is `0x01` and no check runs.  While the test is idle it reads input — any byte other than `0xFF`
+errors).  If the SMPS owns the ADC, the reply is `0x01` and no check runs.
+While the test is idle it reads input — any byte other than `0xFF`
 is echoed back as `byte + errors` (one byte, wrapping), and `0xFF` leaves the
 test with a reply of `0x01`.  Leaving the test returns to the bitbang layer
 **without re-printing `BBIO1`**, so the host must track the current layer
@@ -262,11 +265,11 @@ running the test, then enter the same idle loop.  See
   The duty count is compared against the period count, so a duty of about
   half the period is a 50 % duty cycle.
 
-  Example: prescaler `2` (1:64, tick 250 kHz), duty `0x0064` (100), period
+  Example: prescaler `2` (1:64, tick 250 kHz), duty `0x0063` (99), period
   `0x00C7` (199) gives about 1250 Hz at about 50 %:
 
   ```
-  host -> 0x12 0x02 0x00 0x64 0x00 0xC7    set up PWM
+  host -> 0x12 0x02 0x00 0x63 0x00 0xC7    set up PWM
   host <- 0x01                             success
   ```
 
@@ -281,10 +284,10 @@ servo details are in the
 A PWM or servo left running in the terminal is not cleared by entering BBIO1:
 entry makes the pins inputs, so the waveform no longer drives the header, but
 the timer setup stays until `0x12`, `0x13` or a hardware reset.  `0x0F` does
-not stop the PWM timer either; on v4 the terminal reset detaches the AUX output
-source, so the target stops being driven while the timer may still run, and on
-v3 the hardware reset stops everything.  Send `0x13` before leaving if you want
-the module idle.
+not stop the timer either; the v4 terminal reset clears the generator flag and
+detaches the AUX output source, so the target stops being driven while Timer2
+may still run, and on v3 the hardware reset stops everything.  Send `0x13`
+before leaving if you want the module idle.
 
 On an SMPS-enabled build, `0x12` and `0x13` are refused with `0x00` while the
 SMPS feedback loop owns the ADC; `0x12` consumes its five-byte frame first.

@@ -11,23 +11,25 @@ set folder.  Nobody reads a 600-line README.
 
 ## Where a set lives
 
-A set is one folder under its cluster in `docs/`: `generic/`, `protocol/`,
-`tools/`, `capabilities/`, `programmers/` (user-facing), or `core/`, `dev/`
-(maintainer-facing).  Nested clusters keep their parent, so a set path is
-`docs/<cluster>/<set>/` — for example `docs/protocol/i2c/`,
-`docs/protocol/wire/1wire/`, `docs/programmers/pic/`.  The folder name is the
-set's name in the tree; the function index is [docs/SPEC.md](SPEC.md).
+A set is its folder under `docs/`: the generic set is `docs/generic/`; the
+other user-facing clusters are `protocol/`, `tools/`, `capabilities/` and
+`programmers/`, and the maintainer sets are `core/` and `dev/`.  Nested
+clusters keep their parent, so grouped sets use `docs/<cluster>/<set>/` — for
+example `docs/protocol/i2c/`, `docs/protocol/wire/1wire/`,
+`docs/programmers/pic/`.  `docs/assets/` and `docs/refcard/` hold repository
+material, not documentation sets.  The folder name is the set's name in the
+tree; the function and capability index is [docs/SPEC.md](SPEC.md).
 
 ## What to produce
-- `docs/<cluster>/<set>/README.md` — **clean front door** (target ≤ ~120
-  lines): what the set covers, availability summary, wiring headline, a
-  five-minute quick start, limits, and a **link table to the detail files**.
-  It carries the short form of the required sections and points at the long
-  form.
-- `docs/<cluster>/<set>/<topic>.md` — one **dedicated file per topic /
-  sub-function** (examples: `navigation` vs `commands` vs `usage`; or per
-  sub-function: `hduart`, `extended`).  Each detail file is written at full
-  standard and owns its substance.
+- The set's `README.md` — **clean front door** (target ≤ ~150 lines; the
+  generic base layer may run to ~170): what the set covers, availability
+  summary, wiring headline, a five-minute quick start, limits, and a **link
+  table to the detail files**.  It carries the short form of the required
+  sections and points at the long form.
+- The set's `<topic>.md` — one **dedicated file per topic / sub-function**
+  (examples: `navigation` vs `commands` vs `usage`; or per sub-function:
+  `hduart`, `sniffer`).  Each detail file is written at full standard and
+  owns its substance.
 - **No `verification.md` or `references.md` in user sets** — maintainer
   records (evidence, code maps) live in `docs/dev/`.
 
@@ -41,7 +43,7 @@ set's name in the tree; the function index is [docs/SPEC.md](SPEC.md).
    required" or "no pull-up needed").  If unknown: `Requires verification` —
    never imply.  (README: headline; detail file: the full table.)
 4. **Entry & setup** — how the function is entered (menu number, binary entry
-   byte, hidden sequence), the settings menu with its defaults.
+   byte, hidden sequence), the settings menu with its defaults, if any.
 5. **Usage** — realistic terminal sessions: exact commands → exact replies.
    Shared CLI grammar (`r`, `W`, `P`, wrappers, macros) is **not** repeated —
    cite `docs/generic/` and lean on it.
@@ -52,13 +54,14 @@ set's name in the tree; the function index is [docs/SPEC.md](SPEC.md).
 9. **Edge cases & failure modes** — concrete: trigger → symptom → behavior →
    recovery.  Maintainer evidence (code refs, logs) lives in `docs/dev/` —
    never in user pages.
-10. **Verification** — **no bench prose, no dates, no tested/verified-result
-    prose in user docs**: no bench/rig/battery/capture narratives, no run or
-    test dates (dated status lines included), no pass counts, no
-    "tested"/"verified" claims, no "captured on…" provenance, no evidence
-    sections.  Maintainer summaries live in `docs/dev/` / the development
-    workspace.  User docs keep at most a short inline caveat where it changes
-    what the reader can rely on — e.g. "not verified", "unverified".
+10. **Verification basis** — a user set has **no verification page**; no
+    bench prose, no dates, no tested/verified-result prose in user docs: no
+    bench/rig/battery/capture narratives, no run or test dates (dated status
+    lines included), no pass counts, no "tested"/"verified" claims, no
+    "captured on…" provenance, no evidence sections.  Maintainer summaries
+    live in `docs/dev/` / the development workspace.  User docs keep at most
+    a short inline caveat where it changes what the reader can rely on — e.g.
+    "not verified", "unverified".
 11. **Limitations & out of scope** — known limits, unsupported cases, `tbi`.
 12. **Related docs** — links to the pages this set leans on (`docs/generic/`,
     `docs/SPEC.md`, sibling sets).  **User documents carry NO code

@@ -18,6 +18,17 @@ v4 devices.
 Public domain (Creative Commons Zero) source: prototype with the Bus Pirate,
 then use the code in your project however you want — see [LICENSE](LICENSE).
 
+## What works
+
+The firmware covers the classic Bus Pirate tool set: 1-Wire, UART (including
+half-duplex single-wire), I2C, SPI, the raw 2-Wire and 3-Wire buses, PC
+keyboard, PIC, direct I/O, the SUMP logic analyzer, the BASIC script engine,
+the v4 AVRISP-MKII programmer and the JTAG host paths (OpenOCD, and the v4
+XSVF player).  The shared prompt adds the ADC, AUX/PWM/frequency and
+self-test controls.  An LCD adapter and the v4 SMPS add-on are optional
+builds.  Both the v3 and v4 boards are supported; [docs/SPEC.md](docs/SPEC.md)
+shows each function's availability and v3/v4 differences.
+
 ## Documentation
 
 The documentation lives under **[docs/](docs/)**.  The specification owns the

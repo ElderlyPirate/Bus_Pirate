@@ -140,13 +140,14 @@ The v3 cases are **not verified on v3**.
 - **Behaviour:** that rail fails; other rails may still pass.
 - **Recovery:** clear the short or check the power source, then rerun.
 
-### v4 3.3V rail off
+### v4 switched 3.3 V output off
 
 - **Symptom:** `3.3V(...) FAIL`, `3.3V VPU(...) FAIL`, `ADC(...) FAIL` and
   the four `Bus Hi-Z 1` checks fail.
-- **Behaviour:** seven failures from the one rail: the internal checks, the
-  probe jumper and the pull-up source.
-- **Recovery:** fix the 3.3V rail, then rerun.
+- **Behaviour:** seven failures from the one switched branch: the `3.3V`
+  check, the `3.3V VPU` source, the `ADC` jumper and the four `Bus Hi-Z 1`
+  checks.
+- **Recovery:** fix the switched 3.3 V output, then rerun.
 
 ### v3 5V rail off with the `Vpu` jumper fitted
 

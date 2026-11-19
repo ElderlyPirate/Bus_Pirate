@@ -157,7 +157,7 @@ cross-cutting cases:
 
 | Symptom | Meaning | Next step |
 |---|---|---|
-| `ADC(...) FAIL` alone | the `ADC` jumper is missing or loose, or the probe input is faulty | fit/reseat the jumper; if `3.3V(...)` also fails, suspect the rail |
+| `ADC(...) FAIL` alone | the `ADC` jumper is missing or loose, or the probe input is faulty | fit/reseat the jumper; if `3.3V(...)` also fails, suspect the switched 3.3 V output |
 | `VPU(...) FAIL` and four `Bus Hi-Z 1` failures on v3 | the `Vpu`→`+5V` jumper is missing or loose | fit/reseat it; both symptoms share the reference |
 | `VREG FAIL`, then rail failures | the regulator-enable line did not go high; the rails may be off | treat `VREG` as the first cause |
 | all voltage checks fail, control checks pass | the shared ADC path or the supply is at fault, not each rail separately | check the power source and the converter path |

@@ -56,8 +56,8 @@ before the run.
   3.3V source for the pulled-up input group.
 - **No external supply is required.**  Power the Bus Pirate as usual (USB is
   the normal source).  The test enables the board's regulator itself (the
-  `VREG` check), measures the 5V and 3.3V rails, and switches them off at
-  the end.
+  `VREG` check), measures the 5V rail and the switched 3.3 V output, and
+  switches them off at the end.
 - The `Vusb` check (v4) reads the 5V arriving on the USB connection, not the
   board's 5V rail.  The board must be powered that way for it to pass.
 

@@ -238,10 +238,13 @@ static unsigned BP_MOSI_DIR,BP_MISO_DIR;
 static uint32_t clock_ticks,origin;
 static unsigned waveform,cancel,reads,mosi_reads,miso_reads;
 static unsigned timestamp_reads, interrupt_delay;
+static unsigned pulse_ticks=1600, overflow_messages;
+#undef MSG_UART_BAUD_OVERFLOW
+#define MSG_UART_BAUD_OVERFLOW (++overflow_messages)
 static bool rx_pin(bool mosi) {
   ++reads;if(mosi)++mosi_reads;else ++miso_reads;
   clock_ticks+=(waveform==1 || waveform==3)?16:16000;
-  return waveform==1 || waveform==3 ? ((clock_ticks/(waveform==3?416:1600))&1)^uart_settings.receive_polarity : waveform==2;
+  return waveform==1 || waveform==3 ? ((clock_ticks/(waveform==3?416:pulse_ticks))&1)^uart_settings.receive_polarity : waveform==2;
 }
 #define BP_MOSI rx_pin(true)
 #define BP_MISO rx_pin(false)
@@ -265,6 +268,7 @@ static void reset(unsigned shape) {
   T4CON=0x20;T5CON=0;timer_low=123;TMR5=456;PR4=789;PR5=1011;
   waveform=shape;clock_ticks=reads=mosi_reads=miso_reads=cancel=0;
   timestamp_reads=0;
+  pulse_ticks=1600;overflow_messages=0;
 }
 static void restored(void) {
   assert(T4CON==0x20 && timer_low==123 && TMR5==456 && PR4==789 && PR5==1011);
@@ -297,6 +301,11 @@ int main(void) {
   assert(!uart_get_baud_rate(false) && !input_left);restored();
   reset(1);T5CONbits.TON=1;assert(!uart_get_baud_rate(true) && !reads && T5CONbits.TON);
   reset(1);IEC1bits.T5IE=1;assert(!uart_get_baud_rate(true) && !reads);IEC1bits.T5IE=0;
+  reset(1);pulse_ticks=80;
+  assert(uart_get_baud_rate(false)==200000 && overflow_messages==1);restored();
+  reset(1);pulse_ticks=80;
+  assert(uart_get_baud_rate(true)==200000 && !overflow_messages);restored();
+  puts("PASS RA-4: verbose150000 boundary warns but preserves high estimates; quiet path returns the estimate");
   for(unsigned hd=0;hd<2;++hd)for(unsigned inv=0;inv<2;++inv)
   for(unsigned delay=0;delay<=192;delay+=16) {
     uart_settings.half_duplex=hd;uart_settings.receive_polarity=inv;

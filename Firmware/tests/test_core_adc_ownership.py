@@ -49,7 +49,7 @@ static struct {
  struct { unsigned AD1IE; } ie;
  struct { unsigned AD1IF; } flags;
  uint16_t chs,buf,con2,con3,pwm,period,oc1,oc2,route;
-  unsigned pullup,vpu33,vpu50,psu,aux_dir,aux_lat;
+  unsigned pullup,vpu33,vpu50,psu,aux_dir,aux_lat,aux_odc;
 } hw;
 #define AD1CON1bits hw.con1
 #define IEC0bits hw.ie
@@ -63,6 +63,7 @@ static struct {
 #define BP_AUX1_RPOUT hw.route
 #define BP_AUX1_DIR hw.aux_dir
 #define BP_AUX1_LAT hw.aux_lat
+#define BP_AUX1_ODC hw.aux_odc
 static struct { unsigned command_error,high_impedance; } mode_configuration;
 static struct { unsigned bus_mode; } bus_pirate_configuration;
 static struct { uint16_t voltage_out,voltage_reading;uint8_t pwm_duty_cycle; } smps_state;

@@ -984,6 +984,16 @@ void handle_wait_command(const uint8_t command) {
   uint32_t elapsed_ticks = 0;
 
   for (;;) {
+    const uint16_t now_ticks = TMR1;
+    elapsed_ticks += (uint16_t)(now_ticks - last_ticks);
+    last_ticks = now_ticks;
+
+    /* Expiry wins over a pending edge, including the zero-timeout arm window. */
+    if (elapsed_ticks >= timeout_ticks) {
+      level = bp_aux_pin_state_get();
+      break;
+    }
+
     if (IFS1bits.CNIF) {
       IFS1bits.CNIF = OFF;
 
@@ -1001,15 +1011,6 @@ void handle_wait_command(const uint8_t command) {
 
         level = next_level;
       }
-    }
-
-    const uint16_t now_ticks = TMR1;
-    elapsed_ticks += (uint16_t)(now_ticks - last_ticks);
-    last_ticks = now_ticks;
-
-    if (elapsed_ticks >= timeout_ticks) {
-      level = bp_aux_pin_state_get();
-      break;
     }
 
     bp_delay_us(BP_WAIT_POLL_TICK_US);

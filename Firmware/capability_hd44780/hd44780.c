@@ -174,12 +174,17 @@ void LCDstop(void)
 
 void LCDsetup(void)
 {       
-        mode_configuration.high_impedance=1;//yes, always HiZ
+        /* The shift-register adapter uses normal push-pull SPI outputs. */
+        mode_configuration.high_impedance=NO;
 }
 
 void LCDsetup_exc(void)
 {
         HD44780.RS=HD44780_DATA;
+
+        BP_MOSI_ODC=OFF;
+        BP_CLK_ODC=OFF;
+        BP_CS_ODC=OFF;
 
 		//PPS Setup
 		// Inputs

@@ -59,6 +59,8 @@ void smps_start(unsigned int requested_voltage) {
   IEC0bits.AD1IE = OFF;
   AD1CON1bits.ADON = OFF;
   AD1CON1bits.ASAM = OFF;
+  /* Do not expose a previous run's feedback before the first new conversion. */
+  smps_state.voltage_reading = 0;
   OC5CON1 = 0;
   /* A previous AUX0 PWM/servo must not mirror the SMPS OC5 waveform. */
   bp_aux_pin_reset_state();
@@ -73,6 +75,7 @@ void smps_start(unsigned int requested_voltage) {
 
   /* Assign the AUX pin to Output Compare 5 */
   BP_AUX1_LAT = LOW;
+  BP_AUX1_ODC = OFF;
   BP_AUX1_RPOUT = OC5_IO;
   BP_AUX1_DIR = OUTPUT;
 

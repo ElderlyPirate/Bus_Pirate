@@ -284,6 +284,7 @@ void bp_pwm_setup(void) {
   uint16_t pwm_frequency;
   uint16_t pwm_divisor;
   uint16_t pwm_duty;
+  uint16_t argument;
   bool valid_arguments;
 
   if (!bp_adc_check_foreground()) {
@@ -322,6 +323,12 @@ void bp_pwm_setup(void) {
   OC5CON = 0x0000;
 #endif /* BUSPIRATEV4 */
 
+  /* Look ahead without consuming the command; trailing spaces are not operands. */
+  argument = (cmdstart + 1) & CMDLENMSK;
+  while (cmdbuf[argument] == ' ') {
+    argument = (argument + 1) & CMDLENMSK;
+  }
+
   /* Stop PWM mode if it is engaged. */
   if (state.mode == AUX_MODE_PWM) {
     /* Detach AUX pin from output source. */
@@ -329,7 +336,7 @@ void bp_pwm_setup(void) {
     BPMSG1028;
     state.mode = AUX_MODE_IO;
 
-    if (cmdbuf[((cmdstart + 1) & CMDLENMSK)] == 0x00) {
+    if (cmdbuf[argument] == 0x00) {
       /* No arguments, quit. */
       return;
     }
@@ -1150,6 +1157,7 @@ void bp_aux_pin_set_change_notification(const bool state) {
 void bp_servo_setup(void) {
   uint16_t period;
   uint16_t duty_cycle;
+  uint16_t argument;
   bool keep_asking;
   int16_t position;
 
@@ -1192,8 +1200,11 @@ void bp_servo_setup(void) {
   OC5CON = 0x0000;
 #endif /* BUSPIRATEV4 */
 
-  if ((state.mode == AUX_MODE_PWM) &&
-      (cmdbuf[((cmdstart + 1) & CMDLENMSK)] == 0x00)) {
+  argument = (cmdstart + 1) & CMDLENMSK;
+  while (cmdbuf[argument] == ' ') {
+    argument = (argument + 1) & CMDLENMSK;
+  }
+  if ((state.mode == AUX_MODE_PWM) && (cmdbuf[argument] == 0x00)) {
     AUXPIN_RPOUT = 0;
     BPMSG1028;
     state.mode = AUX_MODE_IO;

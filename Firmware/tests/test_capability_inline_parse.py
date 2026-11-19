@@ -19,7 +19,7 @@ static struct { bool command_error; } mode_configuration;
 #endif
 #define CMDLENMSK (BP_COMMAND_BUFFER_SIZE - 1)
 static char cmdbuf[BP_COMMAND_BUFFER_SIZE];
-static unsigned cmdstart, prompts;
+static unsigned cmdstart, prompts, disabled;
 static bool setup_defaults_mode;
 static int getnumber(int def, int minimum, int maximum, int exit_allowed) {
   (void)minimum; ++prompts;
@@ -32,7 +32,7 @@ static int getnumber(int def, int minimum, int maximum, int exit_allowed) {
 static void line(const char *text, unsigned start) {
   memset(cmdbuf, 0, sizeof cmdbuf);
   for(unsigned i = 0; text[i]; ++i) cmdbuf[(start + i) & CMDLENMSK] = text[i];
-  cmdstart = start; prompts = 0; mode_configuration.command_error = false;
+  cmdstart = start; prompts = disabled = 0; mode_configuration.command_error = false;
   setup_defaults_mode = false;
 }
 #define bpBR ((void)0)
@@ -69,6 +69,17 @@ int main(void) {
   assert(prompts == 2 && cmdstart == 0 && !memcmp(saved, cmdbuf, sizeof saved)); ++checks;
   line("g 1000 50", 0); prepare(); available = false; bp_pwm_setup();
   assert(cmdstart == 0 && !prompts && TMR2 == 123); ++checks;
+  const char *bare[] = {"g", "g ", "g    "};
+  for(unsigned offset = 0; offset < sizeof cmdbuf; ++offset)
+    for(unsigned i = 0; i < sizeof bare / sizeof *bare; ++i) {
+      line(bare[i], offset); prepare(); state.mode = AUX_MODE_PWM;
+      T2CONbits.TON = 1; AUXPIN_RPOUT = OC5_IO; bp_pwm_setup();
+      assert(!prompts && disabled == 1 && !mode_configuration.command_error);
+      assert(!T2CONbits.TON && !AUXPIN_RPOUT && state.mode == AUX_MODE_IO);
+      assert(cmdstart == offset); ++checks;
+      line(bare[i], offset); prepare(); bp_pwm_setup();
+      assert(prompts == 2 && !disabled && state.mode == AUX_MODE_PWM); ++checks;
+    }
   printf("PASS %u actual PWM parser/consumer cases, whitespace, wrap, fallback and defaults\n", checks);
 }
 '''
@@ -99,6 +110,17 @@ int main(void) {
   assert(!prompts && OC5R == 62 && cmdstart == 0 && !memcmp(saved, cmdbuf, sizeof saved)); ++checks;
   line("S 90", 0); available = false; TMR2 = 123; bp_servo_setup();
   assert(cmdstart == 0 && !prompts && TMR2 == 123); ++checks;
+  const char *bare[] = {"S", "S ", "S    "};
+  for(unsigned offset = 0; offset < sizeof cmdbuf; ++offset)
+    for(unsigned i = 0; i < sizeof bare / sizeof *bare; ++i) {
+      line(bare[i], offset); available = true; state.mode = AUX_MODE_PWM;
+      T2CONbits.TON = 1; AUXPIN_RPOUT = OC5_IO; bp_servo_setup();
+      assert(!prompts && disabled == 1 && !mode_configuration.command_error);
+      assert(!T2CONbits.TON && !AUXPIN_RPOUT && state.mode == AUX_MODE_IO);
+      assert(cmdstart == offset); ++checks;
+      line(bare[i], offset); state.mode = AUX_MODE_IO; bp_servo_setup();
+      assert(prompts == 2 && !disabled && state.mode == AUX_MODE_PWM); ++checks;
+    }
   printf("PASS %u actual servo parser/consumer cases, positions, wrap, fallback and defaults\n", checks);
 }
 '''
@@ -156,6 +178,7 @@ def main():
     parsing = "\n".join(function(core, name) for name in ("getint", "consumewhitechars", "getint_with_spaces"))
     macros = "\n".join("#define " + name + " 0" for name in sorted(set(re.findall(r"\b_OC5CON(?:1)?_\w+_POSITION\b", aux))))
     messages = "\n".join("#define " + name + " ((void)0)" for name in sorted(set(re.findall(r"\bBPMSG\d+\b", aux + lcd))))
+    messages = messages.replace("#define BPMSG1028 ((void)0)", "#define BPMSG1028 (++disabled)")
     code = {
         "pwm": capabilities.COMMON + capabilities.PWM + PARSER + parsing + "\n" + macros + "\n" + messages + "\n" +
                function(aux, "pwm_duty_register") + function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + PWM_TEST,

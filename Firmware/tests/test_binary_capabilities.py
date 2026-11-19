@@ -221,7 +221,13 @@ static struct { unsigned AD1IE; } IEC0bits;
 static struct { unsigned AD1IF; } IFS0bits;
 static struct { unsigned ADON,ASAM; } AD1CON1bits;
 static uint16_t OC5CON1,OC5CON2,OC5R,OC5RS,AD1CHS;
-static unsigned BP_AUX1_DIR,BP_AUX1_LAT,BP_AUX1_RPOUT;
+static unsigned BP_AUX1_DIR,BP_AUX1_LAT,BP_AUX1_RPOUT,aux1_odc;
+static unsigned *smps_odc(void) {
+ assert(BP_AUX1_DIR==INPUT && BP_AUX1_LAT==LOW);
+ assert(!OC5CON1 && !IEC0bits.AD1IE && !AD1CON1bits.ADON);
+ return &aux1_odc;
+}
+#define BP_AUX1_ODC (*smps_odc())
 static volatile struct { uint16_t voltage_out,voltage_reading;uint8_t pwm_duty_cycle; } smps_state;
 static unsigned aux_resets;
 static void bp_aux_pin_reset_state(void) { ++aux_resets; }
@@ -239,15 +245,19 @@ static void user_serial_transmit_character(unsigned char c) {
 
 SMPS_TEST = r'''
 int main(void) {
+ (void)smps_odc;
  for(unsigned v=512;v<=4095;++v) {
-  smps_start(v);
+   aux1_odc=1;smps_state.voltage_reading=0x3ff;
+   smps_start(v);
   assert(aux_resets==v-511);
   assert(smps_state.voltage_out==(uint32_t)v*45/58);
   assert(smps_state.pwm_duty_cycle==128-64000/v);
-  assert(BP_AUX1_DIR==OUTPUT && !BP_AUX1_LAT && BP_AUX1_RPOUT==OC5_IO);
+   assert(BP_AUX1_DIR==OUTPUT && !BP_AUX1_LAT && BP_AUX1_RPOUT==OC5_IO);
+   assert(!aux1_odc && !smps_state.voltage_reading);
   assert(IEC0bits.AD1IE && AD1CON1bits.ADON && AD1CON1bits.ASAM && !IFS0bits.AD1IF);
-  result=smps_state.voltage_out+1;buffer_reads=0;_ADC1Interrupt();
-  assert(!OC5R && buffer_reads==1 && IEC0bits.AD1IE);
+   result=smps_state.voltage_out+1;buffer_reads=0;_ADC1Interrupt();
+   assert(!OC5R && buffer_reads==1 && IEC0bits.AD1IE);
+   assert(smps_state.voltage_reading==result);
   result=0;buffer_reads=0;_ADC1Interrupt();
   assert(OC5R==smps_state.pwm_duty_cycle && buffer_reads==1);
   for(unsigned repeat=0;repeat<2;++repeat) {
@@ -259,7 +269,14 @@ int main(void) {
  }
  smps_state.voltage_reading=0x123;smps_adc();
  assert(outlen==2 && output[0]==1 && output[1]==0x23);
- puts("PASS 3584 SMPS targets, zero-duty feedback ownership, single-buffer ISR reads and repeated STOP");
+  smps_state.voltage_reading=0x321;aux1_odc=1;outlen=0;smps_start(768);smps_adc();
+  assert(!aux1_odc && outlen==2 && !output[0] && !output[1]);
+  result=0x123;_ADC1Interrupt();outlen=0;smps_adc();
+  assert(outlen==2 && output[0]==1 && output[1]==0x23);
+  /* Restart an active session without a board reset or intervening STOP. */
+  aux1_odc=1;smps_start(512);assert(!aux1_odc && !smps_state.voltage_reading);
+  smps_stop();
+  puts("PASS 3584 SMPS targets, stale-sample clearing, push-pull restoration, active restart, ownership and repeated STOP");
 }
 '''
 
@@ -411,6 +428,108 @@ int main(void) {
 }
 '''
 
+LCD_SETUP = r'''
+static struct { unsigned high_impedance; } mode_configuration;
+static struct { unsigned RS; } HD44780;
+static unsigned SPIMOSI_TRIS,SPICLK_TRIS,SPIMISO_TRIS,SPICS_TRIS,SPICS;
+static unsigned BP_MOSI_ODC,BP_CLK_ODC,BP_CS_ODC,miso_odc,aux_odc;
+static unsigned BP_MOSI_RPOUT,BP_CLK_RPOUT,SPI1CON1,SPI1CON2,SPI1STAT;
+static struct { unsigned SPIEN; } SPI1STATbits;
+static struct { unsigned SDI1R; } RPINR20bits;
+#define HD44780_DATA 1
+#define BP_MISO_RPIN 7
+#define SDO1_IO 8
+#define SCK1OUT_IO 9
+#define BPMSG1216 ((void)0)
+'''
+
+LCD_SETUP_TEST = r'''
+int main(void) {
+ for(unsigned seed=0;seed<32;++seed) {
+  BP_MOSI_ODC=seed&1;BP_CLK_ODC=(seed>>1)&1;BP_CS_ODC=(seed>>2)&1;
+  miso_odc=(seed>>3)&1;aux_odc=(seed>>4)&1;
+  SPIMOSI_TRIS=SPICLK_TRIS=SPIMISO_TRIS=SPICS_TRIS=INPUT;
+  mode_configuration.high_impedance=YES;LCDsetup();
+  assert(mode_configuration.high_impedance==NO);LCDsetup_exc();
+  assert(!BP_MOSI_ODC && !BP_CLK_ODC && !BP_CS_ODC);
+  assert(miso_odc==((seed>>3)&1) && aux_odc==((seed>>4)&1));
+  assert(SPIMOSI_TRIS==OUTPUT && SPICLK_TRIS==OUTPUT && SPICS_TRIS==OUTPUT);
+  assert(SPIMISO_TRIS==INPUT && !SPICS && HD44780.RS==HD44780_DATA);
+  assert(BP_MOSI_RPOUT==SDO1_IO && BP_CLK_RPOUT==SCK1OUT_IO);
+  assert(RPINR20bits.SDI1R==BP_MISO_RPIN && SPI1STATbits.SPIEN);
+  assert(SPI1CON1==0b0100111101 && !SPI1CON2 && !SPI1STAT);
+ }
+ puts("PASS LCD setup reports and establishes push-pull on all three adapter outputs");
+}
+'''
+
+WAIT = r'''
+#define IO_WAIT_COMMAND_FOR_EDGE 0
+#define BP_BINARY_IO_EDGE_RISING 1
+#define BP_BINARY_IO_EDGE_FALLING 2
+#define BP_BINARY_IO_EDGE_EITHER 3
+#define BP_BINARY_IO_RESULT_SUCCESS 1
+#define BP_BINARY_IO_RESULT_FAILURE 0
+#define BP_WAIT_POLL_TICK_US 1
+static struct { unsigned CNIF; } IFS1bits;
+static uint8_t selector,output[2];
+static uint16_t timeout_ms,ticks,step;
+static unsigned reads,outlen,level_reads,delays,arms,disarms;
+static bool level,edge_in_arm_window;
+static uint8_t user_serial_read_byte(void) { ++reads;return selector; }
+static uint16_t user_serial_read_big_endian_word(void) { reads+=2;return timeout_ms; }
+static void user_serial_transmit_character(uint8_t c) { assert(outlen<2);output[outlen++]=c; }
+#define REPORT_IO_FAILURE() user_serial_transmit_character(0)
+static void bp_aux_pin_set_change_notification(bool enabled) {
+ if(enabled) ++arms; else ++disarms;
+}
+static bool bp_aux_pin_state_get(void) {
+ bool sampled=level;
+ if(++level_reads==1 && edge_in_arm_window) { level=!level;IFS1bits.CNIF=1; }
+ return sampled;
+}
+static uint16_t timer(void) { uint16_t sampled=ticks;ticks+=step;return sampled; }
+#define TMR1 timer()
+static void bp_delay_us(unsigned us) { assert(us==1);++delays; }
+static void prepare(unsigned edge,unsigned timeout,bool initial,bool inject,unsigned advance) {
+ selector=edge;timeout_ms=timeout;level=initial;edge_in_arm_window=inject;step=advance;
+ ticks=0xfff0;reads=outlen=level_reads=delays=arms=disarms=0;IFS1bits.CNIF=1;
+}
+'''
+
+WAIT_TEST = r'''
+int main(void) {
+ unsigned checks=0;
+ for(unsigned edge=1;edge<=3;++edge) for(unsigned initial=0;initial<2;++initial) {
+  for(unsigned inject=0;inject<2;++inject) {
+   prepare(edge,0,initial,inject,2);handle_wait_command(0x70);
+   assert(reads==3 && outlen==2 && !output[0] && output[1]==(initial^inject));
+   assert(arms==1 && disarms==1 && !delays);++checks;
+  }
+  prepare(edge,1,initial,true,2);handle_wait_command(0x70);
+  bool matches=(edge & (initial ? 2 : 1))!=0;
+  assert(reads==3 && outlen==2 && output[0]==matches && output[1]==!initial);
+  assert(arms==1 && disarms==1);++checks;
+  /* Deadline wins even when an edge is already pending at the first poll. */
+  prepare(edge,1,initial,true,2000);handle_wait_command(0x70);
+  assert(outlen==2 && !output[0] && output[1]==!initial && !delays);++checks;
+ }
+ const unsigned timeouts[]={1,33,65535};
+ for(unsigned i=0;i<3;++i) {
+  prepare(3,timeouts[i],true,false,1000);handle_wait_command(0x70);
+  assert(outlen==2 && !output[0] && output[1]==1 && arms==1 && disarms==1);
+  assert(delays==timeouts[i]*2-1);++checks;
+ }
+ for(unsigned edge=0;edge<=255;++edge) if(edge<1 || edge>3) {
+  prepare(edge,0,false,false,2);handle_wait_command(0x70);
+  assert(reads==3 && outlen==1 && !output[0] && !arms && !level_reads);++checks;
+ }
+ prepare(1,0,false,false,2);handle_wait_command(0x71);
+ assert(!reads && outlen==1 && !output[0] && !arms);++checks;
+ printf("PASS %u wait cases: zero-timeout arm race, deadline priority, polarity, timer wrap, max timeout and invalid framing\n",checks);
+}
+'''
+
 AUX_DRIVE = r'''
 static struct { unsigned alternate_aux; } mode_configuration;
 static unsigned dir[4],lat[4],expected;
@@ -558,6 +677,8 @@ def cases(revision):
         function(aux, "setup_prescaler_divisor") + function(aux, "bp_pwm_setup") + G_PWM_TEST,
         "lcd-macro": COMMON + LCD_MACRO + spaced + lcd_macros + function(lcd, "LCDmacro") + LCD_MACRO_TEST,
         "lcd-pins": COMMON + LCD_PINS + function(lcd, "LCDpins") + LCD_PINS_TEST,
+        "lcd-setup": COMMON + LCD_SETUP + function(lcd, "LCDsetup") + function(lcd, "LCDsetup_exc") + LCD_SETUP_TEST,
+        "wait": COMMON + WAIT + function(binary, "handle_wait_command") + WAIT_TEST,
         "aux-drive": COMMON + AUX_DRIVE + function(aux, "bp_aux_pin_set_high") +
         function(aux, "bp_aux_pin_set_low") + AUX_DRIVE_TEST,
         "binary-pwm": COMMON + BINARY_PWM + pwm_macros +

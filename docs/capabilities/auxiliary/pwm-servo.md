@@ -133,6 +133,9 @@ matters.  On v3 the duty encoding differs and is not verified on v3 hardware.
 | binary `0x0F` | v4 terminal reset: clears the flag, stops Timer2 and detaches the output; v3 hardware reset |
 | SUMP exit | terminal reset on both boards: clears the flag, stops Timer2 and detaches the output; no `PWM disabled` line |
 
+Every v4 board reset in the table also clears the `AUX1` open-drain bit.  An
+SMPS start clears it too.
+
 A **bare** `g` is a stop only when a generator is already running.  With no
 generator running it starts the interactive setup instead, so `g` is not a
 safe "do nothing" command.  Trailing spaces are ignored: `g ` and `S ` behave

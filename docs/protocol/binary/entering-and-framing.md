@@ -179,7 +179,7 @@ Other framing rules:
 | BBIO1 | `0x0F` | `0x01`, then a reset to the terminal |
 | SPI, I2C, UART, 1-Wire, raw wire, `PIC1`, `OCD1` | `0x00` | back to BBIO1; `BBIO1` printed |
 | `XSV1` | `0x0F` | back to BBIO1 **silently**; `0x00` ignored |
-| AVRISP-MKII (`0x08` / `0x09`) | none | idle timeout (about 5 s) or reset; `BBIO1` printed |
+| AVRISP-MKII (`0x08` / `0x09`) | none | startup budget (about 120 s USB / 5 s serial) or idle (about 5 s) or reset; `BBIO1` printed |
 
 `0x0F` always replies `0x01` before anything else happens.  Then:
 
@@ -187,10 +187,10 @@ Other framing rules:
   on-board Vpullup source and the target supply off, the AUX output source
   detached and the AUX assignment back to `AUX`, the display format back to
   HEX, and BASIC left.  On an SMPS-enabled build it also stops the SMPS
-  feedback loop.  It clears the generator flag and stops Timer2, but it does
-  not disable the output-compare channel or clear its period/duty setup; send
-  `0x13` if the PWM module must be left fully idle.  The version banner and the
-  `HiZ>` prompt follow on the same link.
+  feedback loop.  It clears the generator flag, stops Timer2 and clears the v4
+  `AUX1` open-drain bit, but it does not disable the output-compare channel or
+  clear its period/duty setup; send `0x13` if the PWM module must be left fully
+  idle.  The version banner and the `HiZ>` prompt follow on the same link.
 - **v3** performs a hardware reset, which stops a PWM timer and any SMPS loop.
   The serial link may emit stray bytes as it comes back up; discard bytes until
   the banner, then wait for `HiZ>`.

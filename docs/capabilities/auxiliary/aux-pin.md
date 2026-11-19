@@ -157,12 +157,13 @@ property of `a` / `A`.
 
 The board reset returns the assignment to `A0` and releases every AUX target:
 `AUX` and `CS` (and, on v4, `AUX1` / `AUX2`) become inputs and the generator
-output routing is detached.  On v4 the terminal reset is `#`; a mode change
-(`mN`), the binary return and the SUMP exit also return the target to `A0` and
-release the pins.  On v3 `#` is a hardware reset; the SUMP exit still returns
-the target to `A0` and releases the pins.  A later `g` or `S` in a mode
-therefore starts from an idle state, and `v` shows every header I/O pin as an
-input.
+output routing is detached.  On v4 the same reset clears the `AUX1` open-drain
+bit; an SMPS start clears it too.  On v4 the terminal reset is `#`; a mode
+change (`mN`), the binary return and the SUMP exit also return the target to
+`A0` and release the pins.  On v3 `#` is a hardware reset; the SUMP exit still
+returns the target to `A0` and releases the pins.  A later `g` or `S` in a
+mode therefore starts from an idle state, and `v` shows every header I/O pin as
+an input.
 
 `w` is not a board reset.  It does not change the target assignment and is
 not a generator control; whether it stops a running waveform or releases a

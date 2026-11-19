@@ -77,8 +77,9 @@ the recovery.  Entry and framing are in
   A state byte must have bit 7 set: `0xC0` is "supply on, all pin latches
   low".
 - **Recovery:** send `0xC0` for the supply, or `0x5F` to return all lines to
-  inputs.  `0x0F` resets the pins, the supply and the pull-ups and stops a PWM
-  timer; send `0x13` if the PWM module must be left fully idle.
+  inputs.  `0x0F` resets the pins, the supply and the pull-ups, stops a PWM
+  timer and clears the `AUX1` open-drain bit; send `0x13` if the PWM module
+  must be left fully idle.
 
 ## `0x0F` inside a mode does not return to the terminal
 
@@ -117,10 +118,10 @@ the recovery.  Entry and framing are in
   without clearing it.
 - **Symptom:** on v4 the waveform stops at the reset, and so does the timer;
   the output-compare setup remains.
-- **Behaviour:** the v4 terminal reset clears the generator flag, stops Timer2
-  and detaches the AUX output source, so the pin stops.  It does not disable
-  the output-compare channel or clear its period/duty setup.  On v3 `0x0F` is
-  a hardware reset, which clears everything.
+- **Behaviour:** the v4 terminal reset clears the generator flag, stops Timer2,
+  clears the `AUX1` open-drain bit and detaches the AUX output source, so the
+  pin stops.  It does not disable the output-compare channel or clear its
+  period/duty setup.  On v3 `0x0F` is a hardware reset, which clears everything.
 - **Recovery:** send `0x13` if the PWM module must be left fully idle.
   Entering BBIO1 from a terminal PWM session also stops the waveform (the pins
   become inputs), but the timer setup is not cleared.
@@ -292,10 +293,11 @@ the recovery.  Entry and framing are in
 - **Symptom:** the link changes back — a USB serial port re-appears, or the
   framed route stops answering; `BBIO1` is printed on the way out.
 - **Behaviour:** on the USB route the personality waits about **two minutes**
-  for the first complete request, then ends after about **five seconds**
-  without host traffic; the serial route has about five seconds from entry to
-  the first frame, then the same five-second idle.  A hardware reset also
-  leaves it.  It is accepted only from BBIO1 and only on v4.
+  for the first complete non-empty request, then ends after about **five
+  seconds** without host traffic; the serial route has about five seconds from
+  entry to the first frame, then the same five-second idle.  Empty packets
+  extend neither window.  A hardware reset also leaves it.  It is accepted
+  only from BBIO1 and only on v4.
 - **Recovery:** from the returned `BBIO1`, send `0x08` or `0x09` again, or
   `0x0F` for the terminal.  See
   [the AVRISP-MKII entry page](../../programmers/avrisp/entry.md).

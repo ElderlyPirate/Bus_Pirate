@@ -39,6 +39,11 @@ identity and driver material are
 - The personality **waits for the host to configure the USB interface** before
   exposing it, and resumes the binary mode only after the CDC port is
   configured again on the way out.  This avoids reading unarmed endpoints.
+- **Startup budget:** the USB route waits about **120 seconds** after attach
+  for the first complete, non-empty request, covering enumeration and driver
+  binding; the first request switches to the five-second idle.  The serial
+  route has only the five-second entry window.  Empty OUT packets extend
+  neither window.
 - **Idle exit** is about five seconds without host activity.  Empty OUT
   packets and an idle handle do **not** renew the session; a real non-empty
   request during legitimate programming does.

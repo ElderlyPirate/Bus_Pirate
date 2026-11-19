@@ -202,10 +202,11 @@ The command sets and links are in [sub-protocols.md](sub-protocols.md); the
 `0x08`/`0x09` personalities are in
 [the AVRISP-MKII set](../../programmers/avrisp/entry.md).  Those two
 entries have no command loop and no identifier: they hand the link to the
-personality, which ends after about two minutes without a first request on
-the USB route (about five seconds on the serial route), then after about five
-seconds of idle once a request has arrived; a reset also ends it, then it
-prints `BBIO1` again.  On a v3 build both bytes are answered with
+personality.  The USB route waits about two minutes for the first complete
+non-empty request (the serial route about five seconds from entry), then both
+end after about five seconds of idle once such a request has arrived; empty
+packets extend neither window.  A reset also ends it, then it prints `BBIO1`
+again.  On a v3 build both bytes are answered with
 `0x00` and the layer re-announces itself with `BBIO1`, so read until `BBIO1`.
 
 ### Reset (`0x0F`)
@@ -215,9 +216,10 @@ reset.  On v4 it runs the **terminal reset** — pins to inputs, pull-ups
 released, supplies off, an SMPS feedback loop stopped, the AUX output source
 detached and the AUX assignment back to `AUX`, display format back to HEX,
 BASIC left — then prints the banner and the `HiZ>` prompt.  The reset also
-clears the generator flag and stops Timer2, but it does not disable the
-output-compare channel or clear its period/duty setup; send `0x13` if the PWM
-module must be left fully idle.  See [PWM](#pwm-0x12-0x13) and
+clears the generator flag, stops Timer2 and clears the v4 `AUX1` open-drain
+bit, but it does not disable the output-compare channel or clear its
+period/duty setup; send `0x13` if the PWM module must be left fully idle.  See
+[PWM](#pwm-0x12-0x13) and
 [entering-and-framing.md](entering-and-framing.md#leaving) §Leaving.
 
 ### Self-test (`0x10`, `0x11`)

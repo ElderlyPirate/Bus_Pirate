@@ -157,7 +157,7 @@ port without sending `0x0F`; they can stop on a result or on an early
 error/EOF without one.  After a normal run the board is in the player loop;
 a raw-serial host can send `0x0F` twice only once that loop is back.  If the
 tool stopped mid-run, reset first.  The exit mapping is in
-[tools/xsvf](../../tools/xsvf/README.md).
+[tools/xsvf/players.md](../../tools/xsvf/players.md#exit-status-and-the-next-run).
 This page owns the in-mode protocol only.
 
 ## Limits

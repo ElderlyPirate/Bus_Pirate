@@ -237,7 +237,8 @@ Exceptions and variations:
 - `0x18` (XSVF) prints `XSV1` but ignores `0x00`; leave it with `0x0F`, which
   returns to BBIO1 silently, then send `0x0F` again for the terminal.
 - `0x08` / `0x09` (AVRISP-MKII) print no identifier and have no command loop;
-  they end by idle timeout and then print `BBIO1`.
+  they end by the startup budget (USB), the serial entry window, or idle
+  timeout, then print `BBIO1`.
 - `0x8x` is per mode: `0x88` is normal output in SPI but open drain in `RAW1`.
   Use the selected mode's page.
 

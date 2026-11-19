@@ -33,9 +33,12 @@ Notes:
   reset: it configures only its four JTAG pins and switches the regulator on,
   leaving the other pins and the pull-ups alone.
 - The AVRISP-MKII entries have **no command loop and no identifier**.  They
-  hand the link to the personality, which ends after about **five seconds**
-  without host traffic or on a reset; on the way out it resets the hardware and
-  prints `BBIO1` again (the USB route re-enumerates first).  They are accepted
+  hand the link to the personality: the USB route holds about **120 seconds**
+  from attach to the first complete non-empty request, the serial route about
+  **five seconds** from entry, then both end after about **five seconds** of
+  idle once a request has arrived, or on a reset; on the way out it resets the
+  hardware and prints `BBIO1` again (the USB route re-enumerates first).  Empty
+  packets reset neither window.  They are accepted
   only from BBIO1, and only on v4.  On a v3 build both bytes are answered with
   `0x00` and the layer then re-announces itself with `BBIO1`.
 - `RAW1` is the **shared** raw-wire mode.  It serves 2-Wire and 3-Wire; the

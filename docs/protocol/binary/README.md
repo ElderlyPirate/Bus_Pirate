@@ -40,8 +40,10 @@ This README is a map, not the manual; the details live in the files below.
 - Entry bytes: `0x01` SPI, `0x02` I2C, `0x03` UART, `0x04` 1-Wire, `0x05`
   raw wire, `0x06` OpenOCD, `0x07` PIC, `0x08`/`0x09` AVRISP-MKII (v4),
   `0x18` XSVF (v4). Every entry prints an identifier except `0x08`/`0x09`,
-  which have none and return to `BBIO1` after about five seconds of host
-  silence.  Identifiers and owners are in
+  which have none and return to `BBIO1` after the startup budget (about
+  **120 s** from attach to the first complete non-empty request on USB, about
+  **5 s** on serial) or after about **5 s** of idle once a complete non-empty
+  request has arrived.  Identifiers and owners are in
   [sub-protocols.md](sub-protocols.md#entry-bytes).
 - Wiring headline: **AUX, MOSI, CLK, MISO, CS and ground**, plus the **ADC**
   pin for the probe and **Vpullup** (`Vpu`) for the pull-up resistors. Entry

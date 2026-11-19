@@ -95,9 +95,10 @@ A bare `0x00` does not release TRST.  The OpenOCD driver sends
 `0x01 0x00` (Hi-Z) before it, which makes TRST an input as well.
 
 After step 2 the board is back at the terminal.  On v4 the terminal reset
-repeats the cleanup — the supply and the pull-ups are already off — detaches
-the AUX output source, restores the AUX assignment to `A0` and the display
-format, and prints the version banner and `HiZ>`.  On v3 the hardware reset
+repeats the cleanup — the supply and the pull-ups are already off — clears the
+`AUX1` open-drain bit, detaches the AUX output source, restores the AUX
+assignment to `A0` and the display format, and prints the version banner and
+`HiZ>`.  On v3 the hardware reset
 performs the same cleanup by restarting the firmware; the link can emit
 stray bytes while it comes back, so discard until the banner.
 

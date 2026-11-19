@@ -140,7 +140,8 @@ motor, relay or speaker from the pin.
 A board reset returns the assignment to `AUX` (`A0`) and releases every AUX
 target: `AUX` and `CS` (and, on v4, `AUX1` / `AUX2`) become inputs and the
 generator output routing is detached
-([aux-pin.md](aux-pin.md#reset-and-persistence)).  On v4 that reset is `#`,
+([aux-pin.md](aux-pin.md#reset-and-persistence)).  On v4 that reset also clears
+the `AUX1` open-drain bit; an SMPS start clears it too.  On v4 the reset is `#`,
 a mode change (`mN`), the SUMP exit or the binary return; on v3 `#` is a
 hardware reset.
 

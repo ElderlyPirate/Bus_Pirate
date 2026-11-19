@@ -56,7 +56,24 @@ After entering bitbang mode, you can enter other binary protocol modes.
   
 OpenOCD mode is documented in the source only.
 
-### 0000xxxx - Reserved for future raw protocol modes
+### 00001000 - Enter AVRISP-MKII mode (USB personality, BPv4)
+
+Re-enumerates the Bus Pirate v4 as an Atmel AVRISP mkII compatible
+programmer (vendor class, VID/PID 03EB:2104) for ATtiny/ATmega/XMEGA
+programming with avrdude (Atmel Studio compatibility is not bench-verified).
+When the host stays idle for
+a few seconds the personality ends and the Bus Pirate returns as a USB
+serial port.  See [avrisp_mkii.md](avrisp_mkii.md).
+
+### 00001001 - Enter AVRISP-MKII mode (serial STK500v2)
+
+Serves the framed STK500v2 (AVR068) protocol on the user serial port for
+`avrdude -c stk500v2`. BPv4 only, over its normal USB CDC serial port;
+stock avrdude uses ISP only on this framed route. No hardware UART or
+baud-switching mode is involved. The mode ends
+after a period of inactivity. See [avrisp_mkii.md](avrisp_mkii.md).
+
+### 0x0A-0x0E - Reserved for future raw protocol modes
 
 ### 00001111 - Reset Bus Pirate
   

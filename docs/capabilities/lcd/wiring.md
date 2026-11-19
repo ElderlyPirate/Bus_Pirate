@@ -1,125 +1,218 @@
 # LCD — adapter wiring and electrical requirements
 
 Part of the LCD documentation set (`docs/capabilities/lcd/`).  This page owns
-the wiring table, the adapter, the supply / contrast / pull-up statement; the
-README carries the headline only.
+the adapter revisions, the Bus Pirate pins, the shift-register outputs, the
+display power and contrast path, and the pull-up requirements.  The README
+carries only the headline.
 
-## Scope
-
-How the 74HCT595 adapter connects the Bus Pirate to an HD44780 display, and
-what electrical conditions the firmware expects.  The electrical statements
-here are derived from the firmware and the adapter's published design and are
-`unverified`.
+The published designs in the repository document the connector and supply
+path for the revisions named below.  A different board or a clone may differ;
+statements marked `unverified` need confirmation on the board you have.  The
+last section lists what to confirm.
 
 ## The adapter
 
-The Bus Pirate has no HD44780 interface of its own.  The mode drives a small
-adapter board built around a **74HCT595** 8-bit shift register: the
-**Bus Pirate LCD adapter**.  It is a separate Dangerous Prototypes design, not
-a stock Bus Pirate accessory — build one or buy one:
+The Bus Pirate has no HD44780 interface of its own.  The mode drives a separate
+board built around a **74HCT595** or **74HC595** 8-bit shift register.  It is
+a Dangerous Prototypes design, not a stock Bus Pirate accessory.  The
+repository has two design lines:
 
-- Bus Pirate LCD adapter v2 (the v3 design):
-  <http://dangerousprototypes.com/docs/Bus_Pirate_LCD_adapter_v2>
-- Bus Pirate v4 LCD adapter:
-  <http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter>
+| Line | Revisions | Board facts |
+|---|---|---|
+| v3-era LCD adapter | v2, v2a, v2b, v2c, v3, v3a | 74HCT595; 10 kΩ contrast pot; backlight header, adjustable backlight resistor from v2b; the v3a has Contrast and Backlight pots |
+| v4-era LCD adapter | v4 adapter v3 (2011), v4b | 74HCT595 (2011 v3) or 74HC595 (v4b); 3.3 V / 5.0 V select; contrast pot; v4b backlight is fixed-on or AUX0-controlled |
 
-The firmware does not identify a particular board or revision, so treat the
-specific board, its connector markings and its electrical details as that
-design's own.  The physical pin-out is `unverified` here.
+The firmware does not identify a board or revision.  Both lines use the same
+Q0-Q7 assignment.  The repository also has a **passive v4** board: it is a pin
+breakout with no shift register and is not the adapter this mode drives.
 
-## The adapter chain
+![Bus Pirate LCD adapter v2 with a 16x2 display][lcd-v2]
+
+*The v2 board, its ribbon and a 16x2 glass.*
+
+![Bus Pirate LCD adapter v3a][lcd-v3a]
+
+*The v3a board: Contrast and Backlight pots, and the backlight jumpers.*
+
+The v3a 3D model is in [Bus Pirate Lcd Adapter v3a.zip][lcd-v3a-zip].  The
+published v2 and v4 adapter pages are
+[v2](http://dangerousprototypes.com/docs/Bus_Pirate_LCD_adapter_v2) and
+[v4](http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter).
+
+## The chain
 
 ```
-Bus Pirate  --SPI-->  74HCT595  --parallel-->  HD44780
- MOSI/CLK/CS           shift register            4-bit bus
- VCC/GND               (8 outputs)               RS / EN / D4-D7
+Bus Pirate           74x595                HD44780 display
+ MOSI  ----------->  serial data
+ CLK   ----------->  shift clock
+ CS    ----------->  latch clock
+ 5.0V/3.3V ------->  adapter VCC ------>  display VDD (pin 2)
+ GND   ----------->  common ground ---->  display VSS (pin 1)
+
+                     8 outputs  ------->  RS, RW, EN, D4-D7
+                                           (+ activity LED)
 ```
 
-1. The Bus Pirate shifts an 8-bit word out over MOSI, clocked by CLK.
-2. It pulses CS to latch the word into the shift register's output register.
-3. The eight outputs drive the display: register select, enable, and the
-   four data lines of the display's 4-bit interface.
-4. A byte is sent as two 4-bit nibbles (enable pulsed once per nibble).
+1. The Bus Pirate shifts one byte out on MOSI, clocked by CLK.
+2. It pulses CS to latch the byte into the shift register's output register.
+3. Seven outputs drive the display's register select, read/write, enable and
+   four data lines; the eighth drives the activity LED.  The display is held
+   in 4-bit mode by `(1)` / `(2)`.
+4. A display byte is sent as two 4-bit nibbles, high nibble first; each nibble
+   is three latched bytes, so one display byte takes six shift-and-latch
+   cycles ([spi-link.md](spi-link.md#the-transfer-sequence)).
 
-The mode does not read the display back: the shift register is write-only
-here and the display's read line is not used.
+The link is **write-only**: the shift register is never read, the display's
+R/W line is held at write, and the busy flag is not polled.
 
 ## Bus Pirate pins
 
 | Bus Pirate pin | Direction | Adapter signal | Notes |
 |---|---|---|---|
-| MOSI | out | shift-register serial data | data into the 74HCT595 |
-| CLK | out | shift-register shift clock | clocks each bit in |
-| CS | out | shift-register latch clock | pulsed after each byte to latch |
-| MISO | in | — | configured as input, not used by the mode |
-| VCC | supply | adapter / display logic supply | enabled by `W`; adapter supply routing is board-specific |
-| GND | — | ground | common ground with the adapter |
+| MOSI | out | serial data (SER / DS) | data into the shift register |
+| CLK | out | shift clock (SRCLK / SHCP) | clocks each bit in |
+| CS | out | latch clock (RCLK / STCP) | driven low at setup, pulsed high after each byte |
+| MISO | in | — | configured as an input; not used by the mode |
+| 3.3V / 5.0V | supply | adapter VCC (and, on the published boards, display VDD) | v3-era uses the 5.0 V pin; v4 selects 3.3 V or 5.0 V; `W` switches both |
+| GND | — | ground | common ground with the adapter and display |
 
-The active signals are the SPI pins on both v3 and v4; the board-level pin
-order differs, the electrical function does not.  The `v` pin-state row does
-**not** name these signals — the LCD mode reuses the I2C mode's four-label
-string, so those labels are not meaningful here.  See
-[edge-cases.md](edge-cases.md#pin-labels-look-like-i2c) for the exact labels,
-which differ by revision.
+The Bus Pirate pin functions above are fixed; the published boards use the
+Bus Pirate header directly.  Confirm a different revision's connector
+(`unverified`).
 
-**Requires verification:** the adapter's physical connector pin-out — which
-Bus Pirate header pin lands on which adapter pad — is not confirmed here.
-Follow the adapter board's own markings.
+`CS` is **not** the display's enable.  It is the shift register's latch: the
+display's EN is one of the eight outputs and is toggled by successive latches.
+The firmware idles CS low and pulses it high after each byte; the shift
+register latches on that rising edge.  `MISO` is not a busy or acknowledge
+input.
 
-## The eight adapter outputs
+The `v` / `i` table names the last four columns in the board's header order:
+v4 `CS`, `MISO`, `CLK`, `MOSI`; v3 `CLK`, `MOSI`, `CS`, `MISO`
+([entry-and-setup.md](entry-and-setup.md#status-output--i-and-v)).
 
-The firmware assigns the eight shift-register outputs to the display signals:
+## The eight shift-register outputs
 
-| Adapter output (firmware order) | Display signal |
+The firmware shifts the byte most-significant bit first, so firmware bit 7
+lands on output Q7 and bit 0 on Q0.  The assignment is fixed:
+
+| Bit | Output | Display signal | Behaviour |
+|---|---|---|---|
+| 0 | Q0 | adapter activity LED | set high for each data/command nibble; high lights the LED in the published designs |
+| 1 | Q1 | RS — register select | `0` command, `1` data |
+| 2 | Q2 | RW — read/write | always `0` (write); the mode never reads |
+| 3 | Q3 | EN — enable | low, then high, then low for each nibble |
+| 4 | Q4 | D4 | data, high nibble first |
+| 5 | Q5 | D5 | data |
+| 6 | Q6 | D6 | data |
+| 7 | Q7 | D7 | data |
+
+The reset's first all-zero write clears all eight outputs, so the activity LED
+is off until the first nibble.
+
+The display's D0-D3 are not driven (4-bit interface).  The shift register's
+serial output (Q7') is not used by the firmware.  The published v3-era and v4
+boards route Q0-Q7 to these signals in this order; confirm a different
+revision (`unverified`).
+
+## Display power, contrast and backlight
+
+`W` switches the Bus Pirate's regulated rails on and checks both the 5.0 V
+and 3.3 V rails.  The adapter is a load on one of those rails; the display is
+a load on the same rail when its VDD is tied to the adapter's VCC, which is
+how the published boards are wired.
+
+| Point | Published boards | Notes |
+|---|---|---|
+| adapter VCC | v3-era: Bus Pirate **5.0 V** pin; v4: jumper selects **3.3 V** or **5.0 V** | feeds the shift register and the display |
+| display VDD (pin 2) | adapter VCC | the glass sees the selected rail |
+| display VSS (pin 1) | GND | common with the Bus Pirate |
+| V0 (pin 3) | 10 kΩ contrast pot wiper | on the adapter; set it for the glass |
+| backlight A/K | board header or jumpers | v3a has a Backlight pot; v4b can use AUX0 |
+
+- **Display voltage.**  Most HD44780 glasses are 5 V parts; check the
+  datasheet.  The v3-era board supplies 5.0 V to the glass.  On a v4 board,
+  set the voltage selector to the glass's VDD before applying power.  A 3.3 V
+  glass on 5.0 V, or a 5 V glass on 3.3 V, can stay blank or be damaged.
+- **Separate display feed.**  The published boards tie display VDD to adapter
+  VCC.  A separate display feed needs that link broken; do not back-drive the
+  adapter's VCC.  With a separate feed, `w` and a mode change do not switch
+  the display, so it keeps its content.
+- **`W` is still required with a separate feed.**  It runs the SPI setup and
+  checks the Bus Pirate rails; the link does not work without it.
+- **Logic levels.**  The Bus Pirate's SPI outputs are 3.3 V.  The v3-era
+  board uses a 74HCT595, whose TTL input thresholds accept 3.3 V at 5 V VCC.
+  The v4b uses a 74HC595; at 5 V its CMOS threshold is above the Bus Pirate's
+  3.3 V high, so a 5 V setting is marginal.  Use the 3.3 V setting if the
+  glass allows it; otherwise confirm the levels on the board (`unverified`).
+- **Contrast (V0).**  V0 is an analogue input on the display, not a Bus Pirate
+  setting and not a shift-register output.  The published boards have a 10 kΩ
+  pot from VCC to GND with the wiper on V0.  A correctly wired display that
+  stays blank is usually a supply or contrast problem.
+- **Backlight.**  No shift-register output drives a backlight.  The v3-era
+  board has a backlight header; from v2b an adjustable backlight resistor is
+  fitted, and the v3a has the Backlight pot on the board.  The v4b can be
+  jumpered for fixed
+  on or for AUX0 control; with that jumper fitted, the shared `A` / `a`
+  command drives it.  Backlight current and resistor values are board-specific
+  (`unverified` for a different revision).
+- **Current draw.**  The adapter and display current are not specified here
+  and are `unverified`.
+
+The display supply decides what happens when the mode is left.  A display
+whose VDD is on the adapter's Bus Pirate rail loses power and clears; a
+display with its own VDD feed keeps its content
+([entry-and-setup.md](entry-and-setup.md#leaving-the-mode)).
+
+## Pull-up statement
+
+**No pull-up is required** on MOSI, CLK or CS in the normal case.  The Bus
+Pirate drives all three actively, and the shift register's inputs are high
+impedance; MISO is unused, so there is no open-drain bus and no idle-high
+level to hold.
+Two board-level and carry-over exceptions:
+
+- The shift register's output-enable must be tied low and its master-reset
+  high for the outputs to drive.  The published designs do this; confirm it on
+  a different revision (`unverified`).
+- If a **binary** SPI session left the SPI outputs **open drain**, the LCD
+  setup does not change that setting.  High levels are then released rather
+  than driven, and the shift register needs pull-ups or will see floating
+  highs.  Power-cycle the Bus Pirate, or enter the SPI mode, select normal
+  outputs, send `W` once, then leave for LCD
+  ([edge-cases.md](edge-cases.md#open-drain-carry-over)).
+
+`P` / `p` still work in LCD mode, but the Bus Pirate pull-ups are not part of
+this interface; `P` may warn that there is no voltage on the Vpullup pin.
+
+## What to confirm on the board
+
+| Item | Why |
 |---|---|
-| bit 0 | activity LED on the adapter |
-| bit 1 | RS — register select (`0` command, `1` data) |
-| bit 2 | RW — read/write (held at write; not driven high) |
-| bit 3 | EN — enable / data clock |
-| bit 4 | D4 |
-| bit 5 | D5 |
-| bit 6 | D6 |
-| bit 7 | D7 |
-
-The display is initialised for the **4-bit** interface, 5×7 font.  Reading is
-not implemented, so RW is never driven to read and the busy flag is not
-polled — the firmware uses fixed delays between operations instead.
-
-`bit 0` is the adapter's indicator LED.  Its on/off sense is not confirmed;
-the wiring itself does not depend on it.
-
-## Supply, contrast and pull-ups
-
-- **No pull-up resistors are required** (unverified).  The 74HCT595 has
-  push-pull CMOS outputs that drive the display inputs directly; there is no
-  open-drain bus and no idle-high level to maintain, so `P`/`p` play no role
-  in this mode.  Treat this as a property of the 74HCT595 design rather than
-  of one board.
-- **Power the adapter.**  In the published design the Bus Pirate's VCC rail
-  (switched on by `W`) supplies the adapter and display, with GND as the
-  common return; but the adapter's own power input — whether it takes VCC
-  from the Bus Pirate header or a separate supply — is board-specific, so
-  confirm it on the adapter (**Requires verification**).  Treat 3.3 V / 5 V
-  compatibility of the display and adapter as a property of that board too.
-- **Display contrast (V0).**  Contrast is a display-board adjustment, not a
-  Bus Pirate setting; set V0 per the display's datasheet.  A correctly wired
-  display that stays blank is usually a supply or contrast problem.
-- **`W` must be sent before writes have any chance of reaching the display.**
-  Until `W`, the supplies are off and the bus is parked
-  (`Clutch disengaged!!!`); the SPI pins are not driven.
-- **The supply can stop again.**  `w`, a mode change and `#` all switch the
-  regulated VCC off; a BP-powered display loses power and clears, while an
-  externally powered display keeps its content
-  ([entry-and-setup.md](entry-and-setup.md)).
+| adapter revision and connector labels | the firmware identifies no board |
+| Q0-Q7 to display-signal routing | must match the assignment above |
+| display VDD/VSS and voltage | the glass may be 5 V-only; the selected rail must match |
+| supply input and voltage selector | `W` only switches the Bus Pirate rails |
+| 3.3 V logic compatibility | the Bus Pirate drives 3.3 V outputs |
+| shift-register output-enable / master-reset tie-offs | required for the outputs to drive |
+| contrast V0 or an on-board pot | the usual cause of a blank display |
+| backlight wiring, pot and resistor | no display-mode setting; v4b can use AUX0 |
+| pull-ups or series parts on the adapter | not needed on the Bus Pirate side |
+| a second enable line on the display | the adapter provides one EN; some 40×2 and 4-line glasses need two |
 
 ## v3 / v4
 
-| | v3 | v4 |
+| Item | v3 | v4 |
 |---|---|---|
-| active pins | MOSI / CLK / CS | MOSI / CLK / CS |
-| pin-table order differs | yes | yes |
-| supply | `W` enables VCC | `W` enables VCC |
-| pull-up needed | no (unverified) | no (unverified) |
+| active Bus Pirate pins | MOSI / CLK / CS | MOSI / CLK / CS |
+| `v` column order | `CLK MOSI CS MISO` | `CS MISO CLK MOSI` |
+| supply control | `W` switches the regulated rails | same |
+| pull-up needed | no | no |
+| hardware path | unverified on v3 | unverified |
 
-Both boards use the same three SPI signals and the same firmware path; the v3
-build is **not verified**.
+Both boards use the same three SPI signals and the same firmware path; only
+the header order and the build's menu number differ.  The v3 hardware path is
+**unverified on v3**.
+
+[lcd-v2]: ../../assets/images/BP-LCDv2-250px.jpg
+[lcd-v3a]: ../../assets/art/BP-LCD-v3a-600.jpg
+[lcd-v3a-zip]: <../../assets/art/Bus Pirate Lcd Adapter v3a.zip>

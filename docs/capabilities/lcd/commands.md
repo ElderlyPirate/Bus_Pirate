@@ -1,62 +1,66 @@
-# LCD — command and macro reference
+# LCD — commands and macros
 
 Part of the LCD documentation set (`docs/capabilities/lcd/`).  This page owns
-the LCD-specific commands, the `(0)` macro set, and the controller
-instruction bytes.
-The shared CLI (prompt, value entry, `W`/`w`, `P`/`p`, `A`/`a`/`@`, `i`,
-`m`, `v`, user macros `<n>`) is documented once in
+the LCD-specific keys: register select, the write forms, `r`, and the `(0)`
+macro set.  The shared prompt grammar (prompt, numeric input, `:N`, `;N`, `o`,
+`W`/`w`, `P`/`p`, `A`/`a`/`@`, `<n>`, `m`, `#`) is documented once in
 [the generic layer](../../generic/README.md) and is not repeated here.
 
-## Scope
+The controller instruction bytes are in
+[display.md](display.md#controller-instruction-bytes); the transfer sequence is
+in [spi-link.md](spi-link.md#the-transfer-sequence).
 
-Only the keys whose effect is specific to LCD are tabulated.  A key that the
-base layer owns keeps its base-layer behaviour but acts on this mode's pins.
+## Register select — the two write targets
 
-## Register select — the two addresses
-
-The display has two write targets.  The mode selects between them with the
-wrapper keys; the selection persists until changed, and the next value or
-string is written to the selected target.
+The display has two write targets.  The wrapper keys move RS; the selection
+persists until changed.
 
 | Input | Effect | Printed |
 |---|---|---|
-| `{` or `[` | select the **command** register (RS low) | `RS LOW, COMMAND MODE` |
-| `}` or `]` | select the **data** register (RS high) | `RS HIGH, DATA MODE` |
+| `{` or `[` | select the command register (RS low) | `RS LOW, COMMAND MODE` |
+| `}` or `]` | select the data register (RS high) | `RS HIGH, DATA MODE` |
 
-All four keys act as simple on/off selectors here — `{`/`[` are equivalent,
-and `}`/`]` are equivalent.  `W` selects the data register.  On a cold entry
-before `W` the bus is not driven, so the selected register has no effect until
-the supplies are on.
+All four keys only move RS in this mode.  `{`/`[` are equivalent and `}`/`]`
+are equivalent; there is no start/stop or read-framing meaning.  `W` selects
+the data register when it runs.  Before `W` the LCD setup has not run; on a
+clean entry the SPI port is disabled, so the selection has no effect on the
+display.
 
-**Naming note:** these are the same keys the base layer calls "start" / "stop"
-wrappers; in LCD they carry no start/stop semantics — they only move RS.
+The macros send their own RS with every byte; they do not change the selected
+register.  A value written after a macro goes to the register selected before
+it.
 
 ## Writing
 
 | Input | Effect | Printed |
 |---|---|---|
-| `0xNN` | write hex byte to the selected register | `WRITE: <value>` |
-| `0b########` | write binary byte | `WRITE: <value>` |
-| `NNN` | write decimal byte | `WRITE: <value>` |
-| `"text"` | write each byte of `text` | `WRITE: "text"` |
+| `0xNN` | write a hex byte | `WRITE: <value>` |
+| `0b########` | write a binary byte | `WRITE: <value>` |
+| `NNN` | write a decimal byte | `WRITE: <value>` |
+| `"text"` | write each character of `text` | `WRITE: "text"` |
 
-- Only the low eight bits are sent; the shift register is 8 bits wide.
-- The value is echoed in the current display format (`o` selects HEX / DEC /
-  BIN / RAW), so `WRITE: 0x41` is the HEX form of writing `0x41`.
-- No acknowledgement is checked — the mode does not read the display back, so
-  a write always reports success.  This is different from a mode that polls an
-  ACK.
-- `:N` repeats a write (`0x41:3` sends the byte three times); `;N` sets the bit
-  width for the value (generic grammar).
+- Only the low eight bits are sent; the shift register is 8 bits wide.  A
+  larger numeric value is masked for the echo and truncated for the shift.
+- The echo uses the current display format (`o`: HEX, DEC, BIN, RAW).  It is
+  an echo, not a read-back.
+- No acknowledgement is checked.  The mode does not read the display, so a
+  write reports success even with no adapter connected.
+- `:N` repeats a **numeric** write; the value is echoed once per repeat.  A
+  quoted string is sent once, character by character, and does not take `:N`.
+- A quoted string cannot contain a quote; write `0x22` numerically if you need
+  that character.
+- The shared `l`/`L` bit order can reverse the value before the shift; `;N`
+  changes the echo width (and the reversal width when `L` is set).  Leave them
+  at 8 bits and MSB first for normal text
+  ([spi-link.md](spi-link.md#shared-settings-that-still-affect-a-write)).
 
-To write text to the display: select data (`}`) and send `"Hello"`.  To send
-commands to the controller: select command (`{`) and send the command byte.
+To write text: select data (`}`) and send `"Hello"`.  To send a controller
+instruction: select command (`{`) and send the instruction byte.
 
 ## Reading is not implemented
 
-`r` has no effect in this mode.  The mode's read handler prints the base-layer
-error and sets the command error, which the dispatcher follows with the
-syntax-error line:
+`r` runs the shared no-effect read handler.  It prints the error, a dummy
+value, and then the dispatcher's syntax-error line:
 
 ```
 LCD>r
@@ -66,17 +70,16 @@ Syntax error at char 1
 LCD>
 ```
 
-The `0x00` is the dummy value the no-effect read returns; the
-`Syntax error at char 1` line is the dispatcher's, not the mode's.  The
-display's read line and busy flag are never used.  Do not expect `r` to return
-display content.
+The `0x00` is the handler's return value, and the syntax-error line belongs to
+the dispatcher, not the mode.  The display's read line and busy flag are never
+used.  Keep a copy of what you wrote; the display content cannot be read back.
 
-## Macros — the `(0)` list
+## The macro set
 
-Mode macros are invoked as `(n)`.  `(0)` prints the list.  The firmware prints
-exactly:
+Mode macros are invoked as `(n)`.  `(0)` prints the list:
 
 ```
+LCD>(0)
  0.Macro menu
  1.LCD Reset
  2.Init LCD
@@ -84,118 +87,99 @@ exactly:
  4.Cursor position ex:(4) 0
  6.Write test numbers ex:(6) 80
  7.Write test characters ex:(7) 80
-```
 
-There is **no `(5)`**.  The historical "write test text" macro was removed;
-entering `(5)` falls through to `Unknown macro, try ? or (0) for help`.
+LCD>
+```
 
 | Macro | Action | Printed | Argument |
 |---|---|---|---|
-| `(0)` | list the macros | the list above | — |
-| `(1)` | reset the display to 4-bit mode | `RESET` | — |
-| `(2)` | reset, then initialise the display | `RESET`, then `INIT` | display lines: `1` or `2` |
-| `(3)` | clear the display and return home | `CLEAR` | — |
-| `(4)` | set the cursor (DDRAM address) | `CURSOR SET` | address `0`–`127` |
-| `(6)` | clear, then write `N` test digits | the characters | count `N` |
-| `(7)` | clear, then write `N` test characters | the characters | count `N` |
+| `(0)` | list the macros | the list above | ignored |
+| `(1)` | 4-bit wake-up sequence | `RESET` | ignored |
+| `(2)` | wake-up, then initialise | `RESET`, then `INIT` | lines: `1` or `2` |
+| `(3)` | clear the display and home | `CLEAR` | ignored |
+| `(4)` | set the DDRAM address | `CURSOR SET` | address `0`-`127`; omitted = `0` |
+| `(6)` | clear, then write test digits | the digits | count; `0` or omitted = `80` |
+| `(7)` | clear, then write test characters | the characters | count; `0` or omitted = `80` |
 
-Argument form is a space or nothing after the macro, for example `(4) 0`,
-`(4)0`, `(6) 80`.  The historical `(4:0)` colon form is not what the firmware
-menu shows; use the space form.
+There is **no macro 5**.  `(5)` prints
+`Unknown macro, try ? or (0) for help` and a blank line, then the prompt.
+
+Argument forms are a space or nothing after the macro: `(4) 0` and `(4)0` both
+work, as do `(6) 20` and `(6)20`.  The historical colon form `(4:0)` is
+**rejected**: the dispatcher does not see the closing `)`, and the line ends
+with a syntax error.
 
 ### `(1)` reset
 
-Puts the controller back into 4-bit mode (the power-on wake-up sequence).  It
-does **not** turn the display on or clear it — use `(2)` to initialise, or
-`(3)` to clear.
+Sends the power-on wake-up sequence that puts the controller into 4-bit mode.
+It does not turn the display on, clear it or change the selected register.
+Use `(2)` to initialise or `(3)` to clear.
 
 ### `(2)` init
 
-Resets and then writes the standard initialisation: 4-bit, 5×7 font, one or
-two lines, then display on with the cursor shown and blinking off.
+Resets, then sends the function set, turns the display off, clears it, and
+turns it on with the cursor shown and blink off.  The line mode is the
+argument:
 
-The display-lines argument selects the controller's line mode:
+- `(2) 1` — one-line mode;
+- `(2) 2` — multiple-line mode.
 
-- `(2) 1` → one-line mode,
-- `(2) 2` → multiple-line mode.
+If the argument is missing, `0`, or outside `1`-`2`, the firmware prints the
+line-mode menu and prompts.  The prompt's default is `2` (Multiple); an
+invalid answer prints `Invalid choice, try again` and repeats the prompt.
 
-If the argument is missing or not `1`/`2`, the firmware prompts:
+### `(3)` clear
 
-```
-Display lines:
- 1. 1
- 2. Multiple
-```
-
-with default `2` (Multiple) — pressing Enter at the `(2)>` prompt selects
-multiple lines.
+Sends the controller's clear-display instruction and waits 15 ms.  It homes the
+cursor and sets the entry mode to increment.  It does not re-send the function
+set; use `(2)` after a power-up or a reset.
 
 ### `(4)` cursor
 
-Moves the cursor by loading a display-data-RAM address.  `(4) 0` is the
-home position.  On a two-line display the second line normally starts at
-address `64` (`(4) 64`).  The argument is the raw address, not a row/column
-pair.
+Loads a raw DDRAM address; it is not a row and column.  `(4) 0` is home; on the
+standard two-line map the second row starts at `0x40`, so `(4) 64`.  Only the
+low seven bits reach the controller, so values above 127 wrap.  The visible
+result depends on the glass's map ([display.md](display.md#sizes-and-geometry)).
 
-### `(6)` / `(7)` self-test patterns
+### `(6)` and `(7)` test patterns
 
 Both clear the display first, then write a repeating pattern and echo the same
 characters to the terminal:
 
-- `(6)` writes the digits `0`–`9` repeatedly.
-- `(7)` writes characters starting at `!` upward, wrapping after the top of
-  the seven-bit range.
+- `(6)` writes the digits `0`-`9` repeatedly;
+- `(7)` writes character codes from `!` (0x21) upward, wrapping from 0x7F back
+  to 0x21.
 
-A count argument sets how many characters are written; with no argument the
-count is 80.  The serial echo lets you see the pattern without looking at the
-display.
+The count is a number of bytes, not a row width, and `0` means 80.  A count
+larger than the visible area continues into controller addresses that may be
+off-screen.  The 0x7F character is sent and echoed like any other code; some
+terminals do not render it.
 
-## Controller instruction bytes
-
-Because the mode simply shifts bytes to the controller in command mode, you
-can drive the HD44780 directly by selecting the command register (`{`) and
-writing a byte.  The values below are the HD44780 **instruction base bytes**
-the firmware builds its own commands from.  Only `0x01` and `0x02` are
-complete instructions on their own; for the rest the low bits select the
-options, so the base byte alone is **not** the effect you want:
-
-| Base byte | HD44780 instruction | Low bits that select the option |
-|---|---|---|
-| `0x01` | clear display, cursor home | complete instruction |
-| `0x02` | return home | complete instruction |
-| `0x04` | entry mode set | I/D direction, S display shift |
-| `0x08` | display on/off control | D display, C cursor, B blink |
-| `0x10` | cursor or display shift | S/C select, R/L direction |
-| `0x20` | function set | DL data width, N lines, F font |
-| `0x40` | set CGRAM address | 6-bit character address |
-| `0x80` | set DDRAM address | 7-bit display address |
-
-For example, writing the base byte `0x08` alone is display **off** (`D=0`),
-not on: to turn the display on write `0x0C` (display-on bit added).  Likewise
-`0x04` alone selects entry mode with decrement; write `0x06` for increment.
-The firmware's own `(2)` init builds these full values internally, and it does
-no validation, so a wrong byte is passed through unchanged.  Defining a custom
-character uses `0x40` and `0x80` with eight data bytes; see
-[usage.md](usage.md).
-
-`unverified`: the exact on-display result of hand-written instruction bytes is
-not confirmed.  The base byte values and option-bit positions match the
-HD44780 definitions the firmware uses.
-
-## Shared keys that still apply
+## Shared settings and keys
 
 | Key | In LCD mode |
 |---|---|
-| `W` / `w` | engage / release the supplies and the SPI setup; `w` may leave the pins driven (see [entry-and-setup.md](entry-and-setup.md#supply-release-w)) |
-| `i` | version block plus the standard status block in LCD (see [entry-and-setup.md](entry-and-setup.md#status-output-i-and-v)) |
-| `v` | the pin/voltage table only; same I2C-style labels (see [entry-and-setup.md](entry-and-setup.md#status-output-i-and-v) and [edge-cases.md](edge-cases.md#pin-labels-look-like-i2c)) |
-| `m`, `o`, `?` | base-layer mode change, display format, help |
-| `#` / `m1` | leave for HiZ / reset: `#` is a full terminal reset on v4 and a reboot on v3; `m1` is the HiZ mode ([generic reset rules](../../generic/usage.md#reset-and-the-idle-state)) |
-| `P` / `p` | accepted; enable / disable the Bus Pirate pull-ups, which this mode does not use.  `P` may warn that no voltage is present on the VPU pin (see [wiring.md](wiring.md)) |
-| `A` / `a` / `@` | drive / read the AUX pin |
-| `<n>` | user macros (base-layer storage and replay) |
+| `W` / `w` | engage / release the supplies and the SPI setup — [entry-and-setup.md](entry-and-setup.md#w--power-the-adapter) |
+| `i` / `v` | version block plus status / the pin table only — [entry-and-setup.md](entry-and-setup.md#status-output--i-and-v) |
+| `o` | display format for the `WRITE:` echo |
+| `;N`, `l`, `L` | `;N` changes the echo width; `l` / `L` set the bit order, and `L` reverses the value before the shift |
+| `P` / `p` | accepted; the Bus Pirate pull-ups are not used by this interface; `P` may warn about the Vpullup pin, and is refused while SMPS owns the ADC (`p` is not) ([generic edge cases](../../generic/edge-cases.md)) |
+| `A` / `a` / `@` | drive the selected AUX target high / low / read it (default `AUX`) |
+| `<n>` | shared user macros (stored lines, not mode macros) |
+| `m`, `m<N>`, `#`, `m1` | change mode / reset / return to HiZ — [entry-and-setup.md](entry-and-setup.md#leaving-the-mode) |
+
+## Keys that do not apply
+
+The SPI-mode pin keys are not repurposed for the display.  `/`, `\`, `-`, `_`,
+`.`, `^` and `!` print their shared prefix (or begin it), then the null
+handler reports `ERROR: command has no effect here`, and the dispatcher adds a
+syntax-error line.  Nothing on the adapter changes.  Use the register-select
+keys and a write instead.
+
+The SPI mode's sniffer, speed, polarity and CS macros do not exist here; `(n)`
+is the LCD macro set above.
 
 ## v3 / v4
 
-The command set, the macro list, and the printed strings are identical in both
-builds.  The v3 build is **not verified**.
+The keys, macro list, mode messages and argument rules are identical in both
+builds.  The v3 hardware path is **unverified on v3**.

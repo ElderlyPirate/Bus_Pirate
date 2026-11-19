@@ -43,7 +43,7 @@ a A @ W w d D & % s S O < ( " [ { ] } r
 | AUX pin, PWM, servo, frequency | `capability_aux/aux_pin.c` — `bp_pwm_setup()`, `bp_servo_setup()`, `bp_frequency_counter_setup()`, `bp_aux_pin_set_low()` / `_high()`, `bp_aux_pin_read()` |
 | Self-test | `capability_selftest/selftest.c` — `perform_selftest()` |
 | SMPS | `capability_smps/smps.c` — `smps_start()`, `smps_stop()`, `smps_adc()`, `_ADC1Interrupt()`; reached from `protocol_binary/binary_io.c` (`0xF0`–`0xFF`) |
-| LCD (HD44780) adapter | `capability_hd44780/hd44780.c` — `LCDsetup()`, `LCDsetup_exc()`, `LCDwrite()`, `LCDstart()` / `LCDstop()` (register select), `LCDmacro()`, `LCDpins()`, `HD44780_Reset()` / `_Init()` / `_WriteByte()` / `_WriteNibble()` / `_SPIwrite()`; selected by `BP_ENABLE_HD44780_SUPPORT`; registered in `core_system/core.c` (`"LCD"` entry, cleanup `spi_disable_interface`) |
+| LCD (HD44780) adapter | `capability_hd44780/hd44780.c` — `LCDsetup()`, `LCDsetup_exc()`, `LCDwrite()`, `LCDstart()` / `LCDstop()` (register select), `LCDmacro()`, `LCDpins()`, `HD44780_Reset()` / `_Init()` / `_WriteByte()` / `_WriteNibble()` / `_SPIwrite()`; selected by `BP_ENABLE_HD44780_SUPPORT`; registered in `core_system/core.c` (`"LCD"` entry, cleanup `hd44780_cleanup`, weak fallback `spi_disable_interface`), local transfer helper `hd44780_spi_write_byte()` |
 
 ## Protocols
 

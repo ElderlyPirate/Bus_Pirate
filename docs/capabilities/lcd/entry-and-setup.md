@@ -1,84 +1,75 @@
-# LCD — entering the mode and setup
+# LCD — entry, build and setup
 
 Part of the LCD documentation set (`docs/capabilities/lcd/`).  This page owns
-the build path, the entry sequence, the build-dependent menu number, the
-mode's defaults, the status output (`i` and `v`), and the `W`/`w` supply
-steps.  Shared prompt mechanics are in
-[the generic layer](../../generic/README.md).
+the optional build, the build-dependent menu number, the entry sequence, the
+mode defaults, the status output (`i` and `v`), and the `W`/`w` supply steps.
+Shared prompt mechanics are in [the generic layer](../../generic/README.md).
+
+**Build status:** the v4 all-features build includes the LCD and SPI modules
+together and builds; the LCD path is self-contained, so SPI support does not
+block it.  The same all-features set on v3 stops at the SMPS check (SMPS is
+v4-only).  On v3, enable LCD in the default v3 set; the v3 part has less
+program flash, so check the link result.
 
 ## Availability — the mode is an optional build
 
 The LCD mode is **not compiled into the default v3 or v4 images**.  It is
-present only in a **custom build** in which the LCD feature is enabled in the
-firmware configuration.  Build and flash are developer material: see
-[dev/building.md](../../dev/building.md) and, for the source locations, the
-maintainer [code map](../../dev/code-map.md).
+present only in a build that enables the LCD adapter in the firmware
+configuration.  In an image without it there is no `LCD` entry in the mode
+menu, and the mode cannot be entered.
 
-In an image where LCD is **not** enabled there is no `LCD` entry in the mode
-menu and the mode cannot be entered.  Selecting a number the image does not
-have is rejected with `Nonexistent protocol!`.
+| | v3 | v4 |
+|---|---|---|
+| default image | no LCD | no LCD |
+| all-features set | cannot build: SMPS is v4-only and stops the build | **includes LCD and SPI; builds** |
+| own-set build | enable the LCD module in the v3 configuration | enable the LCD module in the v4 configuration |
+| program flash | the v3 part is the smaller device; check the link result | the all-features build leaves room |
+| hardware | adapter + display; unverified on v3 | adapter + display; unverified |
 
-No image with the LCD mode is distributed, so treat the build and the mode as
-`unverified`.
+On v4, the all-features build includes the LCD adapter and is the shortest
+route; it also includes SPI, and the two coexist.  On v3 the all-features set
+cannot build because it enables SMPS; add the LCD module to the v3 feature set
+instead.  Toolchain, build and flash commands are in
+[dev/building.md](../../dev/building.md) and
+[dev/flashing.md](../../dev/flashing.md).  The mode is selected at build time
+only; no runtime command adds it.
 
-## Build it in
-
-The LCD mode is a per-module choice in the firmware configuration, not a
-runtime setting.  Enabling it is a normal developer build:
-
-1. Install the toolchain and learn the build and flash commands from
-   [dev/building.md](../../dev/building.md) and
-   [dev/flashing.md](../../dev/flashing.md).
-2. Enable the LCD feature in the firmware configuration.  The per-module
-   switch and the module's source file are named in the maintainer
-   [code map](../../dev/code-map.md).
-3. Build the image for your board and flash it.
-4. The mode now appears in the `m` list; its number depends on which other
-   modes that image has (next section).
-
-The firmware configuration is the only place the mode is selected — no
-runtime command adds it.  The feature is disabled in the shipped v4 and v3
-feature sets.  Build success with the LCD feature enabled is `unverified` in
-this tree.
-
-## The mode menu number is build-dependent
+## The menu number is build-dependent
 
 The mode menu lists only the protocols compiled into that image, numbered in
-order.  The LCD number therefore depends on which other modes are present.
+order, and `LCD` sits between `KEYB` and `PIC`.  In the all-features v4 build,
+LCD is entry **9**.  Other sets number it differently:
 
-The table below is the ordering in a build with **every** optional protocol
-enabled; it is this set's reference build.  In a leaner build the number is
-lower — always read your own `m` output.
+| Build | `LCD` | `PIC` | `DIO` |
+|---|---|---|---|
+| v4 all-features (`KEYB` on) | 9 | 10 | 11 |
+| v3 with LCD (`KEYB` off) | 8 | 9 | 10 |
+| v4 default (no LCD) | — | 9 | 10 |
+| v3 default (no LCD) | — | 8 | 9 |
 
-| Menu entry | Mode |
-|---|---|
-| 1 | HiZ |
-| 2 | 1WIRE |
-| 3 | UART |
-| 4 | I2C |
-| 5 | SPI |
-| 6 | 2WIRE |
-| 7 | 3WIRE |
-| 8 | KEYB |
-| **9** | **LCD** |
-| 10 | PIC |
-| 11 | DIO |
-| x | exit(without change) |
+Consequences:
 
-Read the actual menu (`m`) in your build — do not assume 9.
+- On a stock v4 image, `m9` enters **PIC**, not LCD; on a stock v3 image,
+  `m9` enters **DIO**.
+- An out-of-range direct form, such as `m12` in the all-features build, prints
+  `Nonexistent protocol!`; an out-of-range answer at the `m` prompt prints
+  `Invalid choice, try again` and repeats the prompt
+  ([generic navigation](../../generic/navigation.md#mode-menu--m)).
+- Always read your own `m` list; the firmware's menu is authoritative.
 
 ## Entry
 
 Two ways to enter:
 
-1. **Menu:** type `m`, read the list, then answer the numbered prompt with
-   the LCD entry.
-2. **Direct:** type `m` followed by the LCD number, for example `m9` in the
-   all-protocols build.
+1. **Menu:** type `m`, read the list, then answer the numbered prompt.
+2. **Direct:** type the mode number, for example `m9` in the all-features
+   build.
 
-The LCD mode has **no setup prompts** — unlike UART, it asks nothing.  Its
-only setup is to force the pins to high impedance, so the mode always enters
-in HiZ.  Example (all-protocols build, menu form):
+The LCD mode has **no setup prompts**.  The menu form prints the clutch line,
+the finish-setup hint and `Ready`; the direct form prints only `Ready`.  The
+direct form takes no setup answers: in a build that has LCD at entry 9,
+`m9 2` enters the mode and ignores the trailing `2`; select the line mode with
+`(2) 1` or `(2) 2` after `W`.
 
 ```
 HiZ>m
@@ -102,8 +93,7 @@ Ready
 LCD>
 ```
 
-The direct form skips the menu and the `Clutch disengaged!!!` /
-finish-setup lines and goes straight to `Ready`:
+The direct form skips the menu and the clutch/finish-setup lines:
 
 ```
 HiZ>m9
@@ -111,48 +101,73 @@ Ready
 LCD>
 ```
 
-Either way the prompt becomes `LCD>`.
+Either way the prompt becomes `LCD>` and the mode is parked: the supplies are
+off and the SPI pins are not driven.
 
 ## Defaults
 
-| Setting | Default |
+| Setting | Value |
 |---|---|
-| pins | high impedance (HiZ) |
+| pins at entry | high impedance; supplies off |
 | setup prompts | none |
-| register select | data after `W` (and after `}` / `]`); before `W` the bus is not driven, so the setting has no effect |
-| display lines | chosen by macro `(2)`, default Multiple |
+| register select | data after `W` (and after `}` / `]`); before `W` the LCD setup has not run, so the selection has no effect on the display |
+| display lines | chosen by `(2)`; default `2` (Multiple) |
+| display interface | after `(2)`: 4-bit, 5×7 font, display on, cursor on, blink off |
+| SPI shift | fixed; not a user setting ([spi-link.md](spi-link.md)) |
+| mode settings line | empty |
 
-The mode adds no settings of its own; what `i` and `v` print is in the next
-section.
+The mode adds no settings of its own; the shared width, bit order and display
+format still exist but should be left at their defaults
+([commands.md](commands.md#shared-settings-and-keys)).
 
-## Status output (`i` and `v`)
+## Status output — `i` and `v`
 
-In LCD mode `i` prints the version block **and** the standard status block:
-the config words, the pin/voltage table, the supply / pull-up / VPU /
-open-drain / bit-order state, the current bit width, and the AUX assignment.
-LCD has no per-mode settings, so it adds no values of its own; an empty
-settings line and the closing `*----------*` separator still follow.  In HiZ,
-`i` prints only the version block.
+In any non-HiZ mode, `i` prints the version block and the standard status
+block.  LCD contributes no settings of its own, so the settings line is empty
+and the block ends with the closing `*----------*` separator.  The mode list
+in the banner gains `LCD`:
 
-`v` prints only the pin/voltage table — the same table the status block
-contains.
+```
+[HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB LCD PIC DIO]
+```
 
-The pin-state row inside that table is **not** an LCD or SPI name row: the
-mode prints the I2C mode's four-label string.  The labels differ by board:
+The mode-relevant status lines after `W` are:
 
-| Board | Four labels in the pin-state row |
-|---|---|
-| v4 | `-`, `-`, `SCL`, `SDA` |
-| v3 | `SCL`, `SDA`, `-`, `-` |
+```
+POWER SUPPLIES ON, Pull-up resistors OFF, Open drain outputs (H=Hi-Z, L=GND)
+MSB set: MOST sig bit first, Number of bits read/write: 8
+a/A/@ controls AUX pin
+```
 
-Treat the four labels as not meaningful here; the active signals are MOSI,
-CLK and CS ([wiring.md](wiring.md)).  The quirk and its recovery are in
-[edge-cases.md](edge-cases.md#pin-labels-look-like-i2c).
+Before `W`, the same lines read `POWER SUPPLIES OFF`.  The `Open drain outputs`
+text is the mode's output-type flag: entering the mode sets that flag, but the
+LCD setup does not write the per-pin open-drain bits.  On a clean entry those
+bits are clear, so the SPI pins are driven normally
+([spi-link.md](spi-link.md#output-type)).
+
+`v` prints only the pin/voltage table.  The full banner and table layout are
+owned by
+[generic/navigation.md](../../generic/navigation.md#version-and-status--i) and
+[generic/usage.md](../../generic/usage.md#v-in-hiz).  In LCD the last four
+signal-name columns are the board's SPI header order:
+
+| Board | Last four signal-name columns | LCD uses |
+|---|---|---|
+| v4 | `CS  MISO  CLK  MOSI` | `CS`, `CLK`, `MOSI`; `MISO` unused |
+| v3 | `CLK  MOSI  CS  MISO` | `CLK`, `MOSI`, `CS`; `MISO` unused |
+
+The table is tab-separated on the wire, so column spacing follows the
+terminal's tab stops.  The `P` warning calls the pull-up supply pin `Vpullup`;
+the `v` table labels the same pin `VPU`.
+
+With SMPS feedback active (all-features build), `v` is refused and the pin
+table inside `i` is skipped; the refusal message and recovery are in
+[generic edge cases](../../generic/edge-cases.md).
 
 ## `W` — power the adapter
 
-Sending `W` starts the on-board supplies and runs the mode's setup, which
-configures the SPI pins and prints `This mode requires an adapter`.  Example:
+`W` switches the regulated supplies on, checks both rails, runs the mode's SPI
+setup and prints the adapter reminder:
 
 ```
 LCD>W
@@ -162,20 +177,20 @@ Clutch engaged!!!
 LCD>
 ```
 
-After `W` the supplies are engaged and the SPI pins are driven, so writes
-reach the shift register (see [wiring.md](wiring.md) for the adapter's supply
-caveat).  `W` is also what selects the data register (see
-[commands.md](commands.md)).
+- The supplies are checked before the setup runs.  If either rail reads low,
+  `W` prints the failure and **does not** run the SPI setup or the adapter
+  reminder ([edge-cases.md](edge-cases.md#w-supply-failure)).
+- `This mode requires an adapter` is a fixed reminder, not detection.  It is
+  printed on every successful `W`, whether or not an adapter is connected.
+- `W` is still required when the display has its own VDD feed: it runs the SPI
+  setup and checks the Bus Pirate rails.
+- The setup configures the SPI pins and selects the **data** register.  On a
+  clean entry, until `W` succeeds the SPI port is disabled, so writes and
+  macros cannot shift bytes.
+- `W` again re-runs the setup, reselects data and prints the reminder again.
+  A display that stayed powered keeps its content.
 
-The supplies are checked before the setup runs.  If a rail reads low, `W`
-prints the failure and **does not** run the SPI setup or the adapter reminder
-(see [edge-cases.md](edge-cases.md#w-supply-failure)).
-
-The `This mode requires an adapter` line is the mode's own reminder that it
-needs the 74HCT595 board; it is printed every time the supplies come up
-successfully, not only the first time.
-
-## Supply release (`w`)
+## `w` — release the supply
 
 ```
 LCD>w
@@ -184,36 +199,50 @@ POWER SUPPLIES OFF
 LCD>
 ```
 
-`w` runs the mode cleanup (it disables and detaches the SPI peripheral,
-deassigns the SPI outputs and clears open-drain) and switches the regulated
-supplies off.  It does **not** run the board reset, so the pin direction
-registers keep the state `W` gave them: **MOSI, CLK and CS may stay driven**
-until a mode change or reset.  Use `m` (any mode change) or `#` for a full
-high-impedance state; `W` can be sent again to re-engage.
+`w` runs the mode cleanup, then switches the regulated supplies off.  The
+cleanup disables the SPI module, releases the MOSI/CLK/MISO/CS pads to inputs,
+removes the pin routing and returns the shared width to 8 bits.  It does
+**not** run the board reset or change the bit order and display format.
 
-If the adapter takes its supply from the Bus Pirate VCC pin, `w` cuts that
-supply and the display clears.
+After `w` the link is released, but the adapter's shift register holds its last
+latched outputs while the adapter stays powered.  If the display's VDD comes
+from the adapter's Bus Pirate rail, the display loses power and clears; if the
+display has its own VDD feed, it keeps its content.
+
+To resume: send `W`.  If the display lost power, also send `(2)` to
+re-initialise it; an externally powered display that kept its state needs only
+`W`.
 
 ## Leaving the mode
 
-Change mode with `m` as usual.  Leaving runs the mode cleanup and then the
-board reset: the supplies switch off, the bus lines become inputs, and the
-pull-ups are released (the generic reset detail is in
-[generic usage](../../generic/usage.md#reset-and-the-idle-state)).
-
-Because the board reset switches the regulated VCC off, what the display does
-depends on its power source:
-
-| Adapter supply | On leaving the mode |
+| Route | What happens |
 |---|---|
-| Bus Pirate VCC pin | power is cut; the display clears |
-| its own supply | the display keeps its last content |
+| `m`, then a mode number | cleanup, board reset, then the new mode |
+| `m<N>` | direct change; prints `Ready` only |
+| `m1` | returns to HiZ; prints `Ready` |
+| `#` | v4: terminal reset, banner and `HiZ>`; v3: reboot |
 
-There is no persistent state in the Bus Pirate to clear.  On re-entry the
-mode is in HiZ again; send `W`, then `(2)` to power and re-initialise the
-display.
+A mode change and `#` run the board reset, which releases the pins and
+switches the regulated rails off.  What the display does depends on its
+supply:
+
+| Display VDD source | On leaving the mode |
+|---|---|
+| the adapter's Bus Pirate rail | power is cut; the display clears |
+| a separate display feed | the display keeps its last content |
+
+On re-entry the mode is in HiZ again.  Send `W`; if the display lost power,
+send `(2)` to re-initialise it.
 
 ## v3 / v4
 
-The entry sequence, the menu, the defaults, and the `W` message are the same
-in both builds (the strings are identical).  The v3 build is **not verified**.
+| Item | v3 | v4 |
+|---|---|---|
+| default build | off | off |
+| all-features build | cannot build it (SMPS is v4-only) | includes LCD and SPI |
+| menu number in the documented build | 8 (KEYB off) | 9 (KEYB on) |
+| mode messages | identical | identical |
+| hardware path | unverified on v3 | unverified |
+
+The build path, the menu number and the `v` column order differ; the mode
+messages are the same.  The v3 hardware path is **unverified on v3**.

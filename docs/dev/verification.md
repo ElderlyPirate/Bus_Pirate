@@ -43,7 +43,7 @@ necessarily never exercised; this record simply does not claim it.
 | [capabilities/auxiliary](../capabilities/auxiliary/README.md) | source-only | PWM/servo/frequency/edge-wait contracts; external wiring unverified |
 | [capabilities/selftest](../capabilities/selftest/README.md) | source-only | check rows and the `0x10` column from source |
 | [capabilities/smps](../capabilities/smps/README.md) | unverified | board not available for electrical verification; connector/pinout and jumper from the legacy schematic; input/output ratings undocumented; firmware behaviour code-derived |
-| [capabilities/lcd](../capabilities/lcd/README.md) | unverified | no adapter available; pin-out, glyphs and the SPI link are code-derived |
+| [capabilities/lcd](../capabilities/lcd/README.md) | unverified | no adapter available for an electrical check; board revisions, connector and supply from the legacy design files; on-glass glyphs and timing code-derived |
 | [programmers/avrisp](../programmers/avrisp/README.md) | source-only | ISP/PDI/TPI and USB personality from source; TPI not verified |
 | [programmers/pic](../programmers/pic/README.md) | source-only | ICSP bit engine pinned by `test_pic.py`; v3 unverified |
 

@@ -2,7 +2,8 @@
 
 **Status:** maintainer-facing.  Derived from the tracked `Firmware/Makefile`, the MPLAB-X
 project files, `configuration.h`, the message tooling and the native tests in
-the repository tip.  No build was run for this page.
+the repository tip.  The general page is derived; the measured v4
+all-features link is recorded below.
 
 This page covers how to compile the Bus Pirate v3 / v4 community firmware,
 which feature set goes into the image, and which artifacts are produced.
@@ -44,8 +45,8 @@ The XC16 version is pinned in two places: the MPLAB-X project
 (`Firmware/busPirate.X/nbproject/configurations.xml`, both configurations) and
 the Makefile's installer-default fallback both name **v2.10**; the release
 notes (`CHANGELOG.md`) still state the minimum as XC16 **1.35 or later** and
-MPLAB-X **5.00 or later**.  That the current tree builds and links with 2.10
-was not exercised for this page — **not verified** on a build.
+MPLAB-X **5.00 or later**.  The tree was linked with 2.10 for the measured v4
+all-features build below; the default images were not rebuilt for this page.
 
 ## Command-line build
 
@@ -150,10 +151,11 @@ compiler flags:
 make -C Firmware BP_VERSION=V4 EXTRA_CFLAGS=-DBP_CUSTOM_FEATURE_SET
 ```
 
-- The all-features v4 list also enables the HD44780 adapter.  Its SPI output
-  helper has no external definition when SPI support is also enabled (the
-  `spi.c` implementation is `static`), so that combination is expected to fail
-  at link time; `unverified` — see
+- The all-features v4 list enables both the HD44780 adapter and SPI.  That
+  combination links: the LCD driver uses its own bounded byte helper and
+  `spi_write_byte()` is exported.  The measured v4 all-features build (XC16
+  2.10, `-O1`) is 79,485 bytes program (31%) and 11,898 bytes data (72%), no
+  warnings.  On v3 the custom set still stops at the SMPS `#error`.  See
   [the LCD set](../capabilities/lcd/README.md).
 - A custom build changes the mode numbering in the `m` menu.  The firmware's
   own menu is authoritative, not the default table.
@@ -284,7 +286,8 @@ authoritative table, with coverage and runner per suite, is
 
 ## Verification
 
-- Not run for this page; see [verification.md](verification.md) for the
+- The v4 all-features link is recorded above; the default v3/v4 images were not
+  rebuilt for this page.  See [verification.md](verification.md) for the
   maintainer record.
 
 ## Limits & out of scope

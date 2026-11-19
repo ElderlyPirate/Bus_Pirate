@@ -1,22 +1,28 @@
 # LCD — worked sessions
 
-Part of the LCD documentation set (`docs/capabilities/lcd/`).  The sessions
-below are **illustrative and code-derived**; the on-display result and the
-terminal spacing are `unverified`.  They show the command shapes and the
-replies the firmware produces.
+Part of the LCD documentation set (`docs/capabilities/lcd/`).  These sessions
+show the command shapes and the replies.  Type text after the prompt; the
+firmware echoes it.  The wiring and the adapter's electrical details are in
+[wiring.md](wiring.md); the commands are in [commands.md](commands.md).
 
-## First session — enter, power, init, write text
+## Enter, power and inspect the pins
 
-All-protocols build; the LCD entry is 9.  The menu form prints the clutch and
-finish-setup lines; the direct `m9` form skips them and goes straight to
-`Ready`:
+The all-features v4 build; LCD is entry 9.  The menu form prints the clutch and
+finish-setup lines:
 
 ```
 HiZ>m
 1. HiZ
-...
+2. 1WIRE
+3. UART
+4. I2C
+5. SPI
+6. 2WIRE
+7. 3WIRE
+8. KEYB
 9. LCD
-...
+10. PIC
+11. DIO
 x. exit(without change)
 
 (1)>9
@@ -26,7 +32,7 @@ Ready
 LCD>
 ```
 
-Engage the supplies with `W`:
+Power and configure the link:
 
 ```
 LCD>W
@@ -36,31 +42,57 @@ Clutch engaged!!!
 LCD>
 ```
 
-Initialise the display as a two-line unit, put the cursor home, and write
-text.  `W` selected the data register, so no wrapper is needed before the
-string:
+`v` shows the pins.  The columns are tab-separated; the table is transcribed
+with fixed spacing:
+
+```
+LCD>v
+Pinstates:
+12.(Bk)  11.(Wt)  10.(Gy)  9.(Pu)   8.(Bu)   7.(Gn)   6.(Yw)   5.(Or)   4.(Rd)   3.(Br)   2.(Bk)   1.(Wt)
+GND      5.0V     3.3V     VPU      ADC      AUX2     AUX1     AUX      CS       MISO     CLK      MOSI
+P        P        P        I        I        I        I        I        O        I        O        O
+GND      4.98V    3.29V    0.00V    0.00V    L        L        L        L        H        L        L
+LCD>
+```
+
+The last row is the live pin state; the voltages and the `MISO` level are
+example values and depend on the attached circuit.  `CS`, `CLK` and `MOSI`
+are outputs after `W`; `MISO` is unused.
+
+## Initialise and write text
+
+Initialise a two-line display.  `(2)` resets and configures it:
 
 ```
 LCD>(2) 2
 RESET
 INIT
 
-LCD>(4) 0
-CURSOR SET
+LCD>
+```
 
+`W` selected the data register, so text can be sent directly:
+
+```
 LCD>"Hello"
 WRITE: "Hello"
 LCD>
 ```
 
-To send a controller command by hand, select the command register first, then
-return to data for the text:
+The glass should show `Hello` from column 1, with the cursor after the last
+character.
+
+Home the cursor, turn the display on with the cursor off, and write again.
+`{` moves RS low for the command; `}` moves it high for data:
 
 ```
+LCD>(4) 0
+CURSOR SET
+
 LCD>{
 RS LOW, COMMAND MODE
-LCD>0x01
-WRITE: 0x01
+LCD>0x0C
+WRITE: 0x0C
 LCD>}
 RS HIGH, DATA MODE
 LCD>"Bus Pirate"
@@ -68,12 +100,16 @@ WRITE: "Bus Pirate"
 LCD>
 ```
 
-(`0x01` is the controller's clear-display / cursor-home command — see the
-instruction-byte table in [commands.md](commands.md).)
+The glass should now show `Bus Pirate` on row 1; `Hello` has been overwritten
+from the home position.  Row 2 is still blank.
 
-## Macro session
+`0x0C` is the controller's display-on, cursor-off instruction; the other
+instruction bytes are tabulated in
+[display.md](display.md#controller-instruction-bytes).
 
-`(0)` lists the available macros:
+## Macros
+
+`(0)` lists the mode macros:
 
 ```
 LCD>(0)
@@ -88,8 +124,9 @@ LCD>(0)
 LCD>
 ```
 
-`(2)` with no argument asks for the line mode (default Multiple); `(1)` and
-`(3)` are single-step:
+`(2)` without an argument prompts for the line mode; Enter accepts `Multiple`.
+`(3)` is a single-step clear.  The first list line shown by the prompt ends
+with a space in the firmware string.
 
 ```
 LCD>(2)
@@ -107,7 +144,10 @@ CLEAR
 LCD>
 ```
 
-`(6)` writes a repeating digit pattern and echoes it to the terminal:
+`(2)` should leave the glass cleared at home; `(3)` clears it again.
+
+`(6)` clears and writes a repeating digit pattern, echoing the same characters
+to the terminal:
 
 ```
 LCD>(6) 20
@@ -115,7 +155,10 @@ LCD>(6) 20
 LCD>
 ```
 
-`(5)` no longer exists and is rejected:
+On a 20x2 glass the full `01234567890123456789` should be visible on row 1.
+On a 16x2 glass the last four characters are at off-screen addresses.
+
+There is no macro 5:
 
 ```
 LCD>(5)
@@ -124,12 +167,25 @@ Unknown macro, try ? or (0) for help
 LCD>
 ```
 
+## Reading the display
+
+Reading is not implemented.  `r` prints the no-effect error, a dummy value and
+the dispatcher's syntax-error line:
+
+```
+LCD>r
+READ: ERROR: command has no effect here
+0x00
+Syntax error at char 1
+LCD>
+```
+
+The display content cannot be read back.
+
 ## Defining a custom character
 
-With the display powered (`W`) and initialised (`(2)`), the controller's own
-data path is available through the two registers.  The eight row bytes you
-send are the glyph bitmap, one byte per row (five bits wide in a 5×7 cell).
-Define glyph 0, then print it:
+With the display powered (`W`) and initialised (`(2)`), define glyph 0, then
+print it.  The eight row bytes are the glyph bitmap, one byte per row.
 
 ```
 LCD>{
@@ -165,29 +221,39 @@ WRITE: 0x00
 LCD>
 ```
 
-The sequence is: send `0x40` + character index (command mode) to address the
-character-generator RAM, send the eight row bytes (data mode), then send
-`0x80` (command mode) to return to the display, and finally send the character
-code (data mode) to print the glyph.  The controller's address counter
-advances after each byte, so the row bytes are sent in order without
-re-addressing.  The on-glass glyph is `unverified`.
-
-## Reading — not available
-
-`r` has no effect in this mode.  The read reports the base-layer error and the
-read value, and the dispatcher then appends the syntax-error line:
+The eight row bytes form this 5x8 cell (all eight rows are part of the glyph):
 
 ```
-LCD>r
-READ: ERROR: command has no effect here
-0x00
-Syntax error at char 1
-LCD>
+.###.
+#...#
+#...#
+#####
+##.##
+##.##
+#...#
+.###.
 ```
 
-The displayed text cannot be read back.
+The glass should show this outline at the home position, with the cursor after
+it if the cursor is still on.
+
+The sequence addresses CGRAM (`0x40`), sends the eight row bytes, returns to
+the display (`0x80`), then sends the glyph code (`0x00`).  The address counter
+advances after each byte, so the rows are sent in order.  The on-glass glyph
+is `unverified`; the CGRAM map is in
+[display.md](display.md#the-character-generator).
 
 ## Leaving the mode
+
+`m1` returns to HiZ directly:
+
+```
+LCD>m1
+Ready
+HiZ>
+```
+
+The menu form prints the clutch line instead of going straight to `Ready`:
 
 ```
 LCD>m
@@ -198,11 +264,13 @@ Ready
 HiZ>
 ```
 
-Leaving releases the SPI interface and runs the board reset, which switches
-the regulated VCC off.  If the adapter is powered from the Bus Pirate VCC the
-display clears; if it has its own supply it keeps its last content.  On
-re-entry send `W`, then `(2)` to re-initialise.
+Leaving runs the board reset, which releases the pins and switches the
+regulated rails off.  If the display's VDD comes from the adapter's Bus Pirate
+rail, the display clears; a display with its own VDD feed keeps its content.
+Send `W` again on re-entry, and `(2)` if the display lost power
+([entry-and-setup.md](entry-and-setup.md#leaving-the-mode)).
 
 ## v3 / v4
 
-The sessions are the same on both builds; the v3 build is **not verified**.
+The sessions are v4 examples.  The mode messages are the same on v3, but the
+menu number differs and the v3 hardware path is **unverified on v3**.

@@ -92,7 +92,7 @@ a reset.
 while the player waits for a chunk, it substitutes `0xFF` for the missing
 bytes.  The run ends with `0x01` when the stall is seen at the next command
 boundary, `0x04` if the `0xFF` is read as the command byte itself, or
-`0x06`/`0x05` if it is read as a shift size or a TAP-state byte.  Separately,
+`0x05`/`0x06` if it is read as a TAP-state byte or a shift size.  Separately,
 a byte sent while the player is busy in a timed wait (`XWAIT` or `XRUNTEST`)
 is consumed and aborts the run with result `0x01` (unknown error).  A
 **zero-length chunk** is not data: the player ignores it and requests again.
@@ -112,7 +112,7 @@ The single byte returned at the end of a run:
 | Byte | Meaning |
 |---|---|
 | `0x00` | no error (success) |
-| `0x01` | unknown error (also a busy-byte abort or a stall inside a command) |
+| `0x01` | unknown error (also a busy-byte abort or a stall seen at the next command boundary) |
 | `0x02` | TDO mismatch — the captured TDO did not match the expected TDO |
 | `0x03` | TDO mismatch after the maximum number of retries |
 | `0x04` | illegal or unsupported XSVF command (also a stall at a command byte) |
@@ -152,9 +152,10 @@ aligned.
 The XSVF host player and the SVF→XSVF converter are documented in
 [tools/xsvf](../../tools/xsvf/README.md) — it owns the players, converter
 options and examples.  Both shipped players enter `BBIO1` and `XSV1`
-themselves; do not pre-enter the player.  The host tools stop after the
-result byte and do not leave the XSVF player, so the board stays in the
-player loop with the regulator on until it is reset or sent `0x0F` twice.
+themselves; do not pre-enter the player.  The stock host tools close the
+port after the result byte and do not leave the XSVF player, so the board
+stays in the player loop with the regulator on until it is reset, or a
+raw-serial host sends `0x0F` twice.
 This page owns the in-mode protocol only.
 
 ## Limits
@@ -182,8 +183,8 @@ This page owns the in-mode protocol only.
   [clock.md](clock.md).
 - **v4 only.**  Not present on v3.  The player reads XSVF, not SVF.
 - **Exit leaves the regulator on.**  `0x0F` returns to `BBIO1` without
-  resetting the pins or switching VREG off; use the second `0x0F`, a
-  terminal reset or the reset button.
+  resetting the pins or switching VREG off; a raw-serial host can send it
+  twice to return to the terminal, or use the reset button.
 
 ## Related
 

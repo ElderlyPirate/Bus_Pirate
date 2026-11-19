@@ -44,7 +44,7 @@ not a test report.  Native fixtures are named in [tooling.md](tooling.md)
 | [binary](../protocol/binary/README.md) | source-only | byte layer and sub-protocol entry; v3 unverified |
 | [sump](../protocol/sump/README.md) | source-only | entry, exit bytes, tiers and capacities; the v3 sample buffer is **4096 bytes**; v3 large captures unverified |
 | [tools/basic](../tools/basic/README.md) | source-only | interpreter limits from source; `FREQ`/`DUTY` are usable, `DEBUG` is off in the default image and a build option, the EEPROM filesystem is disabled |
-| [tools/xsvf](../tools/xsvf/README.md) | source + v4 history | firmware player history; the 400-bit shift, 4096-byte chunk limits and the host-player behaviour are source-only; host-tool caveats (`-x`/`-f`, exit status, player exit) are in that set |
+| [tools/xsvf](../tools/xsvf/README.md) | source + v4 history | firmware player history; the 400-bit shift, 4096-byte chunk limits, bounded chain scan and standalone `-x`/`-r` behaviour are source-only; the exit-status difference and host-tool caveats (`-x`/`-f`, player exit) are in that set |
 | [tools/openocd](../tools/openocd/README.md) | source-only | version matrix and shift contract from source; v3 build-only |
 | [capabilities/adc](../capabilities/adc/README.md) | source-only | probe/continuous contracts; SMPS ownership refusal is the gate; v3 build-only |
 | [capabilities/auxiliary](../capabilities/auxiliary/README.md) | source-only | PWM/servo/frequency/edge-wait contracts; external wiring unverified |

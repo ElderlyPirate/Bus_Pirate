@@ -98,8 +98,8 @@ The settings header is `I2C (mod spd)=( 0 0 )`; the fields are explained in
 The *terminal output buffer* is the 4096-byte buffer used for output and for
 the binary write-then-read payload; it is the same on v3 and v4. The *command
 buffer* is the input line, 128 bytes on v3 and 256 on v4. They are separate
-buffers; the binary counts are limited by the terminal buffer, not the command
-line.
+buffers; the binary counts are limited by the terminal output buffer, not the
+command line.
 
 ## Limits & out of scope
 

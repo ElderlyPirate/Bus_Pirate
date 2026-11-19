@@ -28,7 +28,8 @@ mode decide:
 - `0x8x` is per mode: `0x88` is normal output in SPI but open drain in
   `RAW1`.  Use the mode's own page.
 - `PIC1`, `OCD1` and `XSV1` have their own flat layouts; for example `0x04`
-  clocks a PIC opcode in `PIC1` and is the TAP-shift command in `OCD1`.
+  clocks a PIC opcode in `PIC1`, while in `OCD1` the same value selects TRST
+  inside a feature request (`0x02 0x04 action`) and `0x05` is the TAP shift.
 
 ## Byte classes
 
@@ -327,9 +328,10 @@ host -> 0x16                            measure the frequency on AUX
 host <- 0x00 0x00 0x27 0x10             example: 10000 Hz
 ```
 
-`0x16` **stops a running PWM**: the timers are shut down and `AUX` becomes an
-input.  The terminal `f` command refuses while PWM is active instead, so send
-`0x13` first if you want to clear the PWM deliberately.  Units and limits:
+`0x16` **stops the terminal generator** — a PWM or a servo: the generator
+timers are shut down and `AUX` becomes an input.  The terminal `f` command
+refuses while a generator is active instead, so send `0x13` first if you want
+to clear a PWM deliberately.  Units and limits:
 [the AUX capability page](../../capabilities/auxiliary/frequency.md).
 
 ### XSVF player (`0x18`, v4 only)

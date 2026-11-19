@@ -26,6 +26,7 @@ details live in the files below.
 | Form | Meaning |
 |---|---|
 | `RW` (pin table) / `R/W` (prose) | the display's read/write line; always written low |
+| `AUX0` (v4b adapter jumper label) | the Bus Pirate `AUX` pin; drive it with `a` / `A` |
 | `Vpullup` (warning) / `VPU` (`v` table) / `Vpu` (v4 select prompt) | the pull-up supply pin; three firmware forms |
 | `3.3V` / `5.0V` (captures) | firmware strings; prose writes `3.3 V` / `5.0 V` |
 | `Multiple` | the two-line init choice; `1` is one-line |

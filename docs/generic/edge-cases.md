@@ -34,10 +34,10 @@ HiZ>
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
 | `P` with no pull-up voltage | `Pull-up resistors ON`, then `Warning: no voltage on Vpullup pin` | the pull-ups stay enabled; supply Vpullup (`e2` / `e3` in a non-HiZ open-drain mode on v4, external on v3) |
-| `P` in a push-pull mode | `WARNING: pins not open drain (HiZ)`, then `Pull-up resistors ON` | informational; the pull-ups still switch on.  `(HiZ)` here is the open-drain high state, not the HiZ mode.  Choose open drain in the mode setup |
+| `P` in a push-pull mode | `WARNING: pins not open drain (HiZ)`, then `Pull-up resistors ON` | informational; the pull-ups still switch on.  `(HiZ)` here is the open-drain high state, not the HiZ mode.  Choose open drain in the mode setup — [DIO](../protocol/dio/README.md) has no output-type choice (push-pull only), so that advice does not apply there |
 | `W` with a faulted rail | `VREG too low, is there a short?`, then `POWER SUPPLIES OFF` | the regulator is disabled again; check the target and rails, then `W` again |
 | `e` with more than about 1.6 V already on Vpullup | `Warning: already a voltage on Vpullup pin` plus a syntax error | the source is unchanged; remove the external voltage or keep it |
-| `e` in a push-pull mode | `WARNING: pins not open drain (HiZ)` plus a syntax error | choose open drain in the mode setup |
+| `e` in a push-pull mode | `WARNING: pins not open drain (HiZ)` plus a syntax error | choose open drain in the mode setup; DIO is push-pull only, so `e` is always refused there |
 | `f` while a generator is active | `ERROR: PWM active, g to disable` | stop it with `g` / `S`, then measure |
 | `w` in DIO | `Clutch disengaged!!!` then `POWER SUPPLIES OFF`; the prompt stays `DIO>` | the mode's cleanup runs; the DIO page owns what that means for the pins ([DIO](../protocol/dio/README.md)) |
 

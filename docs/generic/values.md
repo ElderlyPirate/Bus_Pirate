@@ -88,7 +88,7 @@ must follow the value or the repeat suffix — the order is value, `:N`, `;N`:
 
 | Input | Effect |
 |---|---|
-| `0x55;4` | write the low 4 bits of 0x55 |
+| `0x55;4` | a 4-bit write in a width-aware mode (I2C software); byte modes such as KEYB still send the low 8 bits |
 | `0x55:3;4` | the same 4-bit write, three times |
 | `r;16` | a 16-bit display/bit-order window; the I2C software driver clocks 16 bits, SPI still clocks one byte |
 | `rx:4;16` | four 16-bit reads in HEX for this command only |

@@ -12,7 +12,7 @@ observable symptom, and the recovery.
 | JTAG byte at the terminal prompt | nothing happens | no terminal commands; use a host |
 | A non-NUL byte during the 20-NUL entry | no `BBIO1` | resend 20 consecutive `0x00` bytes |
 | `0x00` to leave the XSVF player | player ignores it | send `0x0F` instead |
-| Entering binary from a mode | the header pins other than AUX1, VREG and the pull-ups reset | re-check wiring and target power; AUX1 needs a board reset |
+| Entering binary from a mode | the header pins reset, VREG switches off and the on-board pull-ups switch off; AUX1/AUX2 keep their state | re-check wiring and target power; AUX1 needs a board reset |
 
 ## Wiring and electrical
 

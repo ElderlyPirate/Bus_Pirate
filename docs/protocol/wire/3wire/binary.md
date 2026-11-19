@@ -41,8 +41,8 @@ Notes:
 - Bulk byte is full duplex: one `0x01` is sent before the data bytes, then
   each data byte sent returns the MISO byte sampled during that write.  There
   is no per-byte `0x01` (that is the 2-Wire reply).
-- `0x8x` and `0x6x` both drive CS high, so a host re-asserts CS with `0x04`
-  after configuring.
+- `0x8x` and `0x6x` both set CS high (driven high in normal output, released
+  in open drain), so a host re-asserts CS with `0x04` after configuring.
 - `0x1n` consumes exactly `n + 1` data bytes.  A command byte sent early is
   written to the bus as data.
 - The `0x5x` pull-up feed group is v4 only; on v3 it returns `0x00`.

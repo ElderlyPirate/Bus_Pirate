@@ -20,7 +20,7 @@ XSVF player is the exception: it ignores `0x00` and leaves with `0x0F`.
 | `0x03` | UART | `ART1` | [UART binary command set](../uart/binary.md) |
 | `0x04` | 1-Wire | `1W01` | [1-Wire binary command set](../wire/1wire/binary.md) |
 | `0x05` | raw wire (2-Wire and 3-Wire) | `RAW1` | [shared `RAW1` framing](../wire/binary.md) |
-| `0x06` | OpenOCD JTAG | `OCD1` | [OpenOCD adapter](../jtag/openocd.md) |
+| `0x06` | OpenOCD JTAG | `OCD1` | [OpenOCD path](../jtag/openocd.md) (host: [adapter](../../tools/openocd/README.md)) |
 | `0x07` | PIC | `PIC1` | [PIC binary command set](../../programmers/pic/binary.md) |
 | `0x08` | AVRISP-MKII USB personality (v4) | none | [AVRISP-MKII](../../programmers/avrisp/entry.md) |
 | `0x09` | AVRISP-MKII serial route (v4) | none | [serial route](../../programmers/avrisp/serial-route.md) |
@@ -29,8 +29,9 @@ XSVF player is the exception: it ignores `0x00` and leaves with `0x0F`.
 Notes:
 
 - Every sub-protocol entry except XSVF first runs the same hardware reset as
-  BBIO1 entry, then applies the mode's own defaults.  The XSVF entry leaves
-  the pin state alone and only switches the regulator on.
+  BBIO1 entry, then applies the mode's own defaults.  The XSVF entry skips that
+  reset: it configures only its four JTAG pins and switches the regulator on,
+  leaving the other pins and the pull-ups alone.
 - The AVRISP-MKII entries have **no command loop and no identifier**.  They
   hand the link to the personality, which ends after about **five seconds**
   without host traffic or on a reset; on the way out it resets the hardware and

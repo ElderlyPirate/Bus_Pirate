@@ -118,7 +118,7 @@ a menu mode.  The exact lists are in
 | Binary, SUMP | yes | yes | [binary](../protocol/binary/README.md) · [SUMP](../protocol/sump/README.md) |
 | AVRISP-MKII | — | yes | [AVRISP](../programmers/avrisp/README.md) |
 | JTAG, OpenOCD | binary only | binary only | [JTAG](../protocol/jtag/README.md) · [OpenOCD](../tools/openocd/README.md) |
-| XSVF | — | binary only | [XSVF](../tools/xsvf/README.md) |
+| XSVF | — | binary only | [XSVF](../tools/xsvf/README.md) · [JTAG player](../protocol/jtag/xsvf.md) |
 | BASIC | yes | yes | [BASIC](../tools/basic/README.md) |
 | Self-test, ADC, AUX | yes | yes | [self-test](../capabilities/selftest/README.md) · [ADC](../capabilities/adc/README.md) · [AUX](../capabilities/auxiliary/README.md) |
 

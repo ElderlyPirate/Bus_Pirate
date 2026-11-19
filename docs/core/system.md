@@ -92,7 +92,7 @@ Size effects (from `configuration.h`):
 | Setting | v3 | v4 |
 |---|---|---|
 | command buffer | 128 B | 256 B |
-| terminal buffer | 4096 B | 4096 B |
+| terminal output buffer | 4096 B | 4096 B |
 | command history | 7 entries | 15 entries |
 | user macros | 3 slots × 24 B | 5 slots × 32 B |
 
@@ -317,7 +317,7 @@ full signed 16-bit range; `getlong()` accepts the signed 32-bit range.
 `getint()` returns the 16-bit pattern in an `int`; a caller that uses it as a
 count or index must range-check it.  `setup_defaults_mode` short-circuits
 `getint()` to 0 and `getnumber()` to the default, so a script can run a
-protocol's setup without touching the terminal buffer.
+protocol's setup without consuming terminal input.
 
 ## Mode registry
 
@@ -419,9 +419,12 @@ reach must assign every required field.  The reusable bodies are:
 | presentation | `print_pins_state`; `print_settings`; `name` | yes; `name` non-empty | `hiz_print_pins_state`; `empty_print_settings_implementation`; no default | generic pin header; CRLF only; `name` drives the prompt, menu and banner |
 
 DIO's `setup_execute` is `silent_null_operation_callback`, which clears
-`command_error` and prints nothing.  A NULL pointer in a field the dispatcher
-calls is not a fallback; it faults.  `clock_pulses` is the only field the
-dispatcher tests for NULL.
+`command_error` and prints nothing.  DIO is also the exception to the
+"cleanup = 8-bit reset" pattern: its strong `dio_cleanup()` releases the five
+signal pins, drops the pull-up/VPU bias, clears their latches and resets the
+8-bit width.  A NULL pointer in a field the dispatcher calls is not a
+fallback; it faults.  `clock_pulses` is the only field the dispatcher tests
+for NULL.
 
 ### Mode-change lifecycle
 
@@ -528,7 +531,8 @@ macros at entry.
 `bp_reset_board_state()` parks the board and always ends in `BP_HIZ` with the
 mode configuration cleared.  Order:
 
-1. Release the bus pins (MOSI, CLK, MISO, CS) and AUX0: direction input.
+1. Release the bus pins (MOSI, CLK, MISO, CS) and `AUX` (`BP_AUX0`): direction
+   input.
 2. v4: release AUX1/AUX2; on SMPS builds run `smps_stop()`; detach the
    AUX1/AUX2 peripheral outputs and clear their latches.
 3. Disable the mode LED and enable the USB LED.

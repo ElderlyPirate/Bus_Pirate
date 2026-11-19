@@ -112,9 +112,10 @@ The low nibble selects the on-board source that feeds VPU:
 | `0x52` | on-board **+5.0 V** |
 | any other | both off |
 
-The reply is `0x01` when the request was applied and `0x00` when it was refused
-(the pins are not open-drain HiZ, or a voltage is already present on VPU).  On
-v3 the group is not built, so the request is answered with `0x00`.
+The reply is `0x01` when the request was applied and `0x00` when it was refused:
+the pins are not open-drain HiZ, the SMPS feedback loop owns the ADC, or a
+voltage is already present on VPU.  On v3 the group is not built, so the request
+is answered with `0x00`.
 
 ## Speed (`0x6x`)
 
@@ -128,9 +129,10 @@ The low two bits select one of the four bit-bang profiles used by 2-Wire and
 | `0x62` | 2 | ~150 kHz |
 | `0x63` | 3 | Maximum speed |
 
-The reply is `0x01`, and the command also drives CS high.  The labels are
-nominal; see the [2-Wire clock table](2wire/entry-and-setup.md#clock-speeds)
-for the phase delays behind them.
+The reply is `0x01`, and the command also sets CS high (driven high in normal
+output, released in open drain).  The labels are nominal; see the
+[2-Wire clock table](2wire/entry-and-setup.md#clock-speeds) for the phase
+delays behind them.
 
 ## Configuration (`0x8x`)
 
@@ -151,8 +153,9 @@ Examples:
 | `0x84` | normal output + 3 wires + MSB-first |
 | `0x80` | normal output + 2 wires + MSB-first |
 
-The reply is `0x01`, and the command also drives CS high.  A 3-Wire host must
-re-assert CS with `0x04` after configuring.
+The reply is `0x01`, and the command also sets CS high (driven high in normal
+output, released in open drain).  A 3-Wire host must re-assert CS with `0x04`
+after configuring.
 
 ## Bulk byte transfer (`0x1x`)
 
@@ -280,8 +283,8 @@ reads a sampled byte in place of each write ack; a worked exchange is in
 - **Entry applies the maximum profile but records profile 1.**  A later `0x8x`
   re-applies the recorded profile (1 until a `0x6x` changes it); send `0x6x`
   to choose a profile explicitly.
-- **`0x8x` and `0x6x` drive CS high.**  A 3-Wire host must re-assert CS after
-  either command.
+- **`0x8x` and `0x6x` set CS high** (driven high in normal output, released in
+  open drain).  A 3-Wire host must re-assert CS after either command.
 - **The 3-Wire bulk reply is not an ack.**  It is the MISO byte sampled during
   the write; a 2-Wire host's per-byte `0x01` pattern does not apply.
 - **`0x02`/`0x03` are not CS actions in 3-Wire.**  Use `0x04`/`0x05`.

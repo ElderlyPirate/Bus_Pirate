@@ -302,10 +302,11 @@ The colour codes in row 1 are the probe-cable colours:
 | `Pu` | purple | `Rd` | red |
 | `Bu` | blue | `Br` | brown |
 
-The last four signal names come from the active mode; HiZ uses the default SPI
-names `CS`, `MISO`, `CLK`, `MOSI`.  In HiZ every I/O pin is an input, so the
-`H` / `L` entries are floating levels, not driven states — your values will
-differ from the example.
+The last four signal names come from the active mode.  In HiZ they are the
+default SPI names in that board's column order: `CS`, `MISO`, `CLK`, `MOSI` on
+v4 and `CLK`, `MOSI`, `CS`, `MISO` on v3.  In HiZ every I/O pin is an input,
+so the `H` / `L` entries are floating levels, not driven states — your values
+will differ from the example.
 
 On v3 the table has ten columns in this order: `GND`, `3.3V`, `5.0V`, `ADC`,
 `VPU`, `AUX`, `CLK`, `MOSI`, `CS`, `MISO`.  Its legend numbers the ten columns

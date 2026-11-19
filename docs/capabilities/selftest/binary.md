@@ -140,7 +140,7 @@ host -> 0x00 x20         enter the bitbang layer
 host <- "BBIO1"
 host -> 0x05             raw wire
 host <- "RAW1"
-host -> 0xF2 0x58        start the SMPS; the value is SMPS-specific
+host -> 0xF2 0x00        start the SMPS; lowest reachable request 0x200
 host <- 0x01             accepted
 host -> 0x00             back to BBIO1; the SMPS keeps running
 host <- "BBIO1"

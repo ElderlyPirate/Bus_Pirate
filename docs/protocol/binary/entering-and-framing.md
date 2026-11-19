@@ -56,8 +56,9 @@ What entry changes:
 | an SMPS feedback loop | not stopped (it starts only in raw wire) |
 
 The entry reset runs again before each sub-protocol entry.  The XSVF entry is
-the exception: it leaves the current pin state alone and only switches the
-on-board regulator on.
+the exception: it skips that reset, configures only TDI, TDO, TCK and TMS, and
+switches the on-board regulator on; the other header pins and the pull-ups are
+left alone.
 
 ## Wiring
 

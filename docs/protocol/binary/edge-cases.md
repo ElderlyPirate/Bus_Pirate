@@ -124,15 +124,15 @@ the recovery.  Entry and framing are in
   Entering BBIO1 from a terminal PWM session has the same effect: the pins
   become inputs, but the timer setup is not cleared.
 
-## Frequency count stops a running PWM
+## Frequency count stops a running generator
 
-- **Trigger:** sending `0x16` while PWM is running.
-- **Symptom:** the PWM output disappears and `AUX` becomes an input.
-- **Behaviour:** `0x16` does not refuse; it shuts the timers down, forces
-  `AUX` to an input and measures.  The terminal `f` command refuses while PWM
-  is active instead.
-- **Recovery:** send `0x13` to clear PWM deliberately, then measure; re-send
-  `0x12` to restart PWM afterwards.
+- **Trigger:** sending `0x16` while a PWM or servo is running.
+- **Symptom:** the output disappears and `AUX` becomes an input.
+- **Behaviour:** `0x16` does not refuse; it shuts the generator timers down,
+  forces `AUX` to an input and measures.  The terminal `f` command refuses
+  while a generator is active instead.
+- **Recovery:** send `0x13` to clear a PWM deliberately, then measure; re-send
+  `0x12` to restart PWM afterwards.  A servo is re-issued with `S`.
 
 ## Continuous ADC does not stop on its own
 
@@ -273,8 +273,9 @@ the recovery.  Entry and framing are in
 - **Trigger:** starting an XSVF run (`0x18`, then `0x03`) and stopping the host
   mid-stream.
 - **Symptom:** the Bus Pirate waits about five seconds during a chunk wait,
-  then sends result byte `0x04` (illegal command — the forced `0xFF` is read
-  as the next command) and returns to the player loop.
+  then sends a result and returns to the player loop.  The result depends on
+  where the substituted `0xFF` lands: `0x01` at the next command boundary,
+  `0x04` as the command byte, or `0x05`/`0x06` as a TAP-state or size byte.
 - **Behaviour:** the player aborts the run instead of parking the port.  A byte
   sent while it is in a timed wait (`XWAIT`/`XRUNTEST`) aborts with `0x01`; a
   zero-length chunk is re-requested.

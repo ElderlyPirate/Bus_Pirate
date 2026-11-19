@@ -1,5 +1,8 @@
 # AVRISP-MKII — licence and attribution
 
+Part of the AVRISP-MKII documentation set.  This page records the licence of
+the LUFA-derived part; it is not a wiring or usage page.
+
 The Bus Pirate AVRISP-MKII personality is a port of
 [LUFA's AVRISP-MKII project](https://www.lufa-lib.org) and is distributed
 under LUFA's licence, reproduced below.  Dean Camera's copyright notice is

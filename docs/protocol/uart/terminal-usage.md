@@ -144,9 +144,9 @@ Two buffer sizes are often confused:
 | Object | Size | Meaning |
 |---|---|---|
 | UART receive ring | 127 usable words | the per-mode receive queue described above |
-| terminal output buffer | 4096 bytes on both builds | the firmware's shared terminal buffer, separate from the UART ring |
+| terminal output buffer | 4096 bytes on both builds | the firmware's shared terminal output buffer, separate from the UART ring |
 
-The 4096-byte terminal buffer is not extra receive capacity for UART.
+The 4096-byte terminal output buffer is not extra receive capacity for UART.
 
 The ring is reset when the port is enabled: after `W`, after a binary
 speed/frame change, and when `(4)` re-runs the setup.  Words queued before

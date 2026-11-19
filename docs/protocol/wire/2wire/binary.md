@@ -36,7 +36,8 @@ Notes:
   Pirate's own result byte**, not a slave ACK.  There is no slave-ACK byte in
   2-Wire (compare I2C's binary mode, which returns the slave ACK per byte).
 - For 2-Wire leave configuration bit 2 clear (`0x88` = open drain + 2 wires +
-  MSB-first).  `0x8x` and `0x6x` both drive CS high.
+  MSB-first).  `0x8x` and `0x6x` both set CS high — driven high in normal
+  output, released in open drain.
 - The pull-up feed reply is `0x00` when it is not applied: in normal output or
   when VPU already has a voltage.  On v3 the request returns `0x00`.
 - `0x1n` consumes exactly `n + 1` bytes.  A command byte sent early becomes

@@ -36,16 +36,18 @@ use the pin names.  Both name the same pins, and this set uses the pin names
 throughout; [generic/commands.md](../../generic/commands.md#aux-targets-and-pin-names)
 owns the full mapping.  The default is `AUX` (`A0`), applied at mode entry and
 by every board reset.  The selection is a mode setting: `w` does **not**
-change it, while `#` and a mode change return it to `AUX`.
+change it, while `#`, a mode change and the binary return (`0x0F`) return it to
+`AUX`.
 
 On v3 only `c` and `C` exist; `k` and `K` are syntax errors.
 
 ### Which target is selected?
 
-Run `i`.  The status block prints `a/A/@ controls <pin> pin`, for example
-`a/A/@ controls AUX1 pin`.  `v` shows the pin states, not the selection.  Do
-not use `c` / `C` / `k` / `K` just to check them, because issuing a selection
-command changes it.
+Run `i`.  In DIO the status block prints `a/A/@ controls <pin> pin`, for
+example `a/A/@ controls AUX1 pin`.  At `HiZ>` `i` prints only the banner, so
+enter a mode first; `v` shows the pin states, not the selection.  Do not use
+`c` / `C` / `k` / `K` just to check them, because issuing a selection command
+changes it.
 
 ## Driving and reading one pin
 

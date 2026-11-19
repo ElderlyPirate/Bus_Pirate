@@ -104,6 +104,27 @@ extern mode_configuration_t mode_configuration;
 static pic_mode_t mode_info = {0};
 
 /**
+ * Resets the persistent mode state to the neutral data state.
+ *
+ * The mode state is static.  Without this, a session that leaves PIC mode
+ * from the command state (pic_start()) re-enters still in command state:
+ * pic_read() then refuses to read and pic_write() sends 6/4-bit commands
+ * instead of 14/16-bit data (CO-8a).
+ */
+static void pic_reset_mode_state(void);
+
+/**
+ * Applies the terminal display width for the current command/data mode.
+ *
+ * The core masks reads and sends with mode_configuration.numbits before it
+ * prints them, so the mode must keep numbits in step with the transfer
+ * width.  Otherwise a 14-bit (6-bit command mode) or 16-bit (4-bit command
+ * mode) data word is truncated to the core's default 8 bits (CO-8b).  The
+ * command display stays byte-wide, matching pic_start()'s banner.
+ */
+static void pic_set_display_width(void);
+
+/**
  * Writes a null byte to the bus.
  */
 static void write_zero(void);
@@ -129,12 +150,26 @@ static void write_bits(const uint16_t data, const uint8_t bits);
  */
 static uint16_t read_bits(const uint8_t bits);
 
+static void pic_reset_mode_state(void) { mode_info.mode = PIC_MODE_DATA; }
+
+static void pic_set_display_width(void) {
+  if (mode_info.mode == PIC_MODE_COMMAND) {
+    /* Commands are 6 or 4 bits; the byte-wide display is intended here. */
+    mode_configuration.numbits = 8;
+    mode_configuration.int16 = NO;
+  } else {
+    mode_configuration.numbits =
+        (mode_info.opcode_bits == PIC_MODE_6BITS) ? 14 : 16;
+    mode_configuration.int16 = YES;
+  }
+}
+
 void pic_setup_prepare(void) {
-  consumewhitechars();
-  int mode = getint();
-  consumewhitechars();
-  int delay = getint();
+  pic_reset_mode_state();
+  int mode = getint_with_spaces();
+  int delay = getint_with_spaces();
   bool interactive =
+      mode_configuration.command_error ||
       !(((mode > 0) && (mode <= 2)) && ((delay >= 0) && (delay <= 3)));
 
   if (interactive) {
@@ -144,8 +179,11 @@ void pic_setup_prepare(void) {
     MSG_PIC_DELAY_PROMPT;
     mode_info.delay = getnumber(1, 0, 3, 0);
   } else {
+    /* Inline arguments ("<mode> <delay>") were supplied: apply them. */
+    mode_info.opcode_bits = mode - 1;
+    mode_info.delay = delay;
     MSG_PIC_MODE_HEADER;
-    bp_write_dec_byte(mode_info.mode == PIC_MODE_6BITS ? 6 : 4);
+    bp_write_dec_byte(mode_info.opcode_bits == PIC_MODE_6BITS ? 6 : 4);
     bpSP;
     bp_write_dec_byte(mode_info.delay);
     bp_write_line(")");
@@ -153,27 +191,31 @@ void pic_setup_prepare(void) {
 
   /* Allow for different Vcc. */
   mode_configuration.high_impedance = YES;
-  mode_configuration.int16 = YES;
+  pic_set_display_width();
 
   /* Pull both pins low before applying Vcc and Vpp. */
   bitbang_set_pins_low(MOSI | CLK, PIC_PIN_DELAY);
 }
 
-void pic_setup_execute(void) { mode_configuration.int16 = YES; }
+void pic_setup_execute(void) { pic_set_display_width(); }
 
-void pic_cleanup(void) { mode_configuration.int16 = NO; }
+void pic_cleanup(void) {
+  pic_reset_mode_state();
+  mode_configuration.int16 = NO;
+}
 
 void pic_start(void) {
   mode_info.mode = PIC_MODE_COMMAND;
   MSG_PIC_MODE_COMMAND;
-  user_serial_transmit_character(mode_info.mode == PIC_MODE_6BITS ? '6' : '4');
-  mode_configuration.int16 = NO;
+  user_serial_transmit_character(mode_info.opcode_bits == PIC_MODE_6BITS ? '6'
+                                                                         : '4');
+  pic_set_display_width();
   bpBR;
 }
 
 void pic_stop(void) {
   mode_info.mode = PIC_MODE_DATA;
-  mode_configuration.int16 = YES;
+  pic_set_display_width();
   MSG_PIC_MODE_DATA;
 }
 
@@ -183,7 +225,7 @@ uint16_t read_bits(const uint8_t bits) {
   for (size_t index = 0; index < bits; index++) {
     bitbang_set_pins_high(CLK, PIC_PIN_DELAY / 2);
     data = (data >> 1) |
-           ((bitbang_read_pin(MOSI) == HIGH ? 1 : 0) << (1 << (bits - 1)));
+           ((bitbang_read_pin(MOSI) == HIGH ? 1 : 0) << (bits - 1));
     bitbang_set_pins_low(CLK, PIC_PIN_DELAY / 2);
   }
 
@@ -218,7 +260,7 @@ unsigned int pic_read(void) {
 }
 
 void write_bits(const uint16_t data, const uint8_t bits) {
-  uint8_t mask = 1;
+  uint16_t mask = 1;
 
   for (size_t index = 0; index < bits; index++) {
     bitbang_set_pins_high(CLK, PIC_PIN_DELAY / 4);

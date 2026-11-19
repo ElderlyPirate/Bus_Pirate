@@ -202,8 +202,10 @@ The command sets and links are in [sub-protocols.md](sub-protocols.md); the
 `0x08`/`0x09` personalities are in
 [the AVRISP-MKII set](../../programmers/avrisp/entry.md).  Those two
 entries have no command loop and no identifier: they hand the link to the
-personality, which ends after about five seconds without host traffic or on a
-reset, then prints `BBIO1` again.  On a v3 build both bytes are answered with
+personality, which ends after about two minutes without a first request on
+the USB route (about five seconds on the serial route), then after about five
+seconds of idle once a request has arrived; a reset also ends it, then it
+prints `BBIO1` again.  On a v3 build both bytes are answered with
 `0x00` and the layer re-announces itself with `BBIO1`, so read until `BBIO1`.
 
 ### Reset (`0x0F`)

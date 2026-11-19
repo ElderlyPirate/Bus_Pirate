@@ -16,9 +16,9 @@ target interface; wiring is in [wiring.md](wiring.md), the command set in
 ## Entry
 
 Send the USB entry byte `0x08` from `BBIO1`; the device re-enumerates as
-`AVRISP mkII`.  The host-side snippet, the five-second deadline and the way
-back out are owned by [entry.md](entry.md) — do not enter the mode and then
-look up a command.
+`AVRISP mkII`.  The host-side snippet, the startup and idle deadlines (USB:
+about two minutes to the first request; five seconds of idle afterwards) and
+the way back out are owned by [entry.md](entry.md).
 
 The USB route is the normal route for PDI and TPI.  The serial route
 ([serial-route.md](serial-route.md)) is the ISP route in `avrdude`; the same

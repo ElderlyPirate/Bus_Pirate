@@ -89,7 +89,7 @@ with `STK500_2`.  Do not look for a second device in a device list.
 
 | Host | USB mkII route | Serial route |
 |---|---|---|
-| Windows | a libusb/WinUSB-style driver bound to `03EB:2104`; the first binding may need more than one entry — see §Windows USB first use | the normal Bus Pirate serial driver; install/allow it on first plug-in, before entering the personality; no libusb driver |
+| Windows | a libusb/WinUSB-style driver bound to `03EB:2104`; if the first binding resets the device or exceeds the two-minute startup budget, re-enter and retry — see §Windows USB first use | the normal Bus Pirate serial driver; install/allow it on first plug-in, before entering the personality; no libusb driver |
 | Linux | a udev rule for `03EB:2104`, or permission to open the device | the normal CDC device permissions |
 | macOS | nothing extra — the system USB stack opens it | nothing extra |
 
@@ -106,16 +106,16 @@ the v3 FTDI `0403:6001`), so they do not apply to `03EB:2104`.
 
 ## Windows USB first use
 
-The mkII identity exists only while the personality is active, and the
-personality ends after about five seconds without a completed request.  A
-first-time Windows driver installation can take longer than that, so a
-single enter-then-install attempt may not finish.  Use one of these paths:
+The mkII identity exists only while the personality is active.  It is kept
+for about **120 seconds** from attach until the first complete request — long
+enough to enumerate, configure and finish a normal binding; empty packets do
+not extend it.  A binding that resets the device, or takes longer than two
+minutes, still needs another entry.  Use one of these paths:
 
 1. **ISP first: use the serial route.**  Install or allow the normal CDC
-   serial driver on first plug-in, before entering the personality; that
-   install has no five-second deadline.  Once bound, the port stays
-   enumerated and no libusb binding is involved.  See
-   [serial-route.md](serial-route.md).
+   serial driver on first plug-in, before entering the personality; the CDC
+   install is not time-limited.  Once bound, the port stays enumerated and no
+   libusb binding is involved.  See [serial-route.md](serial-route.md).
 2. **Bind the mkII driver with retries.**  Open Zadig with
    *Options → List All Devices* enabled.  Enter with `0x08`, refresh the
    list if the device does not appear, select `AVRISP mkII`
@@ -128,18 +128,19 @@ single enter-then-install attempt may not finish.  Use one of these paths:
 3. **Pre-stage the driver.**  For repeat deployments, add a WinUSB/libusb
    INF for `03EB:2104` to the Windows driver store before the first entry
    (`pnputil /add-driver` with the INF file).  This removes the interactive
-   step; the first enumeration still has to finish inside the window.
+   step; the first enumeration still has to finish inside the 120-second
+   budget.
 4. **Use a Linux host.**  No driver binding is needed; a udev rule or
    permission to open the device is enough.
 
-After the binding is in place, enter with `0x08` and start `avrdude`
-immediately; do not wait for the device to appear in a device list first,
-because the deadline is already running.  If `avrdude` reports that it
-cannot find `03EB:2104`, it started before the device enumerated or after
-the mode ended: re-enter with `0x08` and run it again.  There is no
-keep-alive before the binding: only a completed request renews the
-five-second window, and an unbound host cannot send one.  After a request
-completes, the session stays alive while the host keeps sending.
+After the binding is in place, enter with `0x08`, wait for `03EB:2104` to
+appear, then start `avrdude` (it does not wait for a device that is not yet
+enumerated).  If `avrdude` reports that it cannot find `03EB:2104`, it started
+before the device appeared or after the mode ended: re-enter with `0x08` and
+run it again.  The startup budget is not renewable — only the first complete
+request switches the mode to the five-second idle — but it is two minutes, so
+a normal binding has room.  After a request completes, the session stays alive
+while the host keeps sending.
 
 Only one driver can own the interface at a time.  If the device was bound to
 an Atmel/Studio driver, a libusb-based `avrdude` may not be able to open it;
@@ -181,17 +182,17 @@ is not active — it timed out, was reset, or is not in the build.
 
 | Symptom | Likely cause | Action |
 |---|---|---|
-| `03EB:2104` never appears | entry byte not sent, mode already timed out, or personality not in the build | enter again and start the host tool at once; check the build ([entry.md](entry.md) §Build availability) |
-| device appears but `avrdude` cannot open it | no driver, wrong driver, or missing udev permission | bind WinUSB/libusb (Windows may need more than one entry; see §Windows USB first use) or add the udev rule, then re-enter |
+| `03EB:2104` never appears | entry byte not sent, mode already ended, or personality not in the build | enter again and start the host tool once the device appears; check the build ([entry.md](entry.md) §Build availability) |
+| device appears but `avrdude` cannot open it | no driver, wrong driver, or missing udev permission | bind WinUSB/libusb (on Windows, re-enter and retry if the binding resets the device or exceeds the two-minute startup budget; see §Windows USB first use) or add the udev rule, then re-enter |
 | `avrdude -c avrispmkII -P usb` cannot find the tool | the device is not in the mkII personality (for example still CDC), or another driver owns it | re-enter with `0x08`; check the driver |
-| `avrdude` reports no device right after entry | it started before enumeration completed, or the deadline expired | re-enter with `0x08` and run it again; see §Windows USB first use |
+| `avrdude` reports no device right after entry | it started before the device appeared, or the mode ended (host reset/deconfiguration, or the startup budget expired) | re-enter with `0x08` and run it again; see §Windows USB first use |
 | `avrdude -c stk500v2 -P COM5` cannot open the port | the terminal or another program still holds the port | close it and retry |
 | Atmel Studio offers a firmware upgrade | the upgrade command is not implemented | do not accept it; use `avrdude` |
-| host sees the device only briefly | the first driver binding did not finish inside the five-second window | re-enter and repeat the binding; for ISP first use, use the serial route.  See §Windows USB first use |
+| host sees the device only briefly | the host reset/deconfigured the interface, or the binding exceeded the 120-second budget | re-enter and repeat the binding; for ISP first use, use the serial route.  See §Windows USB first use |
 
 ## Related docs
 
-- [entry.md](entry.md) — entry bytes and the idle deadline.
+- [entry.md](entry.md) — entry bytes and the startup and idle deadlines.
 - [protocol.md](protocol.md) — USB transport and `SIGN_ON`.
 - [serial-route.md](serial-route.md) — the CDC route.
 - [isp.md](isp.md) — `avrdude` flows and the speed ladder.

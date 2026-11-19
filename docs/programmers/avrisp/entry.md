@@ -1,8 +1,9 @@
 # AVRISP-MKII — getting in and out
 
 Part of the AVRISP-MKII documentation set.  This page owns the build
-availability, the two entry bytes, the host-side sequence, the idle deadline
-and the way back out.  The path pages link here instead of repeating it.
+availability, the two entry bytes, the host-side sequence, the startup and
+idle deadlines and the way back out.  The path pages link here instead of
+repeating it.
 
 ## Build availability
 
@@ -67,7 +68,8 @@ Close the terminal program first: only one program can hold the port, and the
 use the port the host lists (`/dev/ttyACM0` on Linux, a `/dev/cu.usbmodem`
 name on macOS).
 
-Then start `avrdude` immediately (see the deadline below).  On the USB route
+Then start `avrdude` once `03EB:2104` appears (USB) or once the entry script
+has released the port (serial) — see the deadlines below.  On the USB route
 the CDC port disappears when the mkII device enumerates; on the serial route
 the same port stays enumerated and must be free for `avrdude`.
 
@@ -105,14 +107,18 @@ The personality never switches a target supply on.  If the target is powered
 from the Bus Pirate's own rails, it loses power at entry; use an external
 target supply for programming.
 
-## The idle deadline
+## The startup budget and the idle deadline
 
-- The personality ends after about **five seconds** without host traffic.
-  The clock starts **when the mode is entered**, so USB enumeration and
-  `avrdude` start-up are inside the same window.  Do not enter the mode and
-  then look up a command.
-- On the USB route only a completed, non-empty request renews the window.
-  Empty OUT packets and an open-but-idle handle do not.
+- **USB route:** the mkII identity is held for about **120 seconds** (two
+  minutes) from attach until the first complete, non-empty request.  That
+  budget covers enumeration, configuration and a delayed first command, and
+  nothing renews it: empty OUT packets and an open-but-idle handle do not
+  extend it.
+- **Serial route:** about **five seconds** from entry to the first frame.
+- **After the first request, both routes:** the personality ends after about
+  **five seconds** without host traffic.
+- On the USB route only a completed, non-empty request renews the idle
+  window.  Empty OUT packets and an open-but-idle handle do not.
 - On the serial route any received byte renews it.
 - A request restarts the window when it is read and again when its reply is
   sent, so the deadline governs the gaps between requests, not the length of
@@ -125,14 +131,16 @@ stack with the mkII descriptors and re-attaches.  The host sees the device
 disappear and return as `AVRISP mkII`; the CDC serial port is gone for the
 duration.
 
-- The host must enumerate and configure the new interface inside the same
-  five-second window.  A slow first-time driver binding can exceed it; the
-  firmware then releases the target and restores the CDC device instead of
-  waiting forever.  A binding that did not finish is retried by re-entering
-  with `0x08`; the serial route avoids the problem for ISP.  The Windows
-  procedure is in [host-tools.md](host-tools.md) §Windows USB first use.
-- Start `avrdude` as soon as the entry script returns.  It does not wait for
-  a device that is not yet enumerated; if it reports that it cannot find
+- The host has about two minutes to enumerate, configure and send the first
+  request.  When the startup budget expires the firmware releases the target
+  and restores the CDC device instead of waiting forever.  A binding that
+  takes longer, or a host reset/deconfiguration that ends the mode, is retried
+  by re-entering with `0x08`.  The serial route avoids the libusb binding for
+  ISP.  The Windows procedure is in
+  [host-tools.md](host-tools.md) §Windows USB first use.
+- Start `avrdude` once `03EB:2104` appears.  It does not wait for a device
+  that is not yet enumerated; the USB route keeps the identity for about two
+  minutes, so a slow start is covered.  If it reports that it cannot find
   `03EB:2104`, re-enter with `0x08` and start it again.
 - The mkII personality is bus-powered and requests 100 mA.
 - A host reset or an interface deconfiguration ends the personality; it does
@@ -144,7 +152,7 @@ duration.
 
 The personality has no exit command and no prompt.  It ends when:
 
-1. the idle deadline expires,
+1. the startup budget or the idle deadline expires,
 2. the USB link stalls, is reset or is deconfigured, or
 3. the board is hardware-reset.
 

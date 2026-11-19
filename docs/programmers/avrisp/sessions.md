@@ -17,8 +17,9 @@ catalogue is in [protocol.md](protocol.md); the state model is in
 
 ## Identity and parameters over USB
 
-Enter with `0x08` (the device re-enumerates) and start the host tool at
-once — the mode ends after about five seconds without a request.  Then
+Enter with `0x08` (the device re-enumerates) and start the host tool once
+`03EB:2104` appears — the mode keeps the USB identity for about two minutes
+until the first request, then ends after about five seconds of idle.  Then
 send:
 
 ```

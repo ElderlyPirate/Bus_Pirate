@@ -24,7 +24,7 @@ This README is a map, not the manual — the details live in the files below.
 
 | File | Covers |
 |---|---|
-| [entry.md](entry.md) | build availability, entry bytes, host snippet, idle deadline, leaving |
+| [entry.md](entry.md) | build availability, entry bytes, host snippet, startup and idle deadlines, leaving |
 | [wiring.md](wiring.md) | v4 header, ISP/PDI/TPI wiring, pull-ups, supply, VTARGET |
 | [isp.md](isp.md) | ISP flow: `avrdude`, fuses, lock bits, erase, verify, speed |
 | [pdi.md](pdi.md) | PDI flow (XMEGA): `avrdude`, fuses, limits |
@@ -46,16 +46,19 @@ This README is a map, not the manual — the details live in the files below.
 - **Enter** from binary bitbang mode: send `0x00` until `BBIO1` appears
   (20 ×), then byte **`0x08`** (USB) or byte **`0x09`** (serial).  A
   terminal emulator normally cannot send NULs — use the host snippet in
-  [entry.md](entry.md), then start `avrdude` immediately.
-- **Deadline:** about **five seconds** without host traffic ends the mode,
-  counted from entry (USB enumeration is inside that window).  Only a
-  completed request renews it on the USB route; any byte renews it on the
-  serial route.
+  [entry.md](entry.md), then start `avrdude` once `03EB:2104` appears (USB)
+  or once the entry script has released the port (serial).
+- **Deadline:** USB — about **two minutes (120 s)** from attach to the first
+  request (covers enumeration and driver binding); serial — about **five
+  seconds** from entry.  After the first request both routes end after about
+  **five seconds** without host traffic; only a completed request renews it
+  on USB, any byte on the serial route.
 - **USB route:** the device re-enumerates as `AVRISP mkII`; program with
   `avrdude -c avrispmkII -P usb -p m328p -U flash:w:app.hex:i`.  Host
   drivers and permissions are in [host-tools.md](host-tools.md).  A
-  first-time Windows libusb/WinUSB binding may need more than one entry;
-  see [host-tools.md](host-tools.md) §Windows USB first use.  For ISP first
+  first-time Windows libusb/WinUSB binding is retried by re-entering if it
+  resets the device or takes longer than the two-minute startup budget; see
+  [host-tools.md](host-tools.md) §Windows USB first use.  For ISP first
   use, prefer the serial route.
 - **Serial route:** after `0x09`, use
   `avrdude -c stk500v2 -P COM5 -p m328p -U flash:w:app.hex:i`.  `COM5` is

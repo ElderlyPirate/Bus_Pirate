@@ -59,8 +59,8 @@ The USB route is a vendor-class device: one interface, two bulk endpoints,
 - A request that ends exactly on a 64-byte boundary **must** be followed by
   a zero-length packet.  Without it the personality keeps waiting for the
   rest of the transfer; when the command budget expires the mode ends.
-- An empty OUT packet does not start a request and does not renew the idle
-  deadline.
+- An empty OUT packet does not start a request and does not extend the
+  120-second startup budget or renew the five-second idle deadline.
 - A reply whose length is an exact multiple of 64 bytes is terminated with
   a zero-length packet; without it the host would wait for the next packet.
 - One transfer carries **one** command.  Concatenating two commands in one
@@ -270,8 +270,8 @@ override from the part definition.
 
 ## Related docs
 
-- [entry.md](entry.md) — entry bytes in practice, the idle deadline, the
-  return to `BBIO1`.
+- [entry.md](entry.md) — entry bytes in practice, the startup and idle
+  deadlines, the return to `BBIO1`.
 - [command-model.md](command-model.md) — the session/state model.
 - [sessions.md](sessions.md) — worked request and reply sequences.
 - [isp.md](isp.md) / [pdi.md](pdi.md) / [tpi.md](tpi.md) — the target

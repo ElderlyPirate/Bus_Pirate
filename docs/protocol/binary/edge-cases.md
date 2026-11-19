@@ -291,9 +291,11 @@ the recovery.  Entry and framing are in
   leaving the host idle.
 - **Symptom:** the link changes back — a USB serial port re-appears, or the
   framed route stops answering; `BBIO1` is printed on the way out.
-- **Behaviour:** the personality ends after about **five seconds** without host
-  traffic, and a hardware reset also leaves it.  It is accepted only from
-  BBIO1 and only on v4.
+- **Behaviour:** on the USB route the personality waits about **two minutes**
+  for the first complete request, then ends after about **five seconds**
+  without host traffic; the serial route has about five seconds from entry to
+  the first frame, then the same five-second idle.  A hardware reset also
+  leaves it.  It is accepted only from BBIO1 and only on v4.
 - **Recovery:** from the returned `BBIO1`, send `0x08` or `0x09` again, or
   `0x0F` for the terminal.  See
   [the AVRISP-MKII entry page](../../programmers/avrisp/entry.md).

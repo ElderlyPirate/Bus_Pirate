@@ -31,11 +31,11 @@ opcodes and poll values the host supplies.
 | State | Host-visible sign | Entered by | Left by |
 |---|---|---|---|
 | `BBIO1` | `BBIO1` on the CDC port | 20 × `0x00` from the terminal | entry byte, or `0x0F` to the terminal |
-| attaching (USB route) | the CDC port disappears; the mkII device appears | `0x08` | host configures the interface, or the idle deadline restores CDC |
-| ready | the host can send any V2 command | enumeration/configuration on USB; immediately on the serial route | idle deadline, host reset, deconfiguration, board reset |
+| attaching (USB route) | the CDC port disappears; the mkII device appears | `0x08` | host configures the interface and the first request arrives, or the 120-second startup budget restores CDC |
+| ready | the host can send any V2 command | enumeration/configuration on USB; immediately on the serial route | the startup budget before the first request, then the five-second idle deadline; host reset, deconfiguration, board reset |
 | ISP session | target held in programming mode | `ENTER_PROGMODE_ISP` succeeds | `LEAVE_PROGMODE_ISP`, or the mode ends |
 | XPROG session (PDI or TPI) | target interface enabled | `XPROG ENTER_PROGMODE` succeeds | `XPROG LEAVE_PROGMODE`, or the mode ends |
-| ending | target released; `BBIO1` reprints | idle deadline, USB stall/reset, board reset | `0x0F` to the terminal |
+| ending | target released; `BBIO1` reprints | startup budget or idle deadline, USB stall/reset, board reset | `0x0F` to the terminal |
 
 The states are cooperative, not strictly enforced.  The firmware does not
 refuse a memory command sent before `ENTER_PROGMODE`, and it does not police
@@ -135,12 +135,13 @@ and §TPI.
 | target timeout in a memory operation | interface stays enabled | `LEAVE`, check wiring/power, retry |
 | failed ISP enable | `RESET` asserted | `LEAVE`, check target and clock, retry |
 | failed XPROG enable | interface may stay enabled | `LEAVE`, check target, retry |
-| idle deadline | mode ends; target released; `BBIO1` | re-enter if more work is needed |
+| startup budget or idle deadline | mode ends; target released; `BBIO1` | re-enter if more work is needed |
 | host USB reset/deconfiguration | mode ends; CDC restored | re-enter with `0x08` |
 
 A timeout does not end the mode by itself.  The host can send `LEAVE` and
 start again, or continue if the target recovered.  Only the mode-level
-events (idle, USB stall/reset, board reset) end the personality.
+events (the startup budget or idle, USB stall/reset, board reset) end the
+personality.
 
 ## Related docs
 

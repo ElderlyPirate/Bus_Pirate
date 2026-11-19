@@ -1,7 +1,8 @@
 # JTAG
 
-**Status:** OpenOCD path on v3 (build-only, unverified) and v4; the XSVF
-player is v4 only.  v3 behaviour in this set is unverified.
+**Status:** OpenOCD path on v3 (build-only; **other** v3 behaviour
+unverified) and v4; the XSVF player is v4 only.  Other v3 behaviour in this
+set is unverified.
 
 JTAG is a four-signal debug and configuration bus: TDI, TDO, TCK and TMS,
 with optional SRST and TRST.  The Bus Pirate drives it **only from the
@@ -78,14 +79,14 @@ player ignores `0x00`.
 
 | | v3 | v4 |
 |---|---|---|
-| OpenOCD path (`0x06`) | present, unverified | present |
+| OpenOCD path (`0x06`) | present; zero count guarded; other v3 behaviour unverified | present |
 | XSVF player (`0x18`) | — (answers `0x00`) | present |
 | open-drain pin mode | present, unverified | present |
 | XSVF entry enables VREG | — | yes |
 | OpenOCD host | POSIX only (native Windows builds exclude the driver) | POSIX only |
 | XSVF host | — | Windows or Linux |
 
-The v3 column is **not verified on v3**.
+The v3 column is **not verified on v3**, except the guarded zero-count case.
 
 Hardware: a Bus Pirate (v4 for the XSVF player), a USB cable, the target's
 JTAG header and a common ground.  The OpenOCD path also needs a POSIX host

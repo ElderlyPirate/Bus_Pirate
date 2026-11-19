@@ -157,9 +157,9 @@ void trigger_atr(void) {
 
   bitbang_set_cs(LOW);
   bp_delay_us(0xFF);
-  bitbang_set_cs(HIGH);
   bitbang_advance_clock_ticks(1);
-  bitbang_set_cs(LOW);
+  /* CS is the card's active-low reset; release it before reading the ATR. */
+  bitbang_set_cs(HIGH);
 }
 
 void read_atr_header(void) {

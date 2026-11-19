@@ -384,7 +384,7 @@ int main(int argc, char** argv)
                                 break;
                              case XSVF_READY_FOR_DATA:
                                  if (fileSize==0) {
-                                     printf(" End of file reached. \n");
+                                     printf(" End of file reached without a completion result.\n");
                                      status=2; /* More input requested, not completion. */
                                 } else {
 									printf(" Programmer says more data: XSVF_READY_FOR_DATA \n");

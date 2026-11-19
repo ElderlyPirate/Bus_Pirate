@@ -235,11 +235,11 @@ it is the single byte `0x70`.  Only sub-command `0` is defined; any other low
 nibble is answered with `0x00` **without reading a payload**.
 
 Payload and reply are owned by
-[commands.md](commands.md#wait-for-an-edge) §Wait for an edge: an edge selector,
-a 16-bit big-endian timeout in milliseconds, then a result byte and the
-selected AUX pin level.  The selector and timeout are always consumed before an
-invalid selector is refused.  The wait does not change the selected pin's
-direction — configure it as an input first.
+[commands.md](commands.md#wait-for-an-edge-0x70) §Wait for an edge: an edge
+selector, a 16-bit big-endian timeout in milliseconds, then a result byte and
+the selected AUX pin level.  The selector and timeout are always consumed
+before an invalid selector is refused.  The wait does not change the selected
+pin's direction — configure it as an input first.
 
 The dedicated `PIC1`, `OCD1` and `XSV1` loops do not implement this group.
 

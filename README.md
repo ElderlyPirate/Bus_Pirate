@@ -28,6 +28,8 @@ full capability matrix and links every set:
   Planned items are marked `tbi`.
 * **[docs/generic/](docs/generic/)** — how to use the prompt: navigation,
   formatting, values, macros, wrappers, reads and reset.
+* **[docs/TEMPLATE.md](docs/TEMPLATE.md)** — the page template and presentation
+  rules used by the documentation sets.
 
 Sets are grouped by cluster:
 

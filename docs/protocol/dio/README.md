@@ -121,6 +121,10 @@ target; run `i` to see the selection.
 
 - [generic/](../../generic/README.md) — the shared prompt: mode menu, values,
   macros, reset and the `v` table.
+- [capabilities/auxiliary/](../../capabilities/auxiliary/README.md) — the owned
+  AUX pin, PWM, servo and frequency set.
+- [capabilities/adc/](../../capabilities/adc/README.md) — the owned ADC probe
+  and continuous-sampling set.
 - [binary/](../binary/README.md) — the binary bitbang layer whose state-byte
   layout direct I/O shares.
 - [SPEC.md](../../SPEC.md) — the function and capability index.

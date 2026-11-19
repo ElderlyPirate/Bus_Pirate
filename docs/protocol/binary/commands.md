@@ -75,7 +75,7 @@ directions.
 - To sample the selected AUX pin without changing the pin state, send the wait
   with a zero timeout: `0x70 0x03 0x00 0x00`.  A stable pin gives `0x00`
   (nothing was awaited) and then the level.  Make the pin an input first if it
-  is an output; see [Wait for an edge](#wait-for-an-edge).
+  is an output; see [Wait for an edge](#wait-for-an-edge-0x70).
 - The other four header lines have no read-only sample in BBIO1.  A level byte
   from them always follows a write.
 

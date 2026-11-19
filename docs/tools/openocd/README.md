@@ -113,6 +113,7 @@ target and needs no Bus Pirate pull-up.  The full map is in
 | Doc | Why |
 |---|---|
 | [protocol/jtag/tap.md](../../protocol/jtag/tap.md) | TAP states, shifts, IDCODE, bypass |
+| [protocol/jtag/openocd.md](../../protocol/jtag/openocd.md) | the `0x06` path byte protocol in the JTAG set |
 | [protocol/jtag/wiring.md](../../protocol/jtag/wiring.md) | shared pin map, levels, supplies |
 | [protocol/jtag/clock.md](../../protocol/jtag/clock.md) | TCK delay and link speed |
 | [protocol/jtag/entry.md](../../protocol/jtag/entry.md) | binary entry for both JTAG paths |

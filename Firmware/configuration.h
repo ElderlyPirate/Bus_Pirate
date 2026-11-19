@@ -576,9 +576,22 @@
 /**
  * How big the serial terminal buffer can be, in bytes.
  *
+ * @warning This must be set to a power of two, ie. 256, 128, 64, 32, etc.
+ *
  * @todo Make sure that no hard-coded buffer sizes are present.
  */
+#ifdef BUSPIRATEV3
+/*
+ * The v3 only has 8 kB of RAM in total, so a 4 kB terminal buffer leaves the
+ * linker unable to place the data sections at all and the BPv3 target does
+ * not link.  The buffer is therefore sized per hardware, as is
+ * BP_COMMAND_BUFFER_SIZE above.  At 2 kB it occupies the same quarter of RAM
+ * as the 4 kB buffer does on the v4.
+ */
+#define BP_TERMINAL_BUFFER_SIZE 2048
+#else
 #define BP_TERMINAL_BUFFER_SIZE 4096
+#endif /* BUSPIRATEV3 */
 
 /**
  * Use a hardware timer to calculate delays instead of a NOP-based busy loop.

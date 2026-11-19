@@ -1,0 +1,10 @@
+# Build products of the command line Makefile (see Firmware/Makefile).
+# Intermediate preprocessed/assembly output from SAVE_TEMPS also lands here,
+# because the Makefile passes -save-temps=obj.
+/build/
+/bpv3.elf
+/bpv3.hex
+/bpv3.map
+/bpv4.elf
+/bpv4.hex
+/bpv4.map

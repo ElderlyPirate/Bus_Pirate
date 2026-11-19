@@ -27,6 +27,7 @@
  * @return the value being read.
  */
 unsigned int dio_read(void);
+void dio_setup_prepare(void);
 
 /**
  * Writes a value to the device.

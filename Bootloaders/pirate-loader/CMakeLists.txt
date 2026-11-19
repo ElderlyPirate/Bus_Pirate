@@ -17,5 +17,23 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(pirate-loader)
 set (SOURCE_FILES pirate-loader.c)
 set_property (SOURCE ${SOURCE_FILES} PROPERTY COMPILE_DEFINITIONS OS=${CMAKE_SYSTEM_NAME})
-set (CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc")
+
+# A stand-alone flasher is nicer to carry around statically linked, but the
+# flags are toolchain-specific: GCC/Clang take -static[-libgcc], MSVC takes
+# /MT.  Do not hand GCC flags to MSVC (and vice versa).
+option (PIRATE_LOADER_STATIC "Link against static runtimes where supported" ON)
+if (PIRATE_LOADER_STATIC)
+  if (MSVC)
+    # MSVC has no -static; use the static CRT (replace the default /MD).
+    foreach (flag CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+                  CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+      string (REPLACE "/MD" "/MT" ${flag} "${${flag}}")
+    endforeach ()
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc")
+  elseif (CMAKE_C_COMPILER_ID MATCHES "Clang")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  endif ()
+endif ()
+
 add_executable (pirate-loader ${SOURCE_FILES})

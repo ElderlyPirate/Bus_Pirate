@@ -42,6 +42,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Table-read builtin (XC16); used to check the application vector below.
+unsigned int __builtin_tblrdl(unsigned int offset);
+
 // Hardware 'NORMAL' button on BPv4 definitions
 #define BP_BUTTON_DIR TRISCbits.TRISC14
 #define BP_BUTTON PORTCbits.RC14
@@ -55,6 +58,11 @@
 #define BP_BUTTON_ISDOWN() (!BP_BUTTON) // 0=DOWN (PRESSED) / 1=UP (UNPRESSED)
 
 #define FIRMWARE_SIGNATURE 0x31415926
+
+// Word address of the application's reset vector (the entry jump below
+// targets it), and its byte address for the erased-application table read.
+#define APPLICATION_VECTOR_ADDRESS 0x2000
+#define APPLICATION_VECTOR_BYTE (APPLICATION_VECTOR_ADDRESS << 1)
 
 bool __attribute__((address(0x47FA), persistent)) skip_pgc_pgd_check;
 uint32_t __attribute__((address(0x47FC), persistent)) firmware_signature;
@@ -118,10 +126,16 @@ int main(void) {
 
     for (i = 0; i < 20; i++) {
       if ((PGD_IN == 1 && !(BP_BUTTON_ISDOWN()))) { // go to user space on first mis-match
-        // continue to bootloader, or exit
-        asm(".equ BLJUMPADDRESS, 0x2000");
-        asm volatile("mov #BLJUMPADDRESS, w1 \n" // bootloader location
-                     "goto w1 \n");
+        // Only leave for the application when its reset vector is present;
+        // jumping into an erased application would hang the device there
+        // until it is recovered by hand.
+        TBLPAG = 0;
+        if (__builtin_tblrdl(APPLICATION_VECTOR_BYTE) != 0xFFFF) {
+          // continue to bootloader, or exit
+          asm(".equ BLJUMPADDRESS, 0x2000");
+          asm volatile("mov #BLJUMPADDRESS, w1 \n" // bootloader location
+                       "goto w1 \n");
+        }
       }
     }
   }

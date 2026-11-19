@@ -17,16 +17,12 @@ unsigned int __builtin_tblrdh(unsigned int offset);
 BYTE inbyte; // JTR3 Global
 BYTE errflag;
 long fulladdress;
-
-BYTE bldone = 0;
 extern BYTE cdc_In_buffer[64];
 extern BYTE cdc_Out_buffer[64];
 #define VER_H 0x04
-#define VER_L 0x0c
+#define VER_L 0x0e
 
-unsigned int userversion  __attribute__((space(prog),address(BLENDADDR-9))) = ((VER_H<<8)|VER_L); 
-
-int foo __attribute__((section("mysection"),address(0x2000)));
+unsigned int userversion  __attribute__((space(prog),address(BLENDADDR-9))) = ((VER_H<<8)|VER_L);
 
 struct _bootstruct {
     BYTE enableerase;
@@ -41,7 +37,6 @@ struct _bootstruct {
 
 } bootstruct;
 
-#define  HAS_PAGES
 #define  PROT_BL
 #define  PROT_GOTO
 #define  PROT_CONFIG
@@ -106,7 +101,7 @@ error:
 			//get checksum
             usbbufgetbyte(&bootstruct.checksum);
 			crc+=bootstruct.checksum;
-            // TODO add checksum computation and check
+            // all command bytes summed must be zero
 			if(crc!=0){
 				bootstruct.blreturn='N';//return checksum error
 				goto error;
@@ -146,7 +141,7 @@ error:
 	                bootstruct.blreturn = 'U';
 	                break;
 	        }//switch(c)
-    } while (!bldone);
+    } while (1);
 }
 
 void WritePage() {
@@ -164,7 +159,7 @@ void WritePage() {
             bootstruct.data[1] = (unsigned char) (BLSTARTADDR);
             bootstruct.data[2] = (unsigned char) (BLSTARTADDR >> 8);
             bootstruct.data[3] = 0x00;
-            bootstruct.data[4] = (unsigned char) ((BLSTARTADDR >> 16) && 0xFF);
+            bootstruct.data[4] = (unsigned char) ((BLSTARTADDR >> 16) & 0xFF);
             bootstruct.data[5] = 0x00;
             } // EDIT to add this
     #endif

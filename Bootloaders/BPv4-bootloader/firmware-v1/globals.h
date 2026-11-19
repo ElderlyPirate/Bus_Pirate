@@ -25,13 +25,15 @@ typedef unsigned char BYTE;
 
 #define uLedOn() LATBbits.LATB10 = 1
 #define uLedOff() LATBbits.LATB10 = 0
-#define uLedToggle() LATBbits.LATB10 ^= LATBbits.LATB10
+#define uLedToggle() LATBbits.LATB10 ^= 1
 
 #define mLedOn() LATBbits.LATB8 = 1
 #define mLedOff() LATBbits.LATB8 = 0
-#define mLedToggle() LATBbits.LATB8 ^= LATBbits.LATB8
+#define mLedToggle() LATBbits.LATB8 ^= 1
 
 #define vLedOn() LATBbits.LATB9 = 1
 #define vLedOff() LATBbits.LATB9 = 0
-#define vLedToggle() LATBbits.LATB9 ^= LATBbits.LATB9
+// RB9 is the voltage-regulator enable on the v4; the legacy LED toggle is
+// kept as "off" so USB traffic never switches the target supply on.
+#define vLedToggle() vLedOff()
 #endif

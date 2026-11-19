@@ -33,9 +33,9 @@
 #undef BP_BASIC_I2C_FILESYSTEM
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
-#if BP_BASIC_PROGRAM_SPACE <= 0
+#if BP_BASIC_PROGRAM_SPACE < 5
 #error "Invalid BASIC program space value"
-#endif /* BP_BASIC_PROGRAM_SPACE <= 0 */
+#endif /* Four-byte END sentinel plus its terminating NUL. */
 
 #if BP_BASIC_NESTED_FOR_LOOP_COUNT <= 1
 #error "Invalid nested BASIC FOR-LOOP count"
@@ -99,9 +99,34 @@
 #define TOK_MACRO 0xA0
 #define TOK_END 0xA1
 
+/*
+ * `RESTORE` resets the DATA read pointer so a program can read the same DATA
+ * sequence again. 0xA2 was free: statement tokens run from 0x80 to 0xA1 and the
+ * statement length marker starts at 0xE0, so programs already stored are
+ * unaffected.
+ */
+#define TOK_RESTORE 0xA2
+
+/*
+ * `MODE` switches the bus mode from within a running program, or reports the
+ * mode that is currently active. 0xA3 is the next free statement token: the
+ * statement length marker starts at 0xE0.
+ */
+#define TOK_MODE 0xA3
+
+/*
+ * `TIME` reads the microsecond timestamp timer (the terminal's `t` and `T`
+ * commands) from inside a program: it yields the timer divided by 64, so
+ * one unit is 64 microseconds. The 16-bit BASIC value wraps around every
+ * ~4.19 seconds, so measure an interval by subtracting two readings.
+ * 0xA4 is the next free statement token: the statement length marker starts
+ * at 0xE0.
+ */
+#define TOK_TIME 0xA4
+
 #define TOK_LEN 0xE0
 
-#define NUMTOKEN (TOK_END - TOKENS) + 1
+#define NUMTOKEN (TOK_TIME - TOKENS) + 1
 
 #define STAT_LET "LET"
 #define STAT_IF "IF"
@@ -119,6 +144,9 @@
 #define STAT_END "END"
 #define STAT_READ "READ"
 #define STAT_DATA "DATA"
+#define STAT_RESTORE "RESTORE"
+#define STAT_MODE "MODE"
+#define STAT_TIME "TIME"
 #define STAT_START "START"
 #define STAT_STARTR "STARTR"
 #define STAT_STOP "STOP"
@@ -192,7 +220,12 @@ typedef enum {
   /**
    * One or more invalid `DATA` statements were found.
    */
-  STATUS_CODE_DATA_ERROR
+  STATUS_CODE_DATA_ERROR,
+
+  /**
+   * The running program was stopped from the terminal with Ctrl-C.
+   */
+  STATUS_CODE_INTERRUPTED
 } __attribute__((packed)) basic_status_code_t;
 
 /**
@@ -211,13 +244,15 @@ extern mode_configuration_t mode_configuration;
 typedef struct {
   uint16_t from;
   uint16_t var;
-  uint16_t to;
+  int16_t to;
 } __attribute__((packed)) basic_for_loop_t;
 
 static int16_t basic_variables[BP_BASIC_VARIABLES_COUNT];
 static int16_t basic_stack[BP_BASIC_STACK_FRAMES_DEPTH];
 static basic_for_loop_t basic_nested_for_loops[BP_BASIC_NESTED_FOR_LOOP_COUNT];
 static uint16_t basic_program_counter;
+static uint16_t basic_expression_limit;
+static bool basic_expression_error;
 static uint16_t basic_current_nested_for_index;
 static uint16_t basic_current_stack_frame;
 
@@ -225,6 +260,7 @@ static uint16_t basic_current_stack_frame;
  * @brief Offset variable for `DATA` statements.
  */
 static uint16_t basic_data_read_pointer;
+static uint16_t basic_data_line_end;
 
 static char *tokens[NUMTOKEN + 1] = {
     STAT_LET,     // 0x80
@@ -262,6 +298,9 @@ static char *tokens[NUMTOKEN + 1] = {
 
     STAT_MACRO, // 0xA0
     STAT_END,   // 0xA1
+    STAT_RESTORE, // 0xa2
+    STAT_MODE,    // 0xa3
+    STAT_TIME,    // 0xa4
 };
 
 /**
@@ -291,7 +330,7 @@ static bool search_line_number(const uint16_t line, uint16_t *result);
  * the interface with the board hardware.
  *
  * Said tokens are `RECEIVE`, `SEND`, `AUX`, `DAT`, `BITREAD`, `PSU`,
- * `PULLUP`, and `ADC`.
+ * `PULLUP`, `ADC`, `MODE`, and `TIME`.
  *
  * @param[in] token the token identifier to handle.
  *
@@ -306,6 +345,8 @@ static bool search_line_number(const uint16_t line, uint16_t *result);
  * @see TOK_PSU
  * @see TOK_PULLUP
  * @see TOK_ADC
+ * @see TOK_MODE
+ * @see TOK_TIME
  */
 static uint16_t handle_special_token(const uint8_t token);
 
@@ -334,6 +375,14 @@ static int16_t assign(void);
 static void interpreter(void);
 static void list(void);
 
+static uint8_t basic_peek(void) {
+  if ((basic_program_counter >= basic_expression_limit) ||
+      (basic_program_counter >= BP_BASIC_PROGRAM_SPACE)) {
+    return TOK_LEN;
+  }
+  return basic_program_area[basic_program_counter];
+}
+
 /**
  * @brief Compares the string pointed by the given pointer with the current
  * program space buffer pointer.
@@ -352,13 +401,56 @@ static void load(void);
 static void waiteeprom(void);
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
+/**
+ * @brief Sends a value to the bus, honouring the current LSb/MSb setting.
+ *
+ * Mirrors the interactive `8` command in proc_menu.c: when the terminal has
+ * selected least-significant-bit-first, the value is bit-reversed over the
+ * configured width before it reaches the protocol.  Both the `SEND`
+ * statement and the `SEND` expression go through here, so a script cannot
+ * get a different byte order depending on how the token is used (issue
+ * #129).
+ *
+ * @param[in] value the value to send.
+ *
+ * @return the value returned by the protocol's send callback.
+ */
+static uint16_t basic_send(uint16_t value) {
+  if (mode_configuration.little_endian == YES) {
+    value = bp_reverse_integer(value, mode_configuration.numbits);
+  }
+
+  return bp_current_protocol()->send(value);
+}
+
+/**
+ * @brief Reads a value from the bus, honouring the current LSb/MSb setting.
+ *
+ * Mirrors the interactive `r` command in proc_menu.c (issue #129).
+ *
+ * @return the value the protocol's read callback returned, bit-reversed over
+ * the configured width when least-significant-bit-first is selected.
+ */
+static uint16_t basic_receive(void) {
+  uint16_t received = bp_current_protocol()->read();
+
+  if (mode_configuration.little_endian == YES) {
+    received = bp_reverse_integer(received, mode_configuration.numbits);
+  }
+
+  return received;
+}
+
 void handle_else_statement(void) {
-  if (basic_program_area[basic_program_counter] != TOK_ELSE) {
+  if (basic_peek() != TOK_ELSE) {
     return;
   }
 
   basic_program_counter++;
-  while (basic_program_area[basic_program_counter] <= TOK_LEN) {
+  /* Skip the rest of the line, bounded by the program area so corrupted
+     data cannot walk past it. */
+  while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+         (basic_peek() < TOK_LEN)) {
     basic_program_counter++;
   }
 }
@@ -369,10 +461,19 @@ bool search_line_number(const uint16_t line, uint16_t *result) {
   uint16_t current_line_number;
 
   for (;;) {
+    /* A line header needs index, index + 1 and index + 2: stop at the end of
+       the area instead of reading past it on corrupted data. */
+    if ((index + 2) >= BP_BASIC_PROGRAM_SPACE) {
+      return LINE_NUMBER_NOT_FOUND;
+    }
+
     if (basic_program_area[index] <= TOK_LEN) {
       return LINE_NUMBER_NOT_FOUND;
     }
     token_length = basic_program_area[index] - TOK_LEN;
+    if ((index + token_length + 3) >= BP_BASIC_PROGRAM_SPACE) {
+      return LINE_NUMBER_NOT_FOUND;
+    }
     current_line_number =
         (basic_program_area[index + 1] << 8) + basic_program_area[index + 2];
     if (line == current_line_number) {
@@ -389,10 +490,12 @@ uint16_t handle_special_token(const uint8_t token) {
   switch (token) {
 
   case TOK_RECEIVE:
-    return bp_current_protocol()->read();
+    return basic_receive();
 
-  case TOK_SEND:
-    return bp_current_protocol()->send(assign());
+  case TOK_SEND: {
+    uint16_t value = assign();
+    return basic_expression_error ? 0 : basic_send(value);
+  }
 
   case TOK_AUX:
     return bp_aux_pin_read();
@@ -407,9 +510,27 @@ uint16_t handle_special_token(const uint8_t token) {
     return BP_VREGEN;
 
   case TOK_PULLUP:
-    return ~BP_PULLUP;
+    return !BP_PULLUP;
+
+  case TOK_MODE:
+    /*
+     * In an expression, `MODE` reports the bus mode that is currently active,
+     * one-based, exactly as the mode menu numbers it.
+     */
+    return bus_pirate_configuration.bus_mode + 1;
+
+  case TOK_TIME:
+    /*
+     * The 16-bit BASIC value cannot hold microseconds; 64 us units fit
+     * both slowly blinking pulses and ADC-sized timings into one number.
+     */
+    return (uint16_t)(bp_timer_microseconds() >> 6);
 
   case TOK_ADC: {
+    if (!bp_adc_foreground_available()) {
+      basic_expression_error = YES;
+      return 0;
+    }
     bp_enable_adc();
     uint16_t adc_measurement = bp_read_adc(BP_ADC_PROBE);
     bp_disable_adc();
@@ -424,52 +545,89 @@ uint16_t handle_special_token(const uint8_t token) {
 
 int16_t get_number_or_variable(void) {
   int16_t temp = 0;
+  bool negative = NO;
 
-  if ((basic_program_area[basic_program_counter] == '(')) {
+  while ((basic_peek() == '+') || (basic_peek() == '-')) {
+    if (basic_peek() == '-') {
+      negative = !negative;
+    }
+    basic_program_counter++;
+  }
+
+  if (basic_peek() == '(') {
     basic_program_counter++;
     temp = assign();
-    if ((basic_program_area[basic_program_counter] == ')')) {
+    if (basic_peek() == ')') {
+      basic_program_counter++;
+    } else {
+      basic_expression_error = YES;
+    }
+  } else if ((basic_peek() >= 'A') && (basic_peek() <= 'Z')) {
+    temp = basic_variables[basic_program_area[basic_program_counter++] - 'A'];
+  } else if ((basic_peek() >= '0') && (basic_peek() <= '9')) {
+    while ((basic_peek() >= '0') && (basic_peek() <= '9')) {
+      temp = (uint16_t)temp * 10u + basic_peek() - '0';
       basic_program_counter++;
     }
   } else {
-    if ((basic_program_area[basic_program_counter] >= 'A') &&
-        (basic_program_area[basic_program_counter] <= 'Z')) {
-      return basic_variables[basic_program_area[basic_program_counter++] - 'A'];
-    }
-
-    if (basic_program_area[basic_program_counter] > TOKENS) {
-      return handle_special_token(basic_program_area[basic_program_counter++]);
-    }
-
-    while ((basic_program_area[basic_program_counter] >= '0') &&
-           (basic_program_area[basic_program_counter] <= '9')) {
-      temp *= 10;
-      temp += basic_program_area[basic_program_counter] - '0';
-      basic_program_counter++;
+    switch (basic_peek()) {
+    case TOK_RECEIVE:
+    case TOK_SEND:
+    case TOK_AUX:
+    case TOK_DAT:
+    case TOK_BITREAD:
+    case TOK_PSU:
+    case TOK_PULLUP:
+    case TOK_MODE:
+    case TOK_TIME:
+    case TOK_ADC:
+      temp = handle_special_token(basic_program_area[basic_program_counter++]);
+      break;
+    default:
+      basic_expression_error = YES;
+      break;
     }
   }
 
-  return temp;
+  return negative ? (uint16_t)(0u - (uint16_t)temp) : temp;
 }
 
 int16_t get_multiplication_division_bitwise_ops(void) {
   int16_t temp = get_number_or_variable();
 
   for (;;) {
-    switch (basic_program_area[basic_program_counter++]) {
+    /* Inspect the byte, and advance only when it really is an operator: the
+       caller relies on the counter still pointing at the terminator (a
+       comparison in `IF`, the `TO` of `FOR`, and so on). */
+    switch (basic_peek()) {
     case '*':
+      basic_program_counter++;
       temp *= get_number_or_variable();
       break;
 
-    case '/':
-      temp /= get_number_or_variable();
+    case '/': {
+      basic_program_counter++;
+
+      int16_t divisor = get_number_or_variable();
+
+      /* DS70000157G p233: zero division traps; 0x8000/0xFFFF instead sets
+         OV with an unrepresentable signed quotient. BASIC defines both
+         exceptional results as zero rather than using that quotient. */
+      if ((divisor == 0) || ((temp == (-32767 - 1)) && (divisor == -1))) {
+        temp = 0;
+      } else {
+        temp /= divisor;
+      }
       break;
+    }
 
     case '&':
+      basic_program_counter++;
       temp &= get_number_or_variable();
       break;
 
     case '|':
+      basic_program_counter++;
       temp |= get_number_or_variable();
       break;
 
@@ -483,37 +641,46 @@ int16_t assign(void) {
   int16_t temp = get_multiplication_division_bitwise_ops();
 
   for (;;) {
-    switch (basic_program_area[basic_program_counter++]) {
+    /* As above: advance past the byte only once it is known to be part of
+       the expression. The `>=`, `<=` and `<>` checks look at the byte the
+       counter now points at - the old code tested `basic_program_counter + 1`
+       and never matched. */
+    switch (basic_peek()) {
     case '-':
+      basic_program_counter++;
       temp -= get_multiplication_division_bitwise_ops();
       break;
 
     case '+':
+      basic_program_counter++;
       temp += get_multiplication_division_bitwise_ops();
       break;
 
     case '>':
-      if (basic_program_area[basic_program_counter + 1] == '=') {
-        temp = (temp >= get_multiplication_division_bitwise_ops());
+      basic_program_counter++;
+      if (basic_peek() == '=') {
         basic_program_counter++;
+        temp = (temp >= get_multiplication_division_bitwise_ops());
       } else {
         temp = (temp > get_multiplication_division_bitwise_ops());
       }
       break;
 
     case '<':
-      if (basic_program_area[basic_program_counter + 1] == '>') {
+      basic_program_counter++;
+      if (basic_peek() == '>') {
+        basic_program_counter++;
         temp = (temp != get_multiplication_division_bitwise_ops());
+      } else if (basic_peek() == '=') {
         basic_program_counter++;
-      } else if (basic_program_area[basic_program_counter + 1] == '=') {
         temp = (temp <= get_multiplication_division_bitwise_ops());
-        basic_program_counter++;
       } else {
         temp = (temp < get_multiplication_division_bitwise_ops());
       }
       break;
 
     case '=':
+      basic_program_counter++;
       temp = (temp == get_multiplication_division_bitwise_ops());
       break;
 
@@ -521,6 +688,75 @@ int16_t assign(void) {
       return temp;
     }
   }
+}
+
+/**
+ * @brief Prints the active mode's name on behalf of a `MODE` statement.
+ *
+ * The interpreter runs with the board quiet, so the name is forced out the
+ * same way the `PRINT` statement does it.
+ */
+static void write_mode_name(void) {
+  bus_pirate_configuration.quiet = OFF;
+  bp_write_line(bp_current_protocol()->name);
+  bus_pirate_configuration.quiet = ON;
+}
+
+static bool read_data_value(int16_t *value) {
+  uint16_t scan = basic_data_read_pointer;
+  if (scan >= BP_BASIC_PROGRAM_SPACE) {
+    return NO;
+  }
+  if ((scan == 0) || (scan >= basic_data_line_end)) {
+    for (;;) {
+      if ((scan + 3 >= BP_BASIC_PROGRAM_SPACE) ||
+          (basic_program_area[scan] <= TOK_LEN)) {
+        basic_data_read_pointer = BP_BASIC_PROGRAM_SPACE;
+        return NO;
+      }
+      basic_data_line_end = scan + 3 + basic_program_area[scan] - TOK_LEN;
+      if (basic_data_line_end >= BP_BASIC_PROGRAM_SPACE) {
+        basic_data_read_pointer = BP_BASIC_PROGRAM_SPACE;
+        return NO;
+      }
+      if (basic_program_area[scan + 3] == TOK_DATA) {
+        basic_data_read_pointer = scan + 4;
+        break;
+      }
+      scan = basic_data_line_end;
+    }
+  }
+
+  uint16_t saved_pc = basic_program_counter;
+  uint16_t saved_limit = basic_expression_limit;
+  bool saved_error = basic_expression_error;
+  basic_program_counter = basic_data_read_pointer;
+  basic_expression_limit = basic_data_line_end;
+  basic_expression_error = NO;
+
+  /* DATA holds signed decimal literals, not hardware-reading expressions. */
+  uint8_t first = basic_peek();
+  if ((first == '+') || (first == '-')) {
+    basic_program_counter++;
+    first = basic_peek();
+    basic_program_counter--;
+  }
+  bool valid = (first >= '0') && (first <= '9');
+  if (valid) {
+    *value = get_number_or_variable();
+    valid = !basic_expression_error;
+    if (basic_peek() == ',') {
+      basic_program_counter++;
+      valid = valid && (basic_program_counter < basic_data_line_end);
+    } else {
+      valid = valid && (basic_program_counter == basic_data_line_end);
+    }
+  }
+  basic_data_read_pointer = valid ? basic_program_counter : BP_BASIC_PROGRAM_SPACE;
+  basic_program_counter = saved_pc;
+  basic_expression_limit = saved_limit;
+  basic_expression_error = saved_error;
+  return valid;
 }
 
 void interpreter(void) {
@@ -538,31 +774,73 @@ void interpreter(void) {
   basic_current_nested_for_index = 0;
   basic_current_stack_frame = 0;
   basic_data_read_pointer = 0;
+  basic_expression_error = NO;
   bus_pirate_configuration.quiet = ON;
 
   memset((void *)&basic_variables, 0, sizeof(basic_variables));
 
   while (status == STATUS_CODE_UNKNOWN) {
+/*
+     * A running program used to ignore the terminal until it ended, so a script
+     * stuck in an endless loop could only be stopped by unplugging the board.
+     * Ctrl-C now breaks out between statements.
+     */
+    if (user_serial_ready_to_read()) {
+      if (user_serial_read_byte() == 0x03) {
+        status = STATUS_CODE_INTERRUPTED;
+        break;
+      }
+    }
+
+    /* The header read and the statement token (pc + 3) must both be inside
+       the program area; refuse to read past its end on corrupted data. */
+    if ((basic_program_counter + 3) >= BP_BASIC_PROGRAM_SPACE) {
+      status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
+      break;
+    }
+
     if (!ifstat) {
-      if (basic_program_area[basic_program_counter] < TOK_LEN) {
+      if (basic_program_area[basic_program_counter] <= TOK_LEN) {
         status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
         break;
       }
 
       len = basic_program_area[basic_program_counter] - TOK_LEN;
+      basic_expression_limit = basic_program_counter + 3 + len;
+      if (basic_expression_limit >= BP_BASIC_PROGRAM_SPACE) {
+        status = STATUS_CODE_PARTIAL_INSTRUCTION_ERROR;
+        break;
+      }
       lineno = ((basic_program_area[basic_program_counter + 1] << 8) |
                 basic_program_area[basic_program_counter + 2]);
     }
 
+    if ((basic_program_counter + 3) >= basic_expression_limit) {
+      status = STATUS_CODE_SYNTAX_ERROR;
+      break;
+    }
     ifstat = 0;
 
     switch (basic_program_area[basic_program_counter + 3]) {
     case TOK_LET:
       program_counter_updated = YES;
-      basic_program_counter += 6;
+      basic_program_counter += 4;
 
-      basic_variables[basic_program_area[basic_program_counter - 2] - 0x41] =
-          assign();
+      /* The assignment target must exist; a stray byte must not be used as
+         an array index (it would write outside basic_variables). */
+      if ((basic_peek() < 'A') || (basic_peek() > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
+      temp = basic_peek() - 'A';
+      basic_program_counter++;
+      if (basic_peek() != '=') {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      basic_program_counter++;
+      basic_variables[temp] = assign();
       handle_else_statement();
       break;
 
@@ -570,17 +848,22 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      if (assign()) {
-        if (basic_program_area[basic_program_counter++] == TOK_THEN) {
-          ifstat = 1;
-          basic_program_counter -= 3; // simplest way (for now)
-        }
+      temp = assign();
+      if (basic_expression_error || (basic_peek() != TOK_THEN)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      basic_program_counter++;
+      if (temp) {
+        ifstat = 1;
+        basic_program_counter -= 3; // simplest way (for now)
       } else {
-        while ((basic_program_area[basic_program_counter] != TOK_ELSE) &&
-               (basic_program_area[basic_program_counter] <= TOK_LEN)) {
+        while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+               (basic_peek() != TOK_ELSE) &&
+               (basic_peek() < TOK_LEN)) {
           basic_program_counter++;
         }
-        if (basic_program_area[basic_program_counter] == TOK_ELSE) {
+        if (basic_peek() == TOK_ELSE) {
           ifstat = 1;
           basic_program_counter -= 2; // simplest way (for now)
         }
@@ -609,7 +892,7 @@ void interpreter(void) {
 
       if (basic_current_stack_frame < BP_BASIC_STACK_FRAMES_DEPTH) {
         basic_stack[basic_current_stack_frame] =
-            basic_program_counter + len - 1;
+            basic_expression_limit;
         basic_current_stack_frame++;
         if (search_line_number(assign(), &line_number)) {
           basic_program_counter = line_number;
@@ -635,33 +918,48 @@ void interpreter(void) {
 
     case TOK_REM:
       program_counter_updated = YES;
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
       break;
 
     case TOK_PRINT:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      while ((basic_program_area[basic_program_counter] < TOK_LEN) &&
-             (basic_program_area[basic_program_counter] != TOK_ELSE)) {
-        if (basic_program_area[basic_program_counter] == '\"') {
+      while ((basic_program_counter < BP_BASIC_PROGRAM_SPACE) &&
+             (basic_peek() < TOK_LEN) &&
+             (basic_peek() != TOK_ELSE)) {
+        if (basic_peek() == '\"') {
           basic_program_counter++;
-          while (basic_program_area[basic_program_counter] != '\"') {
+          /* Stop at the end of the line when the closing quote is missing:
+             the old form scanned past the program area until it found one. */
+          while ((basic_peek() != '\"') &&
+                 (basic_peek() < TOK_LEN)) {
             bus_pirate_configuration.quiet = 0;
             user_serial_transmit_character(
                 basic_program_area[basic_program_counter++]);
             bus_pirate_configuration.quiet = 1;
           }
+          if (basic_peek() == '\"') {
+            basic_program_counter++;
+          } else {
+            basic_expression_error = YES;
+          }
+        } else if (basic_peek() == ';') {
           basic_program_counter++;
-        } else if (((basic_program_area[basic_program_counter] >= 'A') &&
-                    (basic_program_area[basic_program_counter] <= 'Z')) ||
-                   ((basic_program_area[basic_program_counter] >= TOKENS) &&
-                    (basic_program_area[basic_program_counter] < TOK_LEN))) {
+        } else {
+          /* Anything else is an expression: a literal number, a parenthesised
+             value or a unary sign. The old form only handled letters and
+             tokens, so "PRINT 42" never advanced and spun forever. */
+          uint16_t before = basic_program_counter;
+
           temp = assign();
+          if (basic_program_counter == before) {
+            /* Unparsable byte: step over it instead of looping in place. */
+            basic_program_counter++;
+          }
+
           bus_pirate_configuration.quiet = 0;
           bp_write_dec_word(temp);
           bus_pirate_configuration.quiet = 1;
-        } else if (basic_program_area[basic_program_counter] == ';') {
-          basic_program_counter++;
         }
       }
       if (basic_program_area[basic_program_counter - 1] != ';') {
@@ -677,21 +975,37 @@ void interpreter(void) {
       bus_pirate_configuration.quiet = NO;
       basic_program_counter += 4;
 
-      if (basic_program_area[basic_program_counter] == '\"') {
+      if (basic_peek() == '\"') {
         basic_program_counter++;
-        while (basic_program_area[basic_program_counter] != '\"') {
+        /* Stop at the end of the line if the closing quote is missing. */
+        while ((basic_peek() != '\"') &&
+               (basic_peek() < TOK_LEN)) {
           user_serial_transmit_character(
               basic_program_area[basic_program_counter++]);
         }
+        if (basic_peek() != '\"') {
+          bus_pirate_configuration.quiet = YES;
+          status = STATUS_CODE_SYNTAX_ERROR;
+          break;
+        }
         basic_program_counter++;
-      }
-      if (basic_program_area[basic_program_counter] == ',') {
+        if (basic_peek() != ',') {
+          bus_pirate_configuration.quiet = YES;
+          status = STATUS_CODE_SYNTAX_ERROR;
+          break;
+        }
         basic_program_counter++;
-      } else {
-        status = STATUS_CODE_SYNTAX_ERROR;
       }
 
-      basic_variables[basic_program_area[basic_program_counter] - 'A'] =
+      /* The receiving variable must exist before it is indexed. */
+      if ((basic_peek() < 'A') ||
+          (basic_peek() > 'Z')) {
+        bus_pirate_configuration.quiet = YES;
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
+      basic_variables[basic_peek() - 'A'] =
           getnumber(0, 0, 0x7FFF, 0);
       basic_program_counter++;
       handle_else_statement();
@@ -701,15 +1015,23 @@ void interpreter(void) {
     case TOK_FOR:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      if (basic_current_nested_for_index < BP_BASIC_NESTED_FOR_LOOP_COUNT) {
-        basic_current_nested_for_index++;
-      } else {
+      if (basic_current_nested_for_index >= BP_BASIC_NESTED_FOR_LOOP_COUNT) {
+        /* The loop array is full: stop before indexing past its end. */
         status = STATUS_CODE_FOR_ERROR;
+        break;
       }
+
+      /* The loop variable must exist before it is indexed. */
+      if ((basic_peek() < 'A') ||
+          (basic_peek() > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
       basic_nested_for_loops[basic_current_nested_for_index].var =
           (basic_program_area[basic_program_counter++] - 'A') + 1;
 
-      if (basic_program_area[basic_program_counter] == '=') {
+      if (basic_peek() == '=') {
         basic_program_counter++;
         basic_variables
             [(basic_nested_for_loops[basic_current_nested_for_index].var) - 1] =
@@ -717,82 +1039,86 @@ void interpreter(void) {
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
-      if (basic_program_area[basic_program_counter++] == TOK_TO) {
+      if (basic_peek() == TOK_TO) {
+        basic_program_counter++;
         basic_nested_for_loops[basic_current_nested_for_index].to = assign();
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
-      if (basic_program_area[basic_program_counter] >= TOK_LEN) {
+      handle_else_statement();
+      if (basic_peek() >= TOK_LEN) {
         basic_nested_for_loops[basic_current_nested_for_index].from =
-            basic_program_counter;
+            basic_expression_limit;
       } else {
         status = STATUS_CODE_SYNTAX_ERROR;
       }
-      handle_else_statement();
+      if (status == STATUS_CODE_UNKNOWN) {
+        basic_current_nested_for_index++;
+      }
       break;
 
     case TOK_NEXT:
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      temp = (basic_program_area[basic_program_counter++] - 'A') + 1;
       status = STATUS_CODE_NEXT_ERROR;
+      if ((basic_peek() < 'A') ||
+          (basic_peek() > 'Z')) {
+        break;
+      }
+      temp = (basic_program_area[basic_program_counter++] - 'A') + 1;
 
-      for (i = 0; i <= basic_current_nested_for_index; i++) {
+      /* The index is a count, not a live entry. Search only active frames,
+         innermost first, so a completed or previous RUN's loop cannot match. */
+      for (i = basic_current_nested_for_index; i-- > 0;) {
         if (basic_nested_for_loops[i].var == temp) {
           if (basic_variables[temp - 1] < basic_nested_for_loops[i].to) {
             basic_variables[temp - 1]++;
             basic_program_counter = basic_nested_for_loops[i].from;
+            basic_current_nested_for_index = i + 1;
           } else {
-            basic_current_nested_for_index--;
+            basic_current_nested_for_index = i;
           }
           status = STATUS_CODE_UNKNOWN;
+          break;
         }
       }
       handle_else_statement();
       break;
 
-    case TOK_READ:
+    case TOK_RESTORE:
+      /*
+       * Reading starts again from the first `DATA` statement: clearing the
+       * pointer makes the next `READ` rescan for it. The program counter is
+       * deliberately not updated, so the generic advance below skips the
+       * whole statement.
+       */
+      basic_data_read_pointer = 0;
+      break;
+
+    case TOK_READ: {
       program_counter_updated = YES;
       basic_program_counter += 4;
-
-      if (basic_data_read_pointer == 0) {
-        i = 0;
-        while ((basic_program_area[i + 3] != TOK_DATA) &&
-               (basic_program_area[i] != 0x00)) {
-          i += (basic_program_area[i] - TOK_LEN) + 3;
-        }
-
-        if (basic_program_area[i]) {
-          basic_data_read_pointer = i + 4;
-        } else {
-          status = STATUS_CODE_DATA_ERROR;
-        }
+      /* The receiving variable must exist before it is indexed. */
+      if ((basic_peek() < 'A') || (basic_peek() > 'Z')) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
       }
-      temp = basic_program_counter;
-      basic_program_counter = basic_data_read_pointer;
-      basic_variables[basic_program_area[temp] - 'A'] =
-          get_number_or_variable();
-      basic_data_read_pointer = basic_program_counter;
-      basic_program_counter = temp + 1;
-
-      if (basic_program_area[basic_data_read_pointer] == ',') {
-        basic_data_read_pointer++;
+      temp = basic_peek() - 'A';
+      int16_t value;
+      if (!read_data_value(&value)) {
+        status = STATUS_CODE_DATA_ERROR;
+        break;
       }
-      if (basic_program_area[basic_data_read_pointer] > TOK_LEN) {
-        if (basic_program_area[basic_data_read_pointer + 3] != TOK_DATA) {
-          basic_data_read_pointer = 0;
-        } else {
-          basic_data_read_pointer += 4;
-        }
-      }
-
+      basic_variables[temp] = value;
+      basic_program_counter++;
       handle_else_statement();
       break;
+    }
 
     case TOK_DATA:
       program_counter_updated = YES;
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
       break;
 
     case TOK_START:
@@ -830,7 +1156,10 @@ void interpreter(void) {
     case TOK_SEND:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      bp_current_protocol()->send((int)assign());
+      temp = assign();
+      if (!basic_expression_error) {
+        basic_send((uint16_t)temp);
+      }
       handle_else_statement();
       break;
 
@@ -838,7 +1167,11 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      if (assign()) {
+      temp = assign();
+      if (basic_expression_error) {
+        break;
+      }
+      if (temp) {
         bp_aux_pin_set_high();
       } else {
         bp_aux_pin_set_low();
@@ -849,7 +1182,10 @@ void interpreter(void) {
     case TOK_PSU:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      bp_set_voltage_regulator_state(assign() ? ON : OFF);
+      temp = assign();
+      if (!basic_expression_error) {
+        bp_set_voltage_regulator_state(temp ? ON : OFF);
+      }
       handle_else_statement();
       break;
 
@@ -857,20 +1193,54 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      if (assign()) {
-        mode_configuration.alternate_aux = ON;
-      } else {
-        mode_configuration.alternate_aux = OFF;
+      temp = assign();
+      if (basic_expression_error) {
+        break;
       }
+#ifdef BUSPIRATEV4
+      if ((temp < 0) || (temp > 3)) {
+#else
+      if ((temp < 0) || (temp > 1)) {
+#endif
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      mode_configuration.alternate_aux = temp;
       handle_else_statement();
       break;
 
     case TOK_FREQ: {
-      int16_t frequency = assign();
-      int16_t duty_cycle = assign();
-
       program_counter_updated = YES;
       basic_program_counter += 4;
+
+      uint16_t operand = basic_program_counter;
+      if (basic_program_area[operand] >= TOK_LEN) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t frequency = assign();
+      if (basic_expression_error || (basic_program_counter == operand)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      if (basic_peek() == ',') {
+        basic_program_counter++;
+      }
+      operand = basic_program_counter;
+      if ((basic_program_area[operand] >= TOK_LEN) ||
+          (basic_program_area[operand] == TOK_ELSE)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t duty_cycle = assign();
+      if (basic_expression_error || (basic_program_counter == operand)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      if ((basic_peek() < TOK_LEN) && (basic_peek() != TOK_ELSE)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       if (frequency < PWM_MINIMUM_FREQUENCY) {
         frequency = PWM_MINIMUM_FREQUENCY;
@@ -893,10 +1263,23 @@ void interpreter(void) {
     }
 
     case TOK_DUTY: {
-      int16_t duty_cycle = assign();
-
       program_counter_updated = YES;
       basic_program_counter += 4;
+
+      uint16_t operand = basic_program_counter;
+      if (basic_program_area[operand] >= TOK_LEN) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      int16_t duty_cycle = assign();
+      if (basic_expression_error || (basic_program_counter == operand)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+      if ((basic_peek() < TOK_LEN) && (basic_peek() != TOK_ELSE)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
 
       if (duty_cycle < PWM_MINIMUM_DUTY_CYCLE) {
         duty_cycle = PWM_MINIMUM_DUTY_CYCLE;
@@ -915,7 +1298,11 @@ void interpreter(void) {
       program_counter_updated = 1;
       basic_program_counter += 4;
 
-      if (assign()) {
+      temp = assign();
+      if (basic_expression_error) {
+        break;
+      }
+      if (temp) {
         bp_current_protocol()->data_high();
       } else {
         bp_current_protocol()->data_low();
@@ -927,7 +1314,11 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
 
-      switch (assign()) {
+      temp = assign();
+      if (basic_expression_error) {
+        break;
+      }
+      switch (temp) {
       case 0:
         bp_current_protocol()->clock_low();
         break;
@@ -944,7 +1335,10 @@ void interpreter(void) {
     case TOK_PULLUP:
       program_counter_updated = YES;
       basic_program_counter += 4;
-      bp_set_pullup_state(assign() ? ON : OFF);
+      temp = assign();
+      if (!basic_expression_error) {
+        bp_set_pullup_state(temp ? ON : OFF);
+      }
       handle_else_statement();
       break;
 
@@ -952,15 +1346,52 @@ void interpreter(void) {
       program_counter_updated = YES;
       basic_program_counter += 4;
       temp = assign();
-      bp_delay_ms(temp);
+      if (!basic_expression_error) {
+        bp_delay_ms(temp);
+      }
       handle_else_statement();
       break;
+
+    case TOK_MODE: {
+      /*
+       * A bare `MODE` statement reports the active mode. `MODE n` switches to
+       * the mode that the (one-based) mode menu lists as `n`, using the same
+       * default settings that pressing ENTER through the interactive setup
+       * prompts would choose.
+       *
+       * After a bare statement the next byte is either the NUL that ends the
+       * stored line or the length marker of the following line; anything
+       * else is the start of an argument.
+       */
+      if (((basic_program_counter + 4) >= BP_BASIC_PROGRAM_SPACE) ||
+          (basic_program_area[basic_program_counter + 4] == 0x00) ||
+          (basic_program_area[basic_program_counter + 4] == TOK_ELSE) ||
+          (basic_program_area[basic_program_counter + 4] >= TOK_LEN)) {
+        write_mode_name();
+        break;
+      }
+
+      program_counter_updated = YES;
+      basic_program_counter += 4;
+
+      temp = assign();
+      if (basic_expression_error || bp_change_mode(temp)) {
+        status = STATUS_CODE_SYNTAX_ERROR;
+        break;
+      }
+
+      write_mode_name();
+      handle_else_statement();
+      break;
+    }
 
     case TOK_MACRO:
       program_counter_updated = YES;
       basic_program_counter += 4;
       temp = assign();
-      bp_current_protocol()->run_macro(temp);
+      if (!basic_expression_error) {
+        bp_current_protocol()->run_macro(temp);
+      }
       handle_else_statement();
       break;
 
@@ -973,8 +1404,11 @@ void interpreter(void) {
       break;
     }
 
+    if (basic_expression_error && (status == STATUS_CODE_UNKNOWN)) {
+      status = STATUS_CODE_SYNTAX_ERROR;
+    }
     if (!program_counter_updated) {
-      basic_program_counter += len + 3;
+      basic_program_counter = basic_expression_limit;
     }
     program_counter_updated = NO;
   }
@@ -998,7 +1432,8 @@ void list(void) {
 
   basic_program_counter = 0;
 
-  while (basic_program_area[basic_program_counter]) {
+  while ((basic_program_counter + 2 < BP_BASIC_PROGRAM_SPACE) &&
+         (basic_program_area[basic_program_counter])) {
     c = basic_program_area[basic_program_counter];
     if (c < TOK_LET) {
       user_serial_transmit_character(c);
@@ -1009,7 +1444,14 @@ void list(void) {
       basic_program_counter += 2;
       bp_write_dec_word(lineno);
       bpSP;
-    } else {
+    } else if (c <= (TOKENS + NUMTOKEN - 1)) {
+      /*
+       * Any byte below the length marker is a token, but only the ones the
+       * table actually defines may index it.  TOKENS + NUMTOKEN - 1 is the
+       * last defined token whatever it happens to be, so `LIST` cannot drift
+       * behind the table (it used to stop at RESTORE and silently dropped
+       * every later token, MODE and TIME included).
+       */
       bpSP;
       bp_write_string(tokens[c - TOKENS]);
       bpSP;
@@ -1025,6 +1467,13 @@ bool compare(char *pointer) {
   int oldstart = cmdstart;
 
   while (*pointer) {
+    /* Never match past the end of the current command line: the buffer
+       still holds the previous line beyond cmdend. */
+    if (cmdstart == cmdend) {
+      cmdstart = oldstart;
+      return NO;
+    }
+
     if (*pointer != cmdbuf[cmdstart]) {
       cmdstart = oldstart;
       return NO;
@@ -1035,6 +1484,18 @@ bool compare(char *pointer) {
   }
 
   return YES;
+}
+
+static bool compare_command(char *text) {
+  unsigned int saved = cmdstart;
+  if (compare(text)) {
+    consumewhitechars();
+    if ((cmdstart == cmdend) || (cmdbuf[cmdstart] == 0)) {
+      return YES;
+    }
+  }
+  cmdstart = saved;
+  return NO;
 }
 
 uint8_t get_token(void) {
@@ -1053,8 +1514,11 @@ void bp_basic_enter_interactive_interpreter(void) {
   int i, temp;
   int end, len; //, string;
   bool string_found = NO;
+  bool frequency_arguments = NO;
   unsigned char line[35];
   uint16_t pos;
+  uint16_t replaced = 0;
+  uint16_t replaced_length = 0;
   size_t index = cmdstart;
 
   unsigned int lineno1, lineno2;
@@ -1073,39 +1537,66 @@ void bp_basic_enter_interactive_interpreter(void) {
   if ((cmdbuf[cmdstart] >= '0') &&
       (cmdbuf[cmdstart] <= '9')) { // bpWline("new line");
 
-    for (i = 0; i < 35; i++) {
-      line[i] = 0;
-    }
+    /* No need to clear line[]: every byte copied into the program area below
+       is written first (the header here, the payload by the tokenizer). */
 
     temp = getint();
+    /* The final END line is an invariant, not an editable user line. */
+    if ((uint16_t)temp == UINT16_MAX) {
+      BPMSG1052;
+      return;
+    }
     line[1] = temp >> 8;
     line[2] = temp & 0xFF;
 
     if (search_line_number(temp, &pos)) {
-      len = (basic_program_area[pos] - TOK_LEN) + 3;
-      /* @TODO: replace this with a memmove. */
-      for (i = pos; i < BP_BASIC_PROGRAM_SPACE - len; i++) {
-        basic_program_area[i] = basic_program_area[i + len];
-      }
-      memset(&basic_program_area[i], 0x00, BP_BASIC_PROGRAM_SPACE - i);
+      replaced = pos;
+      replaced_length = (basic_program_area[pos] - TOK_LEN) + 3;
     }
 
     i = 3;
 
     consumewhitechars();
     while (cmdstart != cmdend) {
+/* Guard before the write: line[] is sizeof(line) bytes and the item
+         about to be stored claims line[i]. The old check ran after the loop
+         instead, one byte too late. */
+      if (i >= (int)sizeof(line)) {
+        BPMSG1051;
+        return;
+      }
+
       if (!string_found) {
+        unsigned int before = cmdstart;
         consumewhitechars();
+        /* Preserve the boundary between decimal FREQ arguments; otherwise
+           "1000 50" becomes the single literal "100050" in stored code. */
+        if (frequency_arguments && (before != cmdstart) && (i > 3) &&
+            (line[i - 1] >= '0') && (line[i - 1] <= '9') &&
+            (cmdbuf[cmdstart] >= '0') && (cmdbuf[cmdstart] <= '9')) {
+          line[i++] = ',';
+          continue;
+        }
       }
 
       temp = string_found ? 0 : get_token();
 
       if (temp) {
         line[i] = temp;
+        if (temp == TOK_FREQ) {
+          frequency_arguments = YES;
+        } else if (temp == TOK_ELSE) {
+          frequency_arguments = NO;
+        }
         if (temp == TOK_REM) {
           string_found = YES;
         }
       } else {
+        /* Token/header bytes are generated here, never accepted as text. */
+        if ((uint8_t)cmdbuf[cmdstart] >= TOKENS) {
+          BPMSG1052;
+          return;
+        }
         if (cmdbuf[cmdstart] == '"') {
           string_found = !string_found;
         }
@@ -1113,25 +1604,48 @@ void bp_basic_enter_interactive_interpreter(void) {
         cmdstart = (cmdstart + 1) & CMDLENMSK;
       }
       i++;
-      if (i > 35) {
-        BPMSG1051;
-        return;
-      }
     }
 
-    /* No need to insert an empty line. */
-    if ((i == 3) || (i == 4)) {
+    /* An i of 4 means the only item the tokenizer found was the NUL byte that
+       handle_enter_key() leaves at the end of the line buffer: the line has a
+       number but no statement, so there is nothing to store. */
+    if (i <= 4) {
+      if (replaced_length) {
+        memmove(&basic_program_area[replaced],
+                &basic_program_area[replaced + replaced_length],
+                BP_BASIC_PROGRAM_SPACE - replaced - replaced_length);
+        memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - replaced_length],
+               0, replaced_length);
+      }
       return;
     }
 
+/* The length marker counts statement bytes only. i is 3 header bytes plus
+       one per stored item, and the items include the trailing NUL that
+       handle_enter_key() appends - so the payload length is i - 4. */
     line[0] = TOK_LEN + (i - 4);
 
     i = 0;
     end = 0;
     pos = 0;
 
-    while (!end) {
+    /* Find where the line belongs: pos ends up after the last stored line
+       whose number is lower, end at the first byte past the program. The walk
+       is bounded, because a corrupted header used to send it off the end of
+       the array, where the read hits unimplemented memory - an address error
+       trap, and the default trap handler resets the board (issue #130). */
+    for (;;) {
+      if (i >= BP_BASIC_PROGRAM_SPACE) {
+        BPMSG1051;
+        return;
+      }
+
       if (basic_program_area[i] > TOK_LEN) {
+        if ((i + 2) >= BP_BASIC_PROGRAM_SPACE) {
+          BPMSG1051;
+          return;
+        }
+
         len = basic_program_area[i] - TOK_LEN;
         lineno1 = (basic_program_area[i + 1] << 8) + basic_program_area[i + 2];
         lineno2 = (line[1] << 8) + line[2];
@@ -1140,26 +1654,44 @@ void bp_basic_enter_interactive_interpreter(void) {
         }
         i += (len + 3);
       } else {
-        end = i; // we found the end! YaY!
+        end = i;
+        break;
       }
-
-      temp = (basic_program_area[i + 1] << 8) + basic_program_area[i + 2];
     }
 
     temp = (line[0] - TOK_LEN) + 3;
 
-    /* @TODO: Replace this with memmove. */
-    for (i = end; i >= pos; i--) {
-      basic_program_area[i + temp] = basic_program_area[i];
+    /* Refuse to store when the program area has no room for the line, rather
+       than writing past the end of the array. */
+    if ((pos > end) ||
+        ((end - replaced_length + temp) >= BP_BASIC_PROGRAM_SPACE)) {
+      BPMSG1051;
+      return;
     }
-    memcpy(&basic_program_area[pos + i], &line[i], temp);
+    /* Validate/tokenize first: a rejected replacement must keep the old line. */
+    if (replaced_length) {
+      memmove(&basic_program_area[replaced],
+              &basic_program_area[replaced + replaced_length],
+              BP_BASIC_PROGRAM_SPACE - replaced - replaced_length);
+      memset(&basic_program_area[BP_BASIC_PROGRAM_SPACE - replaced_length],
+             0, replaced_length);
+      end -= replaced_length;
+    }
+/* Open a gap and copy the line in. The old code did this with loops; a
+       cleanup rewrote the copy as memcpy(&basic_program_area[pos + i],
+       &line[i], temp) while i was still pos - 1 from the shift loop, so the
+       first line of a program wrote one byte before the array and every other
+       line landed at the wrong offset. */
+    memmove(&basic_program_area[pos + temp], &basic_program_area[pos],
+            end - pos + 1);
+    memcpy(&basic_program_area[pos], line, temp);
   } else {
-    if (compare("RUN")) {
+    if (compare_command("RUN")) {
       interpreter();
       bpBR;
-    } else if (compare("LIST")) {
+    } else if (compare_command("LIST")) {
       list();
-    } else if (compare("EXIT")) {
+    } else if (compare_command("EXIT")) {
       bus_pirate_configuration.basic = NO;
     }
 #ifdef BP_BASIC_I2C_FILESYSTEM
@@ -1173,17 +1705,15 @@ void bp_basic_enter_interactive_interpreter(void) {
 #endif /* BP_BASIC_I2C_FILESYSTEM */
 
 #ifdef BP_BASIC_DEBUG_COMMAND
-    else if (compare("DEBUG")) {
-      for (i = 0; i < BP_BASIC_PROGRAM_SPACE; i += 16) {
-        for (j = 0; j < 16; j++) {
-          bp_write_hex_byte(basic_program_area[i + j]);
-          bpSP;
-        }
+    else if (compare_command("DEBUG")) {
+      for (i = 0; i < BP_BASIC_PROGRAM_SPACE; i++) {
+        bp_write_hex_byte(basic_program_area[i]);
+        bpSP;
       }
     }
 #endif /* BP_BASIC_DEBUG_COMMAND */
 
-    else if (compare("NEW")) {
+    else if (compare_command("NEW")) {
       bp_basic_initialize();
     } else {
       BPMSG1052;

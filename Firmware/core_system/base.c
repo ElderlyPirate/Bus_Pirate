@@ -185,6 +185,7 @@ void bp_reset_board_state(void) {
 #endif /* BP_ENABLE_SMPS_SUPPORT */
   BP_AUX1_RPOUT = NULL_IO;
   BP_AUX2_RPOUT = NULL_IO;
+  BP_AUX1_ODC = OFF;
   BP_AUX1_LAT = LOW;
   BP_AUX2_LAT = LOW;
 #endif /* BUSPIRATEV4 */
@@ -196,6 +197,9 @@ void bp_reset_board_state(void) {
   bp_disable_3v3_pullup();
   eeprom_initialize();
 #endif /* BUSPIRATEv4 */
+
+  /* Retire Timer2 without changing its pairing or an independent Timer3. */
+  T2CONbits.TON = OFF;
 
   /* Detach source from the currently-set AUX pin. */
   bp_aux_pin_reset_state();

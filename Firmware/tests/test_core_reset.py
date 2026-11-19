@@ -39,7 +39,13 @@ typedef union {
  struct { unsigned short D0:1,D1:1,D2:1,D3:1,D4:1,D5:1,D6:1,D7:1,
                          D8:1,D9:1,D10:1,D11:1,D12:1,D13:1,D14:1,D15:1; } bits;
 } port_t;
-static port_t direction, latch;
+static port_t direction, latch, odc;
+static union {
+ uint16_t word;
+ struct { unsigned short low:15,TON:1; } bits;
+} timer2;
+#define T2CONbits timer2.bits
+static uint16_t T1CON,T3CON,TMR2,PR2;
 #define BP_MOSI_DIR direction.bits.D1
 #define BP_CLK_DIR direction.bits.D2
 #define BP_MISO_DIR direction.bits.D3
@@ -58,7 +64,7 @@ static void bp_disable_mode_led(void) { mode_led=0; }
 static void bp_enable_usb_led(void) { usb_led=1; }
 static void bp_disable_pullup(void) { pullups=0; }
 static void bp_disable_voltage_regulator(void) { supplies=0; }
-static void bp_aux_pin_reset_state(void) { aux0_route=0; ++aux_resets; }
+static void bp_aux_pin_reset_state(void) { assert(!T2CONbits.TON);aux0_route=0; ++aux_resets; }
 #ifdef BUSPIRATEV4
 #define BP_AUX1_DIR direction.bits.D8
 #define BP_AUX2_DIR direction.bits.D0
@@ -66,6 +72,14 @@ static void bp_aux_pin_reset_state(void) { aux0_route=0; ++aux_resets; }
 #define BP_AUX2_LAT latch.bits.D0
 #define BP_AUX1_RPOUT aux1_route
 #define BP_AUX2_RPOUT aux2_route
+static port_t *released_aux1_odc(void) {
+ assert(BP_AUX1_DIR==INPUT && !aux1_route);
+#ifdef BP_ENABLE_SMPS_SUPPORT
+ assert(stop_calls==1 && !AD1CON1bits.ADON && !IEC0bits.AD1IE);
+#endif
+ return &odc;
+}
+#define BP_AUX1_ODC released_aux1_odc()->bits.D8
 #define BPV4_HWI2CPINS_SETUP() ((void)0)
 #define BP_BUTTON_SETUP() ((void)0)
 static void bp_disable_3v3_pullup(void) {}
@@ -95,6 +109,11 @@ int main(void) {
   direction.word=(uint16_t)(seed*257u);
   latch.word=(uint16_t)((255u-seed)*257u);
   uint16_t old_dir=direction.word, old_lat=latch.word;
+  odc.word=(uint16_t)(seed*257u);
+  uint16_t old_odc=odc.word;
+  timer2.word=(uint16_t)(0x8000u | (seed*257u));
+  uint16_t old_timer2=timer2.word;
+  T1CON=0x8000;T3CON=0x8008;TMR2=0x1234;PR2=0x4567;
   aux0_route=aux1_route=aux2_route=22;
   stop_calls=adc_setups=eeprom_setups=aux_resets=0;
   AD1CON1bits.ADON=AD1CON1bits.ASAM=IEC0bits.AD1IE=1;
@@ -110,10 +129,14 @@ int main(void) {
   assert(!aux1_route && !aux2_route);
   assert(!(latch.word&0x101u) && (latch.word&~0x101u)==(old_lat&~0x101u));
   assert(eeprom_setups==1);
+  assert(odc.word==(uint16_t)(old_odc & ~0x100u));
 #else
   assert(latch.word==old_lat && !eeprom_setups);
   assert(aux1_route==22 && aux2_route==22);
+  assert(odc.word==old_odc);
 #endif
+  assert(timer2.word==(uint16_t)(old_timer2 & ~0x8000u));
+  assert(T1CON==0x8000 && T3CON==0x8008 && TMR2==0x1234 && PR2==0x4567);
   assert(direction.word==(uint16_t)(old_dir|released));
   assert(!aux0_route && aux_resets==1 && adc_setups==1);
   assert(!pullups && !supplies && !mode_led && usb_led);
@@ -130,14 +153,16 @@ int main(void) {
   bp_reset_board_state();
   assert(adc_setups==1 && aux_resets==2);
   assert(direction.word==(uint16_t)(old_dir|released));
+  assert(timer2.word==(uint16_t)(old_timer2 & ~0x8000u));
 #ifdef BUSPIRATEV4
   assert(eeprom_setups==2 && !aux1_route && !aux2_route && !(latch.word&0x101u));
+  assert(odc.word==(uint16_t)(old_odc & ~0x100u));
 #endif
 #if defined(BUSPIRATEV4) && defined(BP_ENABLE_SMPS_SUPPORT)
   assert(stop_calls==1 && !IEC0bits.AD1IE && !AD1CON1bits.ADON && !AD1CON1bits.ASAM);
 #endif
  }
- puts("PASS 256 states plus repeated reset: GPIO/latch/PPS release, sibling preservation, defaults and feature-gated SMPS/ADC ordering");
+  puts("PASS 256 states plus repeated reset: GPIO/latch/PPS release, Timer2 stop with pairing/siblings preserved, V4 AUX1 ODC release, defaults and SMPS/ADC ordering");
 }
 '''
 
@@ -147,6 +172,8 @@ def main():
     parser.add_argument("--revision")
     args = parser.parse_args()
     base = source("Firmware/core_system/base.c", args.revision)
+    header = source("Firmware/hardwarev4.h", args.revision)
+    assert re.search(r"^#define BP_AUX1_ODC\s+ODCDbits\.ODD8\b", header, re.M)
     smps = source("Firmware/smps.c", args.revision)
     body = function(base, "clear_mode_configuration") + "\n" + function(base, "bp_reset_board_state")
     for label, defines in (("v3", "#define BUSPIRATEV3\n"),

@@ -158,8 +158,11 @@ the tool addresses the wrong location.
   unjumpered when using it; a jumpered AUX clamps SDA/SCL.
 - Writes are **one byte per transaction**: start, device address, memory
   address, data, stop. Page writes are not used, so a write burst cannot cross a
-  page boundary. A byte is retried until the chip acknowledges it; the summary
-  line reports the byte count and the retry count.
+  page boundary. A byte is retried for up to 100 attempts, with 1 ms between
+  NACKed attempts. If it still NACKs, the tool prints
+  `Write failed at memory address 0xNNNN after 100 attempts (no ACK)` and
+  exits 7; bytes already written remain. On success the summary reports the
+  byte count and the retry count.
 - Reads set the memory pointer with start, device address, address bytes, stop,
   then send start and the read address and read the requested length. All but
   the last byte are ACKed; the last is NACKed before the stop.
@@ -183,8 +186,13 @@ A5 5A C3 3C 01 FE
 - It always uses the binary `I2C1` path, which is the software driver at the
   maximum profile. There is no speed or VPU choice in the tool.
 - It does not use page writes, so a large file is slow by design.
-- The write retry loop has no limit; a missing, unpowered or miswired chip
-  leaves the tool retrying until it is interrupted.
+- In write mode the tool sets 1000 ms serial read and write timeouts. A failed
+  or short serial transfer prints
+  `Serial I/O failed writing memory address 0xNNNN` and exits 7. On either
+  failure the tool attempts a stop/exit/reset and closes the port and file;
+  there is no rollback, so a failed write can leave the EEPROM partially
+  programmed. Read mode keeps the previous serial timeout behaviour; the
+  1000 ms limits are write-mode only.
 - It has no verify pass beyond the per-byte ACK retry; read the file back to
   confirm the contents.
 
@@ -202,6 +210,8 @@ A5 5A C3 3C 01 FE
 | `R` is used on a one-byte-address part | wrong data or no ACK | use `Rs`/`Ws` for that chip |
 | The write file has a token above `FF` | the tool reports the bad token and stops | use byte values only |
 | The write file has extra separators | tokens are still parsed | spaces and newlines are accepted |
+| A byte NACKs 100 times | `Write failed at memory address 0xNNNN after 100 attempts (no ACK)` | earlier bytes remain; verify or re-run |
+| A write-mode serial transfer fails or is short | `Serial I/O failed writing memory address 0xNNNN` | exits 7; cleanup is best effort; the EEPROM may be partially written |
 
 ## v3 / v4
 

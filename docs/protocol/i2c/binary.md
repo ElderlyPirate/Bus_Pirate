@@ -69,7 +69,7 @@ the operand.
 | `0x06` | action | send ACK | `0x01`; `0x00` on a bus fault |
 | `0x07` | action | send NACK | `0x01`; `0x00` on a bus fault |
 | `0x08` | action | write-then-read | `0x01`, then the read bytes; `0x00` on failure |
-| `0x09` | action | extended AUX (one sub-command byte follows) | `0x01`, optional text for drive/release, then the sub-result |
+| `0x09` | action | extended AUX (one sub-command byte follows) | `0x01`, then the sub-result (always exactly two bytes) |
 | `0x0A` | action | last bus status | `0x01` no fault; `0x00` timeout/fault |
 | `0x0F` | action | enter the sniffer; the next host byte exits | `0x01` after the exit byte |
 | `0x1x` | bulk | write `x + 1` bytes | `0x01`, then one ACK bit per byte |
@@ -123,8 +123,8 @@ here.
 | 0 | CS released (set) / driven low (clear) |
 
 `0x4C` = supply on, pull-ups on, AUX low, CS driven low. If AUX is jumpered to
-SDA or SCL, the bit-1 level clamps the bus; release AUX with `0x09 0x02` (and
-consume the `AUX INPUT/HI-Z` text) before any bus traffic.
+SDA or SCL, the bit-1 level clamps the bus; release AUX with `0x09 0x02` before
+any bus traffic.
 
 ### `0x5x` — pull-up feed (v4 only)
 
@@ -229,20 +229,10 @@ does not send a stop; send `0x03` when the frame is complete.
 
 ## AUX (`0x09`)
 
-After `0x09` the host sends one sub-command byte. The reply starts with `0x01`
-(the command was accepted), then the sub-result. It is **not always two
-bytes**: the drive/release sub-commands print a terminal text line on the same
-wire between the two:
-
-| Sub-command | Text before the sub-result |
-|---|---|
-| `0x00` | `AUX LOW` then CR LF |
-| `0x01` | `AUX HIGH` then CR LF |
-| `0x02` | `AUX INPUT/HI-Z` (no line break) |
-
-A host must consume that text before reading the sub-result. `0x03`, `0x10`
-and `0x20` print nothing. The first byte is not the sub-command's success
-flag; it is `0x01` even when the sub-command is unknown.
+After `0x09` the host sends one sub-command byte. The reply is always exactly
+two bytes: `0x01` (the command was accepted), then the sub-result. The first
+byte is not the sub-command's success flag; it is `0x01` even when the
+sub-command is unknown.
 
 | Sub-command | Action | Sub-result |
 |---|---|---|
@@ -257,13 +247,13 @@ flag; it is `0x01` even when the sub-command is unknown.
 The selected pin is the current AUX target (`AUX` by default). `0x10` switches
 the extended-AUX control and the shared `0x7x` wait to `AUX`; `0x20` switches
 both to `CS`. These two sub-commands only change the target; they do not drive
-the pin. For the drive, release and select
-sub-commands the sub-result is `0x01`; an unknown sub-command returns
-`0x01 0x00`, where the `0x00` means it was not recognised. A `0x03` read
-returns the pin level, so `0x00` there is a valid low.
+the pin. For the drive, release and select sub-commands the sub-result is
+`0x01`; an unknown sub-command returns `0x01 0x00`, where the `0x00` means it
+was not recognised. A `0x03` read returns the pin level, so `0x00` there is a
+valid low.
 
-If AUX is jumpered to SDA or SCL, release it (`0x09 0x02`, high-Z; consume the
-`AUX INPUT/HI-Z` text) before bus traffic.
+If AUX is jumpered to SDA or SCL, release it (`0x09 0x02`, high-Z) before bus
+traffic.
 
 ## Sniffer in binary mode (`0x0F`)
 
@@ -301,7 +291,6 @@ host -> 0x4C            supply + pull-ups on
 host <- 0x01
 host -> 0x09 0x02       extended AUX: release AUX to high-Z
 host <- 0x01            command accepted
-host <- "AUX INPUT/HI-Z"
 host <- 0x01            sub-result
 host -> 0x60            speed = software profile 0
 host <- 0x01

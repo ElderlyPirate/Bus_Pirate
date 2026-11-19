@@ -28,7 +28,7 @@ details live in the files below.
 | `RW` (pin table) / `R/W` (prose) | the display's read/write line; always written low |
 | `AUX0` (v4b adapter jumper label) | the Bus Pirate `AUX` pin; drive it with `a` / `A` |
 | `Vpullup` (warning) / `VPU` (`v` table) / `Vpu` (v4 select prompt) | the pull-up supply pin; three firmware forms |
-| `3.3V` / `5.0V` (captures) | firmware strings; prose writes `3.3 V` / `5.0 V` |
+| `3.3V` / `5.0V` (prompts/captures) / `3.3v` (status line) | firmware strings; prose writes `3.3 V` / `5.0 V` |
 | `Multiple` | the two-line init choice; `1` is one-line |
 | `unverified` / `not verified` | the same state: no board confirmation in this set |
 
@@ -51,12 +51,10 @@ details live in the files below.
 - `(0)` lists the mode macros: reset, init, clear, cursor, and two test
   patterns.  There is no macro 5.
 - Wiring: adapter on **MOSI**, **CLK** and **CS**, plus a **3.3 V or 5.0 V**
-  supply rail and **GND**; **MISO is unused**.  **No pull-up is required** in
-  the normal case; a binary SPI session that left the outputs open drain is
-  the exception ([edge-cases.md](edge-cases.md#open-drain-carry-over)).  `i`
-  still says `Open drain outputs`; that is the mode's flag, not the pad state.
-  Contrast is set on the adapter or display, not by the Bus Pirate
-  ([wiring.md](wiring.md)).
+  supply rail and **GND**; **MISO is unused**.  **No pull-up is required**:
+  the LCD setup selects normal push-pull outputs and clears the SPI open-drain
+  bits; `i` reports `Normal outputs (H=3.3v, L=GND)`.  Contrast is set on the
+  adapter or display, not by the Bus Pirate ([wiring.md](wiring.md)).
 
 ## Availability (summary)
 

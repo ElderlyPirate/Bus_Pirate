@@ -111,18 +111,11 @@ normal "not powered" case, not a fault
 
 ## Output type
 
-The LCD mode sets the shared output-type flag to open drain, so `i` reports
-`Open drain outputs (H=Hi-Z, L=GND)`.  Its own setup does not write the
-per-pin open-drain bits, and on a clean entry they are clear, so the SPI pins
-are driven normally.  The status text is a mode flag, not proof of the pad
-state.
-
-If a **binary** SPI session left the SPI outputs open drain, the bits persist:
-the LCD setup does not clear them and the v4 terminal reset does not either.
-The shift register then sees released highs instead of driven highs.
-Power-cycle the Bus Pirate, or enter the SPI mode, select normal outputs, send
-`W` once, then leave for LCD
-([edge-cases.md](edge-cases.md#open-drain-carry-over)).
+The LCD mode uses normal push-pull outputs.  Entering the mode selects normal
+output, so `i` reports `Normal outputs (H=3.3v, L=GND)`.  The LCD setup writes
+the MOSI/CLK/CS open-drain bits off, so a previous binary SPI session's
+open-drain setting is cleared when `W` runs.  No pull-up or recovery step is
+needed.
 
 ## SPI mode compared
 

@@ -134,15 +134,15 @@ in the banner gains `LCD`:
 The mode-relevant status lines after `W` are:
 
 ```
-POWER SUPPLIES ON, Pull-up resistors OFF, Open drain outputs (H=Hi-Z, L=GND)
+POWER SUPPLIES ON, Pull-up resistors OFF, Normal outputs (H=3.3v, L=GND)
 MSB set: MOST sig bit first, Number of bits read/write: 8
 a/A/@ controls AUX pin
 ```
 
-Before `W`, the same lines read `POWER SUPPLIES OFF`.  The `Open drain outputs`
-text is the mode's output-type flag: entering the mode sets that flag, but the
-LCD setup does not write the per-pin open-drain bits.  On a clean entry those
-bits are clear, so the SPI pins are driven normally
+Before `W`, the supply field reads `POWER SUPPLIES OFF`.  The `Normal outputs`
+text is the mode's output-type setting: entering the mode selects normal
+outputs, and the LCD setup writes the MOSI/CLK/CS open-drain bits off, so the
+SPI pins are driven push-pull
 ([spi-link.md](spi-link.md#output-type)).
 
 `v` prints only the pin/voltage table.  The full banner and table layout are
@@ -184,9 +184,9 @@ LCD>
   printed on every successful `W`, whether or not an adapter is connected.
 - `W` is still required when the display has its own VDD feed: it runs the SPI
   setup and checks the Bus Pirate rails.
-- The setup configures the SPI pins and selects the **data** register.  On a
-  clean entry, until `W` succeeds the SPI port is disabled, so writes and
-  macros cannot shift bytes.
+- The setup configures the SPI pins, writes the MOSI/CLK/CS open-drain bits
+  off, and selects the **data** register.  On a clean entry, until `W` succeeds
+  the SPI port is disabled, so writes and macros cannot shift bytes.
 - `W` again re-runs the setup, reselects data and prints the reminder again.
   A display that stayed powered keeps its content.
 

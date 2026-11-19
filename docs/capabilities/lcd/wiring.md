@@ -168,18 +168,13 @@ display with its own VDD feed keeps its content
 **No pull-up is required** on MOSI, CLK or CS in the normal case.  The Bus
 Pirate drives all three actively, and the shift register's inputs are high
 impedance; MISO is unused, so there is no open-drain bus and no idle-high
-level to hold.
-Two board-level and carry-over exceptions:
+level to hold.  The LCD setup selects normal push-pull outputs and writes the
+SPI open-drain bits off.
+One board-level requirement:
 
 - The shift register's output-enable must be tied low and its master-reset
   high for the outputs to drive.  The published designs do this; confirm it on
   a different revision (`unverified`).
-- If a **binary** SPI session left the SPI outputs **open drain**, the LCD
-  setup does not change that setting.  High levels are then released rather
-  than driven, and the shift register needs pull-ups or will see floating
-  highs.  Power-cycle the Bus Pirate, or enter the SPI mode, select normal
-  outputs, send `W` once, then leave for LCD
-  ([edge-cases.md](edge-cases.md#open-drain-carry-over)).
 
 `P` / `p` still work in LCD mode, but the Bus Pirate pull-ups are not part of
 this interface; `P` may warn that there is no voltage on the Vpullup pin.

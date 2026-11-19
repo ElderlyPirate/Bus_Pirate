@@ -28,7 +28,6 @@ are quoted exactly.
 | `L` set | bytes are mirrored; text is garbled | the dispatcher reverses the value before the shift | return to `l` ([spi-link.md](spi-link.md#shared-settings-that-still-affect-a-write)) |
 | `;N` other than 8 | the `WRITE:` echo uses the selected width (and a `;N` suffix unless 16); with MSB the shifted byte is unchanged | the width affects the echo, not the 8-bit shift; with `L` it also sets the reversal width | use `;8` for a plain echo |
 | `/`, `\`, `-`, `_`, `.`, `^`, `!` | the shared prefix, then `ERROR: command has no effect here`, then a syntax error | the LCD handlers for these are null | use the register-select keys and a write |
-| open-drain carry-over from a binary SPI session | weak highs; the adapter may not latch reliably | the open-drain bits persist and the LCD setup does not clear them | power-cycle; or select normal SPI outputs and send `W` ([details](#open-drain-carry-over)) |
 | SMPS feedback active (all-features build) | `ADC busy: SMPS feedback active; command rejected.` then `Syntax error at char 1`; `W` takes no supply action | `W` refuses while SMPS owns the converter | stop SMPS first ([SMPS exit](../smps/exit.md)) |
 | `w`, then a write | the same error as before `W` | the cleanup disabled the SPI port and released the pads | send `W` again |
 | leaving the mode | the display clears or keeps its content | the board reset cuts the adapter's rail; a separate display feed stays on | re-`W`; `(2)` if the display lost power ([details](#leaving-and-power)) |
@@ -95,22 +94,6 @@ text sent before `(1)`/`(2)` is split into nibbles that the controller does not
 interpret as a complete character.  The result is undefined and usually blank
 or stray characters (`unverified`).  Always send `(2)` after the display has
 powered up, including after `w` or a mode change cut its supply.
-
-## Open-drain carry-over
-
-- **Trigger:** an earlier **binary** SPI session configured open-drain SPI
-  outputs, and the terminal was entered again without a power cycle.  The
-  terminal SPI mode clears its own open-drain setting when it is left; the
-  binary path does not run that cleanup.
-- **Symptom:** the adapter may not see clean logic highs; `i` reports
-  `Open drain outputs`, which is also the mode's normal status text.
-- **Behaviour:** the LCD setup does not write the per-pin open-drain bits, and
-  neither the mode change nor the v4 terminal reset clears them.  A high is
-  then a released pin, not a driven high.  The `i` line alone cannot
-  distinguish the two cases.
-- **Recovery:** power-cycle the Bus Pirate (on v3, `#` reboots the CPU and also
-  clears it).  Alternatively, enter the SPI mode, select normal outputs, send
-  `W` once, then leave for LCD.
 
 ## Leaving and power
 

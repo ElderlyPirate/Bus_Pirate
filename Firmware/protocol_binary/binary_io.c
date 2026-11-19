@@ -558,15 +558,53 @@ void reset_state(void) {
   bitbang_pin_state_set(0x00);
 }
 
+/**
+ * Reads the current state of the I/O pins.
+ *
+ * The value is in the same format the pin update commands answer with:
+ * AUX0/MOSI/CLK/MISO/CS on bits 4..0.  The reads go through the
+ * per-board pin macros, so they reflect the header pins on both hardware
+ * revisions (a PORTx read returns the pin levels).
+ *
+ * @return the current state of the pins.
+ */
+uint8_t bitbang_pin_state_get(void) {
+  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
+         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
+         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
+         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
+         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+}
+
 uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Set directions. */
 
-  BP_AUX0_DIR = (direction_mask & 0b00010000) ? INPUT : OUTPUT;
-  BP_MOSI_DIR = (direction_mask & 0b00001000) ? INPUT : OUTPUT;
-  BP_CLK_DIR = (direction_mask & 0b00000100) ? INPUT : OUTPUT;
-  BP_MISO_DIR = (direction_mask & 0b00000010) ? INPUT : OUTPUT;
-  BP_CS_DIR = (direction_mask & 0b00000001) ? INPUT : OUTPUT;
+  if (direction_mask & 0b00010000) {
+    IODIR |= AUX;
+  } else {
+    IODIR &= ~AUX;
+  }
+  if (direction_mask & 0b00001000) {
+    IODIR |= MOSI;
+  } else {
+    IODIR &= ~MOSI;
+  }
+  if (direction_mask & 0b00000100) {
+    IODIR |= CLK;
+  } else {
+    IODIR &= ~CLK;
+  }
+  if (direction_mask & 0b00000010) {
+    IODIR |= MISO;
+  } else {
+    IODIR &= ~MISO;
+  }
+  if (direction_mask & 0b00000001) {
+    IODIR |= CS;
+  } else {
+    IODIR &= ~CS;
+  }
 
   /* Wait a bit. */
 
@@ -574,11 +612,7 @@ uint8_t bitbang_pin_direction_set(const uint8_t direction_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
@@ -588,11 +622,32 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
   bp_set_voltage_regulator_state((state_mask & 0b01000000) ? ON : OFF);
   bp_set_pullup_state((state_mask & 0b00100000) ? ON : OFF);
 
-  BP_AUX0_LAT = (state_mask & 0b00010000) ? HIGH : LOW;
-  BP_MOSI_LAT = (state_mask & 0b00001000) ? HIGH : LOW;
-  BP_CLK_LAT = (state_mask & 0b00000100) ? HIGH : LOW;
-  BP_MISO_LAT = (state_mask & 0b00000010) ? HIGH : LOW;
-  BP_CS_LAT = (state_mask & 0b00000001) ? HIGH : LOW;
+  /* PORT reads pin levels; latch writes must preserve other output latches. */
+  if (state_mask & 0b00010000) {
+    IOLAT |= AUX;
+  } else {
+    IOLAT &= ~AUX;
+  }
+  if (state_mask & 0b00001000) {
+    IOLAT |= MOSI;
+  } else {
+    IOLAT &= ~MOSI;
+  }
+  if (state_mask & 0b00000100) {
+    IOLAT |= CLK;
+  } else {
+    IOLAT &= ~CLK;
+  }
+  if (state_mask & 0b00000010) {
+    IOLAT |= MISO;
+  } else {
+    IOLAT &= ~MISO;
+  }
+  if (state_mask & 0b00000001) {
+    IOLAT |= CS;
+  } else {
+    IOLAT &= ~CS;
+  }
 
   /* Wait a bit. */
 
@@ -600,11 +655,7 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
 
   /* Return current state. */
 
-  return ((BP_AUX0 == HIGH) ? 0b00010000 : 0b00000000) |
-         ((BP_MOSI == HIGH) ? 0b00001000 : 0b00000000) |
-         ((BP_CLK == HIGH) ? 0b00000100 : 0b00000000) |
-         ((BP_MISO == HIGH) ? 0b00000010 : 0b00000000) |
-         ((BP_CS == HIGH) ? 0b00000001 : 0b00000000);
+  return bitbang_pin_state_get();
 }
 
 void binary_io_self_test(const bool jumper_test) {

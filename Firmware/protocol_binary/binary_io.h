@@ -53,6 +53,16 @@
 void enter_binary_bitbang_mode(void);
 
 /**
+ * Reads the current state of the I/O pins.
+ *
+ * The value is in the same format the pin update commands answer with:
+ * AUX0/MOSI/CLK/MISO/CS on bits 4..0.
+ *
+ * @return the current state of the pins.
+ */
+uint8_t bitbang_pin_state_get(void);
+
+/**
  * Sets the direction of the various I/O pins.
  *
  * Bits set to 1 are for pins that must be set in INPUT mode, while bits set to

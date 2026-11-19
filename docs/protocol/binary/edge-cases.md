@@ -77,8 +77,8 @@ the recovery.  Entry and framing are in
   A state byte must have bit 7 set: `0xC0` is "supply on, all pin latches
   low".
 - **Recovery:** send `0xC0` for the supply, or `0x5F` to return all lines to
-  inputs.  `0x0F` resets the pins, the supply and the pull-ups; send `0x13`
-  first if a PWM timer must stop.
+  inputs.  `0x0F` resets the pins, the supply and the pull-ups and stops a PWM
+  timer; send `0x13` if the PWM module must be left fully idle.
 
 ## `0x0F` inside a mode does not return to the terminal
 
@@ -115,14 +115,15 @@ the recovery.  Entry and framing are in
 
 - **Trigger:** setting up PWM (`0x12`) and then leaving the layer with `0x0F`
   without clearing it.
-- **Symptom:** on v4 the target stops being driven at the reset; the timer may
-  still run but no waveform reaches the header.
-- **Behaviour:** `0x0F` does not stop the PWM timer, and no code path stops it
-  on this exit.  The v4 terminal reset detaches the AUX output source, so the
-  pin stops.  On v3 `0x0F` is a hardware reset, which stops everything.
-- **Recovery:** send `0x13` before leaving if you want the module idle.
-  Entering BBIO1 from a terminal PWM session has the same effect: the pins
-  become inputs, but the timer setup is not cleared.
+- **Symptom:** on v4 the waveform stops at the reset, and so does the timer;
+  the output-compare setup remains.
+- **Behaviour:** the v4 terminal reset clears the generator flag, stops Timer2
+  and detaches the AUX output source, so the pin stops.  It does not disable
+  the output-compare channel or clear its period/duty setup.  On v3 `0x0F` is
+  a hardware reset, which clears everything.
+- **Recovery:** send `0x13` if the PWM module must be left fully idle.
+  Entering BBIO1 from a terminal PWM session also stops the waveform (the pins
+  become inputs), but the timer setup is not cleared.
 
 ## Frequency count stops a running generator
 
@@ -194,12 +195,14 @@ the recovery.  Entry and framing are in
 - **Recovery:** feed Vpullup with 0–5 V, or in a sub-protocol send `0x51` or
   `0x52` first (v4).  Turn the resistors off if no source is available.
 
-## Wait-for-edge returns "no edge" immediately
+## Wait-for-edge with a zero timeout always reports a timeout
 
-- **Trigger:** a wait with a timeout of `0` and a pin that is already at rest.
+- **Trigger:** a wait with a timeout of `0`, even on a pin with an edge
+  pending.
 - **Symptom:** result byte `0x00` (timeout) with the current level.
-- **Behaviour:** a `0` timeout checks the pin once and returns without waiting;
-  this is the documented way to sample the selected pin with this command.
+- **Behaviour:** a `0` timeout returns without waiting; expiry is evaluated
+  before the change-notification flag, so it never reports `0x01`.  This is
+  the documented way to sample the selected pin with this command.
 - **Recovery:** none — use a non-zero timeout to actually wait.
 
 ## Invalid wait frame — two different cases

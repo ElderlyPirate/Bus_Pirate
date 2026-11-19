@@ -96,12 +96,13 @@ host <- 0x01                            result: the edge arrived
 host <- 0x01                            level at the end: high
 ```
 
-A timeout of `0` checks the pin once and returns immediately, which doubles as
-a level sample:
+A timeout of `0` returns immediately with a timeout result and the current
+level, which doubles as a level sample.  It always reports `0x00`, even if an
+edge is pending:
 
 ```
 host -> 0x70 0x03 0x00 0x00             either edge, no wait
-host <- 0x00                            result: no edge
+host <- 0x00                            result: timeout
 host <- 0x01                            level: high
 ```
 
@@ -152,7 +153,7 @@ host <- 0x01                            accepted
 ```
 
 The output always uses the plain `AUX` pin, not the selected AUX target.  Send
-`0x13` before leaving if you want the timer idle.
+`0x13` if the PWM module must be left fully idle.
 
 ## Self-test, short
 

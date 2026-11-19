@@ -74,9 +74,10 @@ directions.
 - Do **not** poll with `0x80`: it switches the target supply and the pull-up
   resistors off and drives every latch low.
 - To sample the selected AUX pin without changing the pin state, send the wait
-  with a zero timeout: `0x70 0x03 0x00 0x00`.  A stable pin gives `0x00`
-  (nothing was awaited) and then the level.  Make the pin an input first if it
-  is an output; see [Wait for an edge](#wait-for-an-edge-0x70).
+  with a zero timeout: `0x70 0x03 0x00 0x00`.  It always returns `0x00`
+  (timeout) and then the current level, even if an edge is pending: expiry is
+  evaluated before the change-notification flag.  Make the pin an input first
+  if it is an output; see [Wait for an edge](#wait-for-an-edge-0x70).
 - The other four header lines have no read-only sample in BBIO1.  A level byte
   from them always follows a write.
 
@@ -211,10 +212,10 @@ The Bus Pirate replies `0x01`, then resets.  On v3 this is a real hardware
 reset.  On v4 it runs the **terminal reset** — pins to inputs, pull-ups
 released, supplies off, an SMPS feedback loop stopped, the AUX output source
 detached and the AUX assignment back to `AUX`, display format back to HEX,
-BASIC left — then prints the banner and the `HiZ>` prompt.  On v4 this reset
-detaches the AUX output and clears the generator flag, but the timer itself
-still runs; send `0x13` before leaving if you want the module idle.  See
-[PWM](#pwm-0x12-0x13).  See
+BASIC left — then prints the banner and the `HiZ>` prompt.  The reset also
+clears the generator flag and stops Timer2, but it does not disable the
+output-compare channel or clear its period/duty setup; send `0x13` if the PWM
+module must be left fully idle.  See [PWM](#pwm-0x12-0x13) and
 [entering-and-framing.md](entering-and-framing.md#leaving) §Leaving.
 
 ### Self-test (`0x10`, `0x11`)
@@ -284,11 +285,11 @@ servo details are in the
 
 A PWM or servo left running in the terminal is not cleared by entering BBIO1:
 entry makes the pins inputs, so the waveform no longer drives the header, but
-the timer setup stays until `0x12`, `0x13` or a hardware reset.  `0x0F` does
-not stop the timer either; the v4 terminal reset clears the generator flag and
-detaches the AUX output source, so the target stops being driven while Timer2
-may still run, and on v3 the hardware reset stops everything.  Send `0x13`
-before leaving if you want the module idle.
+the timer setup stays until `0x12`, `0x13` or a hardware reset.  The v4
+terminal reset clears the generator flag, stops Timer2 and detaches the AUX
+output source, but it does not disable the output-compare channel or clear its
+period/duty setup; send `0x13` if the PWM module must be left fully idle.  On v3
+the hardware reset stops everything.
 
 On an SMPS-enabled build, `0x12` and `0x13` are refused with `0x00` while the
 SMPS feedback loop owns the ADC; `0x12` consumes its five-byte frame first.
@@ -358,12 +359,16 @@ Payload and reply:
    | `0x02` | falling (high → low) |
    | `0x03` | either edge |
 
-2. one **16-bit big-endian timeout** in milliseconds (`0` checks the pin once
-   and returns immediately).  The maximum is 65535 ms (about 65.5 s).
+2. one **16-bit big-endian timeout** in milliseconds (`0` returns at once; see
+   below).  The maximum is 65535 ms (about 65.5 s).
 
 The reply is two bytes: a **result byte** (`0x01` when the requested edge
 arrived, `0x00` on timeout) followed by the **selected AUX pin level** (`0` or
 `1`) at the moment the wait finished.
+
+A **zero timeout always returns `0x00`** (timeout) followed by the current
+level, even if an edge is pending: the firmware evaluates expiry before the
+change-notification flag.  Do not wait for `0x01` from a zero-timeout wait.
 
 The wait starts when the frame is complete: an edge that arrives while the
 selector and timeout bytes are still being received is not latched.

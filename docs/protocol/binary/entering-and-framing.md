@@ -187,9 +187,10 @@ Other framing rules:
   on-board Vpullup source and the target supply off, the AUX output source
   detached and the AUX assignment back to `AUX`, the display format back to
   HEX, and BASIC left.  On an SMPS-enabled build it also stops the SMPS
-  feedback loop.  It is not a substitute for `0x13`: the PWM timer is left
-  running, so send `0x13` first if the module must be idle.  The version
-  banner and the `HiZ>` prompt follow on the same link.
+  feedback loop.  It clears the generator flag and stops Timer2, but it does
+  not disable the output-compare channel or clear its period/duty setup; send
+  `0x13` if the PWM module must be left fully idle.  The version banner and the
+  `HiZ>` prompt follow on the same link.
 - **v3** performs a hardware reset, which stops a PWM timer and any SMPS loop.
   The serial link may emit stray bytes as it comes back up; discard bytes until
   the banner, then wait for `HiZ>`.

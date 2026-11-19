@@ -20,7 +20,9 @@
 #ifdef BP_ENABLE_DIO_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
+
+extern mode_configuration_t mode_configuration;
 
 /**
  * Bit #9 indicates whether it is to set the pin state or the pin direction.
@@ -37,3 +39,7 @@ unsigned int dio_write(unsigned int value) {
 }
 
 #endif /* BP_ENABLE_DIO_SUPPORT */
+
+void dio_setup_prepare(void) {
+	mode_configuration.write_with_read = NO;
+}

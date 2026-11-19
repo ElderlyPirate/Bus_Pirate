@@ -20,12 +20,12 @@
 #ifdef BP_ENABLE_SPI_SUPPORT
 
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "core.h"
 #include "proc_menu.h"
 
 #ifdef BUSPIRATEV4
-#include "dp_usb/cdc.h"
+#include "core_usb/cdc.h"
 #endif
 
 /* Pin assignments. */
@@ -44,7 +44,6 @@
 #define SPICS_RPIN BP_CS_RPIN
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 extern bus_pirate_configuration_t bus_pirate_configuration;
 
 typedef enum {
@@ -53,6 +52,7 @@ typedef enum {
   SPI_COMMAND_CONFIGURE_PERIPHERALS = 4,
   SPI_COMMAND_SET_PULLUPS,
   SPI_COMMAND_SET_SPEED,
+  SPI_COMMAND_WAIT_FOR_EDGE,
   SPI_COMMAND_CONFIGURE_SPI = 8
 } spi_command_t;
 
@@ -1040,6 +1040,10 @@ void spi_enter_binary_io(void) {
       break;
 
 #endif /* BUSPIRATEV4 */
+
+    case SPI_COMMAND_WAIT_FOR_EDGE:
+      handle_wait_command(input_byte);
+      break;
 
     case SPI_COMMAND_SET_SPEED: {
       uint8_t speed = input_byte & 0x0F;

@@ -62,15 +62,49 @@ static unsigned abort_calls, ready_calls, max_chunk, event_sample;
 static uint32_t now_us;
 static uint32_t fixture_epoch, fixture_event_after;
 static uint64_t fixture_taken, fixture_trigger_taken;
+static bool rx_fixture, rx_oerr, rx_overrun_readout;
+static unsigned rx_fifo_count, rx_checks, rx_clears, rx_polls, rx_reads, banners;
+static const int *rx_script;
+static unsigned rx_script_len, rx_script_pos;
+static uint8_t rx_byte;
+static bool user_serial_check_overflow(void) { ++rx_checks; return rx_oerr; }
+static void user_serial_clear_overflow(void) {
+    assert(rx_oerr); ++rx_clears; rx_oerr=false; rx_fifo_count=0;
+}
 static bool user_serial_ready_to_read(void) {
     ++ready_calls;
+    if(rx_fixture) {
+        assert(++rx_polls<1000 && "UART receiver stuck after overrun");
+#ifdef BUSPIRATEV3
+        if(rx_oerr) return rx_fifo_count!=0;
+#endif
+        if(rx_script_pos==rx_script_len) return false;
+        int token=rx_script[rx_script_pos++];
+        /* Model OERR with an empty (-1) or still-full (-2) receiver. */
+        if(token<0) {
+            rx_oerr=true; rx_fifo_count=token==-2?4:0;
+            return false;
+        }
+        rx_byte=(uint8_t)token;
+        return true;
+    }
     return abort_calls && sample_calls>=abort_calls;
 }
-static uint8_t user_serial_read_byte(void) { return 0; }
+static uint8_t user_serial_read_byte(void) {
+    if(!rx_fixture) return 0;
+    ++rx_reads;
+#ifdef BUSPIRATEV3
+    if(rx_fifo_count) { --rx_fifo_count; return 0x55; }
+#endif
+    return rx_byte;
+}
 static uint32_t bp_timer_microseconds(void) { return now_us; }
-static void print_version_info(void) {}
+static void print_version_info(void) { ++banners; }
 static void user_serial_transmit_character(uint8_t b) {
     assert(output_len<sizeof(output)); output[output_len++]=b;
+    if(rx_fixture && rx_overrun_readout && sample_calls) {
+        rx_overrun_readout=false; rx_oerr=true; rx_fifo_count=4;
+    }
 }
 static void bp_write_buffer(const uint8_t *p,unsigned n) {
     while(n--) user_serial_transmit_character(*p++);
@@ -154,6 +188,9 @@ static void clean(void) {
     memset(&arena,0xa5,sizeof(arena)); output_len=cdc_len=locked=0;
     samples_written=sample_calls=ready_calls=max_chunk=abort_calls=event_sample=0;
     fixture_epoch=fixture_event_after=0;fixture_taken=fixture_trigger_taken=0;
+    rx_fixture=rx_oerr=rx_overrun_readout=false;
+    rx_fifo_count=rx_checks=rx_clears=rx_polls=rx_reads=banners=0;
+    rx_script_len=rx_script_pos=0;
     CNEN1=CNEN2=CNEN4=0; IFS1bits.CNIF=0; command_processor_state=RX_COMMAND_IDLE;
     now_us+=2000000u; sump_reset();
 }
@@ -310,6 +347,39 @@ static void rollover_matrix(void) {
     }
     printf("PASS %u production captures with seeded32-bit rollover, before/after trigger, all formats and delays\n",checks);
 }
+static void overflow_matrix(void) {
+    const int idle[]={2,15};
+    const int empty[]={-1,2,15};
+    const int partial_empty[]={0x81,0,-1,2,15};
+    const int partial_full[]={0x81,0,-2,2,15};
+    const int readout[]={0x81,0,0,0,0,1,2,15};
+    const int *scripts[]={idle,idle,empty,partial_empty,partial_full,readout};
+    const unsigned lengths[]={2,2,3,5,5,8};
+    for(unsigned scenario=0;scenario<6;++scenario) {
+#ifdef BUSPIRATEV4
+        /* USB must not inspect/clear UART flags, even when that mock is set. */
+        if(scenario==3||scenario==4) continue;
+#endif
+        clean(); rx_fixture=true; rx_script=scripts[scenario];
+        rx_script_len=lengths[scenario];
+        if(scenario==1) { rx_oerr=true; rx_fifo_count=4; }
+        rx_overrun_readout=scenario==5;
+        enter_sump_mode();
+        require(banners==1 && bus_pirate_configuration.bus_mode==BP_HIZ,"overrun recovery exit to HiZ");
+        require(command_processor_state==RX_COMMAND_IDLE,"overrun abandons partial command");
+        require(output_len==(scenario==5?12u:8u),"overrun recovery exact ID/readout length");
+        require(!memcmp(output,"1ALS",4)&&!memcmp(output+output_len-4,"1ALS",4),"entry and subsequent ID after overrun");
+        require(sampler_state==SAMPLER_IDLE,"overrun recovery leaves sampler idle");
+#ifdef BUSPIRATEV3
+        require(!rx_oerr && !rx_fifo_count,"overrun clear empties UART receiver");
+        require(rx_clears==(scenario?1u:0u),"clear only on real v3 overrun");
+        require(rx_reads==lengths[scenario]-(scenario>=2&&scenario<=4?1u:0u),"do not parse bytes discarded by OERR clear");
+#else
+        require(!rx_checks&&!rx_clears,"v4 path must not call UART overflow helpers");
+#endif
+    }
+    puts("PASS SUMP command-loop UART overrun: entry, empty FIFO, partial operands, full FIFO, post-readout; v4 exclusion");
+}
 int main(int argc,char **argv) {
     require(argc==2,"case required");
     if(!strcmp(argv[1],"capacity")) capacity_matrix();
@@ -320,6 +390,7 @@ int main(int argc,char **argv) {
     else if(!strcmp(argv[1],"timer")) timer_matrix();
     else if(!strcmp(argv[1],"led")) led_matrix();
     else if(!strcmp(argv[1],"rollover")) rollover_matrix();
+    else if(!strcmp(argv[1],"overflow")) overflow_matrix();
     else return 2;
     return 0;
 }
@@ -329,7 +400,7 @@ int main(int argc,char **argv) {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--revision')
-    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover', 'asm'])
+    parser.add_argument('--case', choices=['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover', 'overflow', 'asm'])
     args = parser.parse_args()
     path = 'Firmware/protocol_sump/sump.c'
     source = (subprocess.check_output(['git', 'show', args.revision + ':' + path], cwd=ROOT).decode()
@@ -367,7 +438,7 @@ def main():
                             '-Wno-unused-variable', '-Wno-implicit-fallthrough',
                             '-DBUSPIRATE' + board, '-DBPv4_SUMP_SOFT_WIRE', '-DBUFFER_SIZE=' + str(size),
                             str(c), '-o', str(exe)], check=True)
-            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover']):
+            for case in ([args.case] if args.case else ['capacity', 'readout', 'count', 'parser', 'trigger', 'timer', 'led', 'rollover', 'overflow']):
                 print(board, size, case, flush=True)
                 result = subprocess.run([str(exe), case], timeout=20)
                 failures += result.returncode != 0

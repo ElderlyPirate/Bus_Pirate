@@ -612,6 +612,16 @@ void enter_sump_mode(void) {
 
   /* Sampling action. */
   for (;;) {
+#ifdef BUSPIRATEV3
+    /* OERR stops UART1 reception; clearing it also discards the RX FIFO
+       (DS39881E, UxSTA). Abandon any partial command/capture configuration
+       before accepting fresh bytes, even when URXDA is already clear. */
+    if (user_serial_check_overflow()) {
+      user_serial_clear_overflow();
+      command_processor_state = RX_COMMAND_IDLE;
+      sump_reset();
+    }
+#endif
 
     /* Wait for a command byte to be available on the bus. */
     if (user_serial_ready_to_read()) {

@@ -1159,6 +1159,23 @@ void spi_slave_disable(void) {
   RPINR22bits.SCK2R = 0b11111;
 }
 
+/* DS39897C 10.1/10.1.1: LAT does not override TRIS. The shared 0x4x
+ * command can release CS, so each binary CS operation must set direction.
+ * Release before changing the latch in open drain; preload before driving. */
+static void spi_binary_set_cs(const bool high) {
+  if (high && mode_configuration.high_impedance == ON) {
+    IODIR |= CS;
+    IOLAT |= CS;
+  } else {
+    if (high) {
+      IOLAT |= CS;
+    } else {
+      IOLAT &= ~CS;
+    }
+    IODIR &= ~CS;
+  }
+}
+
 void spi_enter_binary_io(void) {
   mode_configuration.speed = 1;
   spi_state.clock_polarity = SPI_CLOCK_IDLE_LOW;
@@ -1186,12 +1203,12 @@ void spi_enter_binary_io(void) {
         break;
 
       case SPI_BASE_COMMAND_CS_LOW:
-        IOLAT &= ~CS;
+        spi_binary_set_cs(LOW);
         REPORT_IO_SUCCESS();
         break;
 
       case SPI_BASE_COMMAND_CS_HIGH:
-        IOLAT |= CS;
+        spi_binary_set_cs(HIGH);
         REPORT_IO_SUCCESS();
         break;
 
@@ -1372,7 +1389,7 @@ void spi_read_write_io(const bool engage_cs) {
 
   /* Update the CS line if needed. */
   if (engage_cs == true) {
-    SPICS = LOW;
+    spi_binary_set_cs(LOW);
   }
 
   if (bytes_to_write > 0) {
@@ -1388,9 +1405,9 @@ void spi_read_write_io(const bool engage_cs) {
     REPORT_IO_SUCCESS();
   }
 
-    /* Reset the CS line if needed. */
+  /* Reset the CS line if needed. */
   if (engage_cs == true) {
-    SPICS = HIGH;
+    spi_binary_set_cs(HIGH);
   }
 }
 

@@ -169,6 +169,7 @@ void pic_setup_prepare(void) {
   int mode = getint_with_spaces();
   int delay = getint_with_spaces();
   bool interactive =
+      mode_configuration.command_error ||
       !(((mode > 0) && (mode <= 2)) && ((delay >= 0) && (delay <= 3)));
 
   if (interactive) {

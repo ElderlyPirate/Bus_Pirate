@@ -1,4 +1,4 @@
-"""Focused #237 PIC setup-parser fold equivalence (no board I/O)."""
+"""Focused #237 setup equivalence and RA-19 missing-operand regression."""
 from pathlib import Path
 import re
 import subprocess
@@ -35,11 +35,19 @@ prefix = r'''
 #define PIC_PIN_DELAY 100
 static struct { int opcode_bits, delay; } mode_info;
 static struct { int command_error, high_impedance, int16; } mode_configuration;
-static int values[2], pos, events[32], count, defaults;
+static int values[2], pos, events[32], count, defaults, missing=-1;
 static void note(int x) { events[count++]=x; }
 static void consumewhitechars(void) { note(defaults ? 10 : 11); }
-static int getint(void) { note(20); return defaults ? 0 : values[pos++]; }
-static int getnumber(int a,int b,int c,int d) { (void)b;(void)c;(void)d;note(30);return a; }
+static int getint(void) {
+  note(20);
+  if(defaults) return 0;
+  if(pos++ == missing) { mode_configuration.command_error=YES;return 0; }
+  return values[pos-1];
+}
+static int getnumber(int a,int b,int c,int d) {
+  assert(!mode_configuration.command_error);
+  (void)b;(void)c;(void)d;note(30);return a;
+}
 static void pic_reset_mode_state(void) { note(40); }
 static void pic_set_display_width(void) { note(41); }
 static void bp_write_dec_byte(int x) { note(100+x); }
@@ -71,6 +79,20 @@ int main(void) {
       cases++;
     }
   printf("PASS PIC setup: %u inline/invalid/default cases, identical parser call order and state\n",cases);
+  defaults=0;
+  for(missing=0;missing<2;missing++) {
+    values[0]=2;values[1]=0;pos=count=0;
+    mode_info.opcode_bits=1;mode_info.delay=3;
+    mode_configuration.command_error=NO;
+    pic_setup_prepare();
+    /* Missing operands must prompt, not apply the partial 4-bit/0-ms tuple. */
+    assert(mode_info.opcode_bits==0 && mode_info.delay==1);
+    assert(mode_configuration.command_error==NO);
+    unsigned prompts=0,headers=0;
+    for(int i=0;i<count;i++) { prompts+=events[i]==30;headers+=events[i]==52; }
+    assert(prompts==2 && headers==0);
+  }
+  puts("PASS RA-19: missing mode/delay fall back to both prompts, clear parse error, do not apply partial settings");
 }
 '''
 (out / "test.c").write_text(prefix + helper + function + legacy + main)

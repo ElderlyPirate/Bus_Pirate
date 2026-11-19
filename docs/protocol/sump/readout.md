@@ -119,12 +119,13 @@ The fast post-trigger window is about 1 ms on v4 (2.05 ms for 4096 samples at
 2 MHz on v3); the readout that follows takes about 0.36 s for 4096 bytes at
 115200 baud on v3.
 
-A single byte sent during the readout is handled after the last sample.  A long
-burst can overrun the v3 UART: bytes beyond the receiver are lost, and later
-commands can be ignored until the board is power-cycled.  After the readout,
-send five `0x00` resets or wait one second before the next command to realign
-the parser ([commands.md](commands.md#parser-rules)).  If the board is still
-silent, power-cycle it.
+A single byte sent during the readout is handled after the last sample.  A
+long burst can overrun the v3 UART; bytes beyond the receiver are lost.  The
+v3 loop checks and clears the overrun before it polls for the next command,
+including on the first pass, and discards any partial command and the capture
+configuration.  Resend the complete command; no power cycle is needed.  The
+five `0x00` reset run or the one-second gap still realigns a parser that is
+out of step for another reason ([commands.md](commands.md#parser-rules)).
 
 ## Nothing unsolicited
 

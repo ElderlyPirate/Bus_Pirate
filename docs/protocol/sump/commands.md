@@ -133,6 +133,7 @@ extended entry or mode**.
 | an unknown long command | four parameter bytes are consumed, then it is ignored |
 | an exit byte mid-command | consumed as a parameter; the exit does not happen, and the command completes and takes effect (unless its opcode is unknown) |
 | a byte after a long opcode | always a parameter, whatever its value |
+| v3 UART overrun | the loop checks and clears the overrun before polling for a command, including on the first pass; a partial command and the capture configuration are discarded, and the next complete command is read normally.  The host should resend the command; no power cycle is needed |
 
 The one-second gap is what heals a lost sync.  Real clients send the five-byte
 commands back to back and never hit it; a script that dies mid-command does, and

@@ -19,7 +19,7 @@
 
 #ifdef BP_ENABLE_HD44780_SUPPORT
 
-#include "spi.h"
+#include "protocol_spi/spi.h"
 #include "base.h"
 #include "proc_menu.h"
 
@@ -94,7 +94,6 @@
 
 //configuration structure
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 struct _HD44780_interface {
         unsigned char EN:1; //clock, active high

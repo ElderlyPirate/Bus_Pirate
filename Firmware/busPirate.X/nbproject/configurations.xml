@@ -5,36 +5,38 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>../1wire.h</itemPath>
-      <itemPath>../base.h</itemPath>
+      <itemPath>../core_system/base.h</itemPath>
       <itemPath>../basic.h</itemPath>
-      <itemPath>../bitbang.h</itemPath>
-      <itemPath>../dp_usb/cdc.h</itemPath>
-      <itemPath>../descriptors.h</itemPath>
+      <itemPath>../core_bitbang/bitbang.h</itemPath>
+      <itemPath>../core_usb/cdc.h</itemPath>
+      <itemPath>../core_usb/descriptors.h</itemPath>
       <itemPath>../dio.h</itemPath>
       <itemPath>../hardwarev3.h</itemPath>
       <itemPath>../pc_at_keyboard.h</itemPath>
       <itemPath>../pic.h</itemPath>
-      <itemPath>../dp_usb/picusb.h</itemPath>
+      <itemPath>../core_usb/picusb.h</itemPath>
       <itemPath>../raw2wire.h</itemPath>
       <itemPath>../raw3wire.h</itemPath>
       <itemPath>../selftest.h</itemPath>
       <itemPath>../sump.h</itemPath>
-      <itemPath>../dp_usb/usb_stack.h</itemPath>
-      <itemPath>../onboard_eeprom.h</itemPath>
+      <itemPath>../core_usb/usb_stack.h</itemPath>
+      <itemPath>../core_usb/usb_stack_globals.h</itemPath>
+      <itemPath>../core_usb/prj_usb_config.h</itemPath>
+      <itemPath>../core_eeprom/onboard_eeprom.h</itemPath>
       <itemPath>../i2c.h</itemPath>
       <itemPath>../configuration.h</itemPath>
       <itemPath>../hd44780.h</itemPath>
-      <itemPath>../spi.h</itemPath>
+      <itemPath>../protocol_spi/spi.h</itemPath>
       <itemPath>../uart.h</itemPath>
       <itemPath>../jtag.h</itemPath>
       <itemPath>../smps.h</itemPath>
       <itemPath>../openocd.h</itemPath>
-      <itemPath>../messages_v3.h</itemPath>
-      <itemPath>../messages_v4.h</itemPath>
-      <itemPath>../messages.h</itemPath>
+      <itemPath>../core_messages/messages_v3.h</itemPath>
+      <itemPath>../core_messages/messages_v4.h</itemPath>
+      <itemPath>../core_messages/messages.h</itemPath>
       <itemPath>../binary_io.h</itemPath>
-      <itemPath>../proc_menu.h</itemPath>
-      <itemPath>../core.h</itemPath>
+      <itemPath>../core_system/proc_menu.h</itemPath>
+      <itemPath>../core_system/core.h</itemPath>
       <itemPath>../uart2.h</itemPath>
       <itemPath>../aux_pin.h</itemPath>
       <itemPath>../raw_common.h</itemPath>
@@ -65,16 +67,16 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>../1wire.c</itemPath>
-      <itemPath>../base.c</itemPath>
+      <itemPath>../core_system/base.c</itemPath>
       <itemPath>../basic.c</itemPath>
-      <itemPath>../bitbang.c</itemPath>
-      <itemPath>../dp_usb/cdc.c</itemPath>
+      <itemPath>../core_bitbang/bitbang.c</itemPath>
+      <itemPath>../core_usb/cdc.c</itemPath>
       <itemPath>../dio.c</itemPath>
       <itemPath>../jtag.c</itemPath>
       <itemPath>../jtag/lenval.c</itemPath>
       <itemPath>../jtag/micro.c</itemPath>
       <itemPath>../jtag/ports.c</itemPath>
-      <itemPath>../main.c</itemPath>
+      <itemPath>../core_system/main.c</itemPath>
       <itemPath>../pc_at_keyboard.c</itemPath>
       <itemPath>../pic.c</itemPath>
       <itemPath>../raw2wire.c</itemPath>
@@ -82,20 +84,20 @@
       <itemPath>../selftest.c</itemPath>
       <itemPath>../smps.c</itemPath>
       <itemPath>../sump.c</itemPath>
-      <itemPath>../dp_usb/usb_stack.c</itemPath>
-      <itemPath>../onboard_eeprom.c</itemPath>
+      <itemPath>../core_usb/usb_stack.c</itemPath>
+      <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
       <itemPath>../i2c.c</itemPath>
       <itemPath>../hd44780.c</itemPath>
-      <itemPath>../spi.c</itemPath>
+      <itemPath>../protocol_spi/spi.c</itemPath>
       <itemPath>../uart.c</itemPath>
       <itemPath>../openocd.c</itemPath>
       <itemPath>../openocd_asm.s</itemPath>
-      <itemPath>../messages_v3.s</itemPath>
-      <itemPath>../messages_v4.s</itemPath>
-      <itemPath>../messages.c</itemPath>
+      <itemPath>../core_messages/messages_v3.s</itemPath>
+      <itemPath>../core_messages/messages_v4.s</itemPath>
+      <itemPath>../core_messages/messages.c</itemPath>
       <itemPath>../binary_io.c</itemPath>
-      <itemPath>../proc_menu.c</itemPath>
-      <itemPath>../core.c</itemPath>
+      <itemPath>../core_system/proc_menu.c</itemPath>
+      <itemPath>../core_system/core.c</itemPath>
       <itemPath>../uart2.c</itemPath>
       <itemPath>../aux_pin.c</itemPath>
     </logicalFolder>
@@ -146,7 +148,7 @@
         <makeCustomizationEnableLongLines>false</makeCustomizationEnableLongLines>
         <makeCustomizationNormalizeHexFile>false</makeCustomizationNormalizeHexFile>
       </makeCustomizationType>
-      <item path="../dp_usb/cdc.c" ex="true" overriding="false">
+      <item path="../core_usb/cdc.c" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -160,7 +162,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../dp_usb/cdc.h" ex="true" overriding="false">
+      <item path="../core_usb/cdc.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -174,7 +176,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../dp_usb/picusb.h" ex="true" overriding="false">
+      <item path="../core_usb/picusb.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -188,7 +190,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../dp_usb/usb_stack.c" ex="true" overriding="false">
+      <item path="../core_usb/usb_stack.c" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -202,7 +204,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../dp_usb/usb_stack.h" ex="true" overriding="false">
+      <item path="../core_usb/usb_stack.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -230,7 +232,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../messages_v4.h" ex="true" overriding="false">
+      <item path="../core_messages/messages_v4.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -244,7 +246,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../messages_v4.s" ex="true" overriding="false">
+      <item path="../core_messages/messages_v4.s" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -258,7 +260,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../onboard_eeprom.c" ex="true" overriding="false">
+      <item path="../core_eeprom/onboard_eeprom.c" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -272,7 +274,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../onboard_eeprom.h" ex="true" overriding="false">
+      <item path="../core_eeprom/onboard_eeprom.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -315,7 +317,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value=""/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -485,7 +487,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../messages_v3.h" ex="true" overriding="false">
+      <item path="../core_messages/messages_v3.h" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -499,7 +501,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../messages_v3.s" ex="true" overriding="false">
+      <item path="../core_messages/messages_v3.s" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -556,7 +558,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value=""/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

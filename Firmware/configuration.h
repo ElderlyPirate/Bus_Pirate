@@ -253,8 +253,10 @@
  * @note BPv3 default firmware status: INCLUDED
  * @note BPv4 default firmware status: INCLUDED
  *
- * OpenOCD support is not yet available on v4 boards, however plans are
- * underway to get this working.
+ * The OpenOCD host adapter (BP_JTAG_OPENOCD_SUPPORT) is enabled on both
+ * BPv3 and BPv4; the XSVF player sub-mode (BP_JTAG_XSVF_SUPPORT) is
+ * enabled on BPv4 only (memory), see the module configuration block
+ * below.
  */
 
 /**

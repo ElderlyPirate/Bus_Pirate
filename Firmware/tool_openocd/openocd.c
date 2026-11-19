@@ -58,10 +58,10 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 #define OOCD_TDI_ODC BP_MOSI_ODC
 #ifdef BUSPIRATEV3
 #define OOCD_SRST_ODC BP_AUX0_ODC
-#define OOCD_TRST_ODC BP_PGD
+#define OOCD_TRST_ODC BP_PGD_ODC
 #else
 #define OOCD_SRST_ODC BP_AUX_ODC
-#define OOCD_TRST_ODC BP_AUX1
+#define OOCD_TRST_ODC BP_AUX1_ODC
 #endif /* BUSPIRATEV3 */
 
 #define CMD_UNKNOWN 0x00
@@ -223,29 +223,42 @@ void binOpenOCD(void) {
       bp_write_buffer(buf, 3);
 
 #if defined(BUSPIRATEV3)
-      i = (j + 7) / 8; // number of bytes used
+      /* A 0-bit TAP_SHIFT carries no TDI/TMS bytes and returns no TDO byte
+         (the 3-byte header was already echoed above).  This mirrors the v4
+         guard: binOpenOCDTapShiftFast() computes bits-1 in w6, so a zero
+         count becomes 0xFFFF and its transfer loop waits for data the host
+         never sent.  Treat zero as a no-op and leave the non-zero path
+         untouched. */
+      if (j) {
+        i = (j + 7) / 8; // number of bytes used
 
-      // prepare the interrupt transfer
-      UART1RXBuf = (unsigned char *)bus_pirate_configuration.terminal_input;
-      UART1RXToRecv = 2 * i;
-      UART1RXRecvd = 0;
+        // prepare the interrupt transfer
+        UART1RXBuf = (unsigned char *)bus_pirate_configuration.terminal_input;
+        UART1RXToRecv = 2 * i;
+        UART1RXRecvd = 0;
 
-      UART1TXBuf =
-          (unsigned char *)(bus_pirate_configuration.terminal_input +
-                            2100); // 2048 bytes + 3 command header + to be sure
-      UART1TXSent = 0;
-      UART1TXAvailable = 0;
+        UART1TXBuf =
+            (unsigned char *)(bus_pirate_configuration.terminal_input +
+                              2100); // 2048 bytes + 3 command header + to be sure
+        UART1TXSent = 0;
+        UART1TXAvailable = 0;
 
-      // enable RX interrupt
-      IEC0bits.U1RXIE = 1;
+        // enable RX interrupt
+        IEC0bits.U1RXIE = 1;
 
-      binOpenOCDTapShiftFast(UART1RXBuf, UART1TXBuf, j, openocd_jtag_delay);
+        binOpenOCDTapShiftFast(UART1RXBuf, UART1TXBuf, j, openocd_jtag_delay);
+      }
 
 #else
 
       int16_t bit_sequences = (int16_t)(j & 0x7FFF);
 
-      do {
+      /* A 0-bit TAP_SHIFT carries no TDI/TMS bytes and returns no TDO
+         byte.  The old do/while ran the body once for a zero count: it
+         blocked on two bytes the host never sent, then emitted a spurious
+         TDO byte (and shifted tdo_data_in by 16).  OpenOCD never asks for
+         0 bits, but a malformed/desynced host must not park the mode. */
+      while (bit_sequences > 0) {
         /* Read TDI and TMS. */
 
         uint16_t tdi_data_out = user_serial_read_byte();
@@ -272,10 +285,27 @@ void binOpenOCD(void) {
           /* Clear TCK. */
           OOCD_CLK = LOW;
 
-          /* Output TMS and TDI. */
-          OOCD_TDI = (tdi_data_out & 0x0001) ? HIGH : LOW;
+          /*
+           * Output TMS and TDI.
+           *
+           * The masks are compile-time constants, so these compile to
+           * single-cycle BSET/BCLR on LATD (DS70000157G).  The bitfield
+           * writes these replaced compiled to a full read-modify-write of
+           * the port per pin per bit, which dominated the TCK period at
+           * the fastest delay settings.
+           */
+          if (tdi_data_out & 0x0001) {
+            IOLAT |= MOSI;
+          } else {
+            IOLAT &= ~MOSI;
+          }
           tdi_data_out >>= 1;
-          OOCD_TMS = (tms_data_out & 0x0001) ? HIGH : LOW;
+
+          if (tms_data_out & 0x0001) {
+            IOLAT |= CS;
+          } else {
+            IOLAT &= ~CS;
+          }
           tms_data_out >>= 1;
 
 #ifdef BP_JTAG_OPENOCD_DELAY
@@ -301,7 +331,7 @@ void binOpenOCD(void) {
         }
 
         bit_sequences -= 16;
-      } while (bit_sequences > 0);
+      }
 
 #endif /* BUSPIRATEV4 */
 

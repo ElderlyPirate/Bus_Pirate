@@ -38,7 +38,7 @@
 #endif /* BP_ENABLE_SPI_SUPPORT */
 
 #ifdef BP_ENABLE_JTAG_SUPPORT
-#include "jtag.h"
+#include "protocol_jtag/jtag.h"
 #endif /* BP_ENABLE_JTAG_SUPPORT */
 
 #ifdef BP_ENABLE_RAW_2WIRE_SUPPORT

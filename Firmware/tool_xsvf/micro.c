@@ -52,6 +52,7 @@
 #include "micro.h"
 #include "lenval.h"
 #include "ports.h"
+#include "../protocol_jtag/jtag.h"
 
 
 /*============================================================================
@@ -224,6 +225,10 @@ typedef int (*TXsvfDoCmdFuncPtr)( SXsvfInfo* );
 /* Insert new commands here */
 /* and add corresponding xsvfDoCmd function to xsvf_pfDoCmd below. */
 #define XLASTCMD         24         /* Last command marker */
+
+/* Upper bound (usec) for the XAPP058 retry-time growth: the 25% steps
+   would otherwise grow an unattended retry loop into minutes/hours. */
+#define XSVF_MAX_RUN_TEST_US 100000L
 
 
 /*============================================================================
@@ -403,6 +408,16 @@ int xsvfGotoTapState( unsigned char*   pucTapState,
 {
     int i;
     int iErrorCode;
+
+    /* A target state outside the defined TAP states can never be reached:
+       the state machine only ever walks valid states, so the while()'s
+       default case cannot fire and the transition loop would orbit
+       forever.  XSTATE and XWAIT pass these bytes straight from the XSVF
+       stream, so validate once here. */
+    if ( ucTargetState > XTAPSTATE_UPDATEIR )
+    {
+        return( XSVF_ERROR_ILLEGALSTATE );
+    }
 
     iErrorCode  = XSVF_ERROR_NONE;
     if ( ucTargetState == XTAPSTATE_RESET )
@@ -645,31 +660,60 @@ void xsvfShiftOnly( long    lNumBits,
         /* Process on a byte-basis */
         ucTdiByte   = (*(--pucTdi));
         ucTdoByte   = 0;
-        for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
+        if ( ( lNumBits >= 8 ) && !( iExitShift && ( lNumBits == 8 ) ) )
         {
-            --lNumBits;
-            if ( iExitShift && !lNumBits )
+            /* Full byte with no exit point inside: straight-line TCK
+               slots.  The JTAG pins are written directly - they are
+               single-bit SFR bitfields, so the constant writes compile
+               to single-cycle BSET/BCLR instead of setPort() calls. */
+            for ( i = 0; i < 8; ++i )
             {
-                /* Exit Shift-DR state */
-                setPort( TMS, 1 );
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
             }
-
-            /* Set the new TDI value */
-            setPort( TDI, (short)(ucTdiByte & 1) );
-            ucTdiByte   >>= 1;
-
-            /* Set TCK low */
-            setPort( TCK, 0 );
-
-            if ( pucTdo )
+            lNumBits -= 8;
+        }
+        else
+        {
+            for ( i = 0; ( lNumBits && ( i < 8 ) ); ++i )
             {
-                /* Save the TDO value */
-                ucTdoBit    = readTDOBit();
-                ucTdoByte   |= ( ucTdoBit << i );
-            }
+                --lNumBits;
+                if ( iExitShift && !lNumBits )
+                {
+                    /* Exit Shift-DR state */
+                    JTAGTMS = 1;
+                }
 
-            /* Set TCK high */
-            setPort( TCK, 1 );
+                /* Set the new TDI value */
+                if ( ucTdiByte & 1 ) JTAGTDI = 1; else JTAGTDI = 0;
+                ucTdiByte   >>= 1;
+
+                /* Set TCK low */
+                JTAGTCK = 0;
+
+                if ( pucTdo )
+                {
+                    /* Save the TDO value */
+                    ucTdoBit    = JTAGTDO;
+                    ucTdoByte   |= ( ucTdoBit << i );
+                }
+
+                /* Set TCK high */
+                JTAGTCK = 1;
+            }
         }
 
         /* Save the TDO byte value */
@@ -785,8 +829,19 @@ int xsvfShift( unsigned char*   pucTapState,
                     xsvfGotoTapState( pucTapState, XTAPSTATE_PAUSEDR );
                     /* Shift 1 extra bit */
                     xsvfGotoTapState( pucTapState, XTAPSTATE_SHIFTDR );
-                    /* Increment RUNTEST time by an additional 25% */
-                    lRunTestTime    += ( lRunTestTime >> 2 );
+                    /* Increment RUNTEST time by an additional 25%, but
+                       clamp the growth: a mismatching file must not
+                       schedule minute-long waits (an XRUNTEST that the
+                       file sets explicitly is used unchanged - only the
+                       retry growth is bounded). */
+                    if ( lRunTestTime < XSVF_MAX_RUN_TEST_US )
+                    {
+                        lRunTestTime += ( lRunTestTime >> 2 );
+                        if ( lRunTestTime > XSVF_MAX_RUN_TEST_US )
+                        {
+                            lRunTestTime = XSVF_MAX_RUN_TEST_US;
+                        }
+                    }
                 }
                 else
                 {
@@ -1155,6 +1210,21 @@ int xsvfDoXSDRSIZE( SXsvfInfo* pXsvfInfo )
     iErrorCode  = XSVF_ERROR_NONE;
     readVal( &(pXsvfInfo->lvTdi), 4 );
     pXsvfInfo->lShiftLengthBits = value( &(pXsvfInfo->lvTdi) );
+
+    /* xsvfGetAsNumBytes() returns a short: a large 32-bit XSDRSIZE (say
+       0x7FFFFFFF) overflowed the +7 in its (bits+7)/8, narrowed to a tiny
+       byte count, and slipped past the MAX_LEN check below - xsvfShiftOnly()
+       then walked past the lenVal buffers for the full (untruncated) bit
+       count.  Validate the bit count against the buffer capacity before
+       narrowing, so the shift length and the stored lenVals always agree. */
+    if ( pXsvfInfo->lShiftLengthBits < 0 ||
+         pXsvfInfo->lShiftLengthBits > (long)( MAX_LEN * 8 ) )
+    {
+        iErrorCode  = XSVF_ERROR_DATAOVERFLOW;
+        pXsvfInfo->iErrorCode   = iErrorCode;
+        return( iErrorCode );
+    }
+
     pXsvfInfo->sShiftLengthBytes= xsvfGetAsNumBytes( pXsvfInfo->lShiftLengthBits );
     XSVFDBG_PRINTF1( 3, "   XSDRSIZE = %ld\n", pXsvfInfo->lShiftLengthBits );
     if ( pXsvfInfo->sShiftLengthBytes > MAX_LEN )
@@ -1469,7 +1539,13 @@ int xsvfDoXCOMMENT( SXsvfInfo* pXsvfInfo )
        // {
        //     putchar( ucText ? ucText : '\n' );
        // }
-    } while ( ucText );
+    /* A stalled host stream makes readByte() serve 0xFF, which is never a
+       NUL terminator, so an XCOMMENT that interrupts a chunk request used
+       to loop forever (reset-only recovery).  Leave the loop on a stall:
+       the next command boundary then unwinds the run with the normal
+       stalled-stream result (XSVF_ERROR_UNKNOWN, 0x01) and the 0x0F escape
+       still works.  Other commands keep their 0xFF-derived results. */
+    } while ( ucText && !xsvf_stream_stalled );
 
     pXsvfInfo->iErrorCode   = XSVF_ERROR_NONE;
 
@@ -1490,6 +1566,7 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     unsigned char   ucWaitState;
     unsigned char   ucEndState;
     long            lWaitTime;
+    int             iErrorCode;
 
     /* Get Parameters */
     /* <wait_state> */
@@ -1509,7 +1586,14 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <wait_state>, go to <wait_state> */
     if ( pXsvfInfo->ucTapState != ucWaitState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucWaitState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            /* Propagate (an undefined state byte is rejected here, not
+               silently ignored as before). */
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     /* Wait for <wait_time> microseconds */
@@ -1518,7 +1602,12 @@ int xsvfDoXWAIT( SXsvfInfo* pXsvfInfo )
     /* If not already in <end_state>, go to <end_state> */
     if ( pXsvfInfo->ucTapState != ucEndState )
     {
-        xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        iErrorCode  = xsvfGotoTapState( &(pXsvfInfo->ucTapState), ucEndState );
+        if ( iErrorCode != XSVF_ERROR_NONE )
+        {
+            pXsvfInfo->iErrorCode   = iErrorCode;
+            return( iErrorCode );
+        }
     }
 
     return( XSVF_ERROR_NONE );
@@ -1566,6 +1655,15 @@ int xsvfInitialize( SXsvfInfo* pXsvfInfo )
 *****************************************************************************/
 int xsvfRun( SXsvfInfo* pXsvfInfo )
 {
+    /* A stalled host stream (readByte timeout) aborts the run at a
+       command boundary with a defined error so the port stays
+       recoverable; the flag is cleared by the next xsvf_setup(). */
+    if ( xsvf_stream_stalled )
+    {
+        pXsvfInfo->iErrorCode = XSVF_ERROR_UNKNOWN;
+        return( pXsvfInfo->iErrorCode );
+    }
+
     /* Process the XSVF commands */
     if ( (!pXsvfInfo->iErrorCode) && (!pXsvfInfo->ucComplete) )
     {
@@ -1614,7 +1712,11 @@ void xsvfCleanup( SXsvfInfo* pXsvfInfo )
 *****************************************************************************/
 int xsvfExecute()
 {
-    SXsvfInfo   xsvfInfo;
+    /* Zero the whole state first: xsvfInfoInit() leaves the lenVal
+       buffers unset (lvTdoExpected in particular), and the TDO compare
+       reads them before any XSDRTDO/XTDOMASK has loaded them.  The
+       struct is a stack local, so anything not zeroed here is garbage. */
+    SXsvfInfo   xsvfInfo = { 0 };
 
     xsvfInitialize( &xsvfInfo );
 

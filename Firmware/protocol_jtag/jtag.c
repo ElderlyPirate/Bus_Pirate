@@ -25,8 +25,8 @@
 
 #ifdef BP_JTAG_XSVF_SUPPORT
 
-#include "jtag/micro.h"
-#include "jtag/ports.h"
+#include "tool_xsvf/micro.h"
+#include "tool_xsvf/ports.h"
 
 #define XSVF_ERROR_NONE 0
 #define XSVF_ERROR_UNKNOWN 1
@@ -53,9 +53,10 @@ static void jtag_set_state(const uint8_t new_state);
 static void jtag_leave_state(void);
 static void jtag_reset(void);
 static uint8_t jtag_read_byte(void);
-static uint8_t jtag_write_bit(const bool value);
 static uint8_t jtag_read_bit(void);
+#ifdef BP_JTAG_XSVF_SUPPORT
 static void jtag_data_low(void);
+#endif /* BP_JTAG_XSVF_SUPPORT */
 static void jtag_data_high(void);
 static void jtag_clock_low(void);
 static void jtag_clock_high(void);
@@ -66,8 +67,6 @@ static void jtag_tms_low(void);
 typedef struct {
   uint8_t state : 2;
   uint8_t hiz : 1;
-  uint8_t bit_pending : 1;
-  uint8_t delayed_bit : 1;
 } jtag_settings_t;
 
 static jtag_settings_t jtag_settings = {0};
@@ -75,8 +74,6 @@ static jtag_settings_t jtag_settings = {0};
 void jtag(void) {
   jtag_setup();
   jtag_settings.hiz = true;
-  jtag_settings.bit_pending = false;
-  jtag_settings.delayed_bit = false;
 
   for (;;) {
     uint8_t cmd = user_serial_read_byte();
@@ -106,6 +103,12 @@ void jtag(void) {
           break; // 250 device timout/limit...
         }
       }
+      /* The reply's count byte carries words * 4; a chain of more than
+         63 devices cannot be represented and would desync the host, so
+         report the first 63. */
+      if (words > 63) {
+        words = 63;
+      }
       jtag_leave_state();
       jtag_reset();
       // read ID#s (32 bits * devices) {r: (4*devices)}
@@ -134,6 +137,16 @@ void jtag(void) {
     }
 #endif /* BP_JTAG_XSVF_SUPPORT */
 
+    case 0x0F: {
+      /* Exit to the binary mode: the standard return-to-terminal byte the
+         other binary modes use.  The player loop previously had no way
+         out at all, so a tooling park (or an aborted host) trapped the
+         port until a reset - same trap class the bridges had.  Send 0x0F
+         once more to reach the terminal. */
+      jtag_reset();
+      return;
+    }
+
     default:
       break;
     }
@@ -152,14 +165,6 @@ void jtag_leave_state(void) {
     break;
 
   case SHIFTIR:
-    if (jtag_settings.bit_pending) {
-      if (jtag_settings.delayed_bit) {
-        jtag_data_high();
-      } else {
-        jtag_data_low();
-      }
-      jtag_settings.bit_pending = false;
-    }
     jtag_tms_high();
     jtag_clock_ticks(2);
     jtag_tms_low();
@@ -218,7 +223,7 @@ void jtag_set_state(const uint8_t new_state) {
 }
 
 void jtag_setup(void) {
-  JTAGTD0_TRIS = INPUT;
+  JTAGTDO_TRIS = INPUT;
   JTAGTCK_TRIS = OUTPUT;
   JTAGTDI_TRIS = OUTPUT;
   JTAGTMS_TRIS = OUTPUT;
@@ -231,11 +236,6 @@ void jtag_setup(void) {
 uint8_t jtag_read_byte(void) {
   jtag_clock_low();
 
-  if (jtag_settings.bit_pending) {
-    jtag_write_bit(jtag_settings.delayed_bit);
-    jtag_settings.bit_pending = false;
-  }
-
   uint8_t value = 0;
   for (size_t bit_index = 0; bit_index < 8; bit_index++) {
     jtag_clock_high();
@@ -244,18 +244,6 @@ uint8_t jtag_read_byte(void) {
   }
 
   return value;
-}
-
-uint8_t jtag_write_bit(const bool value) {
-  if (value == LOW) {
-    jtag_data_low();
-  } else {
-    jtag_data_high();
-  }
-  jtag_clock_high();
-  uint8_t input_bit = JTAGTDO;
-  jtag_clock_low();
-  return input_bit;
 }
 
 uint8_t jtag_read_bit(void) {
@@ -271,11 +259,13 @@ void jtag_data_high(void) {
   bp_delay_us(JTAGDATASETTLE);
 }
 
+#ifdef BP_JTAG_XSVF_SUPPORT
 void jtag_data_low(void) {
   JTAGTDI = LOW;
   JTAGTDI_TRIS = OUTPUT;
   bp_delay_us(JTAGDATASETTLE);
 }
+#endif /* BP_JTAG_XSVF_SUPPORT */
 
 void jtag_clock_ticks(size_t ticks) {
   for (size_t tick = 0; tick < ticks; tick++) {

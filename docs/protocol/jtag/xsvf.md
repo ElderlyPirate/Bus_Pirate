@@ -97,9 +97,9 @@ a byte sent while the player is busy in a timed wait (`XWAIT` or `XRUNTEST`)
 is consumed and aborts the run with result `0x01` (unknown error).  A
 **zero-length chunk** is not data: the player ignores it and requests again.
 
-The player loop is reachable after these aborts, except when the stall falls
-inside an `XCOMMENT` string: that loop keeps reading `0xFF` and does not end
-until the board is reset.
+A stall inside an `XCOMMENT` string exits the comment loop on the stalled
+flag.  The run returns `0x01` at the next command boundary, the player loop
+is reachable, and `0x0F` leaves the player.
 
 Send nothing except the next chunk while a run is in progress.  Extra bytes
 sent while the player is not asking for data are read as the next chunk
@@ -153,9 +153,11 @@ The XSVF host player and the SVF→XSVF converter are documented in
 [tools/xsvf](../../tools/xsvf/README.md) — it owns the players, converter
 options and examples.  Both shipped players enter `BBIO1` and `XSV1`
 themselves; do not pre-enter the player.  The stock host tools close the
-port after the result byte and do not leave the XSVF player, so the board
-stays in the player loop with the regulator on until it is reset, or a
-raw-serial host sends `0x0F` twice.
+port without sending `0x0F`; they can stop on a result or on an early
+error/EOF without one.  After a normal run the board is in the player loop;
+a raw-serial host can send `0x0F` twice only once that loop is back.  If the
+tool stopped mid-run, reset first.  The exit mapping is in
+[tools/xsvf](../../tools/xsvf/README.md).
 This page owns the in-mode protocol only.
 
 ## Limits
@@ -177,8 +179,9 @@ This page owns the in-mode protocol only.
 - **Stream stall.**  About 5 s without host data during a chunk wait ends the
   run with `0x01`, `0x04`, `0x05` or `0x06`, depending on where the
   substituted `0xFF` lands.  A byte sent during a timed wait aborts the run
-  with `0x01`.  The player loop remains reachable after these aborts, except
-  for a stall inside an `XCOMMENT` string; reset the board then.
+  with `0x01`.  The player loop remains reachable after these aborts,
+  including a stall inside an `XCOMMENT` string; the run returns `0x01` at
+  the next command boundary, and `0x0F` leaves.
 - **No clock control.**  The player has no TCK setting.  See
   [clock.md](clock.md).
 - **v4 only.**  Not present on v3.  The player reads XSVF, not SVF.

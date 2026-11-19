@@ -117,8 +117,8 @@ There are no state shortcuts: the host walks the TAP, including any reset
 sequence.  `0x05` keeps no state between commands beyond the pin levels.
 The host must account for the 3-byte echo before the TDO bytes.
 
-On v4 a **zero count** consumes no payload and returns no TDO byte.  On v3
-the zero-count path is unverified.
+A **zero count** consumes no payload and returns no TDO byte on either
+build; the 3-byte echo is still sent.
 
 **Clamp.**  A count above 8192 is clamped.  If the host sends payload for
 the full requested count, the firmware consumes only 8192 bits; the
@@ -182,8 +182,8 @@ aligned.
   surplus bytes that desync the next command.
 - The OpenOCD path is present on **both v3 and v4**.  On v3 the shift is
   interrupt-driven; on v4 it is a polling loop.  Both apply the `0x08`
-  delay; the wire protocol is the same.  The v3 behaviours are **not
-  verified** (build-only).
+  delay; the wire protocol is the same.  Other v3 behaviour is build-only
+  and not verified.
 - The pin mode must be set before a shift; until then the pins are inputs.
   A mode change drives SRST and TRST low.
 - A host driver that speaks this `OCD1` command set is required — the

@@ -39,7 +39,7 @@ observable symptom, and the recovery.
 |---|---|---|
 | Echo not read | payload/TDO misaligned | read the 3-byte echo before the TDO bytes |
 | Shift count > 8192 | only 8192 bits shift; surplus becomes commands | split into ≤ `0x2000`-bit shifts |
-| Zero-bit shift on v4 | no payload, no TDO byte | do not wait for a reply; v3 is unverified |
+| Zero-bit shift (v3 and v4) | 3-byte echo only; no payload read, no TDO byte | do not send payload or wait for a TDO byte |
 | `0x07` fast with a bad confirm | link reverts; reply `0x00` | resend `0xAA 0x55`, or use normal |
 | `0x07` fast on v4 | reply says fast, rate unchanged | set the host CDC rate yourself |
 | `0x08` sent before a shift | no reply | do not wait; the next byte is a command |
@@ -71,7 +71,7 @@ observable symptom, and the recovery.
 | Wrong file or bad wiring | result `0x02`/`0x03` TDO mismatch | check file, wiring, ground, power |
 | Chunk larger than 4096 bytes | run corrupts (surplus drained) | keep chunks ≤ 4096 |
 | Host stops during a chunk wait | ~5 s, result `0x01`, `0x04`, `0x05` or `0x06` | `0x0F` leaves once the loop returns |
-| Host stops inside an `XCOMMENT` string | player does not return; `0x0F` is ignored | reset the board |
+| Host stops inside an `XCOMMENT` string | comment loop ends on the stall; run returns `0x01` at the next command boundary | `0x0F` leaves the player; reset is not required |
 | Byte sent while busy (`XWAIT`/`XRUNTEST`) | run aborts with `0x01` | send only the next chunk |
 | Extra bytes while not asked | stream desyncs | keep the stream request-driven |
 | Zero-length chunk | ignored and re-requested | answer `0xFF` with a non-zero length |
@@ -93,7 +93,7 @@ does not drive or probe a JTAG chain.
 
 ## Unverified / v3
 
-- All v3 behaviour in this set is build-only — **not verified**.
+- Other v3 behaviour in this set is build-only — **not verified**.
 - The XSVF shift-buffer limit (400 bits) and the chunk-buffer behaviour are
   **unverified** on hardware.
 - The exact pin-mode and feature behaviour on v3 is **unverified**.

@@ -50,7 +50,7 @@ drives):
 * [OpenOCD] — JTAG debugging (binary JTAG mode)
 * [flashrom] — BIOS/flash programming
 * [sigrok/PulseView] — logic analyzer (SUMP)
-* `picprog` — PIC programming
+* [`picprog`](docs/programmers/pic/picprog.md) — PIC programming
 
 ## Purchasing
 

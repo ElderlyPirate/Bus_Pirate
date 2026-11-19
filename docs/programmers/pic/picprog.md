@@ -1,4 +1,4 @@
-# PIC — the `picprog` host tool (companion card)
+# PIC — the `picprog` host companion
 
 Part of the PIC documentation set (`docs/programmers/pic/`).  This is the
 companion card for the external host program that drives a PIC programming
@@ -6,44 +6,60 @@ algorithm through the Bus Pirate.  It is not part of this firmware.  The mode
 itself is documented in [bus-operations.md](bus-operations.md) and
 [binary.md](binary.md).
 
-## What it is and where it lives
+## The boundary
 
-`picprog` (**Pirate PIC Prog** / PiratePICprog) is an older, separate
-Dangerous Prototypes program.  It is **not distributed with this firmware**
-and is not built or maintained here.  Its source is published in the
-`DangerousPrototypes/PiratePICprog` repository; its part table, options and
-behaviour are the tool's own, not this firmware's.
+The firmware is a bit engine: it clocks opcodes and payloads on PGC/PGD and
+nothing else.  `picprog` is the programmer: it owns the part table, the
+programming-mode entry, the erase/program/verify algorithm, the configuration
+words and the HEX/BIN file handling.  If the tool and the firmware disagree
+about a part, the tool's part entry is the one to change.
 
-The split of responsibility is the key point for this mode: the Bus Pirate
-bit-bangs PGC/PGD and nothing more, so the PIC entry sequence, part database,
-erase/program/verify algorithm and HEX/BIN handling are all the host tool's
-job.
+## The route
 
-## Which interface it drives
+`picprog` uses the **raw-wire** path, not the terminal PIC mode and not
+`PIC1`:
 
-The original tool is external, so its exact binary interface is not documented
-in this repository.  An in-repository C# companion drives the **raw-wire**
-binary mode (`0x05`/`RAW1`) and its generic bit/CS/AUX commands, not
-`PIC1`.  A host written against this firmware should choose one of the two
-documented interfaces in [binary.md](binary.md).
+1. Enter the binary layer and wait for `BBIO1`.
+2. Send `0x05` for raw wire and wait for `RAW1`.
+3. Use the raw-wire peripheral command (`0x4x`) for power, AUX and CS.
+4. Select a PIC engine with `0xA0`: `1` = 416, `2` = 424, `3` = 614.
+5. Use the `0xAx` PIC group, chiefly the `0xA7` write/read script, for the
+   programming sequence.
 
-## Part support (as documented by the tool)
+The raw-wire PIC group is not conditioned on the terminal PIC build option,
+so a build without terminal `PIC` still answers this path.  The tool's source
+is [the PiratePICprog repository][picprog-source].
 
-The tool is in an initial, deliberately limited state:
+Other host routes:
 
-| PIC family | Example part | VPP | Notes |
-|---|---|---|---|
-| 18Fxx5x | 18F2550 | high voltage (13 V) | **write/read not complete** — ID/erase only |
-| 18F2/4xJxx | 18F24J50 | low voltage | ID/erase/write/read documented |
-| 24FJXXGAXXX | 24FJ64GA002 | low voltage | read data is valid, but verify can fail (HEX format) |
+| Route | What it drives | Where |
+|---|---|---|
+| terminal PIC mode | `[`/`]`, values, `r`, `(1)` | [bus-operations.md](bus-operations.md), [macros.md](macros.md) |
+| `PIC1` (`0x07`) | the byte-wise PIC loop | [binary.md](binary.md) |
+| raw wire (`0x05`) + `0xAx` | the script-driven PIC engines | [binary.md](binary.md) |
+| `picprog` | raw wire + the `0xA7` script | this page |
+| minimal host example | raw-wire generic bit/CS/AUX commands | [the in-repo C# sample](../../../scripts/BusPirateRawCS/) |
 
-The 18F2550 also needs the high-voltage adapter or an external VPP supply.
-The 24FJ verify failure is the tool's HEX parser, which does not understand
-the PIC24F firmware format.  Adding new families means adding a part entry and
-a family entry to the tool's own tables and rebuilding it; that work is in the
-external tool, not in the Bus Pirate firmware.
+## What it is
 
-## Command line (from the tool's documentation)
+`picprog` is the executable of the **PiratePICprog** project, an older
+Dangerous Prototypes host program.  It is **not distributed with this
+firmware** and is not built or maintained here.  Its source is published in
+[the PiratePICprog repository][picprog-source]; its part table, options and
+behaviour are the tool's own.
+
+The banner prints `(Bus) Pirate Pic Programmer` and the build's version; the
+current source defaults to `v0.3`.  Current availability and maintenance
+status of the external project are **unknown** here.
+
+## Part support
+
+The tool ships a small part table.  That table is the authority for which
+parts it supports and which need a high-voltage adapter; this set does not
+re-verify it.  A part not in the table is not supported by the tool.  For an
+HVPP part, use the adapter or an external VPP supply.
+
+## Command line
 
 ```
 picprog -p PROG -u PORT -s SPEED -c CHIP -t TYPE
@@ -61,31 +77,51 @@ picprog -p PROG -u PORT -s SPEED -c CHIP -t TYPE
 Example (write, erase first, then verify):
 
 ```
-picprog -p buspirate -u COM3 -s 115200 -c 18F24J50 \
-        -t HEX -w firmware.hex -E -V
+picprog -p buspirate -u COM3 -s 115200 -c 18F24J50 -t HEX -w app.hex -E -V
 ```
 
-The tool's own example dialog (trimmed) looks like:
+`COM3` is a Windows example; use the port the host lists on other systems.
+
+## What a run looks like
+
+The tool prints its own progress; an example:
 
 ```
-(Bus) Pirate PIC Programer v0.1
-buspirate
+(Bus) Pirate Pic Programmer v0.3
+
+Found '18F24J50' in programming database :) index = 1
 Initializing interface
 115200
 Entering binary mode
-...
-Found '18F24J50' in programming database index = 1
+BP: Setup mode...
+Setup peripherals...
+(OK)
 Checking for 18F24J50 attached to programmer...
-Erasing chip...
+Found 18F24J50 (0x4C02, ID: 0x260 REV: 0x2)
+Erasing chip... OK :)
+Writing page 0, 0000...
+Writing page 1, 0100...
 ```
 
-## What the tool needs from the Bus Pirate
+## What the tool needs
 
-- The Bus Pirate flashed with a build that includes PIC mode (both default
-  images do — see [SPEC](../../SPEC.md)).
+- A Bus Pirate that answers `BBIO1` and `RAW1`.  The raw-wire PIC group is in
+  both default images and is not gated on the terminal PIC mode.
 - The ICSP wiring and a pull-up ([wiring.md](wiring.md)); a high-voltage VPP
   source for HVPP parts.
 - A free serial port at a supported speed.
+- The target in the tool's part table.
 
 A user building a different programmer drives one of the documented binary
-interfaces directly ([binary.md](binary.md)).
+interfaces ([binary.md](binary.md)) or the terminal mode
+([bus-operations.md](bus-operations.md)).
+
+## Limits
+
+- The tool's part table, masks and timings are outside this firmware; the
+  tool's own table is the authority.
+- `picprog` drives the raw-wire PIC group; it does not use the terminal PIC
+  mode or `PIC1`.
+- The tool is external and its current availability is **unknown** here.
+
+[picprog-source]: https://github.com/DangerousPrototypes/PiratePICprog

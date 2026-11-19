@@ -185,6 +185,10 @@ With LSB-first the byte on the bus is the bit reverse of the number shown for a
 write, and a read is reversed before it is shown.  The width matters: reversing
 a 16-bit value is not the same as reversing two bytes.
 
+In a mode with a native LSB-first shifter (PIC), selecting `L` reverses the
+value, so the wire order becomes MSB-first; the label describes the generic
+transformation, not the wire.
+
 Bit order returns to MSB-first on a board reset (`#`, `m` / `m1`, the
 binary/SUMP return) and on a mode change.  `w` does not change it.
 

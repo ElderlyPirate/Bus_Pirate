@@ -454,10 +454,11 @@ run the setup prompts and enable the mode LED for a non-HiZ mode.  `W` prints
 `POWER SUPPLIES ON` and `Clutch engaged!!!` after `setup_execute()`; `w` calls
 `cleanup()` and disables the regulator.
 
-`switch_psu_on()` reads `BP_ADC_3V3` and `BP_ADC_5V0` after a 2 ms settle and
-requires both above `V33L`/`V5L`; otherwise it disables the regulator and
-reports a too-low VREG.  `P` additionally samples `BP_ADC_VPU` and warns when
-the pull-up pin has no voltage.
+`switch_psu_on()` reads `BP_ADC_3V3` (the switched 3.3 V output) and
+`BP_ADC_5V0` after a 2 ms settle and requires both above `V33L`/`V5L`;
+otherwise it disables the regulator and reports a too-low VREG.  This checks
+the switched target branch, not AVdd.  `P` additionally samples `BP_ADC_VPU`
+and warns when the pull-up pin has no voltage.
 
 ### Adding a mode
 

@@ -20,7 +20,10 @@ def function(source, name):
 
 
 i2c = (ROOT / "protocol_i2c/i2c.c").read_text()
-aux = (ROOT / "aux_pin.c").read_text()
+aux_path = ROOT / "capability_aux/aux_pin.c"
+if not aux_path.is_file():
+    aux_path = ROOT / "aux_pin.c"
+aux = aux_path.read_text()
 case = i2c[i2c.index("      case 9: // extended AUX command"):]
 case = case[:case.index("      case 0b1111:")]
 helpers = "\n".join(function(aux, name) for name in (

@@ -153,6 +153,37 @@ int main(void) {
  assert(!uart2_rx_overrun_count());puts("PASS pending snapshots: empty/full, wrap and producer progress");
 }
 ''',
+    "disable": r'''
+static unsigned no_data, parity_messages, framing_messages;
+#define MSG_UART_FAILED_NO_DATA (++no_data)
+#define MSG_UART_PARITY_ERROR (++parity_messages)
+#define MSG_UART_FRAMING_ERROR (++framing_messages)
+@UART_READ@
+int main(void) {
+ for(unsigned single=0;single<2;++single)for(unsigned irq=0;irq<2;++irq) {
+   uart2_set_single_wire(single);uart2_setup(416,1,0,3,0);uart2_enable();
+   for(unsigned i=0;i<128;++i) {push(i,3);_U2RXInterrupt();}
+   assert(uart2_rx_overrun_count()==1 && uart2_rx_pending()==127);
+   assert(uart2_rx()==0 && uart2_rx_flags()==3);
+   push(0x100,2);_U2RXInterrupt();
+   assert(uart2_rx_head==0 && uart2_rx_tail==1 && uart2_rx_pending()==127);
+   no_data=parity_messages=framing_messages=0;IEC1bits.U2RXIE=irq;
+   uart2_disable();
+   assert(uart_read()==0 && no_data==1);
+   assert(!uart2_rx_ready() && !uart2_rx_pending() && !uart2_rx_flags());
+   assert(!IEC1bits.U2RXIE && !U2MODEbits.UARTEN && BP_MOSI_DIR==INPUT);
+   assert(!uart2_single_wire && !parity_messages && !framing_messages);
+   assert(uart2_rx_overrun_count()==1);
+   uart2_disable();assert(!uart2_rx_pending() && uart2_rx_overrun_count()==1);
+   uart2_set_single_wire(single);uart2_setup(416,1,0,3,0);uart2_enable();
+   assert(!uart2_rx_pending() && !uart2_rx_flags() && !uart2_rx_overrun_count());
+   push(0x1ff,3);_U2RXInterrupt();assert(uart_read()==0x1ff && no_data==1);
+   assert(parity_messages==1 && framing_messages==1 && !uart2_rx_ready());
+   uart2_disable();
+ }
+ puts("PASS disable: stale wrapped/full RX flushed, disabled r fails, flags retired, overrun history retained, fresh9-bit RX after enable");
+}
+''',
 }
 
 
@@ -170,6 +201,7 @@ def main():
         disable = function(text, "uart2_disable")
         assert enable.index("U2RXIE = OFF") < enable.index("uart2_rx_head = 0") < enable.index("UARTEN = ON")
         assert disable.index("BP_MOSI_DIR = INPUT") < disable.index("UARTEN = OFF") < disable.index("UARTTX_PIN = OFF")
+        assert disable.index("U2RXIE = OFF") < disable.index("UARTEN = OFF") < disable.index("uart2_rx_head = 0")
     text = re.sub(r'^#include[^\n]*', '', text, flags=re.M)
     text = re.sub(r'__attribute__\(\([^)]*\)\)', '', text)
     text = re.sub(r'\binline\s+', '', text)
@@ -180,6 +212,12 @@ def main():
         directory.mkdir(parents=True, exist_ok=True)
         c = directory / (case + ".c")
         exe = c.with_suffix(".exe")
+        if case == "disable":
+            from test_core_system import function
+            uart_path = "Firmware/protocol_uart/uart.c"
+            uart = (subprocess.check_output(["git", "show", args.revision + ":" + uart_path], cwd=ROOT, text=True)
+                    if args.revision else (ROOT / uart_path).read_text())
+            test = test.replace("@UART_READ@",function(uart,"uart_read"))
         c.write_text(PREFIX + "\n#define BP_ENABLE_UART_SUPPORT\n" + text + test, encoding="ascii")
         subprocess.run(["gcc", "-std=gnu99", "-O1", "-Wall", "-Wextra", "-Werror", str(c), "-o", str(exe)], check=True)
         subprocess.run([str(exe)], check=True, timeout=10)

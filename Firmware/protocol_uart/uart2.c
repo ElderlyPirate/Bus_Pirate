@@ -214,6 +214,11 @@ void uart2_disable(void) {
   /* Disable data transmission. */
   U2STAbits.UTXEN = OFF;
 
+  /* RX and its ISR are stopped: do not expose queued words after disable. */
+  uart2_rx_head = 0;
+  uart2_rx_tail = 0;
+  uart2_rx_last_flags = 0;
+
   /* Map pin RB7 as UART2 RX. */
   RPINR19bits.U2RXR = 0b11111;
 

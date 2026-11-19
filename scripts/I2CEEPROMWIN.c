@@ -17,6 +17,8 @@
 #include <string.h>
 #include <windows.h>
 
+#define WRITE_MAX_ATTEMPTS 100
+
 int main(int argc, char **argv){
 	FILE *inoutpfile;
     DCB my_dcb;
@@ -89,6 +91,18 @@ int main(int argc, char **argv){
 	if(!SetCommState(hComm, &my_dcb)){
 		printf("Error setting up serial port\n");
 		return 4;
+	}
+	if(argv[3][0] == 'W'){
+		COMMTIMEOUTS timeouts = {0};
+		/* Bound missing replies as well as NACKs; leave read mode unchanged. */
+		timeouts.ReadTotalTimeoutConstant = 1000;
+		timeouts.WriteTotalTimeoutConstant = 1000;
+		if(!SetCommTimeouts(hComm, &timeouts)){
+			printf("Error setting serial write-mode timeouts\n");
+			CloseHandle(hComm);
+			fclose(inoutpfile);
+			return 7;
+		}
 	}
 
 	// Enter bitbang mode, then I2C mode.
@@ -197,6 +211,7 @@ int main(int argc, char **argv){
 
 		while(fscanf(inoutpfile, "%4s", curcode) == 1){
 			unsigned int code_value;
+			int attempts = 0;
 			if(!sscanf((char *)curcode, "%X", &code_value)){
 				printf("Error processing code in file: %s", curcode);
 				return 6;
@@ -218,12 +233,33 @@ int main(int argc, char **argv){
 			write_buf[cmdlen-2] = curbincode;
 
 			// Send the write command, and check that it was successful
-			// On a write failure, repeat
+			// Allow a busy EEPROM to ACK, but never retry a byte forever.
 			do{
+				attempts++;
 				failcount++;
-				WriteFile(hComm, write_buf, cmdlen, &bytes_written, 0);
-				ReadFile(hComm, receive_buf, cmdlen, &bytes_received, 0);
-			}while(receive_buf[2] || receive_buf[3] || receive_buf[4] || (addrtype == 'S'?0:receive_buf[5]));
+				if(!WriteFile(hComm, write_buf, cmdlen, &bytes_written, 0) ||
+				   bytes_written != cmdlen ||
+				   !ReadFile(hComm, receive_buf, cmdlen, &bytes_received, 0) ||
+				   bytes_received != cmdlen){
+					printf("\nSerial I/O failed writing memory address 0x%X\n", memaddr);
+					WriteFile(hComm, "\x03\x00\x0F", 3, &bytes_written, 0);
+					CloseHandle(hComm);
+					fclose(inoutpfile);
+					return 7;
+				}
+				if(!(receive_buf[2] || receive_buf[3] || receive_buf[4] ||
+				     (addrtype == 'S'?0:receive_buf[5])))
+					break;
+				if(attempts == WRITE_MAX_ATTEMPTS){
+					printf("\nWrite failed at memory address 0x%X after %d attempts (no ACK)\n",
+					       memaddr, attempts);
+					WriteFile(hComm, "\x03\x00\x0F", 3, &bytes_written, 0);
+					CloseHandle(hComm);
+					fclose(inoutpfile);
+					return 7;
+				}
+				Sleep(1);
+			}while(1);
 			printf("%02X ", curbincode);
 			failcount--;
 			memaddr++;

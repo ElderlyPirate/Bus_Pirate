@@ -50,23 +50,18 @@ Data units: 2Data unit length (bits): 128
 them; this is a firmware formatting defect, not a transcription error.  The
 four printed values are examples.
 
-The reset is on **CS**, not on the bus lines.  The banner's three words name
-the middle of the sequence; the macro's full edge order on CS is:
+The reset is on **CS**, not on the bus lines.  The macro's edge order on CS
+is: drive CS low (assert reset) and hold about 255 µs; advance one clock tick
+on SCL (CLK); drive CS high (release reset).  It then reads the four values
+with CS high and **leaves CS high** after it finishes.  The printed banner
+`RESET HIGH, CLOCK TICK, RESET LOW` is a fixed firmware caption and does not
+describe the current edge order; use the three steps above.
 
-1. drive CS low and hold about 255 µs,
-2. drive CS high — the banner's `RESET HIGH`,
-3. advance one clock tick on SCL (CLK) — the banner's `CLOCK TICK`,
-4. drive CS low — the banner's `RESET LOW`,
-
-then read the reply.  The read happens after the final CS low, so the card's
-reset is asserted while the four values are sampled.  The macro **leaves CS
-low** after it finishes.  See [smartcard.md](smartcard.md) for the contact
-mapping and the release step.
-
-**The four values are not a valid ATR.**  `(1)` samples them while the card's
-reset is asserted, so a card cannot answer; this is a known firmware
-limitation.  Do not use the decoded protocol, read-type or data-unit fields as
-card data.
+`(1)` releases reset before sampling, so the four values are the card's reply
+when a card answers; with no card, no power, or no pull-up they are idle or
+floating data.  The decode still prints `Protocol: unknown` for a standard
+`TS` byte (`0x3B`/`0x3F`) because the firmware reads high nibble `3` — the
+existing standard-`TS` caveat already covers it.
 
 ## Macro `(2)` — parse only
 
@@ -155,6 +150,4 @@ field (see the run-together note above).
 - The macros print no error when no card answers; the four values are just
   whatever the floating or idle lines read.
 - The parse's field decode is only meaningful at 8-bit width.
-- The `(1)` output is not a valid ATR (see the warning above).
-- `(1)` leaves CS low; release it (or leave the mode) before using the card
-  for a different purpose.
+- `(1)` leaves CS high (reset released); no release step is needed.

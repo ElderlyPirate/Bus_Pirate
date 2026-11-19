@@ -25,7 +25,7 @@ line** in this mode, not a chip-select:
 | Card contact | Signal | Bus Pirate pin | Notes |
 |---|---|---|---|
 | C1 | VCC | supply rail (`W`) or external VCC | card power; use the card's rated voltage |
-| C2 | RST | CS | driven by the ATR macro; left low after it |
+| C2 | RST | CS | driven low then released high by the ATR macro; left high after it |
 | C3 | CLK | SCL (CLK) | card clock |
 | C5 | GND | GND | common ground |
 | C7 | I/O | SDA (MOSI) | bidirectional data, open drain on the card |
@@ -54,34 +54,18 @@ clock.  The profile is approximate — see
    `Warning: no voltage on Vpullup pin`.
 4. `P` enables the on-board pull-ups so the open-drain lines have an idle
    high.
-5. Run `(1)`.  The macro pulses the card reset (reset on CS), reads four
-   values with reset still asserted, then decodes them.  The banner, the four
+5. Run `(1)`.  The macro pulses the card reset (reset on CS) low, releases it
+   high, then reads four values and decodes them.  The banner, the four
    printed values and the decoded lines are shown in [macros.md](macros.md)
    §Macro `(1)`; the firmware's field mapping is in §The parse of the same
    page.
 
-**The four values from `(1)` are not a valid ATR.**  The macro samples them
-while reset is asserted, so a card cannot answer; this is a known firmware
-limitation.  Do not use the decoded fields as card data.
+## Card reset after the macro
 
-The parse applies the ATR field decoding to those four values.
-
-## Releasing the card reset
-
-`(1)` ends with CS **low**, so the card's reset is still asserted.  To release
-it without leaving the mode:
-
-1. `C` selects the CS pin as the AUX target; it prints
-   `a/A/@ controls CS pin`.
-2. `A` drives that pin high; it prints `AUX HIGH` (the drive message uses the
-   literal `AUX` even when the target is CS).
-
-The AUX-target commands are shared with the base layer; see
-[commands.md](../../../generic/commands.md) §AUX targets and pin names.
-
-Alternatively, leave and re-enter the mode: the mode change makes CS an input,
-so it floats unless a pull-up is fitted.  `C` then `A` is the deterministic
-release.  `(2)` does not touch CS; use it when you drive the reset yourself.
+`(1)` releases the card reset (CS high) before it samples and leaves CS high;
+no release step is needed.  `(2)` does not touch CS.  If you assert CS low
+yourself (`C` then `a`, or binary `0x04`), release it with `C` then `A` (or
+`0x05`), or leave and re-enter the mode, which makes CS an input.
 
 ## What the ATR is
 
@@ -95,9 +79,9 @@ the firmware decodes.
 
 - The mode **does not sense a card** and prints no error when none answers; the
   four values are simply whatever the lines read.
-- `(1)` is not a usable ATR source: it samples the four values with reset
-  asserted.  Do not use the decoded fields as card data.
-- The parse reads exactly four values, and assumes the default 8-bit width.
+- `(1)` reads the ATR after releasing reset; the four values are meaningful
+  when the card answers (otherwise they are idle/floating data).  The parse
+  still reads exactly four values at the default 8-bit width.
 - The protocol field's `unknown` result for a standard ATR `TS` byte is
   documented once in [macros.md](macros.md) §Limits.
 - No voltage, timing, or safety check is made against the card's requirements;

@@ -29,9 +29,8 @@ behaviour and recovery.
 
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
-| `(1)` expected to return usable card data | four values print and decode, but they are sampled with reset asserted | a card cannot answer while reset is asserted, so the four values are **not a valid ATR**; this is a known firmware limitation.  Do not use the decoded fields as card data.  `(2)` parses only; it does not fix the reset order |
 | `(1)` or `(2)` with no card, no power, or the reset line unwired | four values print (often `0x00`/`0xFF` or noise), then the decode lines — **no error** | the mode does not sense a card and the parse reads exactly four values; confirm VCC (`W`), the pull-up (`P`) and the reset wiring (CS → card RST); use `.` to check the idle-high level |
-| `(1)` finished, then the card expected to run | CS is left low, so the card's reset is still asserted | select CS (`C`) and drive it high (`A`); leaving the mode makes CS an input, which floats unless a pull-up is fitted |
+| `(1)` finished, then the card expected to run | no release step is needed | `(1)` leaves CS high (reset released).  `(2)` leaves CS unchanged; if you asserted CS low yourself (`C` then `a`), release it with `C` then `A`, or leave and re-enter the mode (CS becomes an input). |
 | The card's ATR is longer or shorter than four values | the decode looks wrong and the bus is left mid-stream, so a following command starts from the wrong point | the parse always reads exactly four values and never drains a longer reply; re-enter the mode (or reset) to realign the bus |
 | LSB-first order (`L`) was selected before the ATR macro | the reply header notes `uses current LSB setting`, and each value is bit-reversed | the parse reverses each read value under LSB-first order; select MSB-first (`l`) before running the macro |
 | `;N` set a width other than 8 before `(1)`/`(2)` | each "value" the parse reads is N bits, so the decode is wrong | the parse assumes the default 8-bit width; re-enter the mode (leaving resets the width to 8) or set the width back |

@@ -87,6 +87,20 @@ extern mode_configuration_t mode_configuration;
 #define ONEWIRE_DATA_DIRECTION BP_MOSI_DIR
 
 /**
+ * @brief Drives the 1-Wire data line low through the output latch.
+ *
+ * A write to a PORTx bit is a read-modify-write whose read side returns
+ * the pin levels (DS39897C 10.1).  Several Bus Pirate signals share this
+ * port, so writing the data bit through PORTx can re-latch another pin
+ * from its external level.  LATx reads return the latch, so this form
+ * changes only the data line's latch; the direction change made by the
+ * caller still drives the pin low.
+ */
+static inline void onewire_internal_drive_data_low(void) {
+  IOLAT &= ~MOSI;
+}
+
+/**
  * @brief Device ID for DS2404 EconoRAM Time Chip.
  */
 #define DS2404 0x04
@@ -568,8 +582,15 @@ typedef struct {
 
   /**
    * Device roster slots.
+   *
+   * Indexed as [roster slot][ROM byte]: each slot holds one full ROM
+   * identifier, and there are BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS slots.  The
+   * dimensions must be in this order - the roster is filled with a
+   * ROM_BYTES_SIZE memcpy per slot (see onewire_run_macro), so declaring it
+   * the other way around reads and writes past the end of the array once
+   * more than ROM_BYTES_SIZE devices are found (issue #116).
    */
-  uint8_t roster_entries[ROM_BYTES_SIZE][BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS];
+  uint8_t roster_entries[BP_1WIRE_DEVICE_DEV_ROSTER_SLOTS][ROM_BYTES_SIZE];
 
   /**
    * The command byte to send on the bus.
@@ -729,8 +750,7 @@ void onewire_setup_prepare(void) {
   mode_configuration.high_impedance = true;
 
   /* Assume standard speed. */
-  consumewhitechars();
-  speed = getint();
+  speed = getint_with_spaces();
   if ((speed > 0) && (speed <= 2)) {
     mode_configuration.speed = speed - 1;
   } else {
@@ -746,7 +766,7 @@ void onewire_setup_prepare(void) {
 void onewire_setup_execute(void) {
   /* Set up pins. */
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
 }
 
 void print_device_information(const size_t roster_id,
@@ -797,7 +817,10 @@ void onewire_run_macro(const uint16_t macro) {
      */
 
     MSG_1WIRE_ADDRESS_MACRO_HEADER;
-    bp_write_dec_byte(macro + 1);
+    /* The roster prints entries as 1..N; the address macro is that same
+       number, so print the caller's identifier (macro_id + 1 after the
+       decrement above), not a second +1. */
+    bp_write_dec_byte(macro_id + 1);
     bp_write_string(": ");
     for (rom_index = 0; rom_index < ROM_BYTES_SIZE; rom_index++) {
       bp_write_formatted_integer(
@@ -947,30 +970,37 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
 
   ONEWIRE_DATA_DIRECTION = INPUT;
   if (mode_configuration.speed == 1) {
-    /* AN126: Parameter G */
-    bp_delay_us(1);
+    /* AN126: Parameter G (2.5 us minimum in overdrive). */
+    delay_short_inline(3);
   }
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   ONEWIRE_DATA_DIRECTION = OUTPUT;
 
   /*
-   * According to specification a minimum of 480us need to be waited before
-   * reading the line in standard mode, or no more than 70us for overdrive.
-   * AN126: Parameter H
+   * AN126: Parameter H - hold the line low for the reset pulse itself:
+   * 480 us minimum in standard mode (500 us used here for margin) and
+   * 70 us in overdrive.  The presence pulse is sampled after the release
+   * delay I below; H is not a "wait before reading" in the sense of a
+   * maximum.
    */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(500);
+    delay_short_inline(500);
   } else {
-    bp_delay_us(70);
+    delay_short_inline(70);
   }
 
   /* Release the bus. */
   ONEWIRE_DATA_DIRECTION = INPUT;
-  /* AN126: Parameter I */
+  /*
+   * AN126: Parameter I - release-to-sample delay: 70 us recommended in
+   * standard mode (65 us used here, still inside the 15..60 us start +
+   * 60..240 us duration presence window) and 8 us in overdrive (7.2 us
+   * minimum).
+   */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(65);
+    delay_short_inline(65);
   } else {
-    bp_delay_us(6);
+    delay_short_inline(8);
   }
 
   /* Read the data line. */
@@ -979,11 +1009,11 @@ onewire_bus_reset_result_t perform_bus_reset(void) {
     result = ONEWIRE_BUS_RESET_NO_DEVICE;
   }
 
-  /* AN126: Parameter J */
+  /* AN126: Parameter J (39.5 us minimum in overdrive). */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(500);
+    delay_short_inline(500);
   } else {
-    bp_delay_us(32);
+    delay_short_inline(40);
   }
 
   /* Read the data line. */
@@ -1195,12 +1225,22 @@ void binary_io_enter_1wire_mode(void) {
   uint8_t command;
 
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   BP_CS_DIR = OUTPUT;
 
   /* Set CS to open drain. */
 
   mode_configuration.high_impedance = true;
+
+  /*
+   * The binary protocol has its own 0x2s speed command; do not inherit the
+   * speed of a previous terminal session.  Without this, a terminal `O`
+   * (overdrive) followed by entry into 1W01 would run every reset and bit
+   * slot at overdrive timing until the host happened to send 0x20, which
+   * is observable on the wire and not part of the binary entry contract.
+   */
+  mode_configuration.speed = 0;
+  mode_configuration.numbits = 8;
 
   /* Just in case. */
 
@@ -1284,10 +1324,23 @@ void binary_io_enter_1wire_mode(void) {
       break;
     }
 
-    case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE:
-      mode_configuration.speed = (input_byte & 1);
-      user_serial_transmit_character(BP_BINARY_IO_RESULT_SUCCESS);
+    case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE: {
+      uint8_t speed = input_byte & 0b00000011;
+
+      /*
+       * 0b10 and 0b11 are reserved in the command definition; aliasing them
+       * to standard/overdrive (the old `& 1`) silently accepted an
+       * out-of-contract request.  Reject them and leave the speed unchanged.
+       */
+      if (speed > 1) {
+        REPORT_IO_FAILURE();
+        break;
+      }
+
+      mode_configuration.speed = speed;
+      REPORT_IO_SUCCESS();
       break;
+    }
 
     case BINARY_IO_ONEWIRE_COMMAND_CONFIGURE_PERIPHERALS:
       bp_binary_io_peripherals_set(input_byte);
@@ -1312,22 +1365,58 @@ void binary_io_enter_1wire_mode(void) {
 }
 
 bool onewire_internal_bit_io(bool bit_value) {
+  uint16_t saved_ipl;
+
+  /*
+   * AN126 requirement 3: the communication operations must not be
+   * interrupted while being generated.  The USB SOF/endpoint ISRs can
+   * stretch a slot by several microseconds; at standard speed that is
+   * mostly margin, but the overdrive read slot samples at ~2.4 us and the
+   * device's zero pulse is only ~3 us, so an ISR can turn a zero into a
+   * one (observed as random high bits in overdrive READ ROM).  Mask the
+   * CPU interrupts for the slot and restore the previous level per bit,
+   * so USB still gets serviced between slots.
+   */
+  SET_AND_SAVE_CPU_IPL(saved_ipl, 7);
+
   ONEWIRE_DATA_DIRECTION = INPUT;
-  ONEWIRE_DATA_LINE = LOW;
+  onewire_internal_drive_data_low();
   ONEWIRE_DATA_DIRECTION = OUTPUT;
 
-  /* AN126: Parameter A */
+  /* AN126: Parameter A (5 min / 6 recommended).  Measured ~6.8 us with the
+     inlined delay. */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(4);
+    delay_short_inline(6);
   } else {
-    bp_delay_us(1);
+    /*
+     * AN126 overdrive A: 1.0 us minimum, 1.5 recommended, 1.85 maximum.
+     * One 0.5 us timer tick plus loop jitter measured 0.8..1.2 us on the
+     * scope, so the low end fell below the minimum; two ticks measured
+     * 2.0..2.8 us and exceeded the maximum.  One tick plus four NOPs adds
+     * ~0.25 us, putting the pulse at ~1.2..1.6 us inside the window.
+     */
+    delay_short_inline(1);
+    Nop();
+    Nop();
+    Nop();
+    Nop();
   }
   if (bit_value) {
     ONEWIRE_DATA_DIRECTION = INPUT;
   }
-  /* AN126: Parameter E */
+  /* AN126: Parameter E (5..12 us from release to sample; recommended 9).
+   * Together with parameter A the read-sample point lands at ~13 us,
+   * inside the 15 us device limit.  Overdrive: the E window (0.5..0.85 us)
+   * is finer than the 1 us delay tick, and AN126 note 8 says to "sample
+   * as late as possible in the range to provide the most rise time
+   * recovery"; the smallest tick lands the sample at ~2.4 us - late
+   * enough for the released line to rise on this bus and before the 3 us
+   * the slave holds a zero bit (ow-slave ow_tx_bit).  Sampling at ~1.2 us
+   * read the slave's bits as garbage on the bench. */
   if (mode_configuration.speed == 0) {
-    bp_delay_us(8);
+    delay_short_inline(7);
+  } else {
+    delay_short_inline(1);
   }
 
   /*
@@ -1341,34 +1430,44 @@ bool onewire_internal_bit_io(bool bit_value) {
 
   if (bit_value) {
     bit_value = ONEWIRE_DATA_LINE;
-    /* AN126: Parameter F */
+    /* AN126: Parameter F - read-slot recovery.  Table 2 recommends 55 us
+       standard / 7 us overdrive; 50 us here keeps the measured standard
+       slot at ~69 us, above the device's 60 us + 1 us minimum. */
     if (mode_configuration.speed == 0) {
-      bp_delay_us(32);
+      delay_short_inline(50);
     } else {
-      bp_delay_us(6);
+      delay_short_inline(7);
     }
   } else {
-    /* AN126: Parameter C */
+    /* AN126: Parameter C (60 us minimum in standard mode; measured ~62 us
+     with parameter A; overdrive measured ~7.2 us at argument 6 - too
+     close to the 7 us minimum, so 7 here, measuring ~8.2 us). */
     if (mode_configuration.speed == 0) {
-      bp_delay_us(25);
+      delay_short_inline(49);
     } else {
-      bp_delay_us(4);
+      delay_short_inline(7);
     }
     ONEWIRE_DATA_DIRECTION = INPUT;
-    /* AN126: Parameter D */
+    /* AN126: Parameter D - recovery after a write-0 slot.  Table 2
+       recommends 10 us standard / 2.5 us overdrive; the device minimum
+       is 1 us.  8 us keeps the measured standard slot at ~75 us while
+       leaving margin, and 3 us covers the overdrive recommendation.
+       Inlining shortened these by the wrapper overhead the constants
+       had absorbed, so they are re-tuned here. */
     if (mode_configuration.speed == 0) {
-      bp_delay_us(7);
+      delay_short_inline(8);
     } else {
-      bp_delay_us(2);
+      delay_short_inline(3);
     }
   }
 
   /* Adjust timing to take 70us per bit for standard mode. */
 
   if (mode_configuration.speed == 0) {
-    bp_delay_us(5);
+    delay_short_inline(5);
   }
 
+  RESTORE_CPU_IPL(saved_ipl);
   return bit_value;
 }
 
@@ -1396,7 +1495,7 @@ uint8_t onewire_internal_byte_io(uint8_t byte_value) {
   }
 
   if (mode_configuration.speed == 0) {
-    bp_delay_us(8);
+    delay_short_inline(8);
   }
 
   return byte_value;

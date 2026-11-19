@@ -23,7 +23,8 @@
 #include "bitbang.h"
 #include "proc_menu.h"
 
-/* Pin aliases. */
+/* Pin direction aliases.  The latch/mask operations below use the shared
+   MOSI/CLK masks from hardware.h, not these aliases. */
 
 #define R3WMOSI_TRIS BP_MOSI_DIR
 #define R3WCLK_TRIS BP_CLK_DIR
@@ -56,16 +57,16 @@ uint16_t raw3wire_write(const uint16_t value) {
 }
 
 void raw3wire_start_with_read(void) {
-  setup_raw3wire(YES, !cs_line);
+  setup_raw3wire(YES, cs_line);
   MSG_SPI_CS_ENABLED;
 }
 void raw3wire_start(void) {
-  setup_raw3wire(NO, !cs_line);
+  setup_raw3wire(NO, cs_line);
   MSG_SPI_CS_ENABLED;
 }
 
 void raw3wire_stop(void) {
-  setup_raw3wire(NO, cs_line);
+  setup_raw3wire(NO, !cs_line);
   MSG_SPI_CS_DISABLED;
 }
 
@@ -85,12 +86,9 @@ void raw3wire_setup_prepare(void) {
   int output;
   int cs_line_low;
 
-  consumewhitechars();
-  speed = getint();
-  consumewhitechars();
-  cs_line_low = getint();
-  consumewhitechars();
-  output = getint();
+  speed = getint_with_spaces();
+  cs_line_low = getint_with_spaces();
+  output = getint_with_spaces();
 
   user_prompt = !(((speed > 0) && (speed <= 4)) &&
                   ((cs_line_low > 0) && (cs_line_low <= 2)) &&
@@ -125,6 +123,17 @@ void raw3wire_setup_prepare(void) {
 
 void raw3wire_setup_execute(void) {
   bitbang_setup(3, mode_configuration.speed);
+
+  /* Defined idle levels before the drivers are enabled: CLK low so the
+     first bit of the first transfer gets its rising edge (raw2wire does
+     exactly this), MOSI low so the first data level is defined.
+     Written through the latch (IOLAT), never through PORTD: a PORTD bit
+     write is a read-modify-write of PORTD and PORTD reads return the
+     pin levels (DS39897C 10.1), so a second PORTD write re-latches the
+     first pin's externally pulled-up level.  LATx reads return the
+     latch, so consecutive writes cannot clobber each other. */
+  IOLAT &= ~(MOSI | CLK);
+
   R3WMOSI_TRIS = OUTPUT;
   R3WCLK_TRIS = OUTPUT;
   R3WMISO_TRIS = INPUT;
@@ -136,7 +145,8 @@ void raw3wire_print_pins_state(void) { MSG_SPI_PINS_STATE; }
 void setup_raw3wire(const bool write_with_read, const bool cs_line_state) {
   mode_configuration.write_with_read = write_with_read;
   bitbang_set_cs(!cs_line_state);
-  if (cs_line_state) {
+  if (cs_line) {
+    /* The indicator follows the /CS setting itself, like SPI does. */
     user_serial_transmit_character('/');
   }
 }

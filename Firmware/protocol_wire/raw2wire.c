@@ -87,10 +87,8 @@ void raw2wire_print_settings(void) {
 }
 
 void raw2wire_setup_prepare(void) {
-  consumewhitechars();
-  int speed = getint();
-  consumewhitechars();
-  int output = getint();
+  int speed = getint_with_spaces();
+  int output = getint_with_spaces();
 
   bool user_prompt =
       !(((speed > 0) && (speed <= 4)) && ((output > 0) && (output <= 2)));
@@ -107,6 +105,11 @@ void raw2wire_setup_prepare(void) {
     raw2wire_print_settings();
   }
 
+  /* A write never returns a read-back in this mode; clear any stale
+     write-with-read state carried in from a previous mode (e.g. 3WIRE
+     '{'), otherwise every write would print a bogus READ. */
+  mode_configuration.write_with_read = NO;
+
   /*
    * Apply the timing profile here as well: the interactive flow only runs
    * setup_execute() on the first power-on request (`W`), so a mode that is
@@ -117,8 +120,11 @@ void raw2wire_setup_prepare(void) {
 }
 
 void raw2wire_setup_execute(void) {
-  R2WCLK = LOW;
-  R2WDIO = LOW;
+  /* Latch-safe idle levels (see raw3wire_setup_execute()): a PORTD bit
+     write is a read-modify-write whose read side returns the pin levels
+     (DS39897C 10.1), so the second write would re-latch the first wire's
+     externally pulled-up level.  LATx reads return the latch. */
+  IOLAT &= ~(CLK | MOSI);
   R2WDIO_TRIS = INPUT;
   R2WCLK_TRIS = OUTPUT;
   bitbang_setup(2, mode_configuration.speed);
@@ -151,9 +157,9 @@ void trigger_atr(void) {
 
   bitbang_set_cs(LOW);
   bp_delay_us(0xFF);
-  bitbang_set_cs(HIGH);
   bitbang_advance_clock_ticks(1);
-  bitbang_set_cs(LOW);
+  /* CS is the card's active-low reset; release it before reading the ATR. */
+  bitbang_set_cs(HIGH);
 }
 
 void read_atr_header(void) {
@@ -209,6 +215,19 @@ void read_atr_header(void) {
     MSG_RAW2WIRE_ATR_DATA_UNITS_NO_INDICATION;
     break;
 
+  /*
+   * The value table only has 8 entries (indices 0..7).  Codes above that
+   * are out of its range: 9..14 are reserved in ISO 7816-3 and 15 is RFU;
+   * 8 is treated the same way here because the table defines no entry for
+   * it.  Report those as RFU instead of indexing past the array.
+   */
+  case 0b1000:
+  case 0b1001:
+  case 0b1010:
+  case 0b1011:
+  case 0b1100:
+  case 0b1101:
+  case 0b1110:
   case 0b1111:
     MSG_RAW2WIRE_ATR_RFU;
     break;
@@ -219,7 +238,12 @@ void read_atr_header(void) {
   }
 
   MSG_RAW2WIRE_ATR_DATA_UNIT_LENGTH;
-  bp_write_dec_byte(DATA_UNIT_LENGTH_TABLE[buffer[1] & 0b00000111]);
+  /*
+   * The table values are 128..16384 bits.  bp_write_dec_byte() truncated
+   * every code above 0 (256 -> 0, 512 -> 0, ...); the ATR field is a
+   * 16-bit length, so print the full value like the data-unit field does.
+   */
+  bp_write_dec_dword(DATA_UNIT_LENGTH_TABLE[buffer[1] & 0b00000111]);
   bpBR;
 }
 

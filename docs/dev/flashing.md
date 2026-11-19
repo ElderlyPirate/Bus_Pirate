@@ -272,3 +272,10 @@ The page is derived from the sources named above; the per-set basis is in
   [bootloaders.md](bootloaders.md).
 - Only `pirate-loader` and `pk2cmd` are covered; other programmers are out of
   scope.
+
+## Credits
+
+The original bootloader-entry correction — quit the terminal before starting
+`pirate-loader`, and the `$`/bootloader-version caveat — came from Tom
+Jennings (`tomwj`, commit `e6eaaf29` on his fork).  The rewritten flashing and
+bootloader pages retain that correction.

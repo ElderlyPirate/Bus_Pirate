@@ -1825,10 +1825,11 @@ void set_baud_rate(void) {
     consumewhitechars();
     brg = getint();
 
-    if (brg == 0) {
+    if (mode_configuration.command_error || (uint16_t)brg == 0 ||
+        (uint16_t)brg > 32767u) {
       mode_configuration.command_error = NO;
       MSG_RAW_BRG_VALUE_INPUT;
-      brg = getnumber(34, 0, 32767, 0);
+      brg = getnumber(34, 1, 32767, 0);
     }
   }
 

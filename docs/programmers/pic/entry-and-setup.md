@@ -87,10 +87,13 @@ The header fields:
 | `mod` | `6` / `4` | opcode width: `6` = 6b/14b, `4` = 4b/16b |
 | `dly` | `0`–`3` | post-command delay in milliseconds |
 
-A missing delay is read as `0`, which is in range: `m 9 2` runs 4b/16b at
-0 ms, then the terminal reports a syntax error.  Only an invalid width
-(including no width) or a delay outside `0`–`3` falls back to the two
-prompts.  The full trap is in [edge-cases.md](edge-cases.md).
+A complete pair is the only form that skips the prompts.  An incomplete pair
+(`m 9 2`, missing delay) or any value outside the ranges is a parse error:
+both prompts run from the top, nothing from the partial line is applied,
+there is no settings header and no `Syntax error` line.  `m 9 2` therefore
+asks `Commandmode?` and `Delay?` and uses your answers.  A complete pair
+(`m 9 2 1`) is unchanged: it is applied and echoed.  See
+[edge-cases.md](edge-cases.md).
 
 ## State at entry
 

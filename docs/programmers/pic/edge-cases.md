@@ -49,26 +49,31 @@ Within a session, always check the banner.
 
 | Trigger | Symptom | Behaviour and recovery |
 |---|---|---|
-| `m 9 2` (one number) | the header and a syntax error | the missing delay is read as 0 and applied; give both numbers |
+| `m 9 2` (one number) | both prompts run; no settings header | nothing is applied; answer both, or give `m 9 2 1` |
 | `m 9 0 1` (invalid width) | the two prompts run | width is `1`–`2` |
 | `m 9 1 4` (invalid delay) | the two prompts run | delay is `0`–`3` |
 | `(1)` in 4b/16b | `Not implemented (yet)` | use the host tool for a 4b/16b part |
 | Wrong width for the part | entry or ID read fails | match the part's programming specification |
 | Delay 0 on a slow part | command writes may be too fast | choose 1–3 ms; this is not the programming time |
-| One-line form not applied | the prompts run instead | check the two numbers; a missing width is the usual cause |
+| One-line form not applied | the prompts run instead | check both; a missing or invalid width or delay triggers it |
 
-The `m 9 2` trap in full:
+The incomplete-pair fallback in full:
 
 ```
 HiZ>m 9 2
-PIC(mod dly)=(4 0)
+Commandmode?
+1. 6b/14b
+2. 4b/16b
+(1)>1
+Delay?
+(1)>1
 Ready
-Syntax error at char 6
 PIC>
 ```
 
-The mode is 4b/16b at 0 ms, not the interactive defaults.  Give both numbers
-(`m 9 2 1`) or use the prompts.
+Nothing from the typed `2` is applied.  After the two answers the mode runs
+6b/14b at 1 ms; leaving both prompts at Enter gives the same defaults.  Give
+both numbers (`m 9 2 1`) to skip the prompts.
 
 ## Configuration and fuse words
 

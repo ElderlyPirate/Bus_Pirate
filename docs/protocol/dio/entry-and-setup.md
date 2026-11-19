@@ -121,7 +121,7 @@ that applies to every mode ([values.md](../../generic/values.md)).
 | Input | Effect | Notes |
 |---|---|---|
 | `W` | on-board `+5.0V` and `+3.3V` rails on | rail check; `POWER SUPPLIES ON` then `Clutch engaged!!!` |
-| `w` | rails off **and the five signal pins parked** | `Clutch disengaged!!!` then `POWER SUPPLIES OFF`; stays in `DIO>` |
+| `w` | rails off **and five pins (v3) / seven pins (v4) parked** | `Clutch disengaged!!!` then `POWER SUPPLIES OFF`; stays in `DIO>` |
 | `P` | pull-up resistors on | prints the open-drain warning first; samples VPU and warns if it is low |
 | `p` | pull-up resistors off | — |
 | state bit 6 | supply on / off | silent; no rail check and no `POWER SUPPLIES ON` line |
@@ -131,8 +131,8 @@ that applies to every mode ([values.md](../../generic/values.md)).
 `W` and `w` are the shared engagement commands.  In direct I/O, `W` adds the
 rails and runs the mode's setup hook, which is empty: it does not change pin
 directions, levels or pull-ups.  `w` runs the mode's safe park, which releases
-the five signal pins before the rails go off.  The full contract, including
-the `w` versus `#` difference and the `AUX1` / `AUX2` exception, is in
+the five signal pins (and, on v4, `AUX1` / `AUX2`) before the rails go off.
+The full contract, including the `w` versus `#` difference, is in
 [park-and-reset.md](park-and-reset.md).  Wiring requirements for the rails and
 for VPU are in [wiring.md](wiring.md).
 
@@ -146,5 +146,5 @@ on by itself, and a direction or level value works with the supply off.
 | menu number | 9 | 10 |
 | menu list | no `KEYB`; `PIC` is 8 | `KEYB` is 8; `PIC` is 9 |
 | settings menu | none | none |
-| `W` / `w` | same | same |
+| `W` / `w` | `W` same; `w` parks five pins | `W` same; `w` parks seven pins |
 | `#` | prints `RESET`, then reboots | prints `RESET`, then the banner, back at `HiZ>` |

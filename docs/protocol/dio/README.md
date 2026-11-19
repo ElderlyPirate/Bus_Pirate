@@ -41,7 +41,8 @@ This README is a map, not the manual; the details live in the files below.
   the number the `m` menu prints; the numbers above are the default image.
 - Wiring: `GND`, the signal pins you use, and at most one supply rail.  `W`
   turns on the on-board `+5.0V` and `+3.3V` rails; `w` turns them off and
-  parks the five signal pins.  For a self-powered target, leave both rails
+  parks the five signal pins on v3 and all seven pins — the five plus
+  `AUX1` / `AUX2` — on v4.  For a self-powered target, leave both rails
   unconnected.  **No pull-up is required.**
 - A value is a write.  `0x00`–`0x7F` sets the five **directions** (1 = input,
   0 = output); `0x80`–`0xFF` sets the **levels** plus the supply and pull-up
@@ -53,9 +54,10 @@ This README is a map, not the manual; the details live in the files below.
 - Read with `r` (five levels as one byte) or `v` (directions, levels and
   rails).  A write never adds a `READ:`; see [read-back.md](read-back.md).
 - Before touching the wiring, release the pins and check `v`: after `#` every
-  I/O pin must be `I`; after `w` only the five signal pins are released, so
-  use `#` if `AUX1` / `AUX2` may have been driven.  The board rails must read
-  `0.00V`.  `#` returns to `HiZ`; `w` stays in `DIO>`.
+  I/O pin must be `I`; after `w` the five signal pins (v3) or all seven pins
+  (v4) are released.  The board rails must read `0.00V`.  Use `#` only when you
+  also need the selector / bit-order / display reset.  `#` returns to `HiZ`;
+  `w` stays in `DIO>`.
 
 ## Availability (summary)
 
@@ -70,6 +72,7 @@ This README is a map, not the manual; the details live in the files below.
 | `AUX1` / `AUX2` in a value | — | no; AUX-target path only |
 | `a` / `A` / `@` targets | `AUX`, `CS` | `AUX`, `CS`, `AUX1`, `AUX2` |
 | `e` (VPU source) | absent | refused |
+| `w` park scope | five signal pins | five signal pins plus `AUX1` / `AUX2` |
 | `#` | hardware reset | terminal reset to `HiZ` |
 
 The v3 column is **not verified** on v3 hardware.
@@ -109,8 +112,9 @@ target; run `i` to see the selection.
   externally if the pull-ups are used.
 - Only the **low byte** of a value reaches the pins; `;N` changes the display
   and bit-order window, not the pin count.
-- The v4 `AUX1` / `AUX2` pins are not in the value; `w` does not release them.
-  Use `#` or a mode change before rewiring if `A` drove one.
+- The v4 `AUX1` / `AUX2` pins are not in the value, but `w` releases them
+  along with the five signal pins (seven pins on v4; five on v3).  Use `#` or a
+  mode change when you also need the selector reset.
 - The I/O is 5 V class; the exact absolute maximum is not documented here,
   so treat it as unverified.
 - Shared prompt grammar (`m`, `W` / `w`, `P` / `p`, `e`, `v`, `r`, `o`,

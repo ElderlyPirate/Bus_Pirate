@@ -72,7 +72,7 @@ self-powered target, leave both rails unconnected.
 | Step | Command | Result |
 |---|---|---|
 | rails on | `W` | both rails on after a check; `POWER SUPPLIES ON`, `Clutch engaged!!!` |
-| rails off, five signal pins parked | `w` | `Clutch disengaged!!!`, `POWER SUPPLIES OFF`; stays in `DIO>` |
+| rails off, five signal pins parked (v3) / seven pins parked (v4) | `w` | `Clutch disengaged!!!`, `POWER SUPPLIES OFF`; stays in `DIO>` |
 | state bit 6 set | a state value | same rails, switched silently and without the check |
 
 The rail check is the shared one: if either rail does not come up, the supply
@@ -137,9 +137,10 @@ and remains unverified.
   direction bit = 1) before connecting a driver to the same net.
 - Direct I/O does not detect contention.  An output drives its level
   regardless of what else is on the net, and the firmware gives no warning.
-- Park the five signal pins with `w`, or release every I/O pin with `#`;
-  confirm with `v` before changing the wiring.  A driven `AUX1` / `AUX2` is
-  not released by `w`; see [park-and-reset.md](park-and-reset.md).
+- Park the five signal pins with `w` on v3, or all seven (the five signal pins
+  plus `AUX1` / `AUX2`) on v4.  `#` releases every I/O pin and resets the
+  selector; confirm with `v` before rewiring.  See
+  [park-and-reset.md](park-and-reset.md).
 
 ## v3 / v4
 
@@ -149,6 +150,7 @@ and remains unverified.
 | signal pins in a value | `AUX` `MOSI` `CLK` `MISO` `CS` | same |
 | `AUX1` / `AUX2` | — | on the header, not in a value |
 | supply | on-board regulator via `W` | same |
+| `w` park scope | five signal pins | five signal pins plus `AUX1` / `AUX2` |
 | pull-up reference | external only | external only |
 | output type | push-pull only | push-pull only |
 | `e` | absent | refused |

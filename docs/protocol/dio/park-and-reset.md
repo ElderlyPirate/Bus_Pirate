@@ -7,13 +7,16 @@ how `w`, `#` and a mode change differ.  Entry is in
 
 ## What "parked" means
 
-Direct I/O is safe to leave only when every pin it drives is released.  For
-the five signal pins, the mode's cleanup does five things, in this order:
+Direct I/O is safe to leave only when every pin it drives is released.  The
+mode's cleanup parks seven pins on v4 and five on v3: the five signal pins on
+both boards, plus `AUX1` and `AUX2` on v4.  It does five things, in this
+order:
 
-1. set the five signal pins to **input** (release the five signal pins);
+1. set the parked pins to **input** (the five signal pins, plus `AUX1` and
+   `AUX2` on v4);
 2. switch the pull-up resistors **off**;
 3. deselect the on-board VPU source (v4);
-4. clear the five output **latches** to low;
+4. clear the matching output **latches** to low;
 5. restore the width to **8 bits**.
 
 The order is deliberate: the pins stop driving before the bias is removed, and
@@ -21,17 +24,18 @@ the latches are cleared after, so a pin that is made an output later cannot
 drive a level left over from before the park.  The cleanup is idempotent;
 running it again changes nothing.
 
-`w` performs this park and then switches the supply off.  It does **not**
-release `AUX1` or `AUX2`.  The board reset and a mode change add the rest of
-the board state: on v4 `AUX1` and `AUX2` become inputs; the AUX target returns
-to `AUX` (`A0`), the bit order returns to MSB-first, and the mode
-configuration is cleared.
+`w` performs this park and then switches the supply off.  On v4 the park
+includes both `AUX1` and `AUX2`, regardless of which AUX target is selected.
+The board reset and a mode change add the rest of the board state: the AUX
+target returns to `AUX` (`A0`), the AUX output routing and the `AUX1`
+open-drain setting are cleared, the bit order returns to MSB-first, and the
+mode configuration is cleared.
 
 ## When it runs
 
 | Action | What runs | Supply | Pins after | Prompt after |
 |---|---|---|---|---|
-| `w` | direct I/O cleanup | off | five signal pins input, pull-ups off, latches low | `DIO>` |
+| `w` | direct I/O cleanup | off | five signal pins input (v3); seven pins input (v4), pull-ups off, latches low | `DIO>` |
 | `#` (v4) | cleanup + board reset | off | all I/O input, including `AUX1` / `AUX2` | `HiZ>` |
 | `#` (v3) | hardware reset | off | all input after the reboot | `HiZ>` |
 | `m1`, or `m` then `1` | cleanup + board reset | off | all I/O input | `HiZ>` |
@@ -49,30 +53,32 @@ off; it is not a no-op.
 
 ## `w` versus `#`
 
-The difference is how much state is reset.  `w` releases only the five signal
-pins; `#` releases every I/O pin:
+The difference is how much state is reset.  `w` releases every pin the park
+covers (five on v3, seven on v4); `#` releases every I/O pin and resets the
+mode settings too:
 
 | Setting | `w` | Mode change | `#` (v4) |
 |---|---|---|---|
 | supply | off | off | off |
 | five signal pins | input | input | input |
-| `AUX1` / `AUX2` (v4) | **not changed** | input | input |
+| `AUX1` / `AUX2` (v4) | input | input | input |
 | pull-ups | off | off | off |
 | on-board VPU source (v4) | off | off | off |
 | output latches | low | low | low |
 | width | 8 bits | 8 bits | 8 bits |
 | bit order | **unchanged** | MSB-first | MSB-first |
-| AUX target | **unchanged** | `AUX` (`A0`) | `AUX` (`A0`) |
+| AUX selector | **unchanged** | `AUX` (`A0`) | `AUX` (`A0`) |
+| AUX output routing / `AUX1` open-drain | **unchanged** | cleared | cleared |
 | display format | **unchanged** | **unchanged** | HEX |
 | prompt | `DIO>` | new mode | `HiZ>` |
 | user macros | kept | kept | kept |
 
-`w` resets the five signal pins, the pull-ups, the VPU source, the latches, the
-supply and the width.  It leaves three settings alone: the bit order, the AUX
-target and the display format.  A mode change resets the five signal pins, the
-pull-ups, the latches, the width, the bit order and the AUX target, and
-releases `AUX1` / `AUX2`; it keeps the display format and the macros.  `#` also
-restores HEX and returns to `HiZ>`.
+`w` resets the parked pins, the pull-ups, the VPU source, the latches, the
+supply and the width.  It leaves the mode settings alone: the bit order, the
+AUX selector, the AUX output routing, the `AUX1` open-drain setting and the
+display format.  A mode change resets the parked pins, the pull-ups, the VPU
+source, the latches, the width and those mode settings; it keeps the display
+format and the macros.  `#` also restores HEX and returns to `HiZ>`.
 
 On v3 `#` prints `RESET` and performs a hardware reset; the startup banner
 appears as the board restarts in `HiZ`, and the restart clears the macro
@@ -83,9 +89,9 @@ slots.  The shared reset description is in
 
 `W` switches the rails on and prints `POWER SUPPLIES ON` and
 `Clutch engaged!!!`.  It runs the mode's setup hook, which is empty in direct
-I/O, so it does **not** restore pin directions or levels.  After `w`, the five
-pins are inputs and the latches are low; `W` leaves them that way.  Send a
-state value and a direction value to drive them again:
+I/O, so it does **not** restore pin directions or levels.  After `w`, the
+parked pins are inputs and the latches are low; `W` leaves them that way.
+Send a state value and a direction value to drive them again:
 
 ```
 DIO>w
@@ -105,24 +111,23 @@ The state value is written while the pins are still inputs (it stores the
 latches), then the direction value makes `CLK` an output.  That order avoids
 driving a stale level; see
 [pin-control.md](pin-control.md#direction-and-level-are-separate).
-`v` immediately after `W` shows the five pins as `I` and the rails at the
-supply voltage; after the two writes `CLK` is `O` and `H`.  The `H` / `L`
-entries on an input are floating.
+`v` immediately after `W` shows the signal pins as `I` (and `AUX1` / `AUX2` as
+`I` on v4) and the rails at the supply voltage; after the two writes `CLK` is
+`O` and `H`.  The `H` / `L` entries on an input are floating.
 
-## The `AUX1` / `AUX2` exception (v4)
+## The v4 extra pins
 
-`w` parks the five signal pins.  It does **not** release `AUX1` or `AUX2`,
-because those pins are not part of the direct I/O value or its park mask.  If
-you drove one of them with `a` / `A` after `k` / `K`, it stays driven through
-`w`, even after the supply goes off.
+`w` includes `AUX1` and `AUX2` in the park on v4.  Both are set to input and
+their latches are cleared, regardless of which AUX target is selected, so a
+pin driven with `A` after `k` / `K` is released by `w` as well.
 
 | To release | Do |
 |---|---|
 | a driven `AUX` or `CS` | `w`, `@` on that target, or `#` |
-| a driven `AUX1` / `AUX2` | `@` with that target selected, or `#` / a mode change |
+| a driven `AUX1` / `AUX2` | `w`, `@` with that target selected, or `#` / a mode change |
 
-Use `#` (or leave the mode) before changing the wiring when `AUX1` or `AUX2`
-was driven.
+Use `#` (or leave the mode) when you also need the selector, bit order or
+display reset; `w` already releases the pin.
 
 ## Verifying the parked state
 
@@ -130,9 +135,8 @@ was driven.
 
 - After `#` (or a mode change): every I/O pin must show `I` in the direction
   row, including `AUX1` / `AUX2`.
-- After `w`: only the five signal pins are released, so check that those five
-  show `I`.  `AUX1` / `AUX2` are unchanged: a pin driven through `A` still
-  shows `O`.
+- After `w`: the five signal pins (v3) or all seven pins (v4) show `I`; on v4
+  that includes both `AUX1` and `AUX2`.
 - The `5.0V` and `3.3V` values must read `0.00V` after either command; `VPU`
   reads `0.00V` unless the target feeds it.
 
@@ -144,8 +148,9 @@ pin, which floats when nothing is connected.
 | | v3 | v4 |
 |---|---|---|
 | `w` parks the five signal pins | yes | yes |
-| `w` leaves bit order / AUX target / display | yes | yes |
+| `w` also parks `AUX1` / `AUX2` | — | yes (both, regardless of the selected target) |
+| `w` leaves bit order / AUX selector / display | yes | yes |
 | `#` | hardware reset | terminal reset to `HiZ` |
-| `#` resets bit order, AUX target, display | yes | yes |
+| `#` resets bit order, AUX selector, display | yes | yes |
 | `#` keeps user macros | no (reset) | yes |
 | `AUX1` / `AUX2` exist | — | yes |

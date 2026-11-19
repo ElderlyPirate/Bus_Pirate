@@ -171,7 +171,7 @@ The repeat count and width grammar are in
 | `0x80`–`0xFF` | set pin states | bit 6 supply, bit 5 pull-ups, bits 4–0 levels; absolute |
 | `r` | read the five levels | bits 4–0, 1 = high; see [read-back.md](read-back.md) |
 | `v` | directions, levels and rails | shared base command |
-| `W` / `w` | supply on / park and off | `w` parks the five signal pins; see [park-and-reset.md](park-and-reset.md) |
+| `W` / `w` | supply on / park and off | `w` parks the five signal pins (v3) or seven pins including `AUX1` / `AUX2` (v4); see [park-and-reset.md](park-and-reset.md) |
 | `P` / `p` | pull-ups on / off | optional; needs `VPU` |
 | `a` / `A` / `@` | selected AUX target | separate path; see [aux-pin.md](aux-pin.md) |
 | `c` / `C` (`k` / `K`) | select the AUX target | v4 adds `AUX1` / `AUX2` |

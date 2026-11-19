@@ -24,7 +24,6 @@ The normal behaviour is in [pin-control.md](pin-control.md),
 | `Warning: no voltage on Vpullup pin` | `P` or state bit 5 | [Supply and pull-ups](#supply-and-pull-ups) |
 | `e` refused | `e`, `e2`, `e3` | [Supply and pull-ups](#supply-and-pull-ups) |
 | `VREG too low, is there a short?` | `W` | [Supply and pull-ups](#supply-and-pull-ups) |
-| an extra pin stays driven | `w` after `k` / `K` then `A` | [`w` leaves `AUX1` / `AUX2` driven](#w-leaves-aux1--aux2-driven-v4) |
 | bit order, AUX target or display survive `w` | `L`, `C`, `o2` | [Parking and leaving](#parking-and-leaving) |
 | `m10` releases all pins and drops the supply | `m10` in `DIO>` | [Parking and leaving](#parking-and-leaving) |
 | `m` then `x` leaves the pins as they were | `m`, `x` | [Parking and leaving](#parking-and-leaving) |
@@ -81,20 +80,17 @@ The normal behaviour is in [pin-control.md](pin-control.md),
 
 | Trigger | Symptom | Behaviour | Recovery |
 |---|---|---|---|
-| `L`, `C` or `o2`, then `w` | the next writes are still LSB-first, still target `CS`, still print in decimal | `w` parks the five signal pins and resets the width, but does not clear the other mode settings | use `#` for a full reset, or set each item back explicitly |
+| `L`, `C` or `o2`, then `w` | the next writes are still LSB-first, still target `CS`, still print in decimal | `w` parks the five signal pins (v3) or seven pins (v4) and resets the width, but does not clear the other mode settings | use `#` for a full reset, or set each item back explicitly |
 | `m10` while already in `DIO>` | the pins are released and the supply turns off; `Ready` is printed again | every mode change runs the cleanup and the board reset before the mode is re-entered | none needed; re-send the values you want |
-| `m`, then `x` at `(1)>` | `no mode change`; the pins, supply and settings stay as they were | cancelling the menu skips the cleanup | `#` (or a mode change) if `AUX1` / `AUX2` may be driven; `w` releases only the five signal pins if that is all you need |
+| `m`, then `x` at `(1)>` | `no mode change`; the pins, supply and settings stay as they were | cancelling the menu skips the cleanup | `#` (or a mode change) when you also need the selector / bit-order / display reset; `w` releases the parked pins |
 | `w` then `W` | the rails come up, but the pins stay inputs and the latches stay low (the pin levels float) | `W` only starts the supply; its setup hook is empty, so it does not restore the drives | send the state value, then the direction value |
 
-### `w` leaves `AUX1` / `AUX2` driven (v4)
+### `w` releases the v4 extra pins
 
-- Trigger: `k` then `A` (or `K` then `A`), followed by `w`.
-- Symptom: the selected extra pin stays driven while the five direct I/O
-  pins are released.
-- Behaviour: the park covers the five signal pins only; `AUX1` / `AUX2` are
-  not in the value or the park mask.
-- Recovery: `@` with that target selected, or `#` / a mode change before
-  touching the wiring.
+On v4, `w` sets both `AUX1` and `AUX2` to input and clears their latches,
+regardless of which AUX target is selected.  Selecting one target does not
+release a previously driven one; `w` (or `@` on that target) does.  See
+[park-and-reset.md](park-and-reset.md).
 
 ## Reads and commands
 

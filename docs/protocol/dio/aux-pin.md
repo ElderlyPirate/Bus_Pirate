@@ -140,4 +140,4 @@ pins, not two separate pin states.
 | confirmation lines | `AUX`, `CS` | `AUX`, `CS`, `AUX1`, `AUX2` |
 | `@` | same | same |
 | `w` releases a driven `AUX` / `CS` target | yes | yes |
-| `w` releases a driven `AUX1` / `AUX2` target | — | no |
+| `w` releases a driven `AUX1` / `AUX2` target | — | yes (both, regardless of the selected target) |

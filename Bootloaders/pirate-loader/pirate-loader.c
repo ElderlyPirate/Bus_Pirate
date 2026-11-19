@@ -69,15 +69,22 @@
 #define OS_NAME(tok) STR_EXPAND(tok)
 
 
-#ifdef WIN32
+#if defined(_WIN32)
 #include <windows.h>
 #include <time.h>
+#include <stdint.h>
 
 #define O_NOCTTY 0
 #define O_NDELAY 0
 #define B115200 921600
 
-int write(int fd, const void* buf, int len)
+/* A Windows serial port is a HANDLE, which is pointer-sized on 64-bit
+ * builds, so the POSIX "int fd" analogy is not wide enough.  The wrappers
+ * also carry their own names: the MSVC/MinGW CRT already declares
+ * write/read/open/close and select with different prototypes. */
+typedef intptr_t pl_fd_t;
+
+static int pl_write(pl_fd_t fd, const void* buf, int len)
 {
     HANDLE hCom = (HANDLE)fd;
     int res = 0;
@@ -95,7 +102,7 @@ int write(int fd, const void* buf, int len)
     }
 }
 
-int read(int fd, void* buf, int len)
+static int pl_read(pl_fd_t fd, void* buf, int len)
 {
     HANDLE hCom = (HANDLE)fd;
     int res = 0;
@@ -113,7 +120,7 @@ int read(int fd, void* buf, int len)
     }
 }
 
-int close(int fd)
+static int pl_close(pl_fd_t fd)
 {
     HANDLE hCom = (HANDLE)fd;
 
@@ -121,15 +128,17 @@ int close(int fd)
     return 0;
 }
 
-int open(const char* path, unsigned long flags)
+static pl_fd_t pl_open(const char* path, unsigned long flags)
 {
     static char full_path[32] = {0};
 
     HANDLE hCom = NULL;
 
+    (void)flags;
+
     if( path[0] != '\\' )
     {
-        _snprintf(full_path, sizeof(full_path) - 1, "\\\\.\\%s", path);
+        snprintf(full_path, sizeof(full_path) - 1, "\\\\.\\%s", path);
         path = full_path;
     }
 
@@ -137,19 +146,22 @@ int open(const char* path, unsigned long flags)
 
     if( !hCom || hCom == INVALID_HANDLE_VALUE )
     {
-        return -1;
+        return (pl_fd_t)-1;
     }
     else
     {
-        return (int)hCom;
+        return (pl_fd_t)hCom;
     }
 }
 
-int __stdcall select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfs, const struct timeval* timeout)
+static int __stdcall pl_select(pl_fd_t nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfs, const struct timeval* timeout)
 {
     time_t maxtc = time(0) + (timeout->tv_sec);
     COMSTAT cs = {0};
-// JTR not used so get rig of warning    unsigned long dwErrors = 0;
+
+    (void)nfds;
+    (void)writefds;
+    (void)exceptfs;
 
     if( readfds->fd_count != 1 )
     {
@@ -174,7 +186,7 @@ int __stdcall select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* except
     return 0;
 }
 
-unsigned int sleep(unsigned int sec)
+static unsigned int pl_sleep(unsigned int sec)
 {
     Sleep(sec * 1000);
 
@@ -187,6 +199,14 @@ unsigned int sleep(unsigned int sec)
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/time.h>
+
+typedef int pl_fd_t;
+#define pl_write(fd, buf, len) write((fd), (buf), (len))
+#define pl_read(fd, buf, len)  read((fd), (buf), (len))
+#define pl_close(fd)           close(fd)
+#define pl_open(path, flags)   open((path), (flags))
+#define pl_select(...)         select(__VA_ARGS__)
+#define pl_sleep(sec)          sleep(sec)
 #endif
 
 /* macro definitions */
@@ -245,7 +265,7 @@ const char* g_hexfile_path = NULL;
 
 /* functions */
 
-int readWithTimeout(int fd, uint8* out, int length, int timeout)
+int readWithTimeout(pl_fd_t fd, uint8* out, int length, int timeout)
 {
     fd_set fds;
     struct timeval tv = {timeout, 0};
@@ -258,11 +278,11 @@ int readWithTimeout(int fd, uint8* out, int length, int timeout)
         FD_ZERO(&fds);
         FD_SET(fd, &fds);
 
-        res = select(fd + 1, &fds, NULL, NULL, &tv);
+        res = pl_select(fd + 1, &fds, NULL, NULL, &tv);
 
         if( res > 0 )
         {
-            res = read(fd, out, length);
+            res = pl_read(fd, out, length);
             if( res > 0 )
             {
                 length -= res;
@@ -477,12 +497,12 @@ uint8 makeCrc(uint8* buf, uint32 len)
     return crc;
 }
 
-int sendCommandAndWaitForResponse(int fd, uint8 *command)
+int sendCommandAndWaitForResponse(pl_fd_t fd, uint8 *command)
 {
     uint8  response[4] = {0};
     int    res = 0;
 
-    res = write(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
+    res = pl_write(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
 
     if( res <= 0 )
     {
@@ -520,7 +540,7 @@ int sendCommandAndWaitForResponse(int fd, uint8 *command)
     }
 }
 
-int sendFirmware(int fd, uint8* data, uint8* pages_used)
+int sendFirmware(pl_fd_t fd, uint8* data, uint8* pages_used)
 {
     uint32 u_addr;
 
@@ -597,7 +617,7 @@ int sendFirmware(int fd, uint8* data, uint8* pages_used)
 
             puts("OK");
 
-            sleep(0);
+            pl_sleep(0);
 
 
             done += PIC_ROW_SIZE;
@@ -633,9 +653,9 @@ void fixJumps(uint8* bin_buff, uint8* pages_used)
 
 /* non-firmware functions */
 
-int configurePort(int fd, unsigned long baudrate)
+pl_fd_t configurePort(pl_fd_t fd, unsigned long baudrate)
 {
-#ifdef WIN32
+#if defined(_WIN32)
     DCB dcb = {0};
     HANDLE hCom = (HANDLE)fd;
 
@@ -651,7 +671,7 @@ int configurePort(int fd, unsigned long baudrate)
         return -1;
     }
 
-    return (int)hCom;
+    return (pl_fd_t)hCom;
 #else
     struct termios g_new_tio;
 
@@ -676,9 +696,9 @@ int configurePort(int fd, unsigned long baudrate)
 #endif
 }
 
-int openPort(const char* dev, unsigned long flags)
+pl_fd_t openPort(const char* dev, unsigned long flags)
 {
-    return open(dev, O_RDWR | O_NOCTTY | O_NDELAY | flags);
+    return pl_open(dev, O_RDWR | O_NOCTTY | O_NDELAY | flags);
 }
 
 int parseCommandLine(int argc, const char** argv)
@@ -738,7 +758,8 @@ int parseCommandLine(int argc, const char** argv)
 
 int main (int argc, const char** argv)
 {
-    int		dev_fd = -1, res = -1;
+    pl_fd_t	dev_fd = (pl_fd_t)-1;
+    int		res = -1;
     uint8	buffer[256] = {0};
     uint8	pages_used[PIC_NUM_PAGES] = {0};
     uint8*	bin_buff = NULL;
@@ -846,7 +867,7 @@ int main (int argc, const char** argv)
     printf("Sending Hello to the Bootloader...");
 
     //send HELLO
-    res = write(dev_fd, BOOTLOADER_HELLO_STR, 1);
+    res = pl_write(dev_fd, BOOTLOADER_HELLO_STR, 1);
 
     res = readWithTimeout(dev_fd, buffer, 4, 3);
 
@@ -1320,7 +1341,7 @@ Finished:
     }
     if( dev_fd >= 0 )
     {
-        close(dev_fd);
+        pl_close(dev_fd);
     }
     return 0;
 
@@ -1331,7 +1352,7 @@ Error:
     }
     if( dev_fd >= 0 )
     {
-        close(dev_fd);
+        pl_close(dev_fd);
     }
     return -1;
 }

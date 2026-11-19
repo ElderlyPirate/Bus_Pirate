@@ -26,8 +26,9 @@
 
 extern mode_configuration_t mode_configuration;
 
-#define UART_COMMON_BAUD_RATES_COUNT 15
 #define UART_BAUD_RATE_CALCULATION_SAMPLES 25
+#define UART_BAUD_POLL_TICKS 12
+#define UART_BAUD_MIN_CLUSTER 3
 #define UART_MACRO_MENU 0
 #define UART_MACRO_TRANSPARENT_BRIDGE 1
 #define UART_MACRO_RAW_UART 2
@@ -37,6 +38,7 @@ extern mode_configuration_t mode_configuration;
 typedef struct {
   uint8_t databits_parity : 2;
   uint8_t stop_bits : 1;
+  uint8_t half_duplex : 1;
   uint8_t receive_polarity : 1;
   uint8_t echo_uart : 1;
 #ifdef BUSPIRATEV4
@@ -48,7 +50,7 @@ static UARTSettings uart_settings = {0};
 
 static const uint32_t UART_COMMON_BAUD_RATES[] = {
     0,     300,   600,   1200,  2400,  4800,   9600,   14400,
-    19200, 28800, 38400, 56000, 57600, 115200, 128000, 256000};
+    19200, 28800, 31250, 38400, 56000, 57600, 115200, 128000, 256000};
 
 const uint16_t UART_BRG_SPEED[] = {
     13332, /* 300 bps */
@@ -83,29 +85,50 @@ static uint32_t uart_get_closest_common_rate(const uint32_t baud_rate);
  */
 static uint32_t uart_get_baud_rate(const bool quiet);
 
+#ifdef BUSPIRATEV4
+static uint16_t uart_baud_to_brg(const uint32_t baud_rate) {
+  /* Callers validate nonzero baud. BRGH=1: DS39897C equation 17-2. */
+  uint32_t divisor = (FCY / 4) / baud_rate;
+  uint32_t remainder;
+  if (divisor == 0) {
+    return 0;
+  }
+  if (divisor >= 65536UL) {
+    return 65535;
+  }
+  remainder = (FCY / 4) - baud_rate * divisor;
+  /* Compare exact frequency errors at adjacent divisors, not rounded baud.
+   * Both products are bounded by 2*(FCY/4); ties prefer the slower rate. */
+  if (remainder * (divisor + 1) >= (baud_rate - remainder) * divisor) {
+    ++divisor;
+  }
+  return (uint16_t)(divisor - 1);
+}
+#endif
+
 uint16_t uart_read(void) {
   if (uart2_rx_ready()) {
     uint16_t character;
+    uint8_t flags;
 
-    /* Parity error? */
-    if (U2STAbits.PERR) {
+    character = uart2_rx();
+    flags = uart2_rx_flags();
+
+    /* Parity error on this character? */
+    if (flags & UART2_RX_FLAG_PARITY) {
       MSG_UART_PARITY_ERROR;
     }
 
-    /* Framing error? */
-    if (U2STAbits.FERR) {
+    /* Framing error on this character? */
+    if (flags & UART2_RX_FLAG_FRAMING) {
       MSG_UART_FRAMING_ERROR;
     }
 
-    character = uart2_rx();
-
-    /* Overrun error? */
-    if (U2STAbits.OERR) {
-      MSG_UART_OVERRUN_ERROR;
-
-      /* Clear overrun flag. */
-      U2STAbits.OERR = OFF;
-    }
+    /*
+     * Overruns are detected and cleared by the receive interrupt (fast
+     * enough that the old here-and-now OERR check no longer applies);
+     * the cumulative count is available via uart2_rx_overrun_count().
+     */
 
     return character;
   }
@@ -135,36 +158,40 @@ void UARTsettings(void) {
   bpSP;
   bp_write_dec_byte(mode_configuration.high_impedance);
   bpSP;
-  /* This standalone UART is full-duplex; match the shared seven-field header. */
-  bp_write_dec_byte(0);
+  bp_write_dec_byte(uart_settings.half_duplex);
   MSG_MODE_HEADER_END;
 }
 
 void uart_setup_prepare(void) {
-  int speed, dbp, sb, rxp, output, brg = 0;
-  // autobaud detection; multi uses
+  int speed, dbp, sb, rxp, output, hd;
+  uint16_t brg = 0;
+#ifdef BUSPIRATEV4
   unsigned long abd = 0;
 
-#ifdef BUSPIRATEV4
   uart_settings.autobaud = OFF;
 #endif /* BUSPIRATEV4 */
 
-  consumewhitechars();
-  speed = getint();
-  if (speed == 10) // weird this is totaly ignored later as the Speed == 0 check
-                   // later skips the calculation I added it below..
-  {
-    consumewhitechars();
-    brg = getint();
+  speed = getint_with_spaces();
+  if (speed == 10) {
+    brg = getint_with_spaces();
+#ifdef BUSPIRATEV4
+    /* BRGH=1: slower rates cannot fit the 16-bit BRG (DS39897C 17.1). */
+    if (brg < 62) {
+      speed = 0;
+    }
+#else
+    /* Match the V3 raw-BRG prompt rather than interpreting it as baud. */
+    if (brg == 0 || brg > 32767) {
+      speed = 0;
+    }
+#endif
   }
+  dbp = getint_with_spaces();
+  sb = getint_with_spaces();
+  rxp = getint_with_spaces();
+  output = getint_with_spaces();
   consumewhitechars();
-  dbp = getint();
-  consumewhitechars();
-  sb = getint();
-  consumewhitechars();
-  rxp = getint();
-  consumewhitechars();
-  output = getint();
+  hd = cmdbuf[cmdstart] == 0 ? 1 : getint();
 
   if ((speed > 0) && (speed <= 10)) {
     mode_configuration.speed = speed - 1;
@@ -196,6 +223,17 @@ void uart_setup_prepare(void) {
     speed = 0; // when speed is 0 we ask the user
   }
 
+  if ((hd > 0) && (hd <= 2)) {
+    uart_settings.half_duplex = hd - 1;
+  } else {
+    speed = 0; // when speed is 0 we ask the user
+  }
+
+  /* A released open-drain shared bus must idle HIGH, not be held LOW. */
+  if (uart_settings.half_duplex && uart_settings.receive_polarity) {
+    speed = 0;
+  }
+
   if (speed == 0) {
     mode_configuration.command_error = NO;
 
@@ -215,8 +253,8 @@ void uart_setup_prepare(void) {
 
     if (mode_configuration.speed == 9) {
       MSG_UART_CUSTOM_BAUD_RATE_PROMPT;
-      abd = getlong(115200, 1, 999999, 0); // get the baud rate from user
-      abd = (((32000000 / abd) / 8) - 1);  // calculate BRG
+      abd = getlong(115200, 62, 999999, 0); // get a representable baud rate
+      abd = uart_baud_to_brg(abd);
       brg = abd;                           // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
       // hack hack hakc
@@ -247,57 +285,65 @@ void uart_setup_prepare(void) {
 
     MSG_PIN_OUTPUT_TYPE_PROMPT;
     mode_configuration.high_impedance = ~(getnumber(1, 1, 2, 0) - 1);
+
+    MSG_UART_DUPLEX_PROMPT;
+    uart_settings.half_duplex =
+        getnumber(1, 1, uart_settings.receive_polarity ? 1 : 2, 0) - 1;
   } else {
     if (mode_configuration.speed == 9) {
+#ifdef BUSPIRATEV4
       abd = brg;
-      abd = (((32000000 / abd) / 8) - 1); // calculate BRG
+      abd = uart_baud_to_brg(abd);
       brg = abd;                          // set BRG
       abd = 0; // set abd to 0; so 'Auto Baud Detection' routine isnt ran below
+#endif
       // hack hack hakc
       U2BRG = brg; // passing the brg variable to U2BRG so the UARTsetup_exc can
                    // use it to start UART2setup..
     }
+  }
+
+  /* Match the stored output type to the driver's forced shared-wire ODC. */
+  if (uart_settings.half_duplex) {
+    mode_configuration.high_impedance = ON;
+  }
+  if (speed != 0) {
     UARTsettings();
   }
 }
 
 void uart_setup_execute(void) {
+#ifdef BUSPIRATEV4
+  if (uart_settings.autobaud == ON) {
+    uint32_t detected;
+
+    uart_settings.autobaud = OFF; // detect once, not on every subsequent W
+    uart2_disable();
+    bpBR;
+    detected = uart_get_closest_common_rate(uart_get_baud_rate(false));
+    bpBR;
+    if (detected == 0) {
+      mode_configuration.speed = 8; // 115200 fallback
+    } else {
+      mode_configuration.speed = 9;
+      U2BRG = uart_baud_to_brg(detected);
+    }
+  }
+#endif /* BUSPIRATEV4 */
+
+  uart2_set_single_wire(uart_settings.half_duplex == 1);
   uart2_setup(mode_configuration.speed == 9
                   ? U2BRG
                   : UART_BRG_SPEED[mode_configuration.speed],
               mode_configuration.high_impedance, uart_settings.receive_polarity,
               uart_settings.databits_parity, uart_settings.stop_bits);
 
-  if (uart_settings.databits_parity == 3) {
-    mode_configuration.numbits = 9;
-  }
+  mode_configuration.numbits = uart_settings.databits_parity == UART2_9_N ? 9 : 8;
+  mode_configuration.int16 = uart_settings.databits_parity == UART2_9_N;
 
   uart2_enable();
 
-#ifdef BUSPIRATEV4
-  unsigned long abd;
-  int brg;
-  if (uart_settings.autobaud == ON) {
-    uart2_disable();
-    bpBR;
-    abd = uart_get_closest_common_rate(uart_get_baud_rate(false));
-    bpBR;
-
-    if (abd == 0) {
-      uart2_setup(UART_BRG_SPEED[8], mode_configuration.high_impedance,
-                  uart_settings.receive_polarity, uart_settings.databits_parity,
-                  uart_settings.stop_bits);
-    } else {
-      mode_configuration.speed = 9;
-      abd = (((32000000 / abd) / 8) - 1);
-      brg = abd;
-      uart2_setup(brg, mode_configuration.high_impedance,
-                  uart_settings.receive_polarity, uart_settings.databits_parity,
-                  uart_settings.stop_bits);
-    }
-    uart2_enable();
-  }
-#else
+#ifdef BUSPIRATEV3
   if (U2BRG < U1BRG) {
     MSG_UART_POSSIBLE_OVERFLOW;
   }
@@ -307,6 +353,8 @@ void uart_setup_execute(void) {
 inline void uart_cleanup(void) { uart2_disable(); }
 
 void uart_run_macro(const uint16_t macro) {
+  uint16_t overruns = uart2_rx_overrun_count();
+
   switch (macro) {
   case UART_MACRO_MENU:
     MSG_UART_MACRO_MENU;
@@ -337,38 +385,35 @@ void uart_run_macro(const uint16_t macro) {
 
     /* Make terminal speed match target speed to avoid overruns? */
 
-    /* Clear overrun flag. */
-    U2STAbits.OERR = OFF;
-
     for (;;) {
 #ifdef BUSPIRATEV4
       if (BP_BUTTON_ISDOWN()) {
         break;
       }
 
-      if (U2STAbits.URXDA == ON) {
-        user_serial_transmit_character(U2RXREG);
+      if (uart2_rx_ready() && getInReady()) {
+        user_serial_transmit_character(uart2_rx());
       }
 #else
-      if ((U2STAbits.URXDA == ON) && (U1STAbits.UTXBF == OFF)) {
-        U1TXREG = U2RXREG;
+      if (uart2_rx_ready() && (U1STAbits.UTXBF == OFF)) {
+        U1TXREG = uart2_rx();
       }
 #endif /* BUSPIRATEV4 */
 
       if (user_serial_ready_to_read() && (U2STAbits.UTXBF == OFF)) {
-        U2TXREG = user_serial_read_byte();
+        uart2_tx(user_serial_read_byte());
       }
 
 #ifdef BUSPIRATEV3
-      if (U2STAbits.OERR || U1STAbits.OERR) {
-        U2STAbits.OERR = OFF;
+      if (uart2_rx_overrun_count() != overruns || U1STAbits.OERR) {
         U1STAbits.OERR = OFF;
-        BP_LEDMODE = LOW;
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
       }
 #else
-      if (U2STAbits.OERR) {
-        U2STAbits.OERR = OFF;
-        BP_LEDMODE = LOW;
+      if (uart2_rx_overrun_count() != overruns) {
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
       }
 #endif /* BUSPIRATEV3 */
 
@@ -386,19 +431,22 @@ void uart_run_macro(const uint16_t macro) {
     MSG_UART_RAW_UART_INPUT;
     MSG_ANY_KEY_TO_EXIT_PROMPT;
 
-    U2STAbits.OERR = OFF;
     for (;;) {
+      if (uart2_rx_overrun_count() != overruns) {
+        overruns = uart2_rx_overrun_count();
+        bp_disable_mode_led();
+      }
 #ifdef BUSPIRATEV4
       if (BP_BUTTON_ISDOWN()) {
         break;
       }
 
-      if (uart2_rx_ready()) {
+      if (uart2_rx_ready() && getInReady()) {
         user_serial_transmit_character(uart2_rx());
       }
 #else
-      if ((U2STAbits.URXDA == ON) && (U1STAbits.UTXBF == OFF)) {
-        U1TXREG = U2RXREG;
+      if (uart2_rx_ready() && (U1STAbits.UTXBF == OFF)) {
+        U1TXREG = uart2_rx();
       }
 #endif /* BUSPIRATEV4 */
 
@@ -411,16 +459,20 @@ void uart_run_macro(const uint16_t macro) {
     }
     break;
 
-  case UART_MACRO_AUTO_BAUD_RATE_DETECTION:
+  case UART_MACRO_AUTO_BAUD_RATE_DETECTION: {
+    bool enabled = U2MODEbits.UARTEN;
     uart2_disable();
     uart_get_baud_rate(false);
-    uart2_enable();
+    if (enabled) {
+      uart_setup_execute();
+    }
 #ifdef BUSPIRATEV3
     if (U2BRG < U1BRG) {
       MSG_UART_POSSIBLE_OVERFLOW;
     }
 #endif /* BUSPIRATEV3 */
     break;
+  }
 
   default:
     MSG_UNKNOWN_MACRO_ERROR;
@@ -429,9 +481,6 @@ void uart_run_macro(const uint16_t macro) {
 }
 
 void uart_start(void) {
-  /* Clear overrun flag. */
-  U2STAbits.OERR = OFF;
-
   /* Enable UART echo on the console. */
   uart_settings.echo_uart = ON;
 
@@ -456,6 +505,8 @@ bool uart_periodic_callback(void) {
 
   handled = false;
   while (uart2_rx_ready()) {
+    uint8_t flags;
+
     handled = true;
 
     if (!uart_settings.echo_uart) {
@@ -467,25 +518,17 @@ bool uart_periodic_callback(void) {
     bpBR;
     MSG_READ_HEADER;
 
-    /* Parity error? */
-    if (U2STAbits.PERR) {
+    bp_write_formatted_integer(uart2_rx());
+    flags = uart2_rx_flags();
+
+    /* Parity error on this character? */
+    if (flags & UART2_RX_FLAG_PARITY) {
       MSG_UART_PARITY_ERROR;
     }
 
-    /* Framing error? */
-    if (U2STAbits.FERR) {
+    /* Framing error on this character? */
+    if (flags & UART2_RX_FLAG_FRAMING) {
       MSG_UART_FRAMING_ERROR;
-    }
-
-    bp_write_formatted_integer(uart2_rx());
-
-    /* Overrun error? */
-    if (U2STAbits.OERR) {
-
-      /* Clear overrun flag. */
-      U2STAbits.OERR = OFF;
-
-      MSG_UART_OVERRUN_ERROR;
     }
 
     bpBR;
@@ -499,8 +542,10 @@ inline void uart_pins_state(void) { MSG_UART_PINS_STATE; }
 uint32_t uart_get_closest_common_rate(const uint32_t baud_rate) {
   size_t counter;
 
-  for (counter = 1; counter < UART_COMMON_BAUD_RATES_COUNT; counter++) {
-    if (baud_rate < UART_COMMON_BAUD_RATES[counter]) {
+  for (counter = 1;
+       counter < sizeof(UART_COMMON_BAUD_RATES) / sizeof(UART_COMMON_BAUD_RATES[0]);
+       counter++) {
+    if (baud_rate <= UART_COMMON_BAUD_RATES[counter]) {
       uint32_t lower;
       uint32_t upper;
 
@@ -514,168 +559,158 @@ uint32_t uart_get_closest_common_rate(const uint32_t baud_rate) {
   return 0;
 }
 
-uint32_t uart_get_baud_rate(const bool quiet) {
-  size_t samples;
-  uint32_t current_sample;
-  uint32_t bit_sample;
+static inline bool uart_rx_level(void) {
+  return uart_settings.half_duplex ? BP_MOSI : BP_MISO;
+}
 
-  BP_MISO = LOW;
-  BP_MISO_DIR = INPUT;
-  bit_sample = 0;
+static bool uart_wait_rx_level(const bool level, const uint32_t started) {
+  uint8_t polls = 0;
+
+  while (uart_rx_level() != level) {
+    /* Keep timestamp/host checks out of the per-edge fast path. */
+    if (++polls != 0) {
+      continue;
+    }
+    if (user_serial_ready_to_read()) {
+      (void)user_serial_read_byte();
+      return false;
+    }
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static uint32_t uart_sample_ticks(void) {
+  /* Reading the low word latches the high word in 32-bit mode (chapter 12). */
+  uint16_t low = TMR4;
+  return ((uint32_t)TMR5HLD << 16) | low;
+}
+
+static uint32_t uart_baud_sample_ticks(uint32_t *samples, const uint8_t count) {
+  uint8_t poll_ticks = UART_BAUD_POLL_TICKS;
+#ifdef BUSPIRATEV3
+  if (uart_settings.half_duplex) {
+    ++poll_ticks;
+  }
+#endif
+  if (count < UART_BAUD_MIN_CLUSTER) {
+    return 0;
+  }
+  for (uint8_t i = 1; i < count; ++i) {
+    uint32_t value = samples[i];
+    uint8_t j = i;
+    while (j && samples[j - 1] > value) {
+      samples[j] = samples[j - 1];
+      --j;
+    }
+    samples[j] = value;
+  }
+  /* GPIO cadence is 12 FCY ticks, or 13 for V3 single-wire (XC16 -O1).
+   * Average the shortest recurring pulse across that quantization band;
+   * isolated short IRQ-delayed timestamps must not set the rate alone. */
+  for (uint8_t i = 0; i < count; ++i) {
+    uint32_t sum = 0;
+    uint8_t j = i;
+    while (j < count && samples[j] - samples[i] <= poll_ticks) {
+      sum += samples[j++];
+    }
+    uint8_t matches = j - i;
+    if (matches >= UART_BAUD_MIN_CLUSTER) {
+      /* All intervals fit inside the five-second acquisition: 32 bits suffice. */
+      return (sum + matches / 2) / matches;
+    }
+  }
+  return 0;
+}
+
+uint32_t uart_get_baud_rate(const bool quiet) {
+  uint16_t saved_control, saved_low, saved_high, saved_pr4, saved_pr5;
+  uint32_t started, bit_sample = 0, detected = 0;
+  uint32_t bit_samples[UART_BAUD_RATE_CALCULATION_SAMPLES];
+  uint8_t valid_samples = 0;
+  bool idle = uart_settings.receive_polarity ? LOW : HIGH;
+  size_t samples;
+
+  /* Do not steal a running or interrupt-owned timer from another client. */
+  if (T4CONbits.TON || T5CONbits.TON || IEC1bits.T4IE || IEC1bits.T5IE) {
+    if (!quiet) {
+      MSG_UART_EARLY_EXIT;
+    }
+    return 0;
+  }
+
+  saved_control = T4CON;
+  saved_low = TMR4;
+  saved_high = TMR5;
+  saved_pr4 = PR4;
+  saved_pr5 = PR5;
+  T4CON = 1 << _T4CON_T32_POSITION;
+  PR5 = 0xFFFF;
+  PR4 = 0xFFFF;
+  TMR5HLD = 0;
+  TMR4 = 0;
+  if (uart_settings.half_duplex) {
+    BP_MOSI_DIR = INPUT;
+  } else {
+    BP_MISO_DIR = INPUT;
+  }
 
   if (!quiet) {
     MSG_UART_WAITING_ACTIVITY;
   }
+  started = bp_timer_microseconds();
+  T4CONbits.TON = ON;
 
-  /* Wait for the UART to stabilise. */
-  while ((BP_MISO == HIGH) && (U1STAbits.URXDA == OFF)) {
-    Nop();
+  /* Synchronise to activity before timing complete idle-level pulses. */
+  if (!uart_wait_rx_level(!idle, started)) {
+    goto done;
   }
+  for (samples = 0; samples < UART_BAUD_RATE_CALCULATION_SAMPLES; ++samples) {
+    uint32_t first, elapsed;
 
-  /* Key pressed during detection, bailing out. */
-  if (U1STAbits.URXDA == ON) {
-    volatile uint16_t dummy;
-
-    /* Clear RX queue. */
-    dummy = U1RXREG;
-
-    /* Stop timers. */
-
-    /* Clear timer 5 holding register. */
-    TMR5HLD = 0;
-
-    /*
-     * T4CON: TIMER4 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0001-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery form a single 32-bit timer.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T4CON = 1 << _T4CON_T32_POSITION;
-
-    /* Clear timer 4 register. */
-    TMR4 = 0;
-
-    /* Clear timer 3 holding register. */
-    TMR3HLD = 0;
-
-    /*
-     * T2CON: TIMER2 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0001-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery form a single 32-bit timer.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T2CON = 1 << _T2CON_T32_POSITION;
-
-    /* Clear timer 2 register. */
-    TMR2 = 0;
-
-    if (!quiet) {
-      MSG_UART_EARLY_EXIT;
+    if (!uart_wait_rx_level(idle, started)) {
+      goto done;
     }
-
-    return 0;
-  }
-
-  for (samples = 0; samples < UART_BAUD_RATE_CALCULATION_SAMPLES; samples++) {
-
-    /* Wait for activity. */
-    while (BP_MISO == LOW) {
+    first = uart_sample_ticks();
+    if (!uart_wait_rx_level(!idle, started)) {
+      goto done;
     }
-
-    /* Start counting. */
-    T4CONbits.TON = ON;
-    T2CONbits.TON = ON;
-
-    /* Wait for line to go down. */
-    while (BP_MISO == HIGH) {
-    }
-
-    /* Stop counting. */
-    T2CONbits.TON = OFF;
-    T4CONbits.TON = OFF;
-
-    /* Neuter Timer2. */
-    RPINR3bits.T2CKR = 0b011111;
-
-    /* Stop timers. */
-
-    /*
-     * T4CON: TIMER4 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0000-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery act as 2 16-bit timers.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T4CON = 0;
-
-    /*
-     * T2CON: TIMER2 CONTROL REGISTER
-     *
-     * MSB
-     * 0-0------0000-0-
-     * | |      |||| |
-     * | |      |||| +--- TCS:   Internal clock (FOSC/2)
-     * | |      |||+----- T32:   Timerx and Timery act as 2 16-bit timers.
-     * | |      |++------ TCKPS: Input prescaler 1:1.
-     * | |      +-------- TGATE: Gated time accumulation is disabled.
-     * | +--------------- TSIDL  Continues module operation in Idle mode.
-     * +----------------- TON:   Stops 16-bit Timerx.
-     */
-    T2CON = 0;
-
-    /* Get the smallest timing value after the first one. */
-
-    current_sample = ((uint32_t)TMR3HLD << 16) | TMR2;
-    if ((samples > 0) && ((bit_sample == 0) || (bit_sample > current_sample))) {
-      bit_sample = current_sample;
+    elapsed = uart_sample_ticks() - first;
+    if (elapsed) {
+      bit_samples[valid_samples++] = elapsed;
     }
   }
+  bit_sample = uart_baud_sample_ticks(bit_samples, valid_samples);
+  if (bit_sample) {
+    detected = FCY / bit_sample;
+  }
 
-  /* Neuter Timer2. */
-  RPINR3bits.T2CKR = 0b011111;
-
-  /* Clear timer 2 register. */
-  TMR2 = 0;
-
-  /* Clear timer 3 holding register. */
-  TMR3HLD = 0;
-
-  bit_sample = FCY / bit_sample;
+done:
+  /* The idle timer's configuration/counts survive success, timeout or cancel. */
+  T4CON = 0;
+  TMR5 = saved_high;
+  TMR4 = saved_low;
+  PR5 = saved_pr5;
+  PR4 = saved_pr4;
+  T4CON = saved_control;
 
   if (!quiet) {
-    if (bit_sample > 150000) {
+    if (!detected) {
+      MSG_UART_EARLY_EXIT;
+    } else if (detected > 150000) {
       MSG_UART_BAUD_OVERFLOW;
     } else {
       MSG_UART_BAUD_ESTIMATED;
-      bp_write_dec_dword(bit_sample);
+      bp_write_dec_dword(detected);
       MSG_UART_BPS_MARKER;
       MSG_UART_BAUD_CALCULATED;
-      bp_write_dec_dword(uart_get_closest_common_rate(bit_sample));
+      bp_write_dec_dword(uart_get_closest_common_rate(detected));
       MSG_UART_BPS_MARKER;
     }
   }
-
-  return bit_sample;
+  return detected;
 }
 
 /*
@@ -703,6 +738,29 @@ polarity (default :00000)
 # 101wxxyz � read config
 */
 
+static void uart_binary_service_rx(void) {
+  /* Bound service to this snapshot so continuous RX cannot starve commands.
+   * Keep RX output between commands, never inside a bulk command's ACKs. */
+  uint8_t pending = uart2_rx_pending();
+  while (pending--) {
+#ifdef BUSPIRATEV4
+    /* One ready write cannot block: SOF can only flush/reset the partial
+     * buffer before putc_cdc locks it, never fill it (core CDC contract). */
+    if (uart_settings.echo_uart && !getInReady()) {
+      break;
+    }
+#else
+    if (uart_settings.echo_uart && U1STAbits.UTXBF) {
+      break;
+    }
+#endif
+    uint16_t character = uart2_rx();
+    if (uart_settings.echo_uart) {
+      user_serial_transmit_character(character);
+    }
+  }
+}
+
 void binUART(void) {
   uint16_t brg_value;
 
@@ -712,6 +770,8 @@ void binUART(void) {
   mode_configuration.high_impedance = ON;
   brg_value = UART_BRG_SPEED[0]; // start at 300bps
   uart_settings.echo_uart = OFF;
+  uart_settings.half_duplex = 0; // binary UART stays full duplex
+  uart2_set_single_wire(false);  // (uart2_disable() also clears this)
   uart2_setup(brg_value, mode_configuration.high_impedance,
               uart_settings.receive_polarity, uart_settings.databits_parity,
               uart_settings.stop_bits);
@@ -721,16 +781,8 @@ void binUART(void) {
   for (;;) {
     uint8_t input_byte;
 
-    if (uart2_rx_ready()) {
-      if (uart_settings.echo_uart) {
-        user_serial_transmit_character(uart2_rx());
-      } else {
-        uart2_rx();
-      }
-    }
+    uart_binary_service_rx();
     
-    U2STAbits.OERR = OFF;
-
     if (!user_serial_ready_to_read()) {
       continue;
     }
@@ -750,7 +802,6 @@ void binUART(void) {
         
       case 2:
         REPORT_IO_SUCCESS();
-        U2STAbits.OERR = OFF;
         uart_settings.echo_uart = ON;
         break;
         
@@ -772,26 +823,41 @@ void binUART(void) {
         REPORT_IO_SUCCESS();
         break;
         
-      case 15:
+      case 15: {
+        uint16_t overruns = uart2_rx_overrun_count();
         REPORT_IO_SUCCESS();
-        U2STAbits.OERR = OFF;
         for (;;) {
+          if (uart2_rx_overrun_count() != overruns) {
+            overruns = uart2_rx_overrun_count();
+            bp_disable_mode_led();
+          }
 
 #ifdef BUSPIRATEV4
-          if (U2STAbits.URXDA == ON) {
-            user_serial_transmit_character(U2RXREG);
+          /*
+           * Escape hatch, like the other bridge loops: the button leaves
+           * the bridge so the port can be recovered without a power cycle
+           * (this loop would otherwise forward every host byte to the UART
+           * forever, with no way out).
+           */
+          if (BP_BUTTON_ISDOWN()) {
+            break;
+          }
+
+          if (uart2_rx_ready() && getInReady()) {
+            user_serial_transmit_character(uart2_rx());
           }
 #else
-          if ((U2STAbits.URXDA == 1) && (U1STAbits.UTXBF == 0)) {
-            U1TXREG = U2RXREG;
+          if (uart2_rx_ready() && (U1STAbits.UTXBF == 0)) {
+            U1TXREG = uart2_rx();
           }
 #endif /* BUSPIRATEV4 */
           
           if (user_serial_ready_to_read() && (U2STAbits.UTXBF == 0)) {
-            U2TXREG = user_serial_read_byte();
+            uart2_tx(user_serial_read_byte());
           }
         }
         break;
+      }
         
       default:
         REPORT_IO_FAILURE();
@@ -830,8 +896,9 @@ void binUART(void) {
 
     case 0b01100000:
       input_byte &= 0b00001111;
-      if (input_byte > 0b1010) {
-        input_byte = 0b1010;
+      if (input_byte >= sizeof(UART_BRG_SPEED) / sizeof(UART_BRG_SPEED[0])) {
+        REPORT_IO_FAILURE();
+        break;
       }
       brg_value = UART_BRG_SPEED[input_byte];
       uart2_disable();

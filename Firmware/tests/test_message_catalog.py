@@ -332,7 +332,7 @@ int main(void){for(unsigned i=0;i<256;++i){answer=i;used=0;assert(agree()==(i=='
         print('PASS generator rejects malformed/duplicate/non-byte/NUL inputs before output; includes resolve relative to source',flush=True)
     if wanted('uart_overflow'):
         uart=source('uart.c',args.revision)
-        limit=int(re.search(r'if\s*\(bit_sample\s*>\s*(\d+)\)',uart)[1])
+        limit=int(re.search(r'if\s*\((?:bit_sample|detected)\s*>\s*(\d+)\)',uart)[1])
         assert limit==150000
         expected=('** Baud>150k: The BP cannot measure above %d, Done.'%limit).encode('ascii')
         for board in tables:

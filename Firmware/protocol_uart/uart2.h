@@ -104,6 +104,37 @@
 #define UART2_OPEN_DRAIN OPEN_DRAIN
 
 /**
+ * @def UART2_SINGLE_WIRE
+ *
+ * Flag indicating that the port works in half-duplex single-wire mode: the
+ * receiver listens on the TX pin and the transmit path discards the
+ * self-echo heard during its own bytes.  The bus relies on an external
+ * pull-up (open-drain output is forced).
+ */
+#define UART2_SINGLE_WIRE ON
+
+/**
+ * @def UART2_FULL_DUPLEX
+ *
+ * Flag indicating separate TX and RX pins (the default, RS232-style).
+ */
+#define UART2_FULL_DUPLEX OFF
+
+/**
+ * Selects half-duplex single-wire operation for subsequent uart2_setup()
+ * calls: the receiver input is mapped to the TX pin and the TX pin is
+ * forced open-drain.  The selection persists across uart2_setup() calls
+ * until uart2_disable() or another call here.
+ *
+ * @param[in] single_wire UART2_SINGLE_WIRE for a shared TX/RX wire,
+ * UART2_FULL_DUPLEX for separate pins.
+ *
+ * @see UART2_SINGLE_WIRE
+ * @see UART2_FULL_DUPLEX
+ */
+void uart2_set_single_wire(const bool single_wire);
+
+/**
  * Sets up UART #2.
  *
  * @param[in] baud_rate_generator_prescaler the prescaler value for UART #2's
@@ -152,7 +183,7 @@ void uart2_disable(void);
  *
  * @param[in] character the character to send.
  */
-void uart2_tx(const uint8_t character);
+void uart2_tx(const uint16_t character);
 
 /**
  * Checks if the UART #2 RX buffer is not empty.
@@ -160,6 +191,9 @@ void uart2_tx(const uint8_t character);
  * @return true if there are characters to read, false otherwise.
  */
 bool uart2_rx_ready(void);
+
+/** Returns a snapshot of queued words; only the foreground consumer may call. */
+uint8_t uart2_rx_pending(void);
 
 /**
  * Reads a character from UART #2.
@@ -169,7 +203,41 @@ bool uart2_rx_ready(void);
  *
  * @return the character being read from UART #2.
  */
-uint8_t uart2_rx(void);
+uint16_t uart2_rx(void);
+
+/**
+ * @def UART2_RX_FLAG_PARITY
+ *
+ * uart2_rx_flags() bit: the character returned by the last uart2_rx() had
+ * a parity error.
+ */
+#define UART2_RX_FLAG_PARITY 0x01
+
+/**
+ * @def UART2_RX_FLAG_FRAMING
+ *
+ * uart2_rx_flags() bit: the character returned by the last uart2_rx() had
+ * a framing error.
+ */
+#define UART2_RX_FLAG_FRAMING 0x02
+
+/**
+ * Returns the parity/framing flags of the character returned by the most
+ * recent uart2_rx() call.  The receiver is drained by its interrupt, so
+ * the PERR/FERR status registers themselves no longer describe the
+ * characters the caller reads.
+ *
+ * @return UART2_RX_FLAG_PARITY and/or UART2_RX_FLAG_FRAMING, or zero.
+ */
+uint8_t uart2_rx_flags(void);
+
+/**
+ * Returns the number of receiver overruns observed since the port was last
+ * enabled (a hardware overrun or a full receive ring).
+ *
+ * @return the overrun count.
+ */
+uint16_t uart2_rx_overrun_count(void);
 
 #endif /* BP_ENABLE_UART_SUPPORT */
 

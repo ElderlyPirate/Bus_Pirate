@@ -59,7 +59,6 @@
 #include "proc_menu.h"
 
 extern mode_configuration_t mode_configuration;
-extern command_t last_command;
 
 /**
  * @brief The maximum size of the saved devices roster, in entries.

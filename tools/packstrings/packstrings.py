@@ -3,6 +3,8 @@
 import argparse
 import csv
 import io
+from pathlib import Path
+import re
 import sys
 
 if sys.hexversion < 0x03000000:
@@ -51,7 +53,7 @@ def unquote_string(string):
                 escape = False
                 continue
             else:
-                print(character)
+                raise ValueError('Unsupported string escape: \\' + character)
             escape = False
             continue
 
@@ -74,27 +76,35 @@ def get_messages(handle):
         if len(row) == 0:
             continue
         stripped = row[0].strip()
+        if not stripped or stripped.startswith('//'):
+            continue
         if stripped.startswith('#'):
             items = stripped.split()
             if items[0] == '#include':
-                with open(' '.join(items[1:]), 'r') as include_handle:
+                include_path = Path(handle.name).resolve().parent / ' '.join(items[1:])
+                with include_path.open('r', encoding='utf-8') as include_handle:
                     include_lines = get_messages(include_handle)
                     if len(include_lines) > 0:
                         read_lines += include_lines
             continue
         if len(row) != 3:
-            continue
-        if row[0].strip().startswith('//'):
-            continue
+            raise ValueError('Expected three tab-separated fields: ' + repr(row))
         if row[1] not in ('0', '1'):
-            continue
+            raise ValueError('Invalid line flag for ' + row[0])
         row[2] = row[2].strip()
         if not (row[2].startswith('"') and row[2].endswith('"')):
-            continue
+            raise ValueError('Expected quoted string for ' + row[0])
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', row[0]):
+            raise ValueError('Invalid message identifier: ' + row[0])
         row[2] = unquote_string(row[2][1:-1])
+        if any(ord(ch) == 0 or ord(ch) > 255 for ch in row[2]):
+            raise ValueError('Message must contain non-NUL byte values: ' + row[0])
 
         read_lines.append(row)
 
+    names = [row[0] for row in read_lines]
+    if len(names) != len(set(names)):
+        raise ValueError('Duplicate message identifier in ' + handle.name)
     return read_lines
 
 
@@ -102,7 +112,7 @@ parser = argparse.ArgumentParser(
     description='Pack Bus Pirate strings into something that can be '
                 'included by the firmware.')
 parser.add_argument('source', metavar='TEXT',
-                    type=argparse.FileType('r'), help='the string file')
+                    type=argparse.FileType('r', encoding='utf-8'), help='the string file')
 parser.add_argument('outbase', metavar='OUTPUT', type=str,
                     help='the base filename for output files')
 parser.add_argument('guard', metavar='GUARD', type=str,
@@ -112,43 +122,31 @@ parser.add_argument('guard', metavar='GUARD', type=str,
 args = parser.parse_args()
 lines = get_messages(args.source)
 
-with open(args.outbase + '.s', 'w') as assembly_output:
-    for row in sorted(lines):
+with open(args.outbase + '.s', 'w', encoding='utf-8', newline='\n') as assembly_output:
+    for row_index, row in enumerate(sorted(lines)):
         assembly_output.write('\t; %s\n' % row[0])
         assembly_output.write('\t.section .text.%s, code\n' % row[0])
         assembly_output.write('\t.global _%s_str\n' % row[0])
         assembly_output.write('_%s_str:\n' % row[0])
         assembly_output.write('\t.pasciz ')
-        string_segments = []
+        # .pasciz terminates each quoted operand, not just the directive.
+        # One literal avoids an embedded NUL before a later control byte.
+        encoded = []
         for character in row[2]:
-          if character in MAPPING_OUT:
-            if (len(string_segments) == 0) or (type(string_segments[-1]) != str):
-              string_segments.append(MAPPING_OUT[character])
+            if character in MAPPING_OUT:
+                encoded.append(MAPPING_OUT[character])
+            elif ord(character) < 0x20 or ord(character) > 0x7E:
+                encoded.append('\\%03o' % ord(character))
             else:
-              string_segments[-1] += MAPPING_OUT[character]
-          elif (ord(character) < 0x20) or (ord(character) > 0x7E):
-            string_segments.append(ord(character))
-          else:
-            if (len(string_segments) == 0) or (type(string_segments[-1]) != str):
-              string_segments.append(character)
-            else:
-              string_segments[-1] += character
-        for segment_index in range(len(string_segments)):
-          segment = string_segments[segment_index]
-          if type(segment) == str:
-            assembly_output.write('"%s"' % segment)
-          else:
-            assembly_output.write('<%d>' % segment)
-          if segment_index < (len(string_segments) - 1):
-            assembly_output.write(', ')
-          else:
-            assembly_output.write('\n\n')
+                encoded.append(character)
+        assembly_output.write('"' + ''.join(encoded) + '"')
+        assembly_output.write('\n' if row_index == len(lines) - 1 else '\n\n')
 
 offset = 0
 BUFFER_WRITE_CALL = 'bp_message_write_buffer'
 LINE_WRITE_CALL = 'bp_message_write_line'
 
-with open(args.outbase + '.h', 'w') as header_output:
+with open(args.outbase + '.h', 'w', encoding='utf-8', newline='\n') as header_output:
     header_output.write('#ifndef BP_MESSAGES_%s_H\n' % args.guard.upper())
     header_output.write('#define BP_MESSAGES_%s_H\n\n' % args.guard.upper())
 

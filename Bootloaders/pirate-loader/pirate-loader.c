@@ -2,9 +2,13 @@
 
  Pirate-Loader for Bootloader v4
 
- Version  : 1.0.5
+ Version  : 1.0.6
 
  Changelog:
+
+  + 2026-10-21 - Accept the Sandbox Electric BPv3.b clone: its bootloader answers
+                 0x13 instead of 'K' and reports device ID 0x02, so both the
+                 handshake and the flash size detection failed on it.
 
   + 2025-08-15 - Add back support for BPv3, detected from smaller PIC devices
 
@@ -62,8 +66,16 @@
 #include <memory.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdint.h>
 
-#define PIRATE_LOADER_VERSION "1.0.5"
+/*
+ * Type used to hold a serial port handle.  On POSIX systems this is a file
+ * descriptor; on Windows it is a HANDLE, which is pointer-sized and must not
+ * be truncated to an int on 64-bit builds.
+ */
+typedef intptr_t bp_handle_t;
+
+#define PIRATE_LOADER_VERSION "1.0.6"
 
 #define STR_EXPAND(tok) #tok
 #define OS_NAME(tok) STR_EXPAND(tok)
@@ -78,57 +90,39 @@
 #define O_NDELAY 0
 #define B115200 921600
 
-/* A Windows serial port is a HANDLE, which is pointer-sized on 64-bit
- * builds, so the POSIX "int fd" analogy is not wide enough.  The wrappers
- * also carry their own names: the MSVC/MinGW CRT already declares
- * write/read/open/close and select with different prototypes. */
-typedef intptr_t pl_fd_t;
-
-static int pl_write(pl_fd_t fd, const void* buf, int len)
+int serial_write(bp_handle_t fd, const void* buf, int len)
 {
     HANDLE hCom = (HANDLE)fd;
-    int res = 0;
     unsigned long bwritten = 0;
 
-    res = WriteFile(hCom, buf, len, &bwritten, NULL);
-
-    if( res == FALSE )
+    if( WriteFile(hCom, buf, len, &bwritten, NULL) == FALSE )
     {
         return -1;
     }
-    else
-    {
-        return bwritten;
-    }
+
+    return (int)bwritten;
 }
 
-static int pl_read(pl_fd_t fd, void* buf, int len)
+int serial_read(bp_handle_t fd, void* buf, int len)
 {
     HANDLE hCom = (HANDLE)fd;
-    int res = 0;
     unsigned long bread = 0;
 
-    res = ReadFile(hCom, buf, len, &bread, NULL);
-
-    if( res == FALSE )
+    if( ReadFile(hCom, buf, len, &bread, NULL) == FALSE )
     {
         return -1;
     }
-    else
-    {
-        return bread;
-    }
+
+    return (int)bread;
 }
 
-static int pl_close(pl_fd_t fd)
+int serial_close(bp_handle_t fd)
 {
-    HANDLE hCom = (HANDLE)fd;
-
-    CloseHandle(hCom);
+    CloseHandle((HANDLE)fd);
     return 0;
 }
 
-static pl_fd_t pl_open(const char* path, unsigned long flags)
+bp_handle_t serial_open(const char* path, unsigned long flags)
 {
     static char full_path[32] = {0};
 
@@ -138,7 +132,7 @@ static pl_fd_t pl_open(const char* path, unsigned long flags)
 
     if( path[0] != '\\' )
     {
-        snprintf(full_path, sizeof(full_path) - 1, "\\\\.\\%s", path);
+        _snprintf(full_path, sizeof(full_path) - 1, "\\\\.\\%s", path);
         path = full_path;
     }
 
@@ -146,32 +140,56 @@ static pl_fd_t pl_open(const char* path, unsigned long flags)
 
     if( !hCom || hCom == INVALID_HANDLE_VALUE )
     {
-        return (pl_fd_t)-1;
+        switch( GetLastError() )
+        {
+            case ERROR_FILE_NOT_FOUND:
+            case ERROR_PATH_NOT_FOUND:
+                errno = ENOENT;
+                break;
+
+            case ERROR_ACCESS_DENIED:
+                errno = EACCES;
+                break;
+
+            default:
+                errno = EINVAL;
+                break;
+        }
+
+        return (bp_handle_t)-1;
     }
-    else
-    {
-        return (pl_fd_t)hCom;
-    }
+
+    return (bp_handle_t)hCom;
 }
 
-static int __stdcall pl_select(pl_fd_t nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfs, const struct timeval* timeout)
+unsigned int serial_sleep(unsigned int sec)
 {
-    time_t maxtc = time(0) + (timeout->tv_sec);
+    Sleep(sec * 1000);
+
+    return 0;
+}
+
+/*
+ * Monotonic millisecond clock.  GetTickCount() wraps after roughly 49 days;
+ * the unsigned arithmetic below handles that correctly.
+ */
+uint32_t serial_millis(void)
+{
+    return (uint32_t)GetTickCount();
+}
+
+/*
+ * Waits until at least one byte can be read from the port, or timeout_ms
+ * elapses.  Returns 1 when data is available, 0 on timeout and -1 on error.
+ */
+int serial_wait_readable(bp_handle_t fd, int timeout_ms)
+{
+    DWORD start = GetTickCount();
     COMSTAT cs = {0};
 
-    (void)nfds;
-    (void)writefds;
-    (void)exceptfs;
-
-    if( readfds->fd_count != 1 )
+    for(;;)
     {
-        return -1;
-    }
-
-    while( time(0) <= maxtc )
-    {
-        //only one file supported
-        if( ClearCommError( (HANDLE)readfds->fd_array[0], 0, &cs) != TRUE )
+        if( ClearCommError( (HANDLE)fd, NULL, &cs ) != TRUE )
         {
             return -1;
         }
@@ -181,16 +199,13 @@ static int __stdcall pl_select(pl_fd_t nfds, fd_set* readfds, fd_set* writefds, 
             return 1;
         }
 
+        if( (DWORD)(GetTickCount() - start) >= (DWORD)timeout_ms )
+        {
+            return 0;
+        }
+
         Sleep(10);
     }
-    return 0;
-}
-
-static unsigned int pl_sleep(unsigned int sec)
-{
-    Sleep(sec * 1000);
-
-    return 0;
 }
 
 #else
@@ -199,14 +214,48 @@ static unsigned int pl_sleep(unsigned int sec)
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 
-typedef int pl_fd_t;
-#define pl_write(fd, buf, len) write((fd), (buf), (len))
-#define pl_read(fd, buf, len)  read((fd), (buf), (len))
-#define pl_close(fd)           close(fd)
-#define pl_open(path, flags)   open((path), (flags))
-#define pl_select(...)         select(__VA_ARGS__)
-#define pl_sleep(sec)          sleep(sec)
+#define serial_open  open
+#define serial_close close
+#define serial_read  read
+#define serial_write write
+#define serial_sleep sleep
+
+/*
+ * Monotonic millisecond clock.
+ */
+uint32_t serial_millis(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+    {
+        return 0;
+    }
+
+    return (uint32_t)((uint64_t)ts.tv_sec * 1000u +
+                      (uint64_t)ts.tv_nsec / 1000000u);
+}
+
+/*
+ * Waits until at least one byte can be read from the port, or timeout_ms
+ * elapses.  Returns 1 when data is available, 0 on timeout and -1 on error.
+ */
+int serial_wait_readable(bp_handle_t fd, int timeout_ms)
+{
+    fd_set fds;
+    struct timeval tv;
+
+    tv.tv_sec  = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+
+    return select(fd + 1, &fds, NULL, NULL, &tv);
+}
+
 #endif
 
 /* macro definitions */
@@ -226,6 +275,10 @@ typedef unsigned long  uint32;
 #define BOOTLOADER_PROT 'P'
 #define BOOTLOADER_CHECKSUM 'N'
 #define BOOTLOADER_PLACEMENT 1
+
+/* The Sandbox Electric BPv3.b clone answers with this status byte instead of
+   the original bootloader's 'K'. */
+#define BOOTLOADER_OK_CLONE 0x13
 
 #define PIC_WORD_SIZE  (3)
 #define PIC_NUM_ROWS_IN_PAGE  8
@@ -265,24 +318,26 @@ const char* g_hexfile_path = NULL;
 
 /* functions */
 
-int readWithTimeout(pl_fd_t fd, uint8* out, int length, int timeout)
+int readWithTimeout(bp_handle_t fd, uint8* out, int length, int timeout)
 {
-    fd_set fds;
-    struct timeval tv = {timeout, 0};
     int res = -1;
     int got = 0;
+    uint32_t deadline = serial_millis() + (uint32_t)(timeout * 1000);
 
     do
     {
+        int32_t remaining = (int32_t)(deadline - serial_millis());
 
-        FD_ZERO(&fds);
-        FD_SET(fd, &fds);
+        if( remaining <= 0 )
+        {
+            break;
+        }
 
-        res = pl_select(fd + 1, &fds, NULL, NULL, &tv);
+        res = serial_wait_readable(fd, remaining);
 
         if( res > 0 )
         {
-            res = pl_read(fd, out, length);
+            res = serial_read(fd, out, length);
             if( res > 0 )
             {
                 length -= res;
@@ -376,6 +431,7 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
     int	  binlen = 0;
     int   line_no = 0;
     int   i = 0;
+    uint8 seen_eof = 0;
 
     FILE* fp = fopen(file, "rb");
 
@@ -388,9 +444,21 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
     {
         line_no++;
 
+        /* Tolerate blank lines... */
+        if( line[0] == '\0' || line[0] == '\n' || line[0] == '\r' )
+        {
+            continue;
+        }
+
+        /*
+         * ...but anything else that is not a record means the file is
+         * malformed or truncated.  Silently stopping here would make the
+         * loader flash a partial image, so report it instead.
+         */
         if( line[0] != ':' )
         {
-            break;
+            fprintf(stderr, "Malformed HEX file, line %d: no record marker\n", line_no);
+            return -1;
         }
 
         res = strlen(pline);
@@ -471,6 +539,7 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
         }
         else if ( hex_type == 0x01 )
         {
+            seen_eof = 1;
             break; //EOF
         }
         else
@@ -482,6 +551,13 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
     }
 
     fclose(fp);
+
+    if( !seen_eof )
+    {
+        fprintf(stderr, "Malformed HEX file: no end-of-file record\n");
+        return -1;
+    }
+
     return num_words;
 }
 
@@ -497,12 +573,21 @@ uint8 makeCrc(uint8* buf, uint32 len)
     return crc;
 }
 
-int sendCommandAndWaitForResponse(pl_fd_t fd, uint8 *command)
+/*
+ * The bootloader answers BOOTLOADER_OK to a command it accepted; a clone
+ * answers BOOTLOADER_OK_CLONE to the same commands, so accept both.
+ */
+uint8 bootloaderOk(uint8 status)
+{
+    return status == BOOTLOADER_OK || status == BOOTLOADER_OK_CLONE;
+}
+
+int sendCommandAndWaitForResponse(bp_handle_t fd, uint8 *command)
 {
     uint8  response[4] = {0};
     int    res = 0;
 
-    res = pl_write(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
+    res = serial_write(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
 
     if( res <= 0 )
     {
@@ -520,6 +605,7 @@ int sendCommandAndWaitForResponse(pl_fd_t fd, uint8 *command)
     switch (response[0])
     {
         case BOOTLOADER_OK:
+        case BOOTLOADER_OK_CLONE:
             return 0;
             break;
 
@@ -540,7 +626,7 @@ int sendCommandAndWaitForResponse(pl_fd_t fd, uint8 *command)
     }
 }
 
-int sendFirmware(pl_fd_t fd, uint8* data, uint8* pages_used)
+int sendFirmware(bp_handle_t fd, uint8* data, uint8* pages_used)
 {
     uint32 u_addr;
 
@@ -617,7 +703,7 @@ int sendFirmware(pl_fd_t fd, uint8* data, uint8* pages_used)
 
             puts("OK");
 
-            pl_sleep(0);
+            serial_sleep(0);
 
 
             done += PIC_ROW_SIZE;
@@ -653,7 +739,7 @@ void fixJumps(uint8* bin_buff, uint8* pages_used)
 
 /* non-firmware functions */
 
-pl_fd_t configurePort(pl_fd_t fd, unsigned long baudrate)
+int configurePort(bp_handle_t fd, unsigned long baudrate)
 {
 #if defined(_WIN32)
     DCB dcb = {0};
@@ -671,7 +757,7 @@ pl_fd_t configurePort(pl_fd_t fd, unsigned long baudrate)
         return -1;
     }
 
-    return (pl_fd_t)hCom;
+    return 0;
 #else
     struct termios g_new_tio;
 
@@ -696,9 +782,9 @@ pl_fd_t configurePort(pl_fd_t fd, unsigned long baudrate)
 #endif
 }
 
-pl_fd_t openPort(const char* dev, unsigned long flags)
+bp_handle_t openPort(const char* dev, unsigned long flags)
 {
-    return pl_open(dev, O_RDWR | O_NOCTTY | O_NDELAY | flags);
+    return serial_open(dev, O_RDWR | O_NOCTTY | O_NDELAY | flags);
 }
 
 int parseCommandLine(int argc, const char** argv)
@@ -758,7 +844,7 @@ int parseCommandLine(int argc, const char** argv)
 
 int main (int argc, const char** argv)
 {
-    pl_fd_t	dev_fd = (pl_fd_t)-1;
+    bp_handle_t dev_fd = -1;
     int		res = -1;
     uint8	buffer[256] = {0};
     uint8	pages_used[PIC_NUM_PAGES] = {0};
@@ -828,28 +914,39 @@ int main (int argc, const char** argv)
 
     if( dev_fd < 0 )
     {
+        /*
+         * Report what actually went wrong. These are the errors a serial port
+         * really produces, and the everyday one is "in use" - a terminal window
+         * or another copy of the loader still holding the port. The old text
+         * said "unknown failure" for all of these and then claimed "file read
+         * failed", which is meaningless when the hex file has already parsed.
+         */
         switch( errno )
         {
-            case EACCES: // permission issues
-                printf("permission issue\n");
+            case EACCES:
+            case EBUSY:
+                printf("in use, or permission denied");
                 break;
 
-            case EEXIST: // file already exists and you used O_CREAT and O_EXCL
-                printf("already exists issue\n");
+            case ENOENT:
+            case ENODEV:
+                printf("no such device");
                 break;
 
-            case EFAULT: // bad path
-                printf("bad path issue\n");
+            case EIO:
+                printf("device did not respond");
                 break;
 
             default:
-                printf("unknown failure\n");
+                printf("%s", strerror(errno));
                 break;
         }
 
-        printf("file read failed\n");
+        puts("");
         puts("ERROR");
-        fprintf(stderr, "Could not open %s\n", g_device_path);
+        fprintf(stderr, "Could not open %s.\n", g_device_path);
+        fprintf(stderr, "Check the device name, and make sure nothing else has it open -\n");
+        fprintf(stderr, "a serial terminal still connected is the usual culprit.\n");
         goto Error;
     }
     puts("OK");
@@ -867,14 +964,21 @@ int main (int argc, const char** argv)
     printf("Sending Hello to the Bootloader...");
 
     //send HELLO
-    res = pl_write(dev_fd, BOOTLOADER_HELLO_STR, 1);
+    res = serial_write(dev_fd, BOOTLOADER_HELLO_STR, 1);
 
     res = readWithTimeout(dev_fd, buffer, 4, 3);
 
-    if( res != 4 || buffer[3] != BOOTLOADER_OK )
+    if( res != 4 || !bootloaderOk(buffer[3]) )
     {
         puts("ERROR");
-        fprintf(stderr, "No reply from the bootloader, or invalid reply received: %d\n", res);
+        if( res == 4 )
+        {
+            fprintf(stderr, "The bootloader answered with an unexpected status: 0x%02x\n", buffer[3]);
+        }
+        else
+        {
+            fprintf(stderr, "No reply from the bootloader, or invalid reply received: %d\n", res);
+        }
         fprintf(stderr, "Please make sure that PGND and PGC are connected, reconnect\n");
         fprintf(stderr, "the device and try again\n");
         goto Error;
@@ -1191,6 +1295,16 @@ int main (int argc, const char** argv)
 
         break;
 
+    /* The Sandbox Electric BPv3.b clone carries a PIC24FJ64GA004, but its
+       bootloader reports device ID 0x02 instead of the usual DEVID byte.
+       Without this case the part keeps the BPv4 default flash size (0x2AC00),
+       which also skips the BPv3 jump fix below. */
+    case	0x02:
+        printf("PIC24FJ64GA004 (BPv3 clone)\n");
+        flashsize = 	0xAC00;
+
+        break;
+
     case	214:
         printf("PIC24FJ64GA006\n");
         flashsize = 	0xAC00;
@@ -1330,8 +1444,26 @@ int main (int argc, const char** argv)
         command[LENGTH_OFFSET ] = 0x01; // 1 byte, CRC
         command[PAYLOAD_OFFSET] = makeCrc(command, 5);
 
-        // send byebye (cmd: 0xff)
-        int ret = sendCommandAndWaitForResponse(dev_fd, command);
+        /*
+         * Ask the bootloader to restart. Fire and forget on purpose: some
+         * bootloaders acknowledge this, and some - the one on this desk
+         * included - simply act on it silently. Waiting for a reply therefore
+         * reported "ERROR, timeout" immediately after a successful flash, which
+         * reads as if the flash had failed. Say what actually happened instead.
+         */
+        if( serial_write(dev_fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]) > 0 )
+        {
+            serial_sleep(1);
+            printf("Asked the bootloader to restart.\n");
+            printf("If the Bus Pirate does not come back as a serial device, power-cycle it\n");
+            printf("(remove any bootloader jumper first).\n");
+        }
+        else
+        {
+            fprintf(stderr, "Note: could not ask the bootloader to restart.\n");
+            fprintf(stderr, "Power-cycle the Bus Pirate to run the new firmware; the flash itself\n");
+            fprintf(stderr, "completed as reported above.\n");
+        }
     }
 
 Finished:
@@ -1341,7 +1473,7 @@ Finished:
     }
     if( dev_fd >= 0 )
     {
-        pl_close(dev_fd);
+        serial_close(dev_fd);
     }
     return 0;
 
@@ -1352,7 +1484,7 @@ Error:
     }
     if( dev_fd >= 0 )
     {
-        pl_close(dev_fd);
+        serial_close(dev_fd);
     }
     return -1;
 }

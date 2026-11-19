@@ -29,7 +29,7 @@
 #include "capability_selftest/selftest.h"
 
 #ifdef BP_ENABLE_SPI_SUPPORT
-#include "spi.h"
+#include "protocol_spi/spi.h"
 #endif /* BP_ENABLE_SPI_SUPPORT */
 
 #ifdef BP_ENABLE_I2C_SUPPORT

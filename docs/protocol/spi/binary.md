@@ -87,8 +87,8 @@ the operand.
 |---|---|---|---|
 | `0x00` | action | exit to bitbang | `BBIO1` |
 | `0x01` | action | report identifier | `SPI1` |
-| `0x02` | action | CS latch low (asserts only while CS is an output) | `0x01` |
-| `0x03` | action | CS high (release) | `0x01` |
+| `0x02` | action | CS low (assert; enables the output) | `0x01` |
+| `0x03` | action | CS high (release: input/Hi-Z in open drain, driven high in Normal) | `0x01` |
 | `0x04` | action | write-then-read, CS asserted for the transfer | `0x01`, then the read bytes |
 | `0x05` | action | write-then-read, CS left untouched | `0x01`, then the read bytes |
 | `0x06` | action | extended AVR command | `0x01`, then the sub-reply |
@@ -102,12 +102,10 @@ the operand.
 | `0x8x` | configure | set the clock and output options | `0x01` |
 | other | — | unrecognised | `0x00` |
 
-`0x01` is success/ack; `0x00` is failure. The CS commands write the CS latch.
-`0x02` writes the latch low; it drives CS low when the pin is already an
-output, which is the state after entry and after `0x6x`/`0x8x`. It does not
-change the pin direction. `0x03` writes the latch high (Hi-Z in open drain,
-driven high in Normal output when the pin is an output). The pin-direction
-interaction is in §Configure peripherals (`0x4x`).
+`0x01` is success/ack; `0x00` is failure. `0x02` writes the CS latch low and
+makes CS an output, so it asserts. `0x03` writes the latch high and releases
+CS: an input (Hi-Z) in open drain, driven high in Normal. Both set the
+direction; the `0x4x` bit-0 interaction is in §Configure peripherals (`0x4x`).
 
 ### Write-then-read (`0x04`, `0x05`)
 
@@ -118,9 +116,9 @@ After the command byte:
 3. the write payload (the bytes to clock out on MOSI).
 
 The firmware writes the payload, then clocks in the requested number of bytes
-and returns them. `0x04` writes CS low at the start of the transfer and high
-(released; Hi-Z in open drain) at the end; CS is an output from entry. `0x05`
-does not touch CS. The reply
+and returns them. `0x04` uses the same CS helper: it drives CS low and makes
+it an output at the start, then releases it (input/Hi-Z in open drain, driven
+high in Normal) at the end. `0x05` does not touch CS. The reply
 is one `0x01` success byte, followed by the read bytes. For a write-only
 request (read count 0) the `0x01` comes after the write; for a read-only
 request it comes before the read data.
@@ -138,9 +136,9 @@ CS-polarity setting, which is fixed to `/CS` in binary mode.
 `0x1x` writes `x + 1` bytes from the host to the bus and returns the bus byte
 read for each one. `x = 0` writes one byte; `x = 15` writes sixteen. The reply
 is one `0x01`, then one bus byte for each host byte. A fresh `0x1x` command is
-sent for each group of up to sixteen bytes. This group does not manage CS:
-if the target needs CS asserted, use `0x02` while CS is an output (see
-§Configure peripherals for the `0x4x` trap).
+sent for each group of up to sixteen bytes. This group does not manage CS: if
+the target needs CS asserted, use `0x02` (it asserts and enables the output;
+see §Configure peripherals for the `0x4x` bit-0 level).
 
 The host must supply exactly `x + 1` bytes; the loop waits for them. There are
 no streaming read/write commands in this build; use `0x04`/`0x05` or `0x1x`.
@@ -187,14 +185,14 @@ example `0x4C` = power on + pull-ups on + AUX low + CS low; `0x4D` does the
 same with CS released. If the target is self-powered, clear bit 3: `0x44` is
 pull-ups on + AUX low + CS low.
 
-**CS direction interaction.** Setting bit 0 releases CS as an **input** in
-open-drain output. `0x04`, `0x03` and `0x02` only write the CS latch; they do
-not change the pin direction. After a `0x4x` that released CS this way, send
-another `0x4x` with bit 0 clear and the other bits at the states you want (for
-example `0x44` for pull-ups on, or `0x4C` for supply and pull-ups on), or send
-`0x6x`/`0x8x` to re-run the module setup. Both restore CS as an output. A bare
-`0x02` writes the latch low but leaves the pin an input, so it cannot recover
-the connection.
+**CS direction interaction.** `0x4x` bit 0 still sets CS directly: set releases
+it (an input/Hi-Z in open drain, driven high in Normal); clear drives it
+low/asserted. `0x02`, `0x03` and a non-empty `0x04` set the direction
+themselves: `0x02` drives CS low and makes it an output, so it recovers a CS
+left as an input by `0x4x`; `0x03` releases CS (input/Hi-Z in open drain,
+driven high in Normal); `0x04` asserts through the same helper at the start and
+releases at the end. `0x6x`/`0x8x` re-run the module setup, which also leaves CS
+an output at its released level. A second `0x4x` is not needed for recovery.
 
 The AUX bit here also forces `A0` to an output; the shared group semantics are
 owned by [sub-protocols.md](../binary/sub-protocols.md).
@@ -305,9 +303,9 @@ final word is readable, but the word address must not wrap past `0xFFFF`, so
 address `0xFFFF` with length `3` is refused. If the SPI module stalls during
 the read, the remaining bytes are sent as `0xFF` (see Transfer faults).
 
-`0x06` does **not** drive CS. Assert CS with `0x02` (output only) before the
-read and release it with `0x03` afterwards; both act only while CS is an
-output (see §Configure peripherals). It also does not drive the AVR's reset;
+`0x06` does **not** drive CS. Assert CS with `0x02` before the read (it drives
+low as an output) and release it with `0x03` afterwards (input/Hi-Z in open
+drain, driven high in Normal). It also does not drive the AVR's reset;
 the target must already be in its ISP flash-read state. The helper assumes an
 AVR that understands the ISP flash-read commands. Set a speed the AVR's ISP
 interface accepts with `0x6x` before the read if the entry default is too fast.
@@ -439,12 +437,12 @@ host <- 0x01
 | `0x5x` is sent on v3 | `0x00` | the group is v4 only |
 | `0x6x` uses index 12–15 | `0x00` | use 0–11 |
 | `0x04`/`0x05` both counts are zero | `0x01`, no bus traffic, CS unchanged | intended for initialisation |
-| `0x06` without CS | the AVR sees no chip select; the read is meaningless | first assert CS with `0x02`, while CS is an output |
+| `0x06` without CS | the AVR sees no chip select; the read is meaningless | first assert CS with `0x02` (it enables the output) |
 | `0x06` bulk read succeeds | `0x01 0x01` before the data | account for both acks |
 | `0x06` bulk read is refused | `0x01 0x00` | address ≤ `0xFFFF`, length ≤ `0xFFFF`, no word wrap |
 | `0x06` length is odd | the last word returns only its low byte | expected |
-| `0x4x` released CS as input | transfer ignored; CS never goes low | `0x4x` bit 0 clear, or `0x6x`/`0x8x` |
-| `0x4x` bit 0 set (open drain) | CS stays an input; `0x03` writes the latch only | `0x4x` bit 0 clear, or `0x6x`/`0x8x` |
+| `0x4x` released CS as input | CS high/Hi-Z, not asserted | `0x02` or a non-empty `0x04` asserts; `0x6x`/`0x8x` restore the released output |
+| `0x4x` bit 0 set (open drain) | CS released as an input | expected; `0x02` asserts, `0x03` releases |
 | `0x6x` or `0x8x` is sent mid-transfer | CS returns to its idle level | change speed/options between transfers |
 | `0x8x` clears an option bit | that bit takes its own default, not the entry default | `0x82` keeps the entry edge; `0x80` selects idle→active |
 | `0x5x` is sent after Normal output was selected | `0x00` | select open drain with `0x8x` first |

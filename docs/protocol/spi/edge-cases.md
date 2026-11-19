@@ -110,9 +110,9 @@ The main topics are in [entry-and-setup.md](entry-and-setup.md),
 | `0x5x` is sent on v3 | `0x00` | the group is v4 only |
 | `0x6x` uses index 12–15 | `0x00` | use 0–11 |
 | `0x04`/`0x05` both counts are zero | `0x01`, no bus traffic, CS unchanged | intended for initialisation |
-| `0x04` after a `0x4x` released CS | transfer ignored; CS never goes low | `0x4x` bit 0 clear, or `0x6x`/`0x8x` |
-| `0x03` after a `0x4x` released CS | latch high, pin stays an input | `0x4x` bit 0 clear, or `0x6x`/`0x8x` |
-| `0x06` without CS | the AVR sees no chip select; the read is meaningless | first assert CS with `0x02`, while CS is an output |
+| `0x04` after a `0x4x` released CS | not a failure: `0x04` drives CS low and makes it an output for the transfer, then releases it | no recovery needed |
+| `0x03` after a `0x4x` released CS | CS released (input in open drain, driven high in Normal) | expected; use `0x02` to assert |
+| `0x06` without CS | the AVR sees no chip select; the read is meaningless | first assert CS with `0x02` (it enables the output) |
 | `0x06` bulk read succeeds | `0x01 0x01` before the data | account for both acks |
 | `0x06` bulk read is refused | `0x01 0x00` | address ≤ `0xFFFF`, length ≤ `0xFFFF`, no word wrap |
 | `0x06` length is odd | the last word returns only its low byte | expected |
@@ -121,7 +121,7 @@ The main topics are in [entry-and-setup.md](entry-and-setup.md),
 | `0x8x` clears an option bit | the bit's own default applies, not the entry default | `0x82` keeps the entry edge; `0x80` selects idle→active |
 | `0x5x` is sent after Normal output was selected | `0x00` | select open drain with `0x8x` first |
 | `0x4x` turns the supply on | `0x01` even if the rail is shorted | there is no rail check; use the ADC or the terminal to verify |
-| `0x1x` without CS | bytes clocked with CS in its current state | if the target needs CS, assert it with `0x02` while CS is an output |
+| `0x1x` without CS | bytes clocked with CS in its current state | if the target needs CS, assert it with `0x02` (it enables the output) |
 | `0x7x` uses a low nibble other than 0 | `0x00` | only `0x70` is defined |
 | A streaming read/write command is expected | there is no such command | use `0x04`/`0x05` or bulk `0x1x` |
 | A stalled SPI module | read bytes are `0xFF`; the reply length is unchanged | framing, not an error status |

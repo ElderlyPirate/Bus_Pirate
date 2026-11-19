@@ -44,11 +44,12 @@ wiring and one transaction.
 - `(0)` lists the macros. `(1)` sniffs while CS is low, `(2)` sniffs all
   traffic; macros 10–15 change the clock polarity/edge and input sample phase
   in place.
-- Binary: 20 NUL bytes enter `BBIO1`, then `0x01` enters `SPI1`. `0x02`/`0x03`
-  write the CS latch low/high (assert/release while CS is an output),
-  `0x04`/`0x05` are write-then-read, `0x1x` is bulk, `0x4x` sets
-  power/pull-ups/AUX, `0x6x` sets speed and `0x8x` sets clock/output options.
-  Open drain needs pull-ups in binary too — or select Normal with `0x8x`.
+- Binary: 20 NUL bytes enter `BBIO1`, then `0x01` enters `SPI1`. `0x02` asserts
+  CS and enables the output; `0x03` releases it (input/Hi-Z in open drain,
+  driven high in Normal). `0x04`/`0x05` are write-then-read, `0x1x` is bulk,
+  `0x4x` sets power/pull-ups/AUX, `0x6x` sets speed and `0x8x` sets
+  clock/output options. Open drain needs pull-ups in binary too — or select
+  Normal with `0x8x`.
 - Sniffer: enter it **before** connecting the target, and stop it only when the
   external master is quiet. No maximum bus rate is specified; see
   [sniffer.md](sniffer.md).

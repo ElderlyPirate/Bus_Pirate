@@ -1170,16 +1170,34 @@ void binary_io_enter_i2c_mode(void) {
         fr = 1;
         switch (inByte) {
 
+        /* Binary selectors are limited to AUX0 and CS. Do not call the
+         * terminal helpers here: their messages would corrupt the reply. */
         case 0x00:
-          bp_aux_pin_set_low();
+          if (mode_configuration.alternate_aux == 0) {
+            BP_AUX0 = LOW;
+            BP_AUX0_DIR = OUTPUT;
+          } else {
+            BP_CS = LOW;
+            BP_CS_DIR = OUTPUT;
+          }
           break;
 
         case 0x01:
-          bp_aux_pin_set_high();
+          if (mode_configuration.alternate_aux == 0) {
+            BP_AUX0 = HIGH;
+            BP_AUX0_DIR = OUTPUT;
+          } else {
+            BP_CS = HIGH;
+            BP_CS_DIR = OUTPUT;
+          }
           break;
 
         case 0x02:
-          bp_aux_pin_set_high_impedance();
+          if (mode_configuration.alternate_aux == 0) {
+            BP_AUX0_DIR = INPUT;
+          } else {
+            BP_CS_DIR = INPUT;
+          }
           break;
 
         case 0x03:

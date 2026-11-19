@@ -66,15 +66,16 @@ powering it.
 normal push-pull case.  The PWM line is normally a push-pull output and the
 feedback line is an analogue input; neither is a bus, and the `P`/`p` pull-up
 network does not bias them.  The legacy board's PWM input is a resistor into
-an NPN base, so it needs a driven high.  If a previous mode left `AUX1` open
-drain, a logic high is a released pin and the add-on needs its own pull-up.
+an NPN base, so it needs a driven high.  The SMPS start clears the `AUX1`
+open-drain bit; a pull-up is only needed if a binary path drives `AUX1` before
+the start while it is still open drain.
 
 The v4 OpenOCD path uses `AUX1` as TRST, and its open-drain mode sets that pin
-open drain.  Leaving that path does not necessarily restore push-pull, and the
-SMPS start does not clear the open-drain bit.  A v4 terminal reset (`#` or
-`0x0F`) does not clear it either; a power cycle or hardware reset does.  After
-OpenOCD open-drain use, power-cycle the Bus Pirate before an SMPS start, or fit
-a pull-up to a permitted logic rail (`unverified`).
+open drain.  The SMPS start clears the `AUX1` open-drain bit and drives the PWM
+push-pull.  A v4 terminal or board reset (`#`, `0x0F`, or a mode change) also
+clears it; no power cycle is needed.  If a binary path drives `AUX1` before the
+start without a terminal reset, a leftover open-drain high can still need an
+add-on pull-up (`unverified`).
 
 **The firmware does not switch a Bus Pirate supply for SMPS.**  It never turns
 on either on-board target rail for this path.  `W` and the binary `0x4x`
@@ -110,9 +111,8 @@ wiring does not apply to a v3 board.
 - `AUX1` is a **3.3 V logic output**, not 5 V and not a power output.  It
   drives a control input only.  If the add-on expects a 5 V logic high, use a
   level shifter or a driver; do not assume 3.3 V is enough.  The output type
-  is normally push-pull; the SMPS start does not clear an open-drain setting,
-  so a mode that left the pin open drain also needs a pull-up
-  (`unverified`).
+  is normally push-pull; the SMPS start clears the open-drain bit, so the PWM
+  is push-pull after a start.
 - The pin current rating is a Bus Pirate limit not stated here.  Treat the
   line as a logic signal, not a load supply.
 - `ADC` is the probe input behind the on-board 2:1 divider: 0-6.6 V nominal,

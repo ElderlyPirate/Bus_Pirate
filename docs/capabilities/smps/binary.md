@@ -82,8 +82,8 @@ count or something else) is not defined by the firmware (`unverified`).
 | start | `0x01` | 1 byte | after the operand is consumed and the new setup is applied |
 | `0xF0` before any start | `0x00` `0x00` | 2 bytes | no sample stored since power-up |
 | `0xF0` after stop | the last sample from the run | 2 bytes | stop does not clear the stored sample |
-| `0xF0` after a terminal reset, before the next start | the previous run's sample | 2 bytes | the reset stops the loop but does not clear the stored sample |
-| `0xF0` after a new start | possibly the previous run's sample | 2 bytes | no freshness flag; discard the first read or poll until it changes |
+| `0xF0` after a terminal reset, before the next start | the last stored sample | 2 bytes | the reset stops the loop but does not clear the stored sample; it can be zero |
+| `0xF0` after a new start | `0x00 0x00` until the first conversion; then the new sample | 2 bytes | the start clears the stored sample; no validity flag, so a real zero also reads zero |
 | any, feature not built | `0x00` | 1 byte | for a start, the operand is still consumed first |
 
 There is no readback of the requested value, the duty cycle or whether the
@@ -102,8 +102,8 @@ host -> 0x05             select raw wire
 host <- "RAW1"
 host -> 0xF2 0x00        start; lowest reachable request 0x200
 host <- 0x01             accepted
-host -> 0xF0             first read; discard it
-host <- 0x00 0x00        example: the pre-start value, not a new sample
+host -> 0xF0             first read before a conversion
+host <- 0x00 0x00        the start cleared it; no conversion yet
 host -> 0xF0             read again after at least one conversion
 host <- 0x01 0xD3        example feedback sample: 467 counts
 host -> 0xF1             stop
@@ -115,9 +115,9 @@ host <- 0x01
                          version banner and HiZ> follow
 ```
 
-The first `0xF0` after a start can return zero, the previous run's sample, or
-an already-fresh value.  There is no freshness flag; treat that first read as
-stale and use a later read.
+The first `0xF0` after a start returns `0x00 0x00` if no conversion has
+completed, otherwise the new sample.  It never returns the previous run's
+sample.  There is no validity flag, so a real zero sample also reads zero.
 
 ### Read on a fresh power-up, and after stop
 
@@ -126,6 +126,8 @@ host -> 0xF0
 host <- 0x00 0x00        no sample stored since power-up
 host -> 0xF2 0x00        start
 host <- 0x01
+host -> 0xF0             read after a conversion
+host <- 0x01 0xD3        example sample
 host -> 0xF1             stop
 host <- 0x01
 host -> 0xF0
@@ -175,7 +177,7 @@ port.write(b"\x05")
 expect(4)                        # RAW1
 port.write(bytes((0xF2, 0x00)))  # start, lowest request 0x200
 assert expect(1) == b"\x01"
-port.write(b"\xF0")              # first read: discard it
+port.write(b"\xF0")              # first read: zero until the first conversion
 expect(2)
 port.write(b"\xF0")              # read after a conversion
 sample = int.from_bytes(expect(2), "big")
@@ -192,11 +194,11 @@ assert expect(1) == b"\x01"      # banner and HiZ> follow
 
 A new start (`0xF2`-`0xFF` plus its operand) is accepted while the loop runs.
 The start routine re-runs in place: it disables the old conversion and PWM,
-recomputes the duty and target, re-routes `AUX1` and re-enables the feedback.
-No stop is needed and no stop happens.  The stored sample is not cleared, so a
-`0xF0` read immediately after the new start can still return the previous
-sample; the freshness rule above applies.  Stop details are in
-[exit.md](exit.md).
+clears the stored sample to zero, clears the `AUX1` open-drain bit, recomputes
+the duty and target, re-routes `AUX1` and re-enables the feedback.  No stop is
+needed and no stop happens.  The immediate `0xF0` read is `0x00 0x00` until
+the first new conversion; it cannot return the previous sample.  Stop details
+are in [exit.md](exit.md).
 
 ## No SMPS support
 
@@ -238,8 +240,8 @@ verify, because the build cannot enable the feature.
   regulated output.  See [feedback-loop.md](feedback-loop.md).
 - `0x01` only means the request was accepted.  There is no proof that the PWM
   reaches the add-on, that the add-on is present, or that its output is live.
-- `0xF0` never triggers a conversion and never clears the stored sample.  The
-  first read after a start can be stale; discard it or poll until it changes.
+- `0xF0` never triggers a conversion.  After a start, the first read is
+  `0x00 0x00` until the first conversion; there is no validity flag.
 - The loop has no feedback presence test.  With the feedback wire open, the
   duty follows the floating reading and the output is uncontrolled; a zero
   sample is not proof of 0 V output

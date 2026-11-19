@@ -59,7 +59,7 @@ the next reply as the low byte.  On a refusal, read one byte.
 - **Trigger:** `0xF1` followed by `0xF0`.
 - **Symptom:** the reading repeats the last sample from the run.
 - **Behaviour:** stop turns the converter off and leaves the stored sample
-  unchanged; `0xF0` never clears it.  Only a power cycle or a hardware reset
+  unchanged.  A new start clears it; a power cycle or hardware reset also
   reinitializes it.
 - **Recovery:** treat a reading taken after stop as the last value from the
   previous run.  Start again to get new samples.
@@ -126,20 +126,19 @@ the next reply as the low byte.  On a refusal, read one byte.
   the stop the pin is an input; set its direction and level explicitly if you
   need a driven level.  The previous `AUX1` state is not restored.
 
-## `AUX1` was left open drain
+## `AUX1` is open drain before a binary SMPS start
 
-- **Trigger:** use the v4 OpenOCD path in open-drain mode, then start the
-  SMPS without a power cycle.
-- **Symptom:** the start is accepted and the loop runs, but a logic high on
-  `AUX1` is a released pin.  The add-on's PWM input may never see a high, so
-  the switch may never turn on and the output is not controlled.
-- **Behaviour:** the OpenOCD open-drain mode sets `AUX1` open drain.  Leaving
-  that path does not necessarily clear it, and the SMPS start does not clear
-  it.  A v4 terminal reset does not clear it either; a power cycle or hardware
-  reset does.
-- **Recovery:** power-cycle the Bus Pirate before the SMPS start, or fit a
-  pull-up on the add-on's PWM input to a permitted logic rail
-  (`unverified`).  Treat the pin as open drain until a power cycle.
+- **Trigger:** reach SMPS through a binary path without a terminal reset, then
+  drive `AUX1` before the start (for example, after leaving an OpenOCD
+  open-drain session).
+- **Symptom:** before the start, a logic high on `AUX1` is a released pin.  The
+  add-on's PWM input may not see a high until the start clears the bit.
+- **Behaviour:** the SMPS start clears the `AUX1` open-drain bit and drives the
+  pin push-pull.  A v4 terminal or board reset (`#`, `0x0F`, or a mode change)
+  also clears it.  No power cycle is required.
+- **Recovery:** start the SMPS, or use `#`/`0x0F`/`m` to reset the board.  If a
+  binary path must drive `AUX1` before the start, fit a pull-up on the add-on's
+  PWM input to a permitted logic rail (`unverified`).
 
 ## The ADC probe is taken over while running
 
@@ -192,15 +191,15 @@ the next reply as the low byte.  On a refusal, read one byte.
 
 - **Trigger:** send a new start without a stop.
 - **Symptom:** the reply is `0x01`; the new duty and target take effect.  A
-  `0xF0` read immediately after the new start can still return the previous
-  sample.
+  `0xF0` read immediately after the new start reads `0x00 0x00` until the
+  first new conversion.
 - **Behaviour:** the start routine re-runs in place.  It disables the old
-  conversion and PWM, recomputes the values, re-routes `AUX1` and re-enables
-  the feedback.  No stop is needed and no stop happens; the stored sample is
-  not cleared, and there is no freshness flag.
-- **Recovery:** none needed.  Discard the first read after the new start, or
-  poll until the value changes.  Send `0xF1` when the new setpoint is no
-  longer wanted.
+  conversion and PWM, clears the stored sample to zero, clears the `AUX1`
+  open-drain bit, recomputes the values, re-routes `AUX1` and re-enables the
+  feedback.  No stop is needed and no stop happens; there is no validity flag,
+  so a zero sample can also be a real reading.
+- **Recovery:** none needed.  Send `0xF1` when the new setpoint is no longer
+  wanted.
 
 ## Stop is not a disconnect
 

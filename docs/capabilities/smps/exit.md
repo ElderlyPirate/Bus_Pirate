@@ -33,6 +33,7 @@ What the stop changes:
 | output-compare channel | disabled, sync source cleared |
 | PWM duty and period | zero |
 | `AUX1` pin | input, output routing cleared, latch low |
+| `AUX1` ODC | unchanged |
 | stored sample | unchanged |
 | add-on output | no PWM drive; the add-on's own state depends on its design (`unverified`) |
 
@@ -78,9 +79,10 @@ host <- 0x01             then the terminal reset runs
 ```
 
 On v4 the return runs the **terminal reset** (the firmware's board reset).
-That reset also calls the SMPS stop path on a build with SMPS support.  So
-`0x0F` from `BBIO1` stops the loop, releases `AUX1`, and then prints the
-version banner and `HiZ>`.
+That reset also calls the SMPS stop path on a build with SMPS support, and it
+clears the `AUX1` open-drain bit.  So `0x0F` from `BBIO1` stops the loop,
+releases `AUX1`, clears the open-drain bit, and then prints the version banner
+and `HiZ>`.
 
 `0x0F` sent while still in `RAW1` is not a return: it belongs to the raw-wire
 generic group and is answered with `0x00`, leaving you in `RAW1`.  Leave with
@@ -89,31 +91,34 @@ generic group and is answered with `0x00`, leaving you in `RAW1`.  Leave with
 ## Terminal reset: `#`
 
 At a terminal prompt, `#` prints `RESET`, runs the same terminal reset and
-re-prints the version banner.  On an SMPS-enabled v4 build that reset runs the
-SMPS stop path, so it stops the loop and parks `AUX1`.
+re-prints the version banner.  On v4 that reset clears the `AUX1` open-drain
+bit; on an SMPS-enabled build it also runs the SMPS stop path, so it stops the
+loop and parks `AUX1`.
 
 A mode change (`m`) also runs the same board reset before the new mode's
-setup, so it stops the loop by the same path.  This matters only if a loop was
-left running by an unusual route: every normal route out of the binary layer
+setup.  On v4 that clears the `AUX1` open-drain bit; on an SMPS-enabled build
+it also stops the loop by the same path.  This matters only if a loop was left
+running by an unusual route: every normal route out of the binary layer
 passes through `0x0F`, which stops it.
 
 ## Hardware reset and power cycle
 
 A hardware reset or power cycle stops the processor, so the PWM and ADC stop
-with it.  The stored sample is reinitialized at startup, so the next `0xF0`
-before a start returns `0x00 0x00`.
+with it.  The reset clears the `AUX1` open-drain bit and reinitializes the
+stored sample at startup, so the next `0xF0` before a start returns
+`0x00 0x00`.
 
 ## The paths compared
 
-| Path | Where sent | Stops PWM and ADC | Releases `AUX1` | Stored sample |
-|---|---|---|---|---|
-| `0xF1` | `RAW1` | yes | yes | kept |
-| `0x00` | `RAW1` | no | no | kept |
-| `0x0F` | `BBIO1` | yes on v4 (terminal reset) | yes | kept |
-| `#` | terminal | yes on v4 (terminal reset) | yes | kept |
-| `m` (mode change) | terminal | yes on v4 (board reset) | yes | kept |
-| hardware reset or power cycle | Bus Pirate | yes | yes | cleared at startup |
-| `0xF1` sent in `BBIO1` | `BBIO1` | **no** | no | kept |
+| Path | Where sent | Stops PWM and ADC | Releases `AUX1` | `AUX1` ODC | Stored sample |
+|---|---|---|---|---|---|
+| `0xF1` | `RAW1` | yes | yes | unchanged | kept |
+| `0x00` | `RAW1` | no | no | unchanged | kept |
+| `0x0F` | `BBIO1` | yes on v4 (terminal reset) | yes | cleared on v4 | kept |
+| `#` | terminal | yes on v4 (terminal reset) | yes | cleared on v4 | kept |
+| `m` (mode change) | terminal | yes on v4 (board reset) | yes | cleared on v4 | kept |
+| hardware reset or power cycle | Bus Pirate | yes | yes | cleared on v4 | cleared at startup |
+| `0xF1` sent in `BBIO1` | `BBIO1` | **no** | no | unchanged | kept |
 
 ## `0xF1` in `BBIO1` is not a stop
 

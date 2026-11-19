@@ -42,10 +42,11 @@ Wire the Bus Pirate side before the first start.
 
 The firmware drives **`AUX1`** (v4 header pin 6, key = pin 1) and samples
 **`ADC`** (pin 8).  Connect the add-on's ground to **`GND`** (pin 12).
-**No pull-up is required** on either line in the normal push-pull case.  If a
-previous mode left `AUX1` open drain, a logic high is a released pin: the
-add-on needs its own pull-up, or the Bus Pirate needs a power cycle or
-hardware reset before the start ([wiring.md](wiring.md)).
+**No pull-up is required** on either line in the normal push-pull case.  The
+SMPS start clears the `AUX1` open-drain bit, and a v4 terminal or board reset
+(`#`, `0x0F`, or a mode change) also clears it.  If a binary path drives
+`AUX1` before the start without a terminal reset, a leftover open-drain high
+can still need an add-on pull-up ([wiring.md](wiring.md)).
 **The firmware does not switch a Bus Pirate supply**
 for SMPS: the add-on's power feed is part of the add-on wiring.
 
@@ -74,8 +75,9 @@ these pages.
   warning below.
 - **Read:** `0xF0` returns the last stored feedback sample as two big-endian
   bytes, with no result byte.  It does not take a new sample and is not a
-  calibrated output voltage.  The first read after a start can still be from
-  the previous run: discard it or poll until it changes.
+  calibrated output voltage.  A start clears the stored sample: before the
+  first new conversion `0xF0` reads `0x00 0x00`.  There is no validity flag, so
+  a real zero sample also reads zero.
 - **Stop:** `0xF1` replies `0x01` and removes the PWM drive.  Send it before
   leaving `RAW1`: leaving raw wire does not stop the loop.  A v4 terminal
   reset (`0x0F` or `#`) does ([exit.md](exit.md)).
@@ -96,8 +98,8 @@ verify the add-on output with your own measurement before connecting anything.
 | raw wire | `0x05` | `RAW1` |
 | check the build (optional) | `0xF1` | `0x01` built in; `0x00` not built |
 | start, lowest request `0x200` | `0xF2` `0x00` | `0x01` |
-| read, first sample (discard) | `0xF0` | two bytes, high byte first |
-| read again after a conversion | `0xF0` | two bytes, high byte first |
+| read before the first conversion (zero) | `0xF0` | two bytes, high byte first |
+| read after a conversion | `0xF0` | two bytes, high byte first |
 | stop | `0xF1` | `0x01` |
 | leave raw wire | `0x00` | `BBIO1` |
 | leave binary | `0x0F` | `0x01`, banner, `HiZ>` |
@@ -130,8 +132,9 @@ and [wiring.md](wiring.md).
 - The firmware's cutoff can act only for requests `0x200`-`0x526`; whether the
   add-on can reach the target is unknown, and no request is a promise of a
   regulated output ([feedback-loop.md](feedback-loop.md)).
-- `0xF0` can return the previous run's sample after a start; there is no
-  freshness flag ([binary.md](binary.md)).
+- A start clears the stored sample.  The first `0xF0` read is `0x00 0x00`
+  until the first conversion; there is no validity flag, so a real zero sample
+  also reads zero ([binary.md](binary.md)).
 - `0xF1` removes the firmware's PWM drive; it does not prove the add-on's
   output is off, and the firmware has no independent over-voltage,
   over-current or temperature protection.

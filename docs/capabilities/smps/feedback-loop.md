@@ -19,19 +19,21 @@ A start (`0xF2`-`0xFF` plus one operand) runs this sequence before it replies
 `0x01`:
 
 1. Releases any previous owner: disables the ADC interrupt, turns the
-   converter and auto-sampling off, and disables the output-compare channel.
+   converter and auto-sampling off, disables the output-compare channel, and
+   clears the stored sample to zero.
 2. Detaches the terminal generator from the `AUX` output and clears its mode
    flag, so a `g`/`S` waveform does not remain mirrored on the shared channel.
    The terminal generator does not resume when the SMPS stops.
 3. Computes the duty compare value and the feedback target from the request.
-4. Drives `AUX1` low and routes the output-compare channel to the pin, with a
-   period register of `0x7F` and edge-aligned PWM.
+4. Clears the `AUX1` open-drain bit, drives `AUX1` low, and routes the
+   output-compare channel to the pin, with a period register of `0x7F` and
+   edge-aligned PWM.
 5. Selects the `ADC` input, enables auto-sampling, and enables the
    conversion-complete interrupt only after the loop state is ready.
 6. From then on, every conversion stores a new sample and adjusts the duty.
 
-Ownership lasts until `0xF1` or a v4 terminal reset; it is not tied to being
-in `RAW1` ([exit.md](exit.md)).
+Ownership lasts until `0xF1` or a v4 terminal/board reset (including a mode
+change); it is not tied to being in `RAW1` ([exit.md](exit.md)).
 
 ## Duty and target
 
@@ -79,11 +81,10 @@ an arithmetic aid, not a voltage table.
   that stored value; it does **not** start a conversion.
 - After stop, the converter is off, so the stored sample stops changing.
   `0xF0` then repeats the last sample from the run.
-- A start does not clear the stored sample.  The first read after a new start
-  can still be from the previous run.
-- There is no freshness flag.  Discard the first read after a start.  If you
-  need evidence of a new conversion, poll until the value changes; a stable
-  output can legitimately repeat, so that is a heuristic, not a guarantee.
+- A start clears the stored sample to zero.  Before the first new conversion,
+  `0xF0` returns `0x00 0x00`; after a conversion it reports the new sample.
+  There is no validity flag: a real zero sample also reads zero, so a zero
+  first read is not proof that a conversion has happened.
 - At power-up the stored sample is zero, so `0xF0` before the first start
   returns `0x00 0x00`.
 

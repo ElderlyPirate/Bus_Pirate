@@ -4,46 +4,46 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>../1wire.h</itemPath>
-<itemPath>../programmer_avrisp/avrisp_mkii.h</itemPath>
+      <itemPath>../protocol_wire/1wire.h</itemPath>
+      <itemPath>../programmer_avrisp/avrisp_mkii.h</itemPath>
       <itemPath>../programmer_avrisp/avrisp_v2.h</itemPath>
       <itemPath>../programmer_avrisp/avrisp_xprog.h</itemPath>
       <itemPath>../core_system/base.h</itemPath>
-      <itemPath>../basic.h</itemPath>
+      <itemPath>../tool_basic/basic.h</itemPath>
       <itemPath>../core_bitbang/bitbang.h</itemPath>
       <itemPath>../capability_adc/adc.h</itemPath>
       <itemPath>../core_usb/cdc.h</itemPath>
       <itemPath>../core_usb/descriptors.h</itemPath>
       <itemPath>../protocol_dio/dio.h</itemPath>
       <itemPath>../hardwarev3.h</itemPath>
-      <itemPath>../pc_at_keyboard.h</itemPath>
-      <itemPath>../pic.h</itemPath>
+      <itemPath>../protocol_keyboard/pc_at_keyboard.h</itemPath>
+      <itemPath>../programmer_pic/pic.h</itemPath>
       <itemPath>../core_usb/picusb.h</itemPath>
-      <itemPath>../raw2wire.h</itemPath>
-      <itemPath>../raw3wire.h</itemPath>
+      <itemPath>../protocol_wire/raw2wire.h</itemPath>
+      <itemPath>../protocol_wire/raw3wire.h</itemPath>
       <itemPath>../capability_selftest/selftest.h</itemPath>
-      <itemPath>../sump.h</itemPath>
+      <itemPath>../protocol_sump/sump.h</itemPath>
       <itemPath>../core_usb/usb_stack.h</itemPath>
       <itemPath>../core_usb/usb_stack_globals.h</itemPath>
       <itemPath>../core_usb/prj_usb_config.h</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.h</itemPath>
-      <itemPath>../i2c.h</itemPath>
+      <itemPath>../protocol_i2c/i2c.h</itemPath>
       <itemPath>../configuration.h</itemPath>
       <itemPath>../capability_hd44780/hd44780.h</itemPath>
-      <itemPath>../spi.h</itemPath>
-      <itemPath>../uart.h</itemPath>
-      <itemPath>../jtag.h</itemPath>
+      <itemPath>../protocol_spi/spi.h</itemPath>
+      <itemPath>../protocol_uart/uart.h</itemPath>
+      <itemPath>../protocol_jtag/jtag.h</itemPath>
       <itemPath>../capability_smps/smps.h</itemPath>
-      <itemPath>../openocd.h</itemPath>
+      <itemPath>../tool_openocd/openocd.h</itemPath>
       <itemPath>../core_messages/messages_v3.h</itemPath>
       <itemPath>../core_messages/messages_v4.h</itemPath>
       <itemPath>../core_messages/messages.h</itemPath>
       <itemPath>../protocol_binary/binary_io.h</itemPath>
       <itemPath>../core_system/proc_menu.h</itemPath>
       <itemPath>../core_system/core.h</itemPath>
-      <itemPath>../uart2.h</itemPath>
+      <itemPath>../protocol_uart/uart2.h</itemPath>
       <itemPath>../capability_aux/aux_pin.h</itemPath>
-      <itemPath>../raw_common.h</itemPath>
+      <itemPath>../protocol_wire/raw_common.h</itemPath>
       <itemPath>../types.h</itemPath>
       <itemPath>../hardware.h</itemPath>
       <itemPath>../hardwarev4.h</itemPath>
@@ -70,46 +70,46 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
-      <itemPath>../1wire.c</itemPath>
-<itemPath>../programmer_avrisp/avrisp_isp.c</itemPath>
+      <itemPath>../protocol_wire/1wire.c</itemPath>
+      <itemPath>../programmer_avrisp/avrisp_isp.c</itemPath>
       <itemPath>../programmer_avrisp/avrisp_mkii.c</itemPath>
       <itemPath>../programmer_avrisp/avrisp_nvm_pdi.c</itemPath>
       <itemPath>../programmer_avrisp/avrisp_nvm_tpi.c</itemPath>
       <itemPath>../programmer_avrisp/avrisp_v2.c</itemPath>
       <itemPath>../programmer_avrisp/avrisp_xprog.c</itemPath>
       <itemPath>../core_system/base.c</itemPath>
-      <itemPath>../basic.c</itemPath>
+      <itemPath>../tool_basic/basic.c</itemPath>
       <itemPath>../core_bitbang/bitbang.c</itemPath>
       <itemPath>../capability_adc/adc.c</itemPath>
       <itemPath>../core_usb/cdc.c</itemPath>
       <itemPath>../protocol_dio/dio.c</itemPath>
-      <itemPath>../jtag.c</itemPath>
-      <itemPath>../jtag/lenval.c</itemPath>
-      <itemPath>../jtag/micro.c</itemPath>
-      <itemPath>../jtag/ports.c</itemPath>
+      <itemPath>../protocol_jtag/jtag.c</itemPath>
+      <itemPath>../tool_xsvf/lenval.c</itemPath>
+      <itemPath>../tool_xsvf/micro.c</itemPath>
+      <itemPath>../tool_xsvf/ports.c</itemPath>
       <itemPath>../core_system/main.c</itemPath>
-      <itemPath>../pc_at_keyboard.c</itemPath>
-      <itemPath>../pic.c</itemPath>
-      <itemPath>../raw2wire.c</itemPath>
-      <itemPath>../raw3wire.c</itemPath>
+      <itemPath>../protocol_keyboard/pc_at_keyboard.c</itemPath>
+      <itemPath>../programmer_pic/pic.c</itemPath>
+      <itemPath>../protocol_wire/raw2wire.c</itemPath>
+      <itemPath>../protocol_wire/raw3wire.c</itemPath>
       <itemPath>../capability_selftest/selftest.c</itemPath>
       <itemPath>../capability_smps/smps.c</itemPath>
-      <itemPath>../sump.c</itemPath>
+      <itemPath>../protocol_sump/sump.c</itemPath>
       <itemPath>../core_usb/usb_stack.c</itemPath>
       <itemPath>../core_eeprom/onboard_eeprom.c</itemPath>
-      <itemPath>../i2c.c</itemPath>
+      <itemPath>../protocol_i2c/i2c.c</itemPath>
       <itemPath>../capability_hd44780/hd44780.c</itemPath>
-      <itemPath>../spi.c</itemPath>
-      <itemPath>../uart.c</itemPath>
-      <itemPath>../openocd.c</itemPath>
-      <itemPath>../openocd_asm.s</itemPath>
+      <itemPath>../protocol_spi/spi.c</itemPath>
+      <itemPath>../protocol_uart/uart.c</itemPath>
+      <itemPath>../tool_openocd/openocd.c</itemPath>
+      <itemPath>../tool_openocd/openocd_asm.s</itemPath>
       <itemPath>../core_messages/messages_v3.s</itemPath>
       <itemPath>../core_messages/messages_v4.s</itemPath>
       <itemPath>../core_messages/messages.c</itemPath>
       <itemPath>../protocol_binary/binary_io.c</itemPath>
       <itemPath>../core_system/proc_menu.c</itemPath>
       <itemPath>../core_system/core.c</itemPath>
-      <itemPath>../uart2.c</itemPath>
+      <itemPath>../protocol_uart/uart2.c</itemPath>
       <itemPath>../capability_aux/aux_pin.c</itemPath>
     </logicalFolder>
   </logicalFolder>
@@ -328,7 +328,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780;../tool_basic;../protocol_sump;../capability_aux;../protocol_i2c;../protocol_spi;../protocol_uart;../protocol_wire;../protocol_jtag;../tool_openocd;../tool_xsvf;../programmer_pic;../programmer_avrisp;../capability_adc;../capability_smps;../capability_selftest;../protocol_binary;../protocol_keyboard;../protocol_dio"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -526,7 +526,7 @@
         <C30Global>
         </C30Global>
       </item>
-      <item path="../openocd_asm.s" ex="true" overriding="false">
+      <item path="../tool_openocd/openocd_asm.s" ex="true" overriding="false">
         <C30>
         </C30>
         <C30-AR>
@@ -569,7 +569,7 @@
         <property key="enable-short-double" value="false"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780"/>
+        <property key="extra-include-directories" value="..;../core_system;../core_bitbang;../core_messages;../core_eeprom;../capability_hd44780;../tool_basic;../protocol_sump;../capability_aux;../protocol_i2c;../protocol_spi;../protocol_uart;../protocol_wire;../protocol_jtag;../tool_openocd;../tool_xsvf;../programmer_pic;../programmer_avrisp;../capability_adc;../capability_smps;../capability_selftest;../protocol_binary;../protocol_keyboard;../protocol_dio"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="true"/>
         <property key="oXC16gcc-align-arr" value="false"/>

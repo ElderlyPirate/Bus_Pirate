@@ -41,11 +41,13 @@ endif
 # -----------------------------------------------------------------------------
 
 # If XC16_DIR is not given, fall back to the microchip installer defaults and
-# then to whatever is on PATH.
+# then to whatever is on PATH.  The Windows default contains spaces
+# ("Program Files (x86)"); a literal space in $(wildcard ...) is treated as a
+# list separator, so match the spaces with '?' and then assign the real path.
 ifeq ($(XC16_DIR),)
 ifneq ($(wildcard /opt/microchip/xc16/v2.10/bin),)
 XC16_DIR := /opt/microchip/xc16/v2.10
-else ifneq ($(wildcard C:/Program Files (x86)/Microchip/MPLABXC16/v2.10/bin),)
+else ifneq ($(wildcard C:/Program?Files?(x86)/Microchip/MPLABXC16/v2.10/bin),)
 XC16_DIR := C:/Program Files (x86)/Microchip/MPLABXC16/v2.10
 endif
 endif
@@ -125,6 +127,9 @@ OBJECTS := $(addprefix build/$(TARGET)/,$(SOURCES:.c=.o))
 OBJECTS := $(OBJECTS:.s=.o)
 DEPS    := $(OBJECTS:.o=.d)
 
+# Stamp recording the effective compiler flags (see the object rules below).
+FLAG_STAMP := build/$(TARGET)/.build-flags
+
 # -----------------------------------------------------------------------------
 # Flags
 # -----------------------------------------------------------------------------
@@ -199,11 +204,26 @@ $(TARGET).elf: $(OBJECTS)
 %.hex: %.elf
 	$(BIN2HEX) -a $<
 
-build/$(TARGET)/%.o: %.c
+# The object path depends only on the target and source, and -MMD tracks
+# headers but not compiler flags.  Without an extra dependency a change to
+# OPT/EXTRA_CFLAGS would leave stale objects in place and link the old image.
+# The stamp holds the effective flag set and is rewritten only when its
+# contents change, so a flag change forces a recompile while an ordinary
+# rebuild stays a no-op.
+$(FLAG_STAMP): FORCE
+	@mkdir -p $(@D)
+	@printf '%s\n' '$(CFLAGS)' > $@.tmp
+	@cmp -s $@.tmp $@ || mv -f $@.tmp $@
+	@rm -f $@.tmp
+
+.PHONY: FORCE
+FORCE:
+
+build/$(TARGET)/%.o: %.c $(FLAG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-build/$(TARGET)/%.o: %.s
+build/$(TARGET)/%.o: %.s $(FLAG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

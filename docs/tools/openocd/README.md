@@ -1,8 +1,8 @@
 # OpenOCD adapter
 
 **Status:** current · the firmware's `0x06`/`OCD1` JTAG path and the host
-side that drives it.  The path is compiled into both builds; its v3
-behaviour is not verified.  The host driver is POSIX-only.
+side that drives it.  The path is compiled into both builds; its **other**
+v3 behaviour is not verified.  The host driver is POSIX-only.
 
 OpenOCD's **Bus Pirate** adapter driver turns the Bus Pirate into a JTAG
 cable.  The firmware's `0x06` mode is a raw TAP shifter: the host debugger
@@ -62,7 +62,7 @@ First session: [workflow.md](workflow.md); host build:
 
 | | v3 | v4 |
 |---|---|---|
-| firmware path (`0x06`) | present, not verified on v3 | present |
+| firmware path (`0x06`) | present; other v3 behaviour not verified | present |
 | pin modes push-pull / open-drain | present, not verified on v3 | present |
 | `buspirate speed fast` | about 1 Mbaud on the UART link | accepted; CDC rate unchanged |
 | OpenOCD host driver | POSIX only | POSIX only |
@@ -102,7 +102,7 @@ target and needs no Bus Pirate pull-up.  The full map is in
 - **No project configuration is shipped.**  OpenOCD's installed
   `interface/buspirate.cfg` is the starting template; the interface and
   target files here are reference material.
-- **v3 is compiled in but not verified on v3.**
+- **v3 is compiled in; other v3 behaviour is not verified on v3.**
 - **SWD is out of scope** (a different firmware path).
 - `0x00` leaves `OCD1`, makes the BBIO pins inputs and switches the
   regulator and the on-board pull-ups off.  `0x0F` adds the return to the

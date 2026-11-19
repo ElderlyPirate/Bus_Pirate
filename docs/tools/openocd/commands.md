@@ -193,9 +193,8 @@ keeps no TAP state beyond the pin levels.
 
 ### Zero count
 
-- **v4:** the echo is sent, no payload is read and no TDO byte follows.
-- **v3:** a zero count is not supported; the v3 path has no zero-count guard.
-  Use at least one bit; the v3 outcome is unverified.
+A zero count is a guarded no-op on both builds: the 3-byte echo is sent; no
+payload is read and no TDO byte follows.
 
 OpenOCD never asks for zero bits.
 

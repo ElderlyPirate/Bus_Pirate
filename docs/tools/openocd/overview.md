@@ -94,19 +94,19 @@ Consequences:
 
 | Aspect | v3 | v4 |
 |---|---|---|
-| firmware path (`0x06`) | present, not verified on v3 | present |
+| firmware path (`0x06`) | present; other v3 behaviour not verified | present |
 | pin mode `0x01` push-pull | present, not verified on v3 | present |
 | pin mode `0x02` open-drain | present, not verified on v3 | present |
 | `0x03` ADC read | present, not verified on v3 | present |
-| `0x05` TAP shift | present, not verified on v3 | present |
+| `0x05` TAP shift | present; zero count guarded; other v3 behaviour not verified | present |
 | `0x07` link speed fast | changes the UART to about 1 Mbaud | accepted; CDC rate unchanged |
 | `0x08` TCK delay | applied | applied |
 | SRST on `AUX` | yes | yes |
 | TRST | `PGD` | `AUX1` |
 | OpenOCD host driver | POSIX only | POSIX only |
 
-The v3 build includes the path, but its hardware behaviour is **not verified
-on v3**.
+The v3 build includes the path; apart from the guarded zero-count case, its
+hardware behaviour is **not verified on v3**.
 
 ## Limits (summary)
 

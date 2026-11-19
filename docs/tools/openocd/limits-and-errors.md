@@ -22,10 +22,10 @@ recovery steps.  It does not repeat the command table.
 | JTAG clock | only the `0x08` loop delay | `adapter speed` does not change TCK |
 | TCK delay | default `1` | OpenOCD never sends `0x08`, so the default applies |
 | link speed | normal / fast | v4 accepts fast but does not change the rate |
-| zero count | v4 no-op; v3 unsupported | do not send one; OpenOCD never does |
+| zero count | no-op on both builds; 3-byte echo only | no payload read, no TDO byte; OpenOCD never sends one |
 
-The v3 path is compiled into the build; its hardware behaviour is not
-verified on v3.  The byte protocol is the same on both boards.
+The v3 path is compiled into the build; other v3 behaviour is not verified on
+v3.  The byte protocol is the same on both boards.
 
 ### The TAP-shifter boundary
 
@@ -67,10 +67,8 @@ bits with margin.  A custom host must split long scans before sending them.
 
 ### Zero-count shifts
 
-- **v4:** the 3-byte echo is sent; no payload is read and no TDO byte
-  follows.
-- **v3:** a zero count is not supported.  The v3 path has no zero-count
-  guard; use at least one bit.  The v3 outcome is unverified.
+A zero count is a guarded no-op on both builds.  The 3-byte echo is sent; no
+payload is read and no TDO byte follows.
 
 No host needs a zero-bit shift.
 
@@ -136,7 +134,6 @@ pin mode or the terminal reset takes it over.
 | a new pin mode with SRST/TRST wired | target held in reset; chain reads zero | both resets driven low | release with feature action `1` |
 | an even action such as `0x02` on a reset feature | the line stays low | only the low bit of the action is used | use `0x00` or `0x01` |
 | full payload after a clamped count | the next reply is misaligned; the mode may leave | surplus bytes read as requests | reset; resend with the whole request at or below 8192 bits |
-| a zero count on v3 | no defined reply; the shift does not complete normally | the v3 path has no zero-count guard | send at least one bit |
 | a `0x07` confirmation at the wrong rate on v3 | the speed reply is unreadable | firmware reverts to normal | set the port back to 115200 |
 | open-drain with no pull-ups | chain reads all zeroes | lines never go high | fit 2–10 kΩ, or use push-pull |
 | on-board pull-ups with no Vpullup | the pull-ups have no effect | no high level on the lines | feed Vpullup externally |

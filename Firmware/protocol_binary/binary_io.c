@@ -33,7 +33,7 @@
 #endif /* BP_ENABLE_SPI_SUPPORT */
 
 #ifdef BP_ENABLE_I2C_SUPPORT
-#include "i2c.h"
+#include "protocol_i2c/i2c.h"
 #endif /* BP_ENABLE_I2C_SUPPORT */
 
 #ifdef BP_ENABLE_UART_SUPPORT

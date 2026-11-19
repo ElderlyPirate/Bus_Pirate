@@ -237,6 +237,12 @@ keyboard_scancode_read_result_t read_byte(uint8_t *result) {
   uint8_t counter;
   keyboard_scancode_read_result_t read = KEYBOARD_SCANCODE_READ_NO_DATA;
 
+  /* Define the output on every path: read_scancode() only writes it on a
+     fully-valid frame, and the caller (pc_at_keyboard_read) would otherwise
+     return, and the interactive 'r' command print, an uninitialised value
+     whenever no frame is captured. */
+  *result = 0;
+
   KBDIO_TRIS = INPUT;
   KBCLK_TRIS = INPUT;
 
@@ -292,7 +298,7 @@ keyboard_write_byte_result_t write_byte(const uint8_t value) {
   }
 
   for (bit_index = 0; bit_index < 8; bit_index++) {
-    if ((value & (1 << bit_index)) == HIGH) {
+    if ((value & (1 << bit_index)) != 0) {
       if (write_bit(HIGH) != KEYBOARD_WRITE_SUCCESS) {
         return KEYBOARD_WRITE_BYTE_TIMEOUT;
       }
@@ -306,7 +312,7 @@ keyboard_write_byte_result_t write_byte(const uint8_t value) {
 
   parity ^= 1;
 
-  if (write_bit(MASKBOTTOM8(parity, 1) != KEYBOARD_WRITE_SUCCESS)) {
+  if (write_bit(MASKBOTTOM8(parity, 1)) != KEYBOARD_WRITE_SUCCESS) {
     return KEYBOARD_WRITE_BYTE_TIMEOUT;
   }
 

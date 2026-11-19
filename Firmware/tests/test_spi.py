@@ -83,6 +83,7 @@ struct Pin {
   void operator=(unsigned v) { if(v) latch|=mask; else latch&=~mask; }
 };
 static Pin SPICS={CS}, BP_AUX0={AUX};
+#define BP_AUX0_LAT BP_AUX0
 struct AuxDirection {
   void operator=(unsigned v) { if(v) direction|=AUX; else direction&=~AUX; }
 };
@@ -98,6 +99,7 @@ static void spi_setup(uint8_t) {
 }
 static void spi_disable_interface(void) {}
 static void spi_sniffer(bool, bool) { assert(false); }
+static void handle_wait_command(uint8_t) {}
 static unsigned bp_binary_io_pullup_control(uint8_t) { assert(false);return 0; }
 static uint8_t spi_write_byte(uint8_t) { assert(false);return 0; }
 static void bp_delay_us(unsigned) {}

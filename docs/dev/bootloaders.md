@@ -1,9 +1,9 @@
 # Bootloaders
 
-**Status:** maintainer-facing.  Derived from `Bootloaders/BPv3-bootloader/firmware-v4.5/`
-(ds30 loader assembly), `Bootloaders/BPv4-bootloader/firmware-v1/` (the v4 C
-bootloader) and `Bootloaders/pirate-loader/`.  No bootloader write was run for
-this page.
+**Status:** maintainer-facing.  Derived from
+`Bootloaders/BPv3-bootloader/firmware-v4.5/` (ds30 loader assembly),
+`Bootloaders/BPv4-bootloader/firmware-v1/` (the v4 C bootloader) and
+`Bootloaders/pirate-loader/`.
 
 This page describes the resident bootloaders: what the folders contain, how
 each decides to enter the bootloader, the host protocol, and when you must
@@ -12,9 +12,9 @@ update the bootloader rather than just flash firmware.  Flashing firmware is
 
 ## Scope
 
-- **In:** the bootloader folder layout, the v3 and v4 entry rules, the
-  bootloader host protocol as `pirate-loader` uses it, and the
-  update-vs-flash decision including the route to the current v3 loader.
+- **In:** the bootloader folder layout, the v3 and v4 entry rules, the host
+  frames and status bytes, and the update-vs-flash decision including the
+  route to the current v3 loader.
 - **Out:** the application firmware build ([building.md](building.md)) and the
   normal firmware flash procedure ([flashing.md](flashing.md)).
 
@@ -34,28 +34,30 @@ update the bootloader rather than just flash firmware.  Flashing firmware is
 
 Source: `Bootloaders/BPv3-bootloader/firmware-v4.5/ds30loader.s` plus
 `settings.inc`, `devices.inc` and the device linker script.  It builds with
-MPLAB-X (project `ds30loader.X`) and reports bootloader version **4.5**
-(`BLVERSION = 0x0405`).  It occupies one program page at `0xA800` (the last
-page of the 64 KB part) followed by the config words.
+MPLAB-X (project `ds30loader.X`).  It occupies one program page at `0xA800`,
+with the version word and the config words at its end.
+
+Version numbers are split:
+
+| Form | Value | Source |
+|---|---|---|
+| stored `BLVERSION` | **4.5** (`0x0405`) | last word before the config words; `i` reads it through `BL_ADDR_VER` |
+| hello reply version | **1.02** | `VERMAJ = 1`, `VERMIN = 0`, `VERREV = 2`; the third byte is `VERMIN * 16 + VERREV` |
 
 At reset the loader decides between staying in the bootloader and jumping to
 the application:
 
-1. If the application has run at least once it leaves its signature in flash.
-   The loader compares `firmware_signature` against `0x31415926`.
-2. If the signature matches **and** the `skip_pgc_pgd_check` flag (a byte at
-   `0x27FA`, shared with the firmware's `$` command) is set, it goes straight
-   to the bootloader and clears the flag.
-3. Otherwise it runs the jumper test: drive **PGD** low, hold **PGC** as an
-   input with a pull-up, and sample it.  A **PGC/PGD jumper** pulls PGC low
-   and selects the bootloader; with no jumper PGC reads high and the loader
+1. Compare `firmware_signature` against `0x31415926`.  A mismatch goes to the
+   jumper test.
+2. If the signature matches, read `skip_pgc_pgd_check` at `0x27FA` (the flag
+   the firmware `$` command sets).  If it is set, clear it and enter the
+   loader directly.
+3. Otherwise run the jumper test: drive **PGD** low, hold **PGC** as an input
+   with a pull-up, and sample it.  A **PGC/PGD jumper** pulls PGC low and
+   selects the bootloader; with no jumper PGC reads high and the loader
    selects the application.
 4. In the bootloader it waits for host commands at 115200 8N1.  The receive
-   wait is bounded (`BLTIME = 500 ms` per byte); if the host does not keep it
-   busy the loader can return to the application, so start the host loader as
-   soon as the board is in the bootloader.  A firmware `$` jump is recorded
-   in the loader's state, so a timeout after `$` returns to the application
-   rather than re-running the jumper test.
+   wait is bounded (`BLTIME = 500 ms` per byte).
 
 Consequences:
 
@@ -63,38 +65,46 @@ Consequences:
   `old/firmware-v4.1` / `old/firmware-v4.3` sources have no
   `skip_pgc_pgd_check`, so `$` cannot hand off there.
 - The jumper method always works, including with no application present.
-- The running loader refuses to write its own page: any write at or past the
-  last row before the loader is rejected with `'P'`.  Replacing the loader
-  therefore needs the upgrader trampoline or a hardware programmer (§v3
-  update route).
+- After a `$` hand-off, a host-wait timeout returns to the loader command
+  loop, not to the application; the `WFWJUMP` state records the firmware jump.
+  A timeout with the PGC/PGD jumper still fitted also stays in the loader.
+  A reset-time entry with no jumper and no `$` flag returns to the
+  application.
+- The running loader refuses to write its own page: a write that starts in
+  the loader page is rejected with `'P'`.  Replacing the loader therefore
+  needs the upgrader trampoline or a hardware programmer (§v3 update route).
 
 ## v4 bootloader (USB)
 
 Source: `Bootloaders/BPv4-bootloader/firmware-v1/` (`main.c`, `bootloader.c`,
 `bootloader.h`, the USB stack and descriptors).  It builds with MPLAB-X
-(project `bpv4-bootloader.X`) and reports bootloader version **4.14**
-(`VER_H = 0x04`, `VER_L = 0x0e`).
+(project `bpv4-bootloader.X`); its hello reply reports bootloader version
+**4.12** (`VER_H = 0x04`, `VER_L = 0x0c`).  The USB bootloader enumerates as
+`04d8:FAFF`.
 
 At reset `main()` makes **one** decision: the entry block runs when the
 signature is missing **or** the flag is clear **or** the NORMAL button is
 held.
 
 1. Entry block (signature mismatch `||` `skip_pgc_pgd_check` clear `||`
-   button down): the loader lights the MODE and USB LEDs, enables the target
-   supply for the entry window, and samples PGD.  If PGD reads high, the
-   button is released **and** the application's reset vector is present (not
-   blank), it jumps to the application.  Anything else stays in the
-   bootloader: a low PGD (the PGC/PGD jumper), a held button, or an erased
-   application.
+   button down): disable the flag, wait out a 35 × 65,000 loop, light the
+   MODE/USB/VREG LEDs, and sample PGD twenty times.  If PGD reads high **and**
+   the button is released, it jumps to the application at `0x2000`.  Anything
+   else stays in the bootloader: a low PGD (the PGC/PGD jumper), a held
+   button, or a jump that was not taken.
 2. No entry block (valid signature **and** flag set **and** button released):
-   it goes straight to the bootloader.  This is the `$` path.
+   it goes straight to `startpoint()` and the bootloader.  This is the `$`
+   path.
 3. The `skip_pgc_pgd_check` flag at `0x47FA` is cleared in both paths.
-4. It enumerates as a USB device (`04d8:FAFF` in bootloader mode) and waits
-   for the host.
+4. `startpoint()` turns MODE/USB off and the VREG LED on, starts USB, turns
+   the VREG LED off while it waits for enumeration, then turns it on again
+   before `bootloader()`; the command loop runs with VREG lit.
 
-A missing signature alone therefore does **not** keep the board in the
-bootloader: a blank-signature board with a valid application and PGD high jumps
-to that application.
+The loader does **not** validate the application image.  A missing signature
+alone therefore does not keep the board in the bootloader: a blank-signature
+board with PGD high and the button released jumps to `0x2000` even if that
+region is erased.  Use the NORMAL button or the PGC/PGD jumper on a blank or
+suspect board.
 
 The host protocol (`bootloader.c`):
 
@@ -103,7 +113,7 @@ The host protocol (`bootloader.c`):
 | Hello | host sends `0xC1`; bootloader answers `[DEVICEID][VER_H][VER_L]`, then the first status byte (`'K'`) |
 | Command frame | `[addrU][addrH][addrL][cmd][len][payload…][checksum]`; bytes must sum to zero |
 | `cmd = 0x01` | enable erase for the next write |
-| `cmd = 0x02` | erase-if-enabled then write one row, verify, answer `'K'` |
+| `cmd = 0x02` | erase-if-enabled then write one row, verify; the next status is `'K'`, `'V'` or `'P'` |
 | `cmd = 0xff` | answer `'K'`, disable USB and `RESET` |
 
 Status bytes: the bootloader sends one status byte **before** it reads each
@@ -117,14 +127,27 @@ command (the result of the previous operation), not only after a write.
 | `'N'` | checksum error |
 | `'U'` | unknown command |
 
-A verbose flash that stalls is usually waiting on one of these bytes; `'N'` and
-`'U'` mean the host framing is wrong, `'P'` means the address range is
+A verbose flash that stalls is usually waiting on one of these bytes; `'N'`
+and `'U'` mean the host framing is wrong, `'P'` means the address range is
 protected.
 
 The loader protects the bootloader region (`PROT_BL`), the config page
 (`PROT_CONFIG`) and the reset-vector jump (`PROT_GOTO`), so an application
 write cannot overwrite the bootloader.  This last point is why the current v4
-loader is described as the "4.14 erase-guard" loader.
+loader is described as the "4.12 erase-guard" loader.
+
+### v3 host framing
+
+The v3 ds30 loader uses the same address/command/length/checksum shape and
+the same `'K'` / `'N'` / `'P'` / `'V'` status bytes; it has no `'U'` status.
+`pirate-loader` speaks this framing for the v3 part.
+
+| Step | Bytes |
+|---|---|
+| Hello | host sends `0xC1`; loader answers `[DEVICEID][VERMAJ][VERMIN*16+VERREV]`, then `'K'` |
+| Command frame | `[addrU][addrH][addrL][cmd][len][payload…][checksum]`; bytes must sum to zero |
+| `cmd = 0x01` | enable erase for the next write |
+| `cmd = 0x02` | erase-if-enabled then write one row, verify; the next status is `'K'`, `'V'` or `'P'` |
 
 ## When to update the bootloader
 
@@ -133,8 +156,7 @@ bootloader only when:
 
 - the board has an **old loader without `$` support** (`old/firmware-v4.1`,
   `old/firmware-v4.3`) and you want the software entry to work;
-- a bootloader defect fix is specifically required (for example the v4
-  erase-guard / LED behavior in the current v4.14 source);
+- a bootloader defect fix is specifically required;
 - the bootloader region is **blank or corrupted** (a blank chip, or a failed
   bootloader write) and a programmer must rewrite it.
 
@@ -149,15 +171,27 @@ The 4.5 loader is the one that adds `$`.  It is built, not downloaded:
    (project `ds30loader.X`).  The product is the loader page plus config words;
    `settings.inc` already fixes 115200 8N1 and `BLTIME`.
 2. Write it by one of the two routes in the table below.
-3. Re-flash the application afterwards: the upgrader rewrites the reset vector
-   at `0x0000` to jump into the loader, and the programmer route erases the
-   chip, so either way the board boots into the loader until a new application
-   is written with the ds30 GUI (configured for PIC24FJ64GA002 at 115200).
+3. Put the board into the loader: after the programmer route, fit the
+   PGC/PGD jumper and power-cycle; the upgrader route jumps into the new
+   loader directly.  Write `Firmware/bpv3.hex` with the ds30 GUI
+   (PIC24FJ64GA002, 115200) or
+   `pirate-loader --dev=<port> --hex=Firmware/bpv3.hex`.  Then finish the
+   entry route: on the programmer route remove the PGC/PGD jumper; on the
+   upgrader route power-cycle the board (the loader stays in its command loop
+   after the application write).
+4. Use one of those host tools, not the hardware programmer, for the
+   application.  The host write places the application's own reset goto at
+   `STARTADDR-4` (`0xA7FC`), and the loader rewrites the row at `0x0000` to a
+   goto to the loader (`ds30loader.s` `usrapp` and its row-0 rewrite;
+   `pirate-loader.c` `fixJumps`).  A direct programmer write of the
+   application instead restores the application's reset vector at `0x0000`,
+   so the loader never runs at reset and neither `$` nor the PGC/PGD jumper
+   can enter it.
 
 | Route | How | Limit |
 |---|---|---|
-| Hardware programmer | erase the chip, write the loader, then write the application ([Pickit2 route](flashing.md#the-pickit2-route-full-chip-programming)) | always works, including blank/bricked chips |
-| Upgrader trampoline | rebuild `upgrader-v4tov4/` with its `firmware.h` array replaced by the built 4.5 page, flash that image with `pirate-loader`, then re-flash the application | needs the HEX→array conversion (`convert.html` in the same folder) and a working current loader |
+| Hardware programmer | erase the chip and write the loader only ([Pickit2 route](flashing.md#the-pickit2-route-full-chip-programming)); then jumper into the loader and write the application with the ds30 GUI or `pirate-loader` | always works, including blank/bricked chips |
+| Upgrader trampoline | rebuild `upgrader-v4tov4/` with its `firmware.h` array replaced by the built 4.5 page, flash that image with `pirate-loader`; it erases the page before the loader and the loader page, writes the new loader, and points `0x0000` at it; then write the application with the ds30 GUI or `pirate-loader` | needs the HEX→array conversion (`convert.html` in the same folder) and a working current loader |
 
 What the update **bundle** installs: `v4xtov43-bootloader-update/` carries
 `BPv3-bootloader-upgrade-v4xtov4.3.hex` (the upgrader as compiled for the
@@ -168,9 +202,9 @@ no `skip_pgc_pgd_check`; running the bundle therefore does **not** produce a
 loader that accepts `$`.  It is a firmware-update helper, not a route to the
 current loader.
 
-- The ds30 GUI alone cannot replace the loader either: it ships with the
-  bootloader-overwrite guard enabled and the running loader enforces the same
-  guard.
+- The ds30 GUI alone cannot replace the loader either: its `settings.xml`
+  ships `IgnoreBLOverwrite=false` with `IgnoreBLOverwriteAllow=false`, and
+  the running loader enforces the same guard.
 - Bootloader images are not prebuilt in this repository: the v3 one is built
   from `firmware-v4.5/`, the v4 one from `firmware-v1/`.
 
@@ -182,10 +216,19 @@ Rewrite the loader with a hardware programmer (Pickit2 route in
 needs the hardware-programmer route, because `pirate-loader` needs a running
 bootloader to talk to.
 
+After the loader write, hold the NORMAL button (or fit the PGC/PGD jumper)
+while powering up, then write the application with
+`pirate-loader --dev=<bootloader port> --hex=Firmware/bpv4.hex`.  That write
+is what installs the loader's reset-vector jump at `0x0000`: the bootloader's
+`WritePage()` replaces an application write to `0x0000` with a goto to
+`BLSTARTADDR`.  A programmer write of the application would leave the
+application's own reset vector there, so the loader would not run at reset and
+the button and `$` entry would stop working.
+
 ## Verification
 
-- Not run for this page; see [verification.md](verification.md) for the
-  maintainer record.
+The entry rules and frames above come from the bootloader sources named in
+each section.  The per-set basis is in [verification.md](verification.md).
 
 ## Limits & out of scope
 

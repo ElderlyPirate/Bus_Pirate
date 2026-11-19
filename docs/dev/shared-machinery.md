@@ -1,32 +1,41 @@
 # Shared helper contract (maintainer note)
 
-**Status:** maintainer summary.  This consolidates the durable helper contract
-from the earlier maintainer page.  It covers four helpers, not the shared
-module layer — USB, bit-bang, messages and EEPROM are
+**Status:** maintainer summary.  This covers the shipped helpers that the
+terminal dispatcher, the mode registry, BASIC, the family setup parsers and
+the numeric output code share.  It does **not** cover the shared module layer
+— USB, bit-bang, messages and EEPROM are
 [docs/core/](../core/README.md).
 
-This page describes the small set of helpers shared by the terminal
-dispatcher, the mode registry, BASIC and the numeric output code, so a future
-change touches them through their accessors rather than the private state.
+The helpers are small enough to be reached directly, but their boundaries are
+deliberate: the descriptor table is private, setup prompts share one parser
+entry, and decimal output has one engine.  A change should go through the
+contract below rather than through a copied implementation.
 
 ## Shared implementations
 
 | Helper | Where | Role |
 |---|---|---|
-| `bp_current_protocol()` | `core_system/core.c` | Resolves the live mode descriptor for terminal and BASIC callbacks.  The protocol table stays private; callers get a `const` descriptor pointer. |
-| `bp_protocol_by_index()` | `core_system/core.c` | Same table, indexed — used for mode-menu enumeration. |
-| `getint_with_spaces()` | `core_system/proc_menu.c` | The single consume-spaces/getint pair used by mode and tool setup prompts, so grammar, cursor/error behavior and buffer mutation are identical everywhere. |
-| `bp_write_dec_word()` | `core_system/base.c` | The one out-of-line 16-bit decimal engine; byte output delegates to it (`bp_write_dec_byte()`).  It keeps the fast literal-division algorithm rather than a generic 32-bit division loop. |
+| `bp_current_protocol()` | `core_system/core.c` | Returns a `const` pointer to the live mode descriptor, indexed by `bus_pirate_configuration.bus_mode`.  The protocol table stays private; callers do not mutate the descriptor. |
+| `bp_protocol_by_index()` | `core_system/core.c` | Returns a `const` pointer to the same table by position.  Used to enumerate the mode menu; callers keep the index below `ENABLED_PROTOCOLS_COUNT`. |
+| `getint_with_spaces()` | `core_system/proc_menu.c` | Consumes leading spaces and calls `getint()`.  It is the parser entry for the family setup prompts (SPI, I2C, UART, wire, AUX, LCD and PIC).  During scripted setup defaults, `consumewhitechars()` is a no-op. |
+| `bp_write_dec_word()` | `core_system/base.c` | The out-of-line 16-bit decimal engine; it keeps the literal-divisor algorithm rather than a generic 32-bit division loop.  `bp_write_dec_byte()` delegates to it, and `bp_write_dec_dword()` uses `print_decimal()` for 32-bit values. |
 
 Boundary rules:
 
 - The mode-descriptor table is private and exposed only through the two
   accessors above.
-- Optional callbacks introduced by later features must use the same accessors
-  rather than reach for the table directly.
-- Existing descriptor contents, protocol callbacks, pin/clock loops, modes,
-  strings and numeric output are unchanged by this sharing; no C++ runtime,
-  heap allocation or feature removal is involved.
+- Optional callbacks and BASIC bus access use the accessors rather than the
+  table directly.
+- A setup parser must return through `getint_with_spaces()` so whitespace,
+  cursor, error and buffer mutation match the other modes.  A caller that
+  validates its input checks `mode_configuration.command_error` after the
+  call.
+- Numeric output goes through `bp_write_formatted_integer()` when the selected
+  width and display format apply; that function masks the value to
+  `mode_configuration.numbits` before dispatching to the decimal, hexadecimal,
+  binary or raw writer.
+- No heap allocation, C++ runtime or optional production feature is involved
+  in any of these helpers.
 
 Symbol locations are in [code-map.md](code-map.md) (rows "Value entry &
 parsing", "Mode registry & callbacks" and "Numeric formatting & delays").
@@ -34,10 +43,9 @@ This page records the contract, not the line numbers.
 
 ## Native checks
 
-The sharing is pinned by the hardware-free harnesses in `Firmware/tests/`
+The contract is pinned by the hardware-free harnesses in `Firmware/tests/`
 (`test_shared_format.py`, `test_protocol_access.py`, `test_messages.py`; see
-[building.md](building.md) §Native tests and the suite table in
-[tooling.md](tooling.md)).  They:
+[tooling.md](tooling.md) §Test suites).  They:
 
 - check the live descriptor selection and mode/index pointer identity;
 - check all byte/word decimal values, plus parser result/cursor/error/buffer
@@ -45,19 +53,15 @@ The sharing is pinned by the hardware-free harnesses in `Firmware/tests/`
 - check packed-message output across byte lanes, table-page crossings and page
   restoration on both address models.
 
-The formatter fixture supports the inline helper and the shared
-implementation, so before/after output can be compared.  Scripted setup
-defaults are tested only when that feature is present — tests do not introduce
-optional production features just to satisfy a fixture.
-
-Generated test files stay under `Firmware/build/` and are **not** linked into
-the shipping image.  They do not emulate USB enumeration, hardware interrupts
-or MCU-cycle timing, and they do not claim electrical protocol conformance.
+Generated test files stay under `Firmware/build/` or a temporary directory and
+are **not** linked into the shipping image.  They do not emulate USB
+enumeration, hardware interrupts or MCU-cycle timing, and they do not claim
+electrical protocol conformance.
 
 ## Verification
 
-- Not run for this page; see [verification.md](verification.md) for the
-  maintainer record.
+The helpers above are compiled from the production sources named in the table;
+the per-set documentation basis is in [verification.md](verification.md).
 
 ## Limits & out of scope
 

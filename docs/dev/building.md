@@ -1,9 +1,8 @@
 # Building the firmware
 
-**Status:** maintainer-facing.  Derived from the tracked `Firmware/Makefile`, the MPLAB-X
-project files, `configuration.h`, the message tooling and the native tests in
-the repository tip.  The general page is derived; the measured v4
-all-features link is recorded below.
+**Status:** maintainer-facing.  Derived from the tracked `Firmware/Makefile`,
+`Firmware/configuration.h`, the MPLAB-X project files, the message tooling and
+the native suites.  The v4 all-features link result is recorded below.
 
 This page covers how to compile the Bus Pirate v3 / v4 community firmware,
 which feature set goes into the image, and which artifacts are produced.
@@ -13,8 +12,8 @@ Flashing the result is [flashing.md](flashing.md).
 
 - **In:** toolchain prerequisites, the command-line `make` build, the feature
   sets in `Firmware/configuration.h`, the MPLAB-X route, artifact locations,
-  message-string generation, and the common build errors that follow from these
-  files.
+  message-string generation, and the common build errors that follow from
+  these files.
 - **Out:** what each function does with its feature switch (the per-function
   pages), and the test inventory — the authoritative suite table is
   [tooling.md](tooling.md) §Test suites.
@@ -23,8 +22,8 @@ Flashing the result is [flashing.md](flashing.md).
 
 | Requirement | Detail |
 |---|---|
-| Microchip **XC16** | The PIC24 C compiler and linker.  The Makefile falls back to the installer defaults `/opt/microchip/xc16/v2.10` and `C:/Program Files (x86)/Microchip/MPLABXC16/v2.10`; otherwise the toolchain must be on `PATH` or named with `XC16_DIR`. |
-| GNU **make** + a POSIX `sh` | The Makefile is a standard GNU makefile.  On Windows, point `SHELL` at a `sh.exe` (for example the one shipped with Git for Windows). |
+| Microchip **XC16** | The PIC24 C compiler and linker.  On Unix-like hosts the Makefile falls back to `/opt/microchip/xc16/v2.10` when it exists.  The Windows fallback under `C:/Program Files (x86)` is not matched: the Makefile's `$(wildcard ...)` path is unquoted and splits at the space.  Pass `XC16_DIR` explicitly on Windows (or put the compiler's `bin` directory on `PATH`). |
+| GNU **make** + POSIX shell utilities | The Makefile is a standard GNU makefile; its recipes call `sh`, `date`, `mkdir` and `rm`.  On Windows, use a native MinGW GNU make (for example the scoop `mingw` package) and put Git for Windows' `usr\bin` first on `PATH`.  A command-line `SHELL=` assignment is not honoured by that make; `sh.exe` on `PATH` is what it uses. |
 | **Git** | The Makefile bakes `git rev-parse --short HEAD` into the banner as `VERSION`.  A non-git source copy builds with an empty version component. |
 | (optional) **MPLAB-X** | The graphical IDE route; requires MPLAB-X and the XC16 plugin.  Download from Microchip's [MPLAB-X page](http://www.microchip.com/mplab/mplab-x-ide). |
 | (optional) **Python 3 + host GCC** | Only for regenerating message strings and for the hardware-free native tests. |
@@ -43,10 +42,10 @@ Obtaining XC16 is the one step that happens outside this repository:
 
 The XC16 version is pinned in two places: the MPLAB-X project
 (`Firmware/busPirate.X/nbproject/configurations.xml`, both configurations) and
-the Makefile's installer-default fallback both name **v2.10**; the release
-notes (`CHANGELOG.md`) still state the minimum as XC16 **1.35 or later** and
-MPLAB-X **5.00 or later**.  The tree was linked with 2.10 for the measured v4
-all-features build below; the default images were not rebuilt for this page.
+the Makefile's installer-default paths both name **v2.10** (the Windows path
+is not auto-detected; see Prerequisites).  The release notes (`CHANGELOG.md`)
+still state the minimum as XC16 **1.35 or later** and MPLAB-X **5.00 or
+later**.
 
 ## Command-line build
 
@@ -76,19 +75,25 @@ defined as the same recipe.
 | Variable | Meaning | Default |
 |---|---|---|
 | `BP_VERSION` | `V3` or `V4` board build | `V4` |
-| `XC16_DIR` | XC16 install root; used as `$(XC16_DIR)/bin/xc16-` | installer defaults, else `PATH` |
+| `XC16_DIR` | XC16 install root; used as `$(XC16_DIR)/bin/xc16-` | `/opt/microchip/xc16/v2.10` if present, else `PATH`; pass it explicitly on Windows |
 | `OPT` | optimisation level | `-O1` |
 | `EXTRA_CFLAGS` | extra compiler flags (also the way to pass a preprocessor define) | empty |
 | `SAVE_TEMPS` | when set, add `-save-temps=obj` (keeps `.i`/`.s` under `build/`) | unset |
 | `HEAP_SIZE` / `STACK_SIZE` | override the linker heap/stack | unset |
-| `SHELL` | the shell make uses for recipes | environment default |
 
-Windows example (Git for Windows `sh`, explicit XC16 path):
+Windows example (native MinGW `make`; Git for Windows `usr\bin` supplies the
+POSIX utilities; XC16 path given explicitly):
 
 ```powershell
-make -C Firmware BP_VERSION=V4 'SHELL=C:/Program Files/Git/usr/bin/sh.exe' 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
-make -C Firmware BP_VERSION=V3 'SHELL=C:/Program Files/Git/usr/bin/sh.exe' 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
+$env:Path = 'C:\Program Files\Git\usr\bin;' + $env:Path
+make -C Firmware BP_VERSION=V4 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
+make -C Firmware BP_VERSION=V3 'XC16_DIR=C:/Program Files (x86)/Microchip/MPLABXC16/v2.10'
 ```
+
+Use the native MinGW GNU make (for example the scoop `mingw` package); a
+Cygwin or MSYS make uses a different path model.  Do not add a `SHELL=`
+assignment: this make ignores it, and `sh.exe` on `PATH` is what the recipes
+use.
 
 ## Feature sets
 
@@ -107,6 +112,12 @@ The custom block is not a menu — it is a single fixed list that enables every
 `BP_ENABLE_*` module **except AVRISP-MKII**, including HD44780 and SMPS.  It is
 only usable on v4: the SMPS module raises a compile-time error on v3, so a v3
 build with the custom block stops at the `#error` in `configuration.h`.
+
+The omission of AVRISP is deliberate in the current tree: the custom list has
+no `BP_ENABLE_AVRISP_MKII_SUPPORT`.  To include the programmer in a custom v4
+build, add that switch to the `BP_CUSTOM_FEATURE_SET` block.  The v4
+all-features link result below therefore excludes AVRISP-MKII.  See
+[avrisp-design-notes.md](avrisp-design-notes.md) §Build selection.
 
 Per-module switches and their default state:
 
@@ -145,18 +156,35 @@ Guards that reject a wrong-board combination:
 
 For the all-features list instead of one switch, define `BP_CUSTOM_FEATURE_SET`
 without editing the header — the Makefile appends `EXTRA_CFLAGS` to the
-compiler flags:
+compiler flags.  Changing only `EXTRA_CFLAGS` does not invalidate the existing
+objects: the Makefile has no dependency on it, so after a default build the
+custom command prints `Nothing to be done` and leaves the old image.  Clean
+first, then build:
 
 ```
+make -C Firmware BP_VERSION=V4 clean
 make -C Firmware BP_VERSION=V4 EXTRA_CFLAGS=-DBP_CUSTOM_FEATURE_SET
 ```
 
+The same applies to any change that only affects compiler flags (`OPT`,
+`SAVE_TEMPS`).  `build/bpv4/` separates the boards, not the feature sets.
+
 - The all-features v4 list enables both the HD44780 adapter and SPI.  That
-  combination links: the LCD driver uses its own bounded byte helper and
-  `spi_write_byte()` is exported.  The measured v4 all-features build (XC16
-  2.10, `-O1`) is 79,485 bytes program (31%) and 11,898 bytes data (72%), no
-  warnings.  On v3 the custom set still stops at the SMPS `#error`.  See
-  [the LCD set](../capabilities/lcd/README.md).
+  combination links: the LCD driver uses its own bounded byte helper
+  (`hd44780_spi_write_byte()` in `capability_hd44780/hd44780.c`) and the SPI
+  family exports `spi_write_byte()`.
+- The v4 all-features build with XC16 2.10 at `-O1` links at **79,485 bytes
+  program (31%)** and **11,898 bytes data (72%)**, with no warnings.  The
+  banner's seven-character git hash accounts for a few bytes; an empty
+  `VERSION` shifts the program figure slightly.
+- To confirm the feature set took effect, the compile lines show
+  `-DBP_CUSTOM_FEATURE_SET` and `Firmware/bpv4.map` contains `LCDsetup` and
+  `smps_start`; the default v4 map contains neither.
+- On v3 the custom set still stops at the SMPS `#error`; a v3 LCD image needs
+  the LCD switch added to the v3 default set instead.  See
+  [the LCD set](../capabilities/lcd/README.md).  The adapter revisions and
+  the connector/supply path there come from the legacy `hardware-other` design
+  files; the on-glass glyph and timing behaviour is code-derived.
 - A custom build changes the mode numbering in the `m` menu.  The firmware's
   own menu is authoritative, not the default table.
 
@@ -186,8 +214,10 @@ All paths are relative to the repository root; the Makefile runs in
 | Linker map | `Firmware/bpv4.map` | `Firmware/bpv3.map` |
 | Objects / intermediates | `Firmware/build/bpv4/` | `Firmware/build/bpv3/` |
 
-`Firmware/.gitignore` ignores `build/`, `bpv3.*` and `bpv4.*`, so a clean
-checkout has none of these present.
+A clean checkout has none of these present.  The repository `.gitignore`
+covers MPLAB-X generated directories; the Makefile's `bpv3.*`, `bpv4.*` and
+`build/` products are not ignored, so they appear as untracked files after a
+command-line build.
 
 ## MPLAB-X route
 
@@ -206,14 +236,14 @@ The project requests `output-file-format = elf`, so an `.elf` and map are
 produced alongside.
 
 - The project files do not override the IDE's `dist/` default, but the exact
-  directory name is generated by MPLAB-X, not tracked here — **not verified**
+  directory name is generated by MPLAB-X, not tracked here — **unverified**
   on a build.  The command-line Makefile is the path tracked in the
   repository.
 
 The Makefile deliberately mirrors the compiler and linker options stored in
 `Firmware/busPirate.X/nbproject/configurations.xml` (`-finline`, `-std=gnu99`,
-the small scalar model, `--gc-sections`, memory report, `-save-temps`) so both
-routes produce equivalent images.
+the small scalar model, `--gc-sections`, memory report); `SAVE_TEMPS` adds the
+project's `-save-temps`.
 
 ## Message strings
 
@@ -253,23 +283,23 @@ directory), so the version file itself may be given by any path.
 ## Native (hardware-free) tests
 
 `Firmware/tests/` compiles real production functions against small mocks with
-a host compiler; nothing here touches a board or emulates USB/timing.  Run a
-suite directly from the repository root, for example:
+a host compiler; nothing here touches a board or emulates USB/timing.  Every
+suite is a standalone script run from the repository root — there is **no
+aggregate runner**, so a pass in one says nothing about the others.  For
+example:
 
 ```
 python Firmware/tests/test_core_system.py
 ```
 
-Each page in `docs/core/` names its suite.  The three shared-machinery
-harnesses are `test_protocol_access.py` (mode-descriptor accessors),
-`test_shared_format.py` (the decimal formatter and parser) and
-`test_messages.py` (the packed-message reader on both address models).  Each
-needs Python 3 and `gcc` on `PATH`; generated test files stay under
-`Firmware/build/`.
+Most suites need Python 3 and `gcc` on `PATH`; the two AVRISP XC16 gates
+(`test_avrisp_board_gate.py`, `test_avrisp_cdc_gate.py`) need `xc16-gcc` (or
+its path as the first argument).  Several fixtures read a revision with
+`git show`, so run them from a git checkout.  Generated test files stay under
+`Firmware/build/` or a temporary directory and are never linked into the
+image.
 
-The module suites (core system, USB, bitbang, message catalog, EEPROM, PIC,
-AVRISP and the two XC16 gates) are separate scripts run directly.  The
-authoritative table, with coverage and runner per suite, is
+The authoritative table, with coverage and runner per suite, is
 [tooling.md](tooling.md) §Test suites.
 
 ## Common build errors
@@ -277,18 +307,21 @@ authoritative table, with coverage and runner per suite, is
 | Symptom | Cause | Fix |
 |---|---|---|
 | `BP_VERSION must be V3 or V4 (got '...')` | misspelled `BP_VERSION` | use `V3` or `V4` |
-| `xc16-gcc: command not found` (or `.../bin/xc16-gcc` missing) | XC16 not on `PATH` and not found at the installer defaults | install XC16 or pass `XC16_DIR=/path/to/xc16/vX.Y` |
-| `make: .../sh: No such file or directory` (Windows) | GNU make has no POSIX shell | pass `'SHELL=C:/Program Files/Git/usr/bin/sh.exe'` |
+| `xc16-gcc: command not found` (or `.../bin/xc16-gcc` missing) | XC16 not on `PATH` and `XC16_DIR` not set (the Windows installer default is not auto-detected) | install XC16 and pass `XC16_DIR=/path/to/xc16/vX.Y` |
+| `process_begin: CreateProcess(NULL, date ...) failed` or `mkdir ... failed` (Windows) | make cannot find the POSIX utilities the recipes call | put `C:\Program Files\Git\usr\bin` first on `PATH`; keep `SHELL` unset (see §Command-line build) |
 | `The AVRISP-MKII personality requires Bus Pirate v4 hardware.` | AVRISP enabled in a v3 build | remove `BP_ENABLE_AVRISP_MKII_SUPPORT` for v3 |
-| `SMPS support is not available on Bus Pirate v3` | SMPS enabled in a v3 build (the custom block does this) | use a v4 build for SMPS |
+| `SMPS support is not available on Bus Pirate v3 boards.` | SMPS enabled in a v3 build (the custom block does this) | use a v4 build for SMPS |
 | Empty `<VERSION>` in the `i` banner | built from a non-git copy | build from a git checkout, or accept an empty hash |
 | v3 link fails to fit / region overflow | v3 is a 64 KB part | build v3 at the default `-O1`; the default feature set is chosen to fit |
 
+A v3 custom build trips both SMPS guards in `configuration.h`; the second
+prints `SMPS support is not available on Bus Pirate v3` (without `boards.`).
+
 ## Verification
 
-- The v4 all-features link is recorded above; the default v3/v4 images were not
-  rebuilt for this page.  See [verification.md](verification.md) for the
-  maintainer record.
+The v4 all-features link result is recorded above.  The per-set documentation
+basis, including the areas that remain `unverified`, is in
+[verification.md](verification.md).
 
 ## Limits & out of scope
 
@@ -296,3 +329,5 @@ authoritative table, with coverage and runner per suite, is
   [tooling.md](tooling.md) §Release assembly.
 - The exact MPLAB-X output directory is IDE-generated (see above); only the
   command-line artifacts are tracked.
+- The v3 part is close to its program-flash limit; adding features may require
+  dropping another module.

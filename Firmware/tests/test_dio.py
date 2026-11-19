@@ -15,11 +15,16 @@ BASE = r'''
 #include <stdint.h>
 #include <stdio.h>
 #define NO 0
-typedef struct { unsigned write_with_read, numbits, int16; } mode_configuration_t;
+typedef struct { unsigned write_with_read, numbits, int16, alternate_aux; } mode_configuration_t;
 extern mode_configuration_t mode_configuration;
 extern uint16_t direction, latch;
 extern unsigned pullups, vpu33, vpu50;
-#define PARK_MASK (AUX | MOSI | CLK | MISO | CS)
+#define SIGNAL_MASK (AUX | MOSI | CLK | MISO | CS)
+#ifdef BUSPIRATEV4
+#define PARK_MASK (SIGNAL_MASK | AUX1 | AUX2)
+#else
+#define PARK_MASK SIGNAL_MASK
+#endif
 #define IODIR direction
 uint16_t *fixture_latch(void);
 #define IOLAT (*fixture_latch())
@@ -88,6 +93,7 @@ uint8_t bitbang_pin_state_get(void) { return 0; }
 uint8_t bitbang_pin_state_set(uint8_t value) { return value; }
 uint8_t bitbang_pin_direction_set(uint8_t value) { return value; }
 int main(void) {
+ for (unsigned selected=0;selected<4;++selected)
  for (unsigned seed=0;seed<65536;++seed) {
   direction=(uint16_t)seed;
   latch=(uint16_t)~seed;
@@ -96,11 +102,13 @@ int main(void) {
   mode_configuration.numbits=16;
   mode_configuration.int16=1;
   mode_configuration.write_with_read=1;
+  mode_configuration.alternate_aux=selected;
   dio_cleanup();
   assert(direction==(uint16_t)(old_dir | PARK_MASK));
   assert(latch==(uint16_t)(old_lat & ~PARK_MASK));
   assert(!pullups && mode_configuration.numbits==8 && !mode_configuration.int16);
   assert(mode_configuration.write_with_read==1);
+  assert(mode_configuration.alternate_aux==selected);
 #ifdef BUSPIRATEV4
   assert(!vpu33 && !vpu50);
 #else
@@ -110,7 +118,7 @@ int main(void) {
   assert(direction==(uint16_t)(old_dir | PARK_MASK));
   assert(latch==(uint16_t)(old_lat & ~PARK_MASK));
  }
- puts("PASS 65536 cleanup states: release/bias/latch order, siblings, width and idempotence");
+ puts("PASS 262144 cleanup states: all AUX selector histories, release/bias/latch order, siblings, width and idempotence");
 }
 '''
 
@@ -131,7 +139,7 @@ def main():
 
     for board in ((args.board,) if args.board else ("V3", "V4")):
       hardware = source("hardware" + board.lower() + ".h")
-      pins = "\n".join(re.findall(r"^#define (?:AUX0?|MOSI|CLK|MISO|CS) .*", hardware, re.M))
+      pins = "\n".join(re.findall(r"^#define (?:AUX[012]?|MOSI|CLK|MISO|CS) .*", hardware, re.M))
       for case in ((args.case,) if args.case else ("disabled", "routing", "cleanup")):
         with tempfile.TemporaryDirectory(prefix="bp-dio-", dir=TEMP) as tmp:
             out = Path(tmp)

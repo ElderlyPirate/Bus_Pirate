@@ -43,13 +43,18 @@ void dio_setup_prepare(void) {
 }
 
 void dio_cleanup(void) {
+    uint16_t park_mask = AUX | MOSI | CLK | MISO | CS;
+#ifdef BUSPIRATEV4
+    /* k/K can leave both previous AUX targets driven, regardless of selection. */
+    park_mask |= AUX1 | AUX2;
+#endif /* BUSPIRATEV4 */
     /* Release the header before removing bias or clearing output latches. */
-    IODIR |= AUX | MOSI | CLK | MISO | CS;
+    IODIR |= park_mask;
     bp_disable_pullup();
 #ifdef BUSPIRATEV4
     bp_disable_3v3_pullup();
 #endif /* BUSPIRATEV4 */
-    IOLAT &= ~(AUX | MOSI | CLK | MISO | CS);
+    IOLAT &= ~park_mask;
     mode_configuration.numbits = 8;
     mode_configuration.int16 = NO;
 }

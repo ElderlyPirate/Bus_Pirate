@@ -42,8 +42,12 @@ source = r'''
 #define Nop() ((void)0)
 #define MASKBOTTOM8(v,n) ((v)&((1u<<(n))-1))
 static int BP_AUX0, BP_CS, BP_AUX0_DIR, BP_CS_DIR;
+#define BP_AUX0_LAT BP_AUX0
+#define BP_CS_LAT BP_CS
 #ifndef BUSPIRATEV3
 static int BP_AUX1, BP_AUX2, BP_AUX1_DIR, BP_AUX2_DIR;
+#define BP_AUX1_LAT BP_AUX1
+#define BP_AUX2_LAT BP_AUX2
 #endif
 static struct { unsigned alternate_aux; } mode_configuration;
 static unsigned char reply[100], command;

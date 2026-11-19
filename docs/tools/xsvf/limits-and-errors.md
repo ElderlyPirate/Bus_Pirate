@@ -55,8 +55,9 @@ requests again, so answer with a non-zero length.
 ### Stalls, busy bytes and the result order
 
 The player checks its stall flag at the start of each command.  A chunk-wait
-stall therefore ends with `0x01` when it is seen at the next command
-boundary; otherwise the substituted `0xFF` decides the result.
+stall therefore ends with `0x01` when it is seen at the next command boundary,
+or at the end of an `XCOMMENT` string; otherwise the substituted `0xFF`
+decides the result.
 
 | Where the stall lands | Result |
 |---|---|
@@ -64,6 +65,7 @@ boundary; otherwise the substituted `0xFF` decides the result.
 | read as the command byte | `0x04` (`XSVF_ERROR_ILLEGALCMD`) |
 | read as a TAP-state byte | `0x05` (`XSVF_ERROR_ILLEGALSTATE`) |
 | read as an `XSDRSIZE`/`XSIR2` length over the buffer | `0x06` (`XSVF_ERROR_DATAOVERFLOW`) |
+| inside an `XCOMMENT` string | `0x01` at the next command boundary (the comment loop exits on the stalled flag) |
 
 You cannot see where the stall landed, so treat any of them as "the host
 stopped feeding": fix the host or its timing, then replay.  A byte sent while
@@ -71,13 +73,13 @@ the player is in a timed wait (`XWAIT` or `XRUNTEST`) is consumed and ends the
 run with `0x01` at the next command boundary, unless an earlier error is
 already latched.
 
-**The `XCOMMENT` exception.**  If the stall falls inside an `XCOMMENT`
-string, the player reads `0xFF` forever, never returns, and never sends a
-result.  `0x0F` is ignored.  **Reset the board** — that is the only exit.  A
-file made with the converter's `-xprintsrc` option can contain this text.
+**A stall inside an `XCOMMENT` string.**  The comment loop exits on the
+stalled flag.  The run returns `0x01` at the next command boundary, the player
+loop is reachable, and `0x0F` leaves; a board reset is not required.  A file
+made with the converter's `-xprintsrc` option can contain this text.
 
-The player loop is reachable after every other abort above, so `0x0F` still
-leaves once the run has ended.
+The player loop is reachable after every abort above, so `0x0F` still leaves
+once the run has ended.
 
 ### Chain probe
 
@@ -104,42 +106,50 @@ The printed names and their byte values are in
 | Result | Action |
 |---|---|
 | `XSVF_ERROR_NONE` | nothing; the stream completed |
-| `XSVF_ERROR_UNKNOWN` | the host stopped feeding or sent a byte during a wait; check the host timing and replay |
+| `XSVF_ERROR_UNKNOWN` | host stopped feeding, sent a byte during a wait, or stalled inside an `XCOMMENT`; replay |
 | `XSVF_ERROR_TDOMISMATCH` | wrong file, wiring, ground, or the target's VCC rail |
 | `XSVF_ERROR_MAXRETRIES` | the same, with a retrying stream; check the chain again |
 | `XSVF_ERROR_ILLEGALCMD` | the file is not XSVF 5.01, or the host stopped feeding |
 | `XSVF_ERROR_ILLEGALSTATE` | regenerate the file |
 | `XSVF_ERROR_DATAOVERFLOW` | a smaller device, another host, or OpenOCD's `svf` |
 
-If the host prints `XSVF_READY_FOR_DATA` with `End of file reached.`, no
-result byte was read; use that message's row below.
+If the host prints `XSVF_READY_FOR_DATA` with
+`End of file reached without a completion result.`, no result byte was read
+and the run returns `2`; use that message's row below.
 
 ## Host messages and states
+
+The messages and statuses below are for the current source builds.  The
+tracked legacy prebuilt EXEs differ
+([players.md](players.md#sources-vs-prebuilt-binaries)).
 
 | Message or state | What to do |
 |---|---|
 | `Error opening serial port` | close other programs; check the port name |
 | `No serial port specified` | add `-p` |
-| `No file specified. Need an input xsvf file` | add `-f`; a run needs it (the Windows help calls it optional only for `-x`/`-r`) |
-| `Error opening file` | fix the `-f` path; the cross-platform build exits, the Windows build can terminate after the message |
+| `No file specified. Need an input xsvf file` | add `-f`, `-x` or `-r`; only a run with none exits `2`; reset or raw-serial `0x0F` twice to leave |
+| `Error opening file` | fix the `-f` path; both source builds return `2` before the player start; reset or raw-serial `0x0F` twice |
+| `Error sizing nonempty input file` | empty or unsizable `-f` file; both source builds return `2` before the player start; reset or raw-serial `0x0F` twice |
 | `Unable to activate ... binary mode` | reset; close the terminal; check the port and board state |
 | `Unable to activate ... XSVF player mode` | v4 only; board stays in the binary layer — press reset (or raw-serial `0x0F`) |
 | `Buspirate did not respond correctly` / `Too many tries in serial read!` | reset; check the port and the board state |
-| `Got no reply for a Chain scan` | check TDO, power and wiring; the scan is optional |
+| `Chain scan: incomplete reply (bounded timeout)` | count or payload did not arrive within five attempts; returns `2`; check TDO, power and wiring |
+| `Chain scan: failed to send the command` | the `0x02` write failed; the run returns `2`; check the port |
 | `Invalid argument` | use the listed options; run with no arguments for the help |
-| `End of file reached.` | player waits for a chunk: wait ~5 s, then raw-serial `0x0F` twice; or press reset |
-| `No reply.... Quitting.` | the player may still be running, or the Windows build is waiting after an early result: do not replay; wait and check, then press reset |
+| `End of file reached without a completion result.` | run returns `2`; the player waits for a chunk: wait ~5 s, then raw-serial `0x0F` twice; or reset |
+| `No reply.... Quitting.` | the player gave no result (it may still be running); the run returns `2`: do not replay; wait and check, then press reset |
 | long `XRUNTEST` / `XWAIT` | wait and check, then reset before replaying; a raw-serial `0x0F` during the wait aborts the run |
 | tool exited normally | board stays in the player with regulator on — press reset, or raw-serial `0x0F` twice |
 | a second run cannot enter binary | the player ignores the host's NUL entry bytes; reset first |
-| chain-scan line looks short | one unsized read; do not follow it with a file run |
+| chain-scan line looks short | legacy prebuilt only; source builds read the count and payload; run `-x` alone then reset, or rebuild |
 | `-s` | host port speed only; it does not change the Bus Pirate's rate |
 | target powered externally | remove the external supply; entry switches VREG on |
 | chain held in reset (SRST/TRST) | player does not drive them; reset, then `c`+`A` (AUX) or `k`+`A` (AUX1) |
 | target on the wrong rail | VCC goes to one rail only, `3.3V` or `5.0V`, never both |
 
 The exact "Unable to activate" wording differs between the builds; the
-meaning is the same.
+meaning is the same.  The tracked legacy prebuilt EXEs print
+` Got no reply for a Chain scan` instead of the two `Chain scan:` messages.
 
 | Build | Entry failure | Player-mode failure |
 |---|---|---|
@@ -149,10 +159,10 @@ meaning is the same.
 ## v3 and unverified
 
 - **v3 has no XSVF player.**  The `0x18` byte is answered with `0x00`, and
-  both host players stop with an "Unable to activate … XSVF player mode"
-  message.  The board is left in the binary layer; press reset (or send
-  `0x0F` from a raw-serial host) to get the terminal back.  Use OpenOCD's
-  `svf` command on v3 ([OpenOCD set](../openocd/README.md)).
+  both source builds stop with an "Unable to activate … XSVF player mode"
+  message and return `2`.  The board is left in the binary layer; press reset
+  (or send `0x0F` from a raw-serial host) to get the terminal back.  Use
+  OpenOCD's `svf` command on v3 ([OpenOCD set](../openocd/README.md)).
 - The 400-bit shift, the 4096-byte chunk behaviour and the stall results are
   code-derived and **unverified** on hardware.
 

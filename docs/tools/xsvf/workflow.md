@@ -57,6 +57,9 @@ only.
 
 ## 4. Run a host player
 
+The commands assume a source build; the tracked prebuilt executables are
+legacy ([players.md](players.md#sources-vs-prebuilt-binaries)).
+
 Windows:
 
 ```
@@ -72,17 +75,18 @@ $ BPXSVFplayer -p /dev/ttyACM0 -s 115200 -f design.xsvf -r
 - `-p` is the port, `-s 115200` the normal speed, `-f` the XSVF file.
 - Add `-r` to reset the chain first; it is a good default before a run and
   sends no reply, so it is safe with `-f`.
-- **Do not add `-x` to this command.**  The scan reply is a variable-length
-  read and the shipped players do not drain it before `0x03`; a short read
-  leaves bytes that the run reads as its result.  Run the scan in its own
-  invocation first ([players.md](players.md#the-chain-scan--x)), press reset,
-  then run this command with `-r` only.
+- Add `-x` for a chain scan before the file
+  ([players.md](players.md#the-chain-scan--x)).  The source builds frame and
+  drain the scan before `0x03`, so `-x` with `-f` is safe; an incomplete scan
+  returns `2` before the file is played.  With a tracked legacy prebuilt, run
+  `-x` alone, then reset before the file.
 - The host player enters `BBIO1` and `XSV1` itself; do not pre-enter them.
 
-The Windows build requires `-f` to continue; with `-x` or `-r` alone it
-performs them and then stops with ` No file specified. Need an input xsvf
-file`.  The cross-platform build runs `-x` and `-r` alone
-([players.md](players.md#options)).
+Both source builds run `-x`/`-r` without `-f` and return `0`; `-f` is
+required only to play a file.  `No file specified. Need an input xsvf file`
+and exit `2` occur only when none of `-f`, `-x` or `-r` is given.  The
+cross-platform build prints `Thank you for playing!` after a stand-alone
+scan/reset; the Windows build stops after it.
 
 ## 5. Watch the run
 
@@ -93,14 +97,16 @@ A clean run ends like this (tail of the full transcript in
  Switching to XSVF mode ... ok
  ...
  Sending 41 Bytes (D029)...ok
- End of operation reply: XSVF_ERROR_NONE
+ End of operation reply: XSVF_ERROR_NONE (0x00)
  Success!
  Thank you for playing! :-)
 ```
 
 The line that matters is `End of operation reply:` followed by
-`XSVF_ERROR_NONE`, then `Success!`.  Any other result name is a failed run;
-the actions are in [limits-and-errors.md](limits-and-errors.md#result-actions).
+`XSVF_ERROR_NONE`, then `Success!`.  Windows appends `(0xNN)`; the
+cross-platform build prints the name only.  Any other result name is a failed
+run; the actions are in
+[limits-and-errors.md](limits-and-errors.md#result-actions).
 
 **The host player finishing is not the firmware player finishing.**
 `Thank you for playing!` means the host stopped.  A long `XRUNTEST` or
@@ -111,8 +117,10 @@ before replaying.
 
 ### A probe-only run
 
-The cross-platform player performs `-x` without a file.  This answers "is
-there a chain, and what does it report?" before any configuration:
+Both source builds perform `-x` without a file.  This answers "is there a
+chain, and what does it report?" before any configuration.  The transcript is
+the cross-platform build; the Windows build stops after the scan without
+`Thank you for playing!` or `No file specified`, and returns `0`.
 
 ```
 $ BPXSVFplayer -p /dev/ttyACM0 -x
@@ -160,13 +168,10 @@ $ BPXSVFplayer -p /dev/ttyACM0 -s 115200 -f xc95test.xsvf -r
 ```
 
 `XSVF_ERROR_MAXRETRIES` is the same failure after the file's retry count is
-used up.  The cross-platform build stops at the first mismatch, so the chunk
-lines end there.  The Windows build prints the same result, then sends one
-more chunk; with no ready byte it ends with `No reply.... Quitting.` and
-still exits `0`.  Check the wiring and the rail first, then the file.  On the
-cross-platform build the board is back in the player loop; on the Windows
-build the extra chunk can leave it elsewhere.  Press reset before the next
-attempt.
+used up.  Both source builds stop at the first mismatch, send no further
+chunk, and return `1`.  `No reply.... Quitting.` occurs only when the player
+gives no result.  Check the wiring and the rail first, then the file.  The
+board is back in the player loop; press reset before the next attempt.
 
 ## 6. Leave the player
 
@@ -182,7 +187,7 @@ prompt, and `W` cannot be reached.
 
 The command loop is the state after a result was printed, or after the ~5 s
 stall expired.  The reset button is the everyday exit.  The `0x0F` path is
-for a custom host or a script: the shipped players close the port without
+for a custom host or a script: the host players close the port without
 sending it, and a terminal program cannot be assumed to send a raw byte.
 With pySerial:
 
@@ -198,7 +203,8 @@ Use `/dev/ttyACM0` on Linux.  The first `0x0F` resets the chain and returns
 to `BBIO1` silently; the second replies `0x01` and runs the terminal reset,
 which switches VREG off and prints the prompt.  Reopen the terminal
 afterwards; press Enter if the prompt is not shown.  If the last host line
-was `End of file reached.`, wait for the ~5 s stall first.
+was `End of file reached without a completion result.`, wait for the ~5 s
+stall first.
 
 Do **not** send `0x0F` while the player is still waiting for a chunk or busy
 in a timed wait: it is consumed as data or as a busy byte, and two bytes can
@@ -206,7 +212,7 @@ leave the board deeper in the player.
 
 | After the tool stopped at | What the player is doing | Exit |
 |---|---|---|
-| `End of file reached.` | waiting for a chunk | wait ~5 s, then the `0x0F` pair; or press reset |
+| `End of file reached without a completion result.` | waiting for a chunk (run returned `2`) | wait ~5 s, `0x0F` pair; or reset |
 | `No reply.... Quitting.` | possibly still running | do not replay; wait and check, then press reset |
 
 While the player owns the port, `W` cannot be reached.  Reset to the terminal,

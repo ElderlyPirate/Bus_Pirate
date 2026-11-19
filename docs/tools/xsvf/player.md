@@ -68,7 +68,7 @@ The first `0x0F` is a player command and works only while the player is at
 its command loop.  During a run it is consumed as data or as a busy byte.
 That step does not reset the pins and does not switch VREG off, so the target
 stays powered between the two steps.  The two steps need a host that can
-write raw bytes; the shipped players close the port and cannot send them.  At
+write raw bytes; the host players close the port and cannot send them.  At
 the terminal, press reset.  Both exits are in
 [workflow.md](workflow.md#6-leave-the-player).
 
@@ -137,7 +137,7 @@ byte the host reads.
 
 The player gives up on a chunk after about **5 seconds** without host data and
 substitutes `0xFF` for the missing bytes.  The result depends on where that
-`0xFF` lands:
+`0xFF` lands, or on the comment loop's stall exit:
 
 | Where the stall lands | Result |
 |---|---|
@@ -145,6 +145,7 @@ substitutes `0xFF` for the missing bytes.  The result depends on where that
 | read as the command byte | `0x04` |
 | read as a TAP-state byte | `0x05` |
 | read as an `XSDRSIZE`/`XSIR2` length over the buffer | `0x06` |
+| inside an `XCOMMENT` string | `0x01` at the next command boundary (the comment loop exits on the stalled flag) |
 
 The player checks its stall flag at the start of each command, so `0x01` wins
 whenever a command completes and the flag is set.  A byte sent while the
@@ -152,11 +153,10 @@ player is in a timed wait (`XWAIT` or `XRUNTEST`) is consumed the same way:
 the run ends with `0x01` at the next command boundary, unless an earlier
 error (a TDO mismatch, for example) is already latched.
 
-**One exception: a stall inside an `XCOMMENT` string.**  The player reads the
-comment until a zero byte, and a stalled read returns `0xFF` forever, so the
-loop never ends and no result is sent.  A converted file can contain comment
-text (the converter's `-xprintsrc` option).  If the host dies there, the
-player cannot be reached again: **reset the board** — that is the only exit.
+A stall inside an `XCOMMENT` string exits the comment loop on the stalled
+flag.  The run returns `0x01` at the next command boundary; the player loop
+is reachable and `0x0F` leaves.  A board reset is not required.  A converted
+file can contain comment text (the converter's `-xprintsrc` option).
 
 ## What the player does not do
 

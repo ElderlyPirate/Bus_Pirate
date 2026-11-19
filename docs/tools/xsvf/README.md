@@ -23,7 +23,7 @@ This README is a map, not the manual — the details live in the files below.
 | File | Covers |
 |---|---|
 | [player.md](player.md) | the firmware player from the tool side: entry/exit, commands, run flow, results |
-| [players.md](players.md) | the two host-player builds: files, options, serial settings, chain scan, output, exit status |
+| [players.md](players.md) | the two host-player builds: files, options, serial settings, chain scan, output, exit status, prebuilt vs source |
 | [converter.md](converter.md) | `svf2xsvf502` and `mergexsvf`: SVF→XSVF, family recipes, the shift-size check |
 | [workflow.md](workflow.md) | end to end: file, prepare, run, probe and failure sessions, leave the player |
 | [wiring.md](wiring.md) | five wires, rail and supply rules, levels, pull-ups, unused resets |
@@ -50,9 +50,11 @@ This README is a map, not the manual — the details live in the files below.
 The host players and the converters are in the firmware repository under
 `scripts/BP4_XSVFplayer_Win/` and `scripts/BPXSVFPlayer/`
 ([repository README](../../../README.md)).  The repository does not install
-them: run the executable from its folder, or build it with the included
-project or `Makefile`.  No configuration file is needed; the serial port is
-the only setup.
+them.  The tracked player executables are unchanged legacy builds; build the
+player from source with the included project or `Makefile` for the current
+host behavior
+([players.md](players.md#sources-vs-prebuilt-binaries)).  No configuration
+file is needed; the serial port is the only setup.
 
 ## Availability (summary)
 
@@ -95,8 +97,10 @@ is an input.  SRST and TRST are not used.  Supply and level detail:
 - **The host players do not exit the player.**  Press reset afterwards; a
   raw-serial host can send `0x0F` twice at the player's command loop
   ([workflow.md](workflow.md#6-leave-the-player)).
-- **A stall inside an `XCOMMENT` string never returns.**  Only a board reset
-  exits it; see [limits-and-errors.md](limits-and-errors.md).
+- **A stall inside an `XCOMMENT` string unwinds.**  The comment loop exits on
+  the stalled flag; the run returns `0x01` and the player loop stays
+  reachable, so `0x0F` leaves.  A board reset is not required; see
+  [limits-and-errors.md](limits-and-errors.md).
 - The converter is a separate Xilinx utility.  The player reads XSVF, not
   SVF.
 - The 400-bit and 4096-byte limits are code-derived and **unverified** on

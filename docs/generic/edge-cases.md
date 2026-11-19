@@ -17,7 +17,7 @@ explanations are in [navigation.md](navigation.md), [values.md](values.md),
 | a bus operation in HiZ (`[` `{` `]` `}` `r` `/` `\` `^` `-` `_` `.` `!`, a value, `(n)`) | `ERROR: command has no effect here` plus a syntax error | nothing is sent; use a bus mode.  A prefix can precede the error line: `READ: ERROR: …`, `WRITE: 0x05 ERROR: …` |
 | `a` / `A` in HiZ | `AUX LOW` / `AUX HIGH` | expected; the selected AUX pin is driven.  `@` returns it to input |
 | `v` in HiZ with nothing connected | every I/O pin is `I`, with a mix of `H` / `L` states | floating inputs, not driven levels |
-| `d`, `D`, `P`, `e`, `g`, `S`, `v` or `~` while the optional SMPS feedback owns the ADC | `ADC busy: SMPS feedback active; command rejected.` plus a syntax error | stop the SMPS first ([SMPS](../capabilities/smps/README.md)); a normal `HiZ>` prompt means it is already stopped |
+| `d`, `D`, `P`, `e`, `g`, `S`, `v`, `W` or `~` while the optional SMPS feedback owns the ADC | `ADC busy: SMPS feedback active; command rejected.` plus a syntax error | stop the SMPS first ([SMPS](../capabilities/smps/README.md)); a normal `HiZ>` prompt means it is already stopped.  `w` and `p` are not blocked |
 
 A HiZ `(0)` shows the extra blank line that the mode-macro command adds:
 

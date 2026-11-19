@@ -286,14 +286,15 @@ Raw wire only.  Every `0xF0`–`0xFF` byte is an SMPS request:
 
 | Request | Meaning | Reply |
 |---|---|---|
-| `0xF0` | last output sample | 2 bytes, high byte first; no result byte |
+| `0xF0` | last feedback sample (ADC-node count, not a calibrated voltage) | 2 bytes, high byte first; no result byte |
 | `0xF1` | stop the board | `0x01` |
 | `0xF2`–`0xFF` | start; one operand byte follows | `0x01` |
 
 For a start, the requested value is
 `(low nibble of the command << 8) | operand`, so the reachable values are
-`0x200`–`0xFFF`.  The regulation loop, the useful range and the electrical
-caveats are in [the SMPS binary page](../../capabilities/smps/binary.md); the
+`0x200`–`0xFFF`.  The regulation loop, the range where the firmware cutoff can
+act and the electrical caveats are in [the SMPS binary page](../../capabilities/smps/binary.md);
+whether the add-on actually reaches a requested target is unknown.  The
 unit of the requested value is not defined by the firmware (`unverified`).
 
 On a build without SMPS support every request is refused with `0x00`, and a

@@ -42,7 +42,7 @@ necessarily never exercised; this record simply does not claim it.
 | [capabilities/adc](../capabilities/adc/README.md) | source-only | probe/continuous contracts; v3 divider unverified |
 | [capabilities/auxiliary](../capabilities/auxiliary/README.md) | source-only | PWM/servo/frequency/edge-wait contracts; external wiring unverified |
 | [capabilities/selftest](../capabilities/selftest/README.md) | source-only | check rows and the `0x10` column from source |
-| [capabilities/smps](../capabilities/smps/README.md) | unverified | no SMPS board available; every electrical value is code-derived |
+| [capabilities/smps](../capabilities/smps/README.md) | unverified | board not available for electrical verification; connector/pinout and jumper from the legacy schematic; input/output ratings undocumented; firmware behaviour code-derived |
 | [capabilities/lcd](../capabilities/lcd/README.md) | unverified | no adapter available; pin-out, glyphs and the SPI link are code-derived |
 | [programmers/avrisp](../programmers/avrisp/README.md) | source-only | ISP/PDI/TPI and USB personality from source; TPI not verified |
 | [programmers/pic](../programmers/pic/README.md) | source-only | ICSP bit engine pinned by `test_pic.py`; v3 unverified |

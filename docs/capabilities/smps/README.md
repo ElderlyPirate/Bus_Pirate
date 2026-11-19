@@ -1,126 +1,154 @@
-# SMPS (switched-mode power supply board)
+# SMPS (switched-mode power supply add-on)
 
-**Availability:** optional build — v4 only, off in the default image.  The
-board and its legacy design are not available, so the electrical behaviour is
-`unverified`.
+**Status:** optional **v4-only** build; off in the default v4 image and not
+available on v3.  The firmware side is documented here; the add-on is the
+legacy Dangerous Prototypes **Bus Pirate SMPS** board, and its electrical
+values are `unverified`.
 
-SMPS drives a legacy Dangerous Prototypes switched-mode power-supply add-on
-board over the binary raw-wire command group `0b1111xxxx` (`0xF0`–`0xFF`).
-The firmware sets a PWM duty cycle and reads the output back through the ADC,
-reporting the last output sample on request.  There is no terminal menu: it is
-reached only through the binary bitbang layer.  In one line: a programmable DC
-output for that add-on board.
+The SMPS capability drives the legacy Bus Pirate SMPS add-on.  The add-on
+provides the power path; the Bus Pirate supplies the PWM control and reads the
+feedback.  The SMPS path does not supply power to the add-on and does not
+switch either on-board target rail for it.  The PWM appears on the pin
+labelled **`AUX1`** and the feedback on the pin labelled **`ADC`**; a firmware
+loop adjusts the duty cycle so the feedback count tracks a target derived from
+the requested value.  There is no terminal mode and no setup menu: the only
+control path is the raw-wire binary command group `0b1111xxxx` (`0xF0`-`0xFF`).
+This is a capability, not a tool.  It is written for a host programmer driving
+the add-on and for an owner checking the wiring and limits.
 
-This README is a map, not the manual — the details live in the files below.
+The firmware uses two forms for the same pin: the header and `v`-table name is
+**`AUX1`**, and the `?`-help assignment token is **`A1`** (selected with
+`k`).  This set uses `AUX1`; the token-to-pin table is owned by
+[the prompt grammar](../../generic/commands.md#aux-targets-and-pin-names).  No
+`k` selection is needed for SMPS: the start routes the PWM to `AUX1`
+regardless of the selected AUX target.  The feedback pin is labelled **`ADC`**;
+the ADC set calls the same input the probe.  The firmware names the request
+field as a voltage; this set calls it the requested value, because no unit is
+defined.  This README is a map, not the manual - the details live in the files
+below.
 
 | File | Covers |
 |---|---|
-| [binary.md](binary.md) | entry, the command set, the requested-value encoding, the PWM/ADC mechanism, a worked exchange |
-| [edge-cases.md](edge-cases.md) | failure modes and known limits |
+| [binary.md](binary.md) | entry, the `0xF0`-`0xFF` group, value encoding, replies, worked exchanges, disabled builds |
+| [feedback-loop.md](feedback-loop.md) | what a start configures, duty and target arithmetic, the sample, firmware cutoff limits, ownership |
+| [wiring.md](wiring.md) | pins, ground, pull-up and supply requirements, the legacy add-on connector |
+| [exit.md](exit.md) | `0xF1` stop, leaving raw wire, the terminal reset, what each stop path changes |
+| [edge-cases.md](edge-cases.md) | concrete failure modes and recovery |
 
-## Safe session
+Read in this order: wiring -> binary -> feedback-loop -> exit -> edge-cases.
+Wire the Bus Pirate side before the first start.
 
-Keep the order: enter, start, read, stop, leave.
+## Wiring headline
 
-1. Enter binary bitbang: 20 × `0x00` → `BBIO1`.
-2. Select raw wire: `0x05` → `RAW1`.
-3. Start: `0xF2`–`0xFF` plus one operand byte → `0x01`.
-4. Read: `0xF0` → two sample bytes (repeat as needed).
-5. Stop: `0xF1` → `0x01`.
-6. Leave raw wire: `0x00` → `BBIO1`; then `0x0F` → `0x01` and `HiZ>`.
+The firmware drives **`AUX1`** (v4 header pin 6, key = pin 1) and samples
+**`ADC`** (pin 8).  Connect the add-on's ground to **`GND`** (pin 12).
+**No pull-up is required** on either line in the normal push-pull case.  If a
+previous mode left `AUX1` open drain, a logic high is a released pin: the
+add-on needs its own pull-up, or the Bus Pirate needs a power cycle or
+hardware reset before the start ([wiring.md](wiring.md)).
+**The firmware does not switch a Bus Pirate supply**
+for SMPS: the add-on's power feed is part of the add-on wiring.
 
-Stopping is a separate request.  Leaving raw wire does not stop the board;
-only `0xF1` sent while still in raw wire is the in-band stop.  A hardware
-reset also stops it, and the v4 terminal reset stops it through the board
-reset.  See
-[edge-cases.md](edge-cases.md).
+The add-on is the legacy **Bus Pirate SMPS** board.  It has a 2x5 connector
+and a two-terminal **VPP**/**GND** output; a jumper selects which feedback pin
+is used.  The connector map and the supply caveats are in
+[wiring.md](wiring.md).  The electrical values, the output range and a v4
+adapter are not documented (`unverified`); do not derive a power rating from
+these pages.
 
 ## The five-minute version
 
-- **v4 only, and off in the default images.**  Enabling it is a source build
-  change, not a runtime setting; the build process is in
-  [dev/building.md](../../dev/building.md), and the per-module switch itself
-  is outside these user pages.  On v3 it cannot be enabled at all.
-- No terminal command: send 20 × `0x00` to enter binary bitbang (`BBIO1`),
-  then `0x05` for raw wire (`RAW1`).  The SMPS command group lives there.
-- `0xF2`–`0xFF` **start**: the command byte's low nibble is the top nibble of
-  the requested value, and one operand byte follows with its low byte —
-  `0xF2 0x58` requests `0x0258`.  Reply `0x01`.
-- `0xF1` **stop** (reply `0x01`); `0xF0` returns the last output sample
-  (raw counts) as two big-endian bytes, with no result byte.
-- The PWM comes out the pin the firmware labels `AUX1`; the feedback is read
-  on the pin it labels `ADC`.  Treat every value as raw and `unverified` — the
-  firmware never converts to volts.  The useful request range is bounded by
-  the 10-bit ADC; see [binary.md](binary.md) §The PWM / ADC mechanism.
-- Wrong build, an unreachable request, or no board → see
-  [edge-cases.md](edge-cases.md).
+- **v4 only, off in the default image.**  Enabling SMPS is a build change
+  ([dev/building.md](../../dev/building.md)); a v3 build cannot enable it.
+- Enter binary bitbang with 20 x `0x00` (`BBIO1`), then send `0x05` for the
+  shared raw-wire mode (`RAW1`).  The NULs need a host program or script; a
+  terminal cannot send them (the Python example is in
+  [binary.md](binary.md#a-host-sequence)).  The SMPS group exists only inside
+  `RAW1`.
+- **Check the build:** once in `RAW1`, send `0xF1`.  `0x01` means SMPS is
+  built in; `0x00` means it is not.  It does not start the supply; if a loop
+  is already running, it stops it.
+- **Start:** `0xF2`-`0xFF` plus one operand byte.  The command's low nibble is
+  the top nibble of the requested value: `0xF2 0x00` requests `0x200`, the
+  lowest reachable value.  Reply `0x01`.  The output is undefined; see the
+  warning below.
+- **Read:** `0xF0` returns the last stored feedback sample as two big-endian
+  bytes, with no result byte.  It does not take a new sample and is not a
+  calibrated output voltage.  The first read after a start can still be from
+  the previous run: discard it or poll until it changes.
+- **Stop:** `0xF1` replies `0x01` and removes the PWM drive.  Send it before
+  leaving `RAW1`: leaving raw wire does not stop the loop.  A v4 terminal
+  reset (`0x0F` or `#`) does ([exit.md](exit.md)).
+- No pull-up is needed in the normal push-pull case, and the firmware does not
+  switch a Bus Pirate supply for SMPS.  The add-on needs its own power feed, a
+  common ground, and its feedback node on `ADC` ([wiring.md](wiring.md)).
 
-## Sending it from a host
+## Shortest byte sequence (not a safety claim)
 
-There is no menu to type into: the control path is a raw byte stream.  Open
-the serial port and write these bytes in order.
+The request has no defined unit, the add-on's output range and feedback
+scaling are unknown, and the firmware has no independent over-voltage,
+over-current or temperature protection.  Keep the load disconnected and
+verify the add-on output with your own measurement before connecting anything.
 
-| Step | Bytes | Reply | Meaning |
-|---|---|---|---|
-| enter bitbang | `0x00` × 20 | `BBIO1` | leave the terminal for the binary layer |
-| raw wire | `0x05` | `RAW1` | select raw-wire mode; the SMPS group is now live |
-| start | `0xF2` then `0x58` | `0x01` | one operand byte follows the command (value `0x0258`) |
-| read | `0xF0` | two bytes, big-endian | last output sample (raw counts); no result byte |
-| stop | `0xF1` | `0x01` | stop switching and clean up |
-| leave raw wire | `0x00` | `BBIO1` | leave raw wire; this does **not** stop the board |
-| leave binary | `0x0F` | `0x01`, then `HiZ>` | return to the terminal |
+| Step | Bytes | Reply |
+|---|---|---|
+| enter bitbang | `0x00` x 20 | `BBIO1` |
+| raw wire | `0x05` | `RAW1` |
+| check the build (optional) | `0xF1` | `0x01` built in; `0x00` not built |
+| start, lowest request `0x200` | `0xF2` `0x00` | `0x01` |
+| read, first sample (discard) | `0xF0` | two bytes, high byte first |
+| read again after a conversion | `0xF0` | two bytes, high byte first |
+| stop | `0xF1` | `0x01` |
+| leave raw wire | `0x00` | `BBIO1` |
+| leave binary | `0x0F` | `0x01`, banner, `HiZ>` |
 
-The byte stream for the minimal safe session is the entry bytes, one request,
-a stop and the two leaves: 20 × `0x00`, then `0x05`, `0xF2 0x58`, `0xF1`,
-`0x00`, `0x0F`.  Any serial tool that can emit raw bytes (NUL included) works;
-a Python `serial` write of
-`b"\x00" * 20 + b"\x05\xf2\x58\xf1\x00\x0f"` is one option.  Shared binary
-framing (`BBIO1`, protocol selection, leaving) lives in
-[protocol/binary/entering-and-framing.md][framing]; this recipe is
-SMPS-specific.
+If the optional check replies `0x00`, the build does not have SMPS and the
+rest of the table does not apply.  Without the check, the byte stream is
+20 x `0x00`, then `0x05`, `0xF2` `0x00`, `0xF0`, `0xF0`, `0xF1`, `0x00`,
+`0x0F`.  Shared entry, framing and the result bytes are owned by
+[protocol/binary/](../../protocol/binary/README.md); `RAW1` framing is owned by
+[protocol/wire/binary.md](../../protocol/wire/binary.md).
 
 ## Availability (summary)
 
 | | v3 | v4 |
 |---|---|---|
-| build | not available (compile-time error if enabled) | optional build; **off** in the default image |
-| terminal menu | — | — (binary only) |
-| hardware | — | legacy Dangerous Prototypes SMPS add-on board |
+| build | not available; enabling is a compile-time error | optional; **off** in the default image |
+| group `0xF0`-`0xFF` | routed; every request answers `0x00` (not verified on v3) | routed; active only when built in |
+| terminal UI | none | none |
+| hardware | no `AUX1` target in the v3 firmware | legacy Bus Pirate SMPS board on `AUX1` and `ADC`; v4 adapter not documented |
 
-**Command group `0xF0`–`0xFF` (both builds):** routed on every build; refused
-with `0x00` when SMPS is not built in.
-
-Full detail and the exact framing are in [binary.md](binary.md).
-
-## Related capabilities
-
-| Capability | Why it matters here |
-|---|---|
-| [ADC probe](../adc/README.md) | while SMPS runs, the probe channel is the SMPS feedback, so it is not a free external input |
-| [AUX assignment and pin names](../../generic/commands.md#aux-targets-and-pin-names) | the PWM appears on the pin labelled `AUX1`, the `A1` target selected with `k` |
-
-## Wiring headline
-
-The firmware routes the PWM to the pin it labels **`AUX1`** (the `A1` target
-of the AUX assignment, selected with `k`) and reads the feedback on the pin it
-labels **`ADC`**.  The board's own connector, pinout and supply routing are
-**not verified**; the legacy board design may not match the current firmware.
-Do not derive a connector map from these documents.
+The group is reachable only in `RAW1`; in `BBIO1` the same bytes are pin-state
+bytes.  The full command detail and the build path are in [binary.md](binary.md)
+and [wiring.md](wiring.md).
 
 ## Limits & out of scope
 
-- No terminal user interface: the only control path is the binary command
+- No terminal interface and no setup menu; the only control path is the binary
   group.
-- No unit conversion: the requested value and the reported sample are raw
-  firmware numbers; the sample is an unfiltered ADC count, and the relation of
-  either number to an actual output voltage is `unverified`.
-- Enabling the feature is a source build change; it is not available at
-  runtime and cannot be enabled on v3.
-- The board is not available, so the whole electrical path is `unverified`.
-- The regulation loop is only meaningful over part of the reachable request
-  range; see [binary.md](binary.md) §The PWM / ADC mechanism.
-- Shared binary-layer grammar (entering `BBIO1`, choosing a protocol, framing,
-  leaving) lives in [protocol/binary/entering-and-framing.md][framing]; the
-  recipe above is SMPS-specific.
+- Raw numbers only: neither the request nor the sample is converted to volts.
+- The firmware's cutoff can act only for requests `0x200`-`0x526`; whether the
+  add-on can reach the target is unknown, and no request is a promise of a
+  regulated output ([feedback-loop.md](feedback-loop.md)).
+- `0xF0` can return the previous run's sample after a start; there is no
+  freshness flag ([binary.md](binary.md)).
+- `0xF1` removes the firmware's PWM drive; it does not prove the add-on's
+  output is off, and the firmware has no independent over-voltage,
+  over-current or temperature protection.
+- The add-on's electrical design, output range and every voltage or current
+  claim are `unverified`; the legacy schematic gives no rating.
+- Shared prompt grammar, pull-ups, supplies and the `AUX` controls belong to
+  [docs/generic/](../../generic/README.md) and the
+  [AUX set](../auxiliary/README.md) and are not repeated here.
 
-[framing]: ../../protocol/binary/entering-and-framing.md
+## Related docs
+
+| Page | Why |
+|---|---|
+| [protocol/binary/entering-and-framing.md](../../protocol/binary/entering-and-framing.md) | entry, result bytes, leaving |
+| [protocol/binary/sub-protocols.md](../../protocol/binary/sub-protocols.md) | where `0xFx` sits in `RAW1` |
+| [protocol/wire/binary.md](../../protocol/wire/binary.md) | shared `RAW1` framing |
+| [ADC probe](../adc/README.md) | sample scale and converter ownership |
+| [AUX PWM and servo](../auxiliary/pwm-servo.md) | the same output channel |
+| [dev/building.md](../../dev/building.md) | enabling the optional v4 build |
+| [SPEC.md](../../SPEC.md) | capability index |

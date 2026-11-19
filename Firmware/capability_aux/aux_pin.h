@@ -60,9 +60,8 @@
  * @param[in] frequency  the generated signal frequency in Hz, between
  *                       PWM_MINIMUM_FREQUENCY and PWM_MAXIMUM_FREQUENCY,
  *                       inclusive.  Set to PWM_OFF to stop signal generation.
- * @param[in] duty_cycle the generated signal duty cycle, on a range from
- *                       PWM_MINIMUM_DUTY_CYCLE to PWM_MAXIMUM_DUTY_CYCLE,
- *                       not inclusive.
+ * @param[in] duty_cycle the generated signal duty cycle in percent, 0..100.
+ *                       Larger values saturate to 100 percent.
  *
  * @see PWM_MINIMUM_FREQUENCY
  * @see PWM_MAXIMUM_FREQUENCY
@@ -74,9 +73,8 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle);
 /**
  * @brief Updates the duty cycle of the currently generated PWM signal.
  *
- * @param[in] duty_cycle the generated signal duty cycle, on a range from
- *                       PWM_MINIMUM_DUTY_CYCLE to PWM_MAXIMUM_DUTY_CYCLE,
- *                       not inclusive.
+ * @param[in] duty_cycle the generated signal duty cycle in percent, 0..100.
+ *                       Larger values saturate to 100 percent.
  *
  * @see PWM_MINIMUM_DUTY_CYCLE
  * @see PWM_MAXIMUM_DUTY_CYCLE
@@ -104,6 +102,31 @@ void bp_aux_pin_set_low(void);
  * @return `HIGH` or `LOW` according to the chosen AUX pin state.
  */
 bool bp_aux_pin_read(void);
+
+/**
+ * @brief Returns the state of the currently chosen AUX pin without changing
+ * the pin's direction.
+ *
+ * Unlike bp_aux_pin_read(), this leaves the pin exactly as it is; the
+ * wait-for-edge command uses it so a caller's output direction survives the
+ * wait.
+ *
+ * @return `HIGH` or `LOW` according to the chosen AUX pin state.
+ */
+bool bp_aux_pin_state_get(void);
+
+/**
+ * @brief Enables or disables change notification on the currently chosen AUX
+ * pin.
+ *
+ * This arms the change notification hardware on the pin bp_aux_pin_read()
+ * selects, so that a voltage change on it latches into the shared change
+ * notification flag even while the firmware is busy elsewhere.
+ *
+ * @param[in] state `ON` to enable change notification on the pin, `OFF` to
+ * disable it.
+ */
+void bp_aux_pin_set_change_notification(const bool state);
 
 /**
  * @brief Starts the setup process for driving a servomotor.

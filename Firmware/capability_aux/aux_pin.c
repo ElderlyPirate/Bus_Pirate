@@ -86,8 +86,8 @@ static aux_state_t state = {0};
 /**
  * @brief Sets up input clock prescaler and returns an appropriate divisor.
  *
- * Sets up timer #1's input clock prescaler for the given frequency and returns
- * an appropriate divisor for it.
+ * Sets up Timer2's prescaler. The returned divisor is scaled for the terminal
+ * g command's kHz input; bp_update_pwm() converts it for its Hz contract.
  *
  * @param[in] frequency the given frequency to set things up for.
  *
@@ -152,17 +152,36 @@ uint16_t setup_prescaler_divisor(const uint16_t frequency) {
   return PWM_DIVISOR_PRESCALER_1_1;
 }
 
-inline void bp_update_duty_cycle(const uint16_t duty_cycle) {
+void bp_update_duty_cycle(const uint16_t duty_cycle) {
   bp_update_pwm(state.pwm_frequency, duty_cycle);
+}
+
+static uint16_t pwm_duty_register(uint16_t period, uint16_t percent) {
+  uint16_t counts = ((uint32_t)(period + 1UL) * percent) / 100;
+#if defined(BUSPIRATEV4)
+  /* Dedicated OC timer, synchronized to Timer2: the falling comparison takes
+   * effect on the next clock (DS39723A 35.3.3.1, Figures 35-14/15).
+   * R=0 remains the special 0% case; an unrepresentable one-count pulse
+   * rounds down. The old v3 OC uses the high-count value directly. */
+  if (counts != 0) {
+    counts--;
+  }
+#endif
+  return counts;
 }
 
 void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   uint16_t period;
   uint16_t cycle;
-  uint16_t divisor;
+  uint32_t timer_frequency;
+
+  /* The SMPS owns OC5 as well as the ADC, including zero-duty intervals. */
+  if (!bp_adc_foreground_available()) {
+    return;
+  }
 
   state.pwm_frequency = frequency;
-  state.pwm_duty_cycle = duty_cycle;
+  state.pwm_duty_cycle = duty_cycle > 100 ? 100 : duty_cycle;
 
   stop_timers();
 #if defined(BUSPIRATEV4)
@@ -180,6 +199,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C; /* Synchronize legacy PWM to Timer2, not a prior SMPS. */
 #else
   /*
    * OC5CON
@@ -202,13 +222,20 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
     return;
   }
 
-  divisor = setup_prescaler_divisor(frequency);
-  period = (divisor / frequency) - 1;
+  timer_frequency = (uint32_t)setup_prescaler_divisor(frequency) * 1000;
+  /* g uses kHz-scaled divisors; 16 MHz / 256 is exactly 62500 Hz,
+   * not the truncated 62 kHz table entry. DS39897C Eq. 14-1:
+   * PR2 + 1 = FCY / (prescale * frequency_in_Hz). */
+  if (frequency < 4) {
+    timer_frequency = 62500;
+  }
+  period = (timer_frequency / frequency) - 1;
   PR2 = period;
-  cycle = (period * duty_cycle) / 100;
+  cycle = pwm_duty_register(period, state.pwm_duty_cycle);
 
   /* Attach the AUX pin to the PWM generator. */
   AUXPIN_RPOUT = OC5_IO;
+  AUXPIN_DIR = OUTPUT;
 
   /* Setup the PWM generator. */
   OC5R = cycle;
@@ -246,6 +273,7 @@ void bp_update_pwm(const uint16_t frequency, const uint16_t duty_cycle) {
   OC5CON = (0b110 << _OC5CON_OCM_POSITION) | (OFF << _OC5CON_OCTSEL_POSITION) |
            (OFF << _OC5CON_OCFLT_POSITION) | (OFF << _OC5CON_OCSIDL_POSITION);
 #endif /* BUSPIRATEV4 */
+  TMR2 = 0;
   T2CONbits.TON = ON;
   state.mode = AUX_MODE_PWM;
 }
@@ -255,8 +283,13 @@ void bp_pwm_setup(void) {
   uint16_t pwm_duty_cycle;
   uint16_t pwm_frequency;
   uint16_t pwm_divisor;
-  float pwm_period_float;
+  uint16_t pwm_duty;
+  uint16_t argument;
   bool valid_arguments;
+
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
 
   stop_timers();
 #if defined(BUSPIRATEV4)
@@ -274,6 +307,7 @@ void bp_pwm_setup(void) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON
@@ -289,6 +323,12 @@ void bp_pwm_setup(void) {
   OC5CON = 0x0000;
 #endif /* BUSPIRATEV4 */
 
+  /* Look ahead without consuming the command; trailing spaces are not operands. */
+  argument = (cmdstart + 1) & CMDLENMSK;
+  while (cmdbuf[argument] == ' ') {
+    argument = (argument + 1) & CMDLENMSK;
+  }
+
   /* Stop PWM mode if it is engaged. */
   if (state.mode == AUX_MODE_PWM) {
     /* Detach AUX pin from output source. */
@@ -296,7 +336,7 @@ void bp_pwm_setup(void) {
     BPMSG1028;
     state.mode = AUX_MODE_IO;
 
-    if (cmdbuf[((cmdstart + 1) & CMDLENMSK)] == 0x00) {
+    if (cmdbuf[argument] == 0x00) {
       /* No arguments, quit. */
       return;
     }
@@ -304,13 +344,12 @@ void bp_pwm_setup(void) {
 
   /* Get parameters. */
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  pwm_frequency = getint();
-  consumewhitechars();
-  pwm_period_float = getint();
+  pwm_frequency = getint_with_spaces();
+  pwm_duty = getint_with_spaces();
 
-  valid_arguments = ((pwm_frequency > 0) && (pwm_frequency < 4000) &&
-                     ((pwm_period_float > 0) && (pwm_period_float < 100)));
+  valid_arguments = !mode_configuration.command_error &&
+                    ((pwm_frequency > 0) && (pwm_frequency <= 4000) &&
+                     (pwm_duty < 100));
 
   if (!valid_arguments) {
     mode_configuration.command_error = NO;
@@ -324,14 +363,16 @@ void bp_pwm_setup(void) {
 
   if (!valid_arguments) {
     BPMSG1033;
-    pwm_period_float = getnumber(50, 0, 99, 0);
+    pwm_duty = getnumber(50, 0, 99, 0);
   }
 
-  pwm_period_float /= 100;
-  pwm_duty_cycle = pwm_period * pwm_period_float;
+  /* PR2+1 determines the high-count budget; the OC register encoding differs
+   * between the v3 timer comparator and the v4 dedicated OC timer. */
+  pwm_duty_cycle = pwm_duty_register(pwm_period, pwm_duty);
 
   /* Assign output source to AUX pin. */
   AUXPIN_RPOUT = OC5_IO;
+  AUXPIN_DIR = OUTPUT;
 
   OC5R = pwm_duty_cycle;
   OC5RS = pwm_duty_cycle;
@@ -371,6 +412,7 @@ void bp_pwm_setup(void) {
 #endif /* BUSPIRATEV4 */
 
   PR2 = pwm_period;
+  TMR2 = 0;
   T2CONbits.TON = ON;
 
   BPMSG1034;
@@ -429,8 +471,12 @@ void bp_frequency_counter_setup(void) {
     if (frequency > 0) {
       BPMSG1245;
       period = average_sample_frequency(frequency);
+      if (period == 0) {
+        MSG_PWM_FREQUENCY_TOO_LOW;
+        goto frequency_done;
+      }
       if (period > 400000) {
-        frequency = 16e11 / period;
+        frequency = 1600000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 100000);
         user_serial_transmit_character('.');
         frequency = frequency % 100000;
@@ -451,7 +497,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 126491) {
-        frequency = 16e10 / period;
+        frequency = 160000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 10000);
         user_serial_transmit_character('.');
         frequency = frequency % 10000;
@@ -469,7 +515,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 40000) {
-        frequency = 16e9 / period;
+        frequency = 16000000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 1000);
         user_serial_transmit_character('.');
         frequency = frequency % 1000;
@@ -484,7 +530,7 @@ void bp_frequency_counter_setup(void) {
       }
 
       if (period > 12649) {
-        frequency = 16e8 / period;
+        frequency = 1600000000ULL / period;
         bp_write_dec_dword_friendly(frequency / 100);
         user_serial_transmit_character('.');
         frequency = frequency % 100;
@@ -495,7 +541,7 @@ void bp_frequency_counter_setup(void) {
         goto write_marker;
       }
 
-      frequency = 16e7 / period;
+      frequency = 160000000ULL / period;
       bp_write_dec_dword_friendly(frequency / 10);
       user_serial_transmit_character('.');
       bp_write_dec_byte(frequency % 10);
@@ -507,6 +553,7 @@ void bp_frequency_counter_setup(void) {
     }
   }
 
+frequency_done:
   /* Detach Timer2 Clock signal from the AUX pin. */
   RPINR3bits.T2CKR = 0b11111;
   stop_timers();
@@ -615,6 +662,16 @@ uint32_t poll_frequency_counter_value(void) {
 uint32_t average_sample_frequency(const uint16_t count) {
   uint32_t current_low, counter_low, current_high, counter_high, total_samples;
   uint16_t index;
+  /* The timestamp API wraps at 2^31 us (32 half-us ticks shifted right).
+   * Bound the complete acquisition, including FIFO drains and lost input. */
+  const uint32_t started = bp_timer_microseconds();
+  bool complete = false;
+
+  if (count == 0) {
+    return 0;
+  }
+
+  total_samples = 0;
 
   /* Clear input capture interrupts. */
   IFS0bits.IC2IF = OFF;
@@ -768,23 +825,34 @@ uint32_t average_sample_frequency(const uint16_t count) {
   /* Flush IC1. */
   while (IC1ICBNE == ON) {
     current_low = IC1BUF;
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   /* Flush IC2. */
   while (IC2ICBNE == ON) {
     counter_low = IC2BUF;
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   while (IC1ICBNE == OFF) {
+    if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+      goto capture_done;
+    }
   }
 
   counter_low = IC1BUF;
   counter_high = IC2BUF;
-  total_samples = 0;
 
   for (index = 0; index < count; index++) {
     /* Wait for signal. */
     while (IC1ICBNE == OFF) {
+      if (((bp_timer_microseconds() - started) & 0x7FFFFFFFUL) >= 5000000UL) {
+        goto capture_done;
+      }
     }
 
     current_low = IC1BUF;
@@ -794,7 +862,9 @@ uint32_t average_sample_frequency(const uint16_t count) {
     counter_high = current_high;
     counter_low = current_low;
   }
+  complete = true;
 
+capture_done:
 #if defined(BUSPIRATEV4)
 
   /* Stop input capture units. */
@@ -863,7 +933,9 @@ uint32_t average_sample_frequency(const uint16_t count) {
 
 #endif /* BUSPIRATEV4 */
 
-  return total_samples / count;
+  RPINR7bits.IC1R = 0b11111;
+  RPINR7bits.IC2R = 0b11111;
+  return complete ? total_samples / count : 0;
 }
 
 void bp_aux_pin_set_high_impedance(void) {
@@ -902,32 +974,32 @@ void bp_aux_pin_set_high_impedance(void) {
 void bp_aux_pin_set_high(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
+    BP_AUX0_LAT = HIGH;
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = HIGH;
   } else {
+    BP_CS_LAT = HIGH;
     BP_CS_DIR = OUTPUT;
-    BP_CS = HIGH;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
+    BP_AUX0_LAT = HIGH;
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = HIGH;
     break;
 
   case 1:
+    BP_CS_LAT = HIGH;
     BP_CS_DIR = OUTPUT;
-    BP_CS = HIGH;
     break;
 
   case 2:
+    BP_AUX1_LAT = HIGH;
     BP_AUX1_DIR = OUTPUT;
-    BP_AUX1 = HIGH;
     break;
 
   case 3:
+    BP_AUX2_LAT = HIGH;
     BP_AUX2_DIR = OUTPUT;
-    BP_AUX2 = HIGH;
     break;
 
   default:
@@ -941,32 +1013,32 @@ void bp_aux_pin_set_high(void) {
 void bp_aux_pin_set_low(void) {
 #ifdef BUSPIRATEV3
   if (mode_configuration.alternate_aux == 0) {
+    BP_AUX0_LAT = LOW;
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = LOW;
   } else {
+    BP_CS_LAT = LOW;
     BP_CS_DIR = OUTPUT;
-    BP_CS = LOW;
   }
 #else
   switch (mode_configuration.alternate_aux) {
   case 0:
+    BP_AUX0_LAT = LOW;
     BP_AUX0_DIR = OUTPUT;
-    BP_AUX0 = LOW;
     break;
 
   case 1:
+    BP_CS_LAT = LOW;
     BP_CS_DIR = OUTPUT;
-    BP_CS = LOW;
     break;
 
   case 2:
+    BP_AUX1_LAT = LOW;
     BP_AUX1_DIR = OUTPUT;
-    BP_AUX1 = LOW;
     break;
 
   case 3:
+    BP_AUX2_LAT = LOW;
     BP_AUX2_DIR = OUTPUT;
-    BP_AUX2 = LOW;
     break;
 
   default:
@@ -1023,11 +1095,75 @@ bool bp_aux_pin_read(void) {
 #endif /* BUSPIRATEV3 */
 }
 
+bool bp_aux_pin_state_get(void) {
+#ifdef BUSPIRATEV3
+  if (mode_configuration.alternate_aux == 0) {
+    return BP_AUX0;
+  }
+
+  return BP_CS;
+#else
+  switch (MASKBOTTOM8(mode_configuration.alternate_aux, 2)) {
+  case 0:
+    return BP_AUX0;
+
+  case 1:
+    return BP_CS;
+
+  case 2:
+    return BP_AUX1;
+
+  case 3:
+    return BP_AUX2;
+
+  default:
+    /* Should not happen. */
+    return LOW;
+  }
+#endif /* BUSPIRATEV3 */
+}
+
+void bp_aux_pin_set_change_notification(const bool state) {
+#ifdef BUSPIRATEV3
+  if (mode_configuration.alternate_aux == 0) {
+    BP_AUX0_CN = state;
+  } else {
+    BP_CS_CN = state;
+  }
+#else
+  switch (MASKBOTTOM8(mode_configuration.alternate_aux, 2)) {
+  case 0:
+    BP_AUX0_CN = state;
+    break;
+
+  case 1:
+    BP_CS_CN = state;
+    break;
+
+  case 2:
+    BP_AUX1_CN = state;
+    break;
+
+  case 3:
+    BP_AUX2_CN = state;
+    break;
+
+  default:
+    break;
+  }
+#endif /* BUSPIRATEV3 */
+}
+
 void bp_servo_setup(void) {
   uint16_t period;
   uint16_t duty_cycle;
+  uint16_t argument;
   bool keep_asking;
-  float pwm_period;
+  int16_t position;
+
+  if (!bp_adc_check_foreground()) {
+    return;
+  }
 
   stop_timers();
 
@@ -1048,6 +1184,7 @@ void bp_servo_setup(void) {
    *   +--------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON
@@ -1063,8 +1200,11 @@ void bp_servo_setup(void) {
   OC5CON = 0x0000;
 #endif /* BUSPIRATEV4 */
 
-  if ((state.mode == AUX_MODE_PWM) &&
-      (cmdbuf[((cmdstart + 1) & CMDLENMSK)] == 0x00)) {
+  argument = (cmdstart + 1) & CMDLENMSK;
+  while (cmdbuf[argument] == ' ') {
+    argument = (argument + 1) & CMDLENMSK;
+  }
+  if ((state.mode == AUX_MODE_PWM) && (cmdbuf[argument] == 0x00)) {
     AUXPIN_RPOUT = 0;
     BPMSG1028;
     state.mode = AUX_MODE_IO;
@@ -1074,12 +1214,12 @@ void bp_servo_setup(void) {
   keep_asking = false;
 
   cmdstart = (cmdstart + 1) & CMDLENMSK;
-  consumewhitechars();
-  pwm_period = getint();
-  if ((mode_configuration.command_error == YES)|| (pwm_period > 180)) {
+  position = getint_with_spaces();
+  if ((mode_configuration.command_error == YES) || (position < 0) ||
+      (position > 180)) {
     mode_configuration.command_error = NO;
     BPMSG1254;
-    pwm_period = getnumber(90, 0, 180, 0);
+    position = getnumber(90, 0, 180, 0);
     keep_asking = true;
   }
 
@@ -1087,9 +1227,15 @@ void bp_servo_setup(void) {
     T2CONbits.TCKPS1 = ON;
     T2CONbits.TCKPS0 = ON;
     period = 1250;
-    pwm_period /= 3500;
-    duty_cycle = (period * pwm_period) + 62;
+    /*
+     * Pulse width for the 20 ms frame (1250+1 ticks at 16 us): the
+     * position in degrees maps to the classic 1..2 ms servo pulse as
+     * duty = period * position / 3500 + 62, which reduces to
+     * position * 5 / 14 + 62 in exact integer maths (no float).
+     */
+    duty_cycle = ((position * 5) / 14) + 62;
     AUXPIN_RPOUT = OC5_IO;
+    AUXPIN_DIR = OUTPUT;
     OC5R = duty_cycle;
     OC5RS = duty_cycle;
 
@@ -1131,13 +1277,14 @@ void bp_servo_setup(void) {
     PR2 = period;
 
     /* Start timer 2. */
+    TMR2 = 0;
     T2CONbits.TON = ON;
     BPMSG1255;
     state.mode = AUX_MODE_PWM;
 
     if (keep_asking) {
-      pwm_period = getnumber(-1, 0, 180, 1);
-      if (pwm_period < 0) {
+      position = getnumber(-1, 0, 180, 1);
+      if (position < 0) {
         bpBR;
         return;
       }

@@ -19,13 +19,14 @@
 
 /* Binary access modes for Bus Pirate scripting */
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "binary_io.h"
 #include "bitbang.h"
 #include "configuration.h"
 #include "core.h"
-#include "selftest.h"
+#include "capability_selftest/selftest.h"
 
 #ifdef BP_ENABLE_SPI_SUPPORT
 #include "spi.h"
@@ -55,7 +56,7 @@
 #endif /* BP_ENABLE_JTAG_SUPPORT */
 
 #ifdef BP_ENABLE_SMPS_SUPPORT
-#include "smps.h"
+#include "capability_smps/smps.h"
 #endif /* BP_ENABLE_SMPS_SUPPORT */
 
 extern mode_configuration_t mode_configuration;
@@ -78,6 +79,7 @@ typedef enum {
   IO_COMMAND_GROUP_CONFIGURE_PERIPHERALS = 0b0100,
   IO_COMMAND_GROUP_SET_PULLUP = 0b0101,
   IO_COMMAND_GROUP_SET_SPEED = 0b0110,
+  IO_COMMAND_GROUP_WAIT = 0b0111,
   IO_COMMAND_GROUP_CONFIGURATION = 0b1000,
   IO_COMMAND_GROUP_PIC = 0b1010,
   IO_COMMAND_GROUP_SMPS = 0b1111
@@ -99,6 +101,14 @@ typedef enum {
   IO_COMMAND_DATA_LOW,
   IO_COMMAND_DATA_HIGH
 } wire_generic_command;
+
+/**
+ * Commands in the wait command group. Sub-commands 0x1 through 0xF are
+ * reserved for future use.
+ */
+typedef enum {
+  IO_WAIT_COMMAND_FOR_EDGE = 0
+} io_wait_command;
 
 typedef enum {
   PIC_MODE_INVALID = 0,
@@ -143,7 +153,13 @@ typedef enum {
   BITBANG_COMMAND_ADC_ONE_SHOT,
   BITBANG_COMMAND_ADC_CONTINUOUS,
   BITBANG_COMMAND_FREQUENCY_COUNT,
-  BITBANG_COMMAND_JTAG_XSVF = 0x18
+  BITBANG_COMMAND_JTAG_XSVF = 0x18,
+
+  /*
+   * Wait for an edge on the AUX pin. Shares its payload and reply format
+   * with the wait command group that the protocol modes accept.
+   */
+  BITBANG_COMMAND_WAIT_FOR_EDGE = 0x70
 } bitbang_command;
 
 /**
@@ -278,7 +294,7 @@ static inline void handle_read_adc_continuously(void);
 static inline void handle_frequency_measurement(void);
 static inline int handle_bitbang_command(const bitbang_command command);
 
-static void read_and_transmit_adc_measurement(void);
+static bool read_and_transmit_adc_measurement(void);
 
 static void send_bits(const uint8_t value, const size_t count);
 
@@ -483,6 +499,10 @@ int handle_bitbang_command(const bitbang_command command) {
     handle_frequency_measurement();
     break;
 
+  case BITBANG_COMMAND_WAIT_FOR_EDGE:
+    handle_wait_command(command);
+    break;
+
   case BITBANG_COMMAND_JTAG_XSVF:
 #ifdef BUSPIRATEV4
     bp_enable_voltage_regulator();
@@ -540,11 +560,11 @@ uint8_t bitbang_pin_state_set(const uint8_t state_mask) {
   bp_set_voltage_regulator_state((state_mask & 0b01000000) ? ON : OFF);
   bp_set_pullup_state((state_mask & 0b00100000) ? ON : OFF);
 
-  BP_AUX0 = (state_mask & 0b00010000) ? HIGH : LOW;
-  BP_MOSI = (state_mask & 0b00001000) ? HIGH : LOW;
-  BP_CLK = (state_mask & 0b00000100) ? HIGH : LOW;
-  BP_MISO = (state_mask & 0b00000010) ? HIGH : LOW;
-  BP_CS = (state_mask & 0b00000001) ? HIGH : LOW;
+  BP_AUX0_LAT = (state_mask & 0b00010000) ? HIGH : LOW;
+  BP_MOSI_LAT = (state_mask & 0b00001000) ? HIGH : LOW;
+  BP_CLK_LAT = (state_mask & 0b00000100) ? HIGH : LOW;
+  BP_MISO_LAT = (state_mask & 0b00000010) ? HIGH : LOW;
+  BP_CS_LAT = (state_mask & 0b00000001) ? HIGH : LOW;
 
   /* Wait a bit. */
 
@@ -592,8 +612,8 @@ void bp_binary_io_peripherals_set(unsigned char inByte) {
   bp_set_voltage_regulator_state((inByte & 0b00001000) == 0b00001000);
   bp_set_pullup_state((inByte & 0b00000100) == 0b00000100);
 
+  BP_AUX0_LAT = (inByte & 0b00000010) ? ON : OFF;
   BP_AUX0_DIR = OUTPUT;
-  BP_AUX0 = (inByte & 0b00000010) ? ON : OFF;
 
   // CS pin, follows HiZ setting
   if (inByte & 0b1) {
@@ -614,7 +634,8 @@ void bp_binary_io_peripherals_set(unsigned char inByte) {
 // checks if voltage is present on VUEXTERN
 bool bp_binary_io_pullup_control(uint8_t control_byte) {
 
-  if (mode_configuration.high_impedance == NO) {
+  if ((mode_configuration.high_impedance == NO) ||
+      !bp_adc_foreground_available()) {
     return false;
   }
 
@@ -711,6 +732,10 @@ void binary_io_raw_wire_mode_handler(void) {
 
     case IO_COMMAND_GROUP_SET_SPEED:
       handle_set_speed(input_byte);
+      break;
+
+    case IO_COMMAND_GROUP_WAIT:
+      handle_wait_command(input_byte);
       break;
 
     case IO_COMMAND_GROUP_CONFIGURATION:
@@ -908,6 +933,97 @@ bool handle_wire_generic_command(const wire_generic_command command) {
   return true;
 }
 
+/**
+ * Poll tick for handle_wait_command(), in microseconds.
+ *
+ * The change notification flag latches an edge in between polls, so the
+ * tick only bounds how late the reply can be; an edge is never missed.
+ * One microsecond keeps a caught edge's reply within a few microseconds
+ * instead of up to the old 50 us interval.
+ */
+#define BP_WAIT_POLL_TICK_US 1
+
+void handle_wait_command(const uint8_t command) {
+  const uint8_t subcommand = command & 0b1111;
+
+  if (subcommand != IO_WAIT_COMMAND_FOR_EDGE) {
+    REPORT_IO_FAILURE();
+    return;
+  }
+
+  const uint8_t edges = user_serial_read_byte();
+  const uint16_t timeout_ms = user_serial_read_big_endian_word();
+
+  if ((edges < BP_BINARY_IO_EDGE_RISING) ||
+      (edges > BP_BINARY_IO_EDGE_EITHER)) {
+    REPORT_IO_FAILURE();
+    return;
+  }
+
+  /*
+   * Arm the change notification hardware on the pin: it latches an edge in
+   * the shared interrupt flag, so a change cannot slip through while this
+   * loop is looking elsewhere. Clearing the flag after arming discards
+   * anything that happened earlier - the NORMAL button shares the flag.
+   */
+  bp_aux_pin_set_change_notification(ON);
+  IFS1bits.CNIF = OFF;
+
+  bool level = bp_aux_pin_state_get();
+  bool edge_seen = NO;
+
+  /*
+   * Timeout accounting on TMR1 directly (0.5 us ticks, 16 bits, so it
+   * wraps every 32.8 ms): deltas are accumulated so any timeout up to the
+   * protocol maximum stays exact.  This branch has no inlined short-delay
+   * helper yet, so the one-microsecond tick is the direct bp_delay_us()
+   * call (no cross-PR dependency; same cadence).
+   */
+  const uint32_t timeout_ticks = (uint32_t)timeout_ms * 2000;
+  uint16_t last_ticks = TMR1;
+  uint32_t elapsed_ticks = 0;
+
+  for (;;) {
+    const uint16_t now_ticks = TMR1;
+    elapsed_ticks += (uint16_t)(now_ticks - last_ticks);
+    last_ticks = now_ticks;
+
+    /* Expiry wins over a pending edge, including the zero-timeout arm window. */
+    if (elapsed_ticks >= timeout_ticks) {
+      level = bp_aux_pin_state_get();
+      break;
+    }
+
+    if (IFS1bits.CNIF) {
+      IFS1bits.CNIF = OFF;
+
+      const bool next_level = bp_aux_pin_state_get();
+
+      if (next_level != level) {
+        const bool rising_edge = next_level;
+
+        if (((edges & BP_BINARY_IO_EDGE_RISING) && rising_edge) ||
+            ((edges & BP_BINARY_IO_EDGE_FALLING) && !rising_edge)) {
+          level = next_level;
+          edge_seen = YES;
+          break;
+        }
+
+        level = next_level;
+      }
+    }
+
+    bp_delay_us(BP_WAIT_POLL_TICK_US);
+  }
+
+  bp_aux_pin_set_change_notification(OFF);
+
+  /* Report the event, or the timeout, along with the pin's level. */
+  user_serial_transmit_character(edge_seen ? BP_BINARY_IO_RESULT_SUCCESS
+                                           : BP_BINARY_IO_RESULT_FAILURE);
+  user_serial_transmit_character(level ? 1 : 0);
+}
+
 void handle_bulk_byte_transfer(const uint8_t command) {
   size_t bytes = (command & 0x0F) + 1;
   REPORT_IO_SUCCESS();
@@ -926,7 +1042,7 @@ void handle_bulk_byte_transfer(const uint8_t command) {
       if (mode_configuration.little_endian == YES) {
         value = bp_reverse_integer(value, mode_configuration.numbits);
       }
-      bitbang_write_value(value & 0xFF, false);
+      user_serial_transmit_character(value & 0xFF);
     }
   }
 }
@@ -1177,6 +1293,14 @@ void handle_pic_command_write_and_read_commands(void) {
   }
 }
 
+/*
+ * SMPS request encoding (intended, per the module review): the low nibble
+ * of a request carries the 12-bit output-voltage high bits, with 0x0 and
+ * 0x1 reserved for the fixed GET/STOP requests.  Start requests therefore
+ * begin at 0xF2 plus an operand byte (= 0x0200..0x02FF), so 0xF0/0xF1 can
+ * never collide with a start value and the 0x0000..0x01FF range is
+ * unreachable by design.
+ */
 void handle_smps_command(const smps_command command) {
 #if defined(BP_ENABLE_SMPS_SUPPORT)
   switch (command) {
@@ -1203,12 +1327,19 @@ void handle_smps_command(const smps_command command) {
   }
   }
 #else
-  (void)command;
+  /* Keep the request frame aligned even when no SMPS driver is present. */
+  if ((uint8_t)command >= SMPS_COMMAND_START) {
+    user_serial_read_byte();
+  }
   REPORT_IO_FAILURE();
 #endif /* BP_ENABLE_SMPS_SUPPORT */
 }
 
 void handle_clear_pwm(void) {
+  if (!bp_adc_foreground_available()) {
+    REPORT_IO_FAILURE();
+    return;
+  }
   /*
    * T2CON - TIMER 2 CONTROL REGISTER
    *
@@ -1259,13 +1390,25 @@ void handle_clear_pwm(void) {
   REPORT_IO_SUCCESS();
 }
 
-void read_and_transmit_adc_measurement(void) {
+bool read_and_transmit_adc_measurement(void) {
+  if (!bp_adc_foreground_available()) {
+    /* ADC samples are 10-bit words. Preserve framing with an invalid sample,
+     * not terminal ASCII or a one-byte status indistinguishable from data. */
+    user_serial_transmit_character(0xFF);
+    user_serial_transmit_character(0xFF);
+    return false;
+  }
   uint16_t value = bp_read_adc(BP_ADC_PROBE);
   user_serial_transmit_character((value >> 8) & 0xFF);
   user_serial_transmit_character(value & 0xFF);
+  return true;
 }
 
 void handle_read_adc_one_shot(void) {
+  if (!bp_adc_foreground_available()) {
+    read_and_transmit_adc_measurement();
+    return;
+  }
   bp_enable_adc();
   read_and_transmit_adc_measurement();
   bp_disable_adc();
@@ -1274,9 +1417,15 @@ void handle_read_adc_one_shot(void) {
 void handle_read_adc_continuously(void) {
   bool should_loop = true;
 
+  if (!bp_adc_foreground_available()) {
+    read_and_transmit_adc_measurement();
+    return;
+  }
   bp_enable_adc();
   do {
-    read_and_transmit_adc_measurement();
+    if (!read_and_transmit_adc_measurement()) {
+      return;
+    }
     if (user_serial_ready_to_read()) {
       user_serial_read_byte();
       should_loop = false;
@@ -1295,6 +1444,15 @@ void handle_frequency_measurement(void) {
 }
 
 void handle_setup_pwm(void) {
+  const uint8_t prescale = user_serial_read_byte() & 0b00000011;
+  const uint16_t duty_cycle = user_serial_read_big_endian_word();
+  const uint16_t period = user_serial_read_big_endian_word();
+
+  /* Consume the complete frame before refusing a shared OC5 conflict. */
+  if (!bp_adc_foreground_available()) {
+    REPORT_IO_FAILURE();
+    return;
+  }
   /*
    * T2CON - TIMER 2 CONTROL REGISTER
    *
@@ -1338,6 +1496,7 @@ void handle_setup_pwm(void) {
    *   +---------------- OCSIDL:   Output Compare continues in CPU idle mode.
    */
   OC5CON = 0x0000;
+  OC5CON2 = 0x000C;
 #else
   /*
    * OC5CON - OUTPUT COMPARE 5 CONTROL REGISTER
@@ -1354,10 +1513,8 @@ void handle_setup_pwm(void) {
 #endif /* BUSPIRATEV4 */
 
   BP_AUX_RPOUT = OC5_IO;
-  T2CONbits.TCKPS = user_serial_read_byte() & 0b00000011;
-
-  uint16_t duty_cycle = user_serial_read_byte();
-  duty_cycle = (duty_cycle << 8) | user_serial_read_byte();
+  BP_AUX0_DIR = OUTPUT;
+  T2CONbits.TCKPS = prescale;
   OC5R = duty_cycle;
   OC5RS = duty_cycle;
 
@@ -1391,10 +1548,9 @@ void handle_setup_pwm(void) {
   OC5CON = 0x0006;
 #endif /* BUSPIRATEV4 */
 
-  uint16_t period = user_serial_read_byte();
-  period = (period << 8) | user_serial_read_byte();
   PR2 = period;
 
+  TMR2 = 0;
   T2CONbits.TON = ON;
   REPORT_IO_SUCCESS();
 }

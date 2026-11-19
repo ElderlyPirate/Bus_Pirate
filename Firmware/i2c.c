@@ -19,9 +19,9 @@
 
 #ifdef BP_ENABLE_I2C_SUPPORT
 
-#include "aux_pin.h"
+#include "capability_aux/aux_pin.h"
 #include "base.h"
-#include "binary_io.h"
+#include "protocol_binary/binary_io.h"
 #include "bitbang.h"
 #include "core.h"
 #include "proc_menu.h"
@@ -1153,6 +1153,10 @@ void binary_io_enter_i2c_mode(void) {
       inByte &= 0b00000011;     // clear command portion
       bitbang_setup(2, inByte); // set I2C speed
       REPORT_IO_SUCCESS();
+      break;
+
+    case 0b0111: // wait for an edge on the AUX pin
+      handle_wait_command(inByte);
       break;
 
     case 0b0100: // configure peripherals w=power, x=pullups, y=AUX, z=CS

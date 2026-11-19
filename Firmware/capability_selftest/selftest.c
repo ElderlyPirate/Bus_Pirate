@@ -21,6 +21,7 @@
 #include "selftest.h"
 
 #include "base.h"
+#include "capability_adc/adc.h"
 #include "core.h"
 
 /**
@@ -78,6 +79,15 @@ extern bus_pirate_configuration_t bus_pirate_configuration;
 
 uint8_t perform_selftest(bool show_progress, bool jumper_test) {
 
+  /* Refuse before changing rails/pins or reaching the ADC-enable block.
+   * In binary mode the returned error count is the entire refusal. */
+  if (!bp_adc_foreground_available()) {
+    if (show_progress) {
+      bp_adc_check_foreground();
+    }
+    return 1;
+  }
+
   errors = 0;
   if (!show_progress) {
     bus_pirate_configuration.quiet = true;
@@ -101,20 +111,20 @@ uint8_t perform_selftest(bool show_progress, bool jumper_test) {
 
   /* Check whether AUX0 goes HIGH when requested. */
 
-  BP_AUX0 = HIGH;
+  BP_AUX0_LAT = HIGH;
   BP_AUX0_DIR = OUTPUT;
   BPMSG1165;
   check_result(BP_AUX0, HIGH);
-  BP_AUX0 = LOW;
+  BP_AUX0_LAT = LOW;
   BP_AUX0_DIR = INPUT;
 
   /* Check whether the LED line goes HIGH when requested. */
 
-  BP_LEDMODE = HIGH;
+  BP_LEDMODE_LAT = HIGH;
   BP_LEDMODE_DIR = OUTPUT;
   BPMSG1166;
   check_result(BP_LEDMODE, HIGH);
-  BP_LEDMODE = LOW;
+  BP_LEDMODE_LAT = LOW;
 
   /* Check whether the pull-up line goes HIGH when requested. */
 
@@ -331,6 +341,11 @@ void perform_adc_test(unsigned int channel, unsigned int minimum_threshold,
                       unsigned int maximum_threshold) {
 
   unsigned int measurement;
+
+  if (!bp_adc_foreground_available()) {
+    check_result(false, true);
+    return;
+  }
 
   user_serial_transmit_character('(');
   measurement = bp_read_adc(channel);

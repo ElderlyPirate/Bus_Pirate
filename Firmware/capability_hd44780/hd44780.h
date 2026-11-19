@@ -27,6 +27,7 @@ void LCDstart(void);
 void LCDstop(void);
 void LCDsetup(void);
 void LCDsetup_exc(void);
+void hd44780_cleanup(void);
 void LCDmacro(unsigned int c);
 void LCDpins(void);
 

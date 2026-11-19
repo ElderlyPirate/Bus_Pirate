@@ -33,7 +33,7 @@
 #define SPIMOSI                 BP_MOSI
 #define SPICLK                  BP_CLK  
 #define SPIMISO                 BP_MISO 
-#define SPICS                   BP_CS   
+#define SPICS                   BP_CS_LAT
 
 //Define how the PCF8574 pins connect to the LCD
 #define HCT595_LCD_LED 0b00000001
@@ -109,42 +109,50 @@ static void HD44780_WriteByte(unsigned char reg, unsigned char dat); //write a b
 static void HD44780_WriteNibble(unsigned char reg, unsigned char dat);//write 4 bits to LCD to register REG
 static void HD44780_SPIwrite(unsigned char datout); //abstracts data output to PCF8574 IO expander over I2C bus
 
-/* 
- * Duplicate the minimum amount of SPI functionality if SPI support
- * is disabled.
- */
-
 #ifndef BP_ENABLE_SPI_SUPPORT
 
-//open drain control registers for OUTPUT pins
-#define SPIMOSI_ODC             BP_MISO_ODC     
-#define SPICLK_ODC              BP_CLK_ODC      
-#define SPICS_ODC               BP_CS_ODC       
-
-unsigned char spi_write_byte(unsigned char c){
-        SPI1BUF = c;
-        while(!IFS0bits.SPI1IF);
-        c=SPI1BUF;
-        IFS0bits.SPI1IF = 0;
-        return c;
-}
-
-void spi_disable_interface(void){
-        SPI1STATbits.SPIEN = 0;
-        RPINR20bits.SDI1R=0b11111;  //B7 MISO
-
-        //PPS Disable
-        BP_MOSI_RPOUT=0;
-        BP_CLK_RPOUT=0;
-
-        //disable all open drain control register bits
-        SPIMOSI_ODC=0;
-        SPICLK_ODC=0;
-        SPICS_ODC=0;
-        //make all input maybe???
-}
+/* Compatibility for the standalone core's weak fallback. */
+void spi_disable_interface(void) { hd44780_cleanup(); }
 
 #endif /* !BP_ENABLE_SPI_SUPPORT */
+
+void hd44780_cleanup(void) {
+        /* Release pads before removing peripheral ownership (DS39897C 10.1).
+         * Keep the selected mode, GPIO latches, rails and VPU policy intact. */
+        SPIMOSI_TRIS = INPUT;
+        SPICLK_TRIS = INPUT;
+        SPIMISO_TRIS = INPUT;
+        SPICS_TRIS = INPUT;
+        SPI1STATbits.SPIEN = OFF;
+        RPINR20bits.SDI1R = 0b11111;
+        BP_MOSI_RPOUT = NULL_IO;
+        BP_CLK_RPOUT = NULL_IO;
+        mode_configuration.numbits = 8;
+        mode_configuration.int16 = NO;
+}
+
+static bool hd44780_spi_write_byte(uint8_t value) {
+        const uint16_t start = TMR1;
+
+        if (!SPI1STATbits.SPIEN) {
+                mode_configuration.command_error = YES;
+                return false;
+        }
+        /* LCDsetup_exc selects standard (not FIFO) SPI. SPIRBF signifies a
+         * complete byte, unlike a stale SPI1IF (DS39897C register 15-1). */
+        IFS0bits.SPI1IF = OFF;
+        SPI1BUF = value;
+        while (!SPI1STATbits.SPIRBF) {
+                if ((uint16_t)(TMR1 - start) >= 2000) {
+                        hd44780_cleanup();
+                        mode_configuration.command_error = YES;
+                        return false;
+                }
+        }
+        (void)SPI1BUF;
+        IFS0bits.SPI1IF = OFF;
+        return true;
+}
 
 unsigned int LCDwrite(unsigned int c)
 {       
@@ -166,12 +174,17 @@ void LCDstop(void)
 
 void LCDsetup(void)
 {       
-        mode_configuration.high_impedance=1;//yes, always HiZ
+        /* The shift-register adapter uses normal push-pull SPI outputs. */
+        mode_configuration.high_impedance=NO;
 }
 
 void LCDsetup_exc(void)
 {
         HD44780.RS=HD44780_DATA;
+
+        BP_MOSI_ODC=OFF;
+        BP_CLK_ODC=OFF;
+        BP_CS_ODC=OFF;
 
 		//PPS Setup
 		// Inputs
@@ -208,8 +221,7 @@ void LCDmacro(unsigned int c)
 
         cmdstart=(cmdstart+1)&CMDLENMSK;
         //cmdstart&=CMDLENMSK;
-        consumewhitechars();
-        input=getint();
+        input=getint_with_spaces();
         mode_configuration.command_error=false;
 
         switch(c)
@@ -229,9 +241,9 @@ void LCDmacro(unsigned int c)
                                 BPMSG1220;
                                 //c=bpUserNumberPrompt(1, 2, 2);
                                 input=getnumber(2,1,2, 0);
-                                if(input==1) HD44780_Init(DISPLAYLINES1); else HD44780_Init(DISPLAYLINES2);
                                 //bpWline(OUMSG_LCD_MACRO_INIT);
                         }
+                        if(input==1) HD44780_Init(DISPLAYLINES1); else HD44780_Init(DISPLAYLINES2);
                         BPMSG1221;
                         break;          
                 case 3: //Clear LCD and return home
@@ -281,7 +293,7 @@ void LCDmacro(unsigned int c)
 }
 
 void LCDpins(void) {
-    MSG_I2C_PINS_STATE;
+    MSG_SPI_PINS_STATE;
 }
 
 
@@ -363,7 +375,7 @@ void HD44780_WriteNibble(unsigned char reg, unsigned char dat){
 
 //write value to 595 IO expander, message and return on ACK error
 void HD44780_SPIwrite(unsigned char datout){
-        spi_write_byte(datout);
+        if (!hd44780_spi_write_byte(datout)) return;
         SPICS=1;
         //bpDelayUS(255);
         SPICS=0;

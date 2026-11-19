@@ -70,6 +70,7 @@ static void mock_spi(void);
 static void mock_bit(bool drive, bool bit, bool sample);
 static void mock_usb_configure(void);
 static void mock_usb_run_poll(void);
+static void mock_usb_startup_poll(void);
 static void mock_response_append(void);
 static bool mock_enumerating;
 static unsigned mock_configuration_polls, mock_sof_registrations;

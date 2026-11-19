@@ -25,6 +25,10 @@ for source in (ROOT / "programmer_avrisp").glob("avrisp_*"):
         text = text.replace("while (usb_device_state < CONFIGURED_STATE)",
                             "while ((mock_usb_configure(), usb_device_state) < CONFIGURED_STATE)")
         text = text.replace(
+            "while ((usb_device_state < CONFIGURED_STATE) && avrisp_activity_ticks)",
+            "while ((mock_usb_startup_poll(), usb_device_state < CONFIGURED_STATE) && avrisp_activity_ticks)",
+        )
+        text = text.replace(
             "while ((usb_device_state >= CONFIGURED_STATE) && avrisp_activity_ticks)",
             "while ((mock_usb_run_poll(), usb_device_state >= CONFIGURED_STATE) && avrisp_activity_ticks)",
         )

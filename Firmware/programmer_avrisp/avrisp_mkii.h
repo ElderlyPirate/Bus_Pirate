@@ -38,6 +38,9 @@
 /** Idle time with no host activity before the mode ends, in 10 ms ticks. */
 #define AVRISP_IDLE_TICKS 500
 
+/** USB enumeration/driver-binding budget until the first request, in 10 ms ticks. */
+#define AVRISP_USB_STARTUP_TICKS 12000
+
 /** Transports supported by the personality. */
 typedef enum {
   AVRISP_TRANSPORT_USB = 0,

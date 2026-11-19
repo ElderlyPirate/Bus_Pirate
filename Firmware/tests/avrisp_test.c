@@ -21,6 +21,7 @@ static bool blocked_cdc;
 static bool mock_require_idle_clock;
 static bool mock_zero_packets;
 static unsigned mock_run_polls, mock_restart_at;
+static unsigned mock_startup_polls, mock_configure_after, mock_request_at;
 static uint8_t serial_rx[2048], serial_tx[2048];
 static unsigned serial_len, serial_pos, serial_tx_len;
 static uint8_t isp_rx[128];
@@ -71,11 +72,25 @@ static void mock_usb_configure(void) {
     usb_device_state = 0; /* A bus reset clears BDs before configuration. */
   }
 }
+static void mock_usb_startup_poll(void) {
+  if (usb_device_state >= CONFIGURED_STATE || !avrisp_activity_ticks) return;
+  CHECK(++mock_startup_polls <= AVRISP_USB_STARTUP_TICKS);
+  _T3Interrupt();
+  if (mock_configure_after && mock_startup_polls == mock_configure_after) {
+    usb_device_state = CONFIGURED_STATE;
+    mock_enumerating = false;
+    avrisp_usb_configure_endpoints();
+  }
+}
 static void mock_usb_run_poll(void) {
   if (!avrisp_activity_ticks) return;
-  CHECK(++mock_run_polls <= AVRISP_IDLE_TICKS + 1);
+  CHECK(++mock_run_polls <= AVRISP_USB_STARTUP_TICKS + AVRISP_IDLE_TICKS);
   _T3Interrupt();
-  if (mock_run_polls == mock_restart_at) {
+  if (mock_run_polls == mock_request_at) {
+    avrisp_ep_out->BDADDR[0] = CMD_SIGN_ON;
+    avrisp_ep_out->BDCNT = 1;
+    avrisp_ep_out->BDSTAT &= ~UOWN;
+  } else if (mock_run_polls == mock_restart_at) {
     usb_device_state = DEFAULT_STATE;
     avrisp_ep_out->BDSTAT = 0;
   } else if (mock_zero_packets) {
@@ -292,10 +307,36 @@ int main(void) {
     mock_zero_packets=mode == 1;
     mock_restart_at=mode == 2 ? 10 : 0;
     avrisp_usb_run();
-  CHECK(mock_run_polls == (mode == 2 ? 10u :
-          AVRISP_IDLE_TICKS - AVRISP_USB_DETACH_MS / 10));
+    CHECK(mock_run_polls == (mode == 2 ? 10u : AVRISP_USB_STARTUP_TICKS));
     CHECK(!avrisp_usb_personality_active && usb_device_state == CONFIGURED_STATE);
   }
+  /* RA-18: slow/no configuration, delayed first command, normal session idle. */
+  mock_zero_packets=false;
+  mock_restart_at=0;
+  for (unsigned mode=0; mode<4; mode++) {
+    reset_test();
+    us_elapsed=0;
+    mock_startup_polls=mock_run_polls=0;
+    mock_enumerating=true;
+    mock_configuration_polls=mock_sof_registrations=0;
+    mock_fail_configurations=0;
+    mock_configure_after=mode == 0 ? 0 : 1000;
+    /* Driver binding can take time even AFTER SET_CONFIGURATION. */
+    mock_request_at=mode >= 2 ? AVRISP_USB_STARTUP_TICKS - 1100 : 0;
+    mock_zero_packets=mode == 3;
+    avrisp_usb_run();
+    CHECK(mock_startup_polls == (mode == 0 ? AVRISP_USB_STARTUP_TICKS : 1000));
+    CHECK(mock_run_polls == (mode == 0 ? 0 : mode == 1 ?
+          AVRISP_USB_STARTUP_TICKS - 1000 : mock_request_at + AVRISP_IDLE_TICKS));
+    CHECK(!avrisp_usb_personality_active && usb_device_state == CONFIGURED_STATE);
+    if (mode >= 2) {
+      CHECK(in_len == 13 && usb_reply[0] == CMD_SIGN_ON && usb_reply[1] == STATUS_CMD_OK);
+    } else {
+      CHECK(in_len == 0);
+    }
+  }
+  mock_request_at=mock_configure_after=0;
+  mock_zero_packets=false;
   reset_test();
   static const unsigned primary[] = {64,16,4,1};
   static const unsigned frequencies[] = {8000000,4000000,2000000,1000000,500000,250000,125000};

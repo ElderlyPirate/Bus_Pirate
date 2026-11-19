@@ -372,7 +372,9 @@ static void avrisp_usb_run(void) {
     goto restore_cdc;
   }
 
-  /* Wait for the host to configure the mkII personality. */
+  /* Windows can configure USB before driver binding finishes. Keep a bounded
+     startup budget until the first nonempty request selects normal idle time. */
+  avrisp_activity_ticks = AVRISP_USB_STARTUP_TICKS;
   while ((usb_device_state < CONFIGURED_STATE) && avrisp_activity_ticks) {
   }
 

@@ -244,9 +244,10 @@ On **v3** `b` changes the physical UART.  A bare `b` prints
 Option 10 asks `Enter raw value for BRG` and prompts `(34)>`.  `BRG` is the
 baud-rate generator divider, not a rate: usable values are 1–32767, 34 is the
 firmware's default (the 115200 bps preset) and 127 is 31250 bps (MIDI).  The
-`(34)` is that default, not the rate currently in force.  A complete
-`b10 <value>` skips the prompt.  The menu default is 9 (115200), the rate the
-firmware boots at.
+`(34)` is that default, not the rate currently in force.  A valid
+`b10 <value>` (1–32767) skips the prompt; a missing, zero, malformed, or
+over 32767 value reopens `Enter raw value for BRG` at the same `(34)>` prompt.
+The menu default is 9 (115200), the rate the firmware boots at.
 
 The UART page gives the formula and a rate table
 ([entry and setup](../protocol/uart/entry-and-setup.md#custom-baud-option-10)).

@@ -341,9 +341,11 @@ appears as the firmware reboots.
 `m1` returns to HiZ and runs the same board-state reset but does not restore
 the display format and prints `Ready` instead of the banner.  Neither `#` nor
 `m1` can be typed inside BASIC: the interpreter receives every line, so both
-are syntax errors there.  Type `EXIT` first.  On v4 the reset also releases
-`AUX1` / `AUX2` and clears their output routing, so every header I/O pin is an
-input afterwards.
+are syntax errors there.  Type `EXIT` first.
+
+The board-state reset also stops Timer2, so any AUX PWM/servo output ends.  On
+v4 it releases `AUX1`/`AUX2`, clears their output routing and the `AUX1`
+open-drain bit, so every header I/O pin is an input afterwards.
 
 The binary return (`0x0F`) and the SUMP exit also land in HiZ with the banner.
 On v4 the binary return runs the same terminal reset as `#`; on v3 it performs

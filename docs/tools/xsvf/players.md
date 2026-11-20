@@ -73,6 +73,9 @@ bp --config bp.yaml xsvf --scan
 
 An explicit option wins over the file.  Unknown keys are rejected.
 
+Earlier releases shipped C host players (`BP4_Full_bitbang_XSVFplayer_Win.exe`,
+`BPXSVFplayer`); they are removed and this set documents `bp xsvf` only.
+
 ## Options
 
 | Option | Argument | Meaning |
@@ -229,15 +232,6 @@ as stream data.
 board left in the player by an earlier command: a new invocation cannot enter
 binary mode until the board is out.  Use the reset button or the raw pair in
 [workflow.md](workflow.md#6-leave-the-player-and-recover-the-terminal).
-
-## The removed C players
-
-Earlier releases shipped two C programs, a Windows build
-(`BP4_Full_bitbang_XSVFplayer_Win.exe`) and a cross-platform build
-(`BPXSVFplayer`).  They were removed after `bp xsvf` replaced them.  A
-reader following older instructions that name those files, a `package/`
-folder, or a bundled converter folder is looking at a tree that no longer
-exists; this set documents `bp xsvf` only.
 
 ## Related docs
 

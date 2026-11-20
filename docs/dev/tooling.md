@@ -146,7 +146,7 @@ by hand from clean *production* builds:
   [building.md](building.md) §MPLAB-X route.  The command-line Makefile writes
   `Firmware/bpv3.hex` / `bpv4.hex` instead.
 - Older release notes name the artifacts `bpv3-firmware.hex`,
-  `bpv3-bootloader45.hex`, `bpv4-firmware.hex` and `bpv4-bootloader1.hex`;
+  `bpv3-bootloader.hex`, `bpv4-firmware.hex` and `bpv4-bootloader.hex`;
   those names came from a manual clean-and-build-and-rename step, not a
   tracked script.
 - Bootloader images are not prebuilt in the tree; the v3 and v4 images are

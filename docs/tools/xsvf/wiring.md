@@ -1,37 +1,37 @@
 # XSVF wiring, supplies and levels
 
-Part of the XSVF host-tool set.  This page is what to connect for a firmware
-player run and which voltages are safe.  The authoritative pin map for both
-JTAG paths is
+Part of the XSVF set.  This page is what to connect for a firmware-player run
+and which voltages are safe.  The authoritative pin map for both JTAG paths is
 [protocol/jtag/wiring.md](../../protocol/jtag/wiring.md); this page repeats
-only what a run needs.
+only what an XSVF run needs.
 
 ## Signal map
 
 | Bus Pirate | Direction | JTAG | Role |
 |---|---|---|---|
-| MOSI | → | TDI | test data in |
-| MISO | ← | TDO | test data out |
-| CLK | → | TCK | test clock |
-| CS | → | TMS | test mode select |
+| MOSI | to | TDI | test data in |
+| MISO | from | TDO | test data out |
+| CLK | to | TCK | test clock |
+| CS | to | TMS | test mode select |
 | GND | — | GND | signal ground |
 
 TDI, TCK and TMS are outputs driven by the board; TDO is an input driven by
 the target.  The ground wire is part of the interface, not an optional extra:
 without it TDO is unreliable or absent.
 
+The player uses only these five wires.  It does not drive SRST or TRST.
+
 ## Pull-ups
 
 **No pull-up is needed.**  The player drives TDI, TCK and TMS as 3.3 V
 push-pull outputs, so there is nothing to pull high.  TDO is driven by the
-target.
+target and is always an input on the Bus Pirate side.
 
-Entry does not enable the on-board pull-ups; binary entry switches them off.
-A custom host can turn them on again with a pin write inside `BBIO1`; `0x18`
-does not clear them, so they stay on for the whole run.  A board reset or the
-return to the terminal switches them off.  The on-board pull-ups tie the
-lines to **Vpullup**, not to the target's rail, so they are not a substitute
-for the push-pull drive.
+Entry does not enable the on-board pull-up resistors; binary entry switches
+them off.  A custom host can turn them on again with a pin write inside
+`BBIO1`; the player selection does not clear them, so they would stay on for
+the run.  They tie the lines to **Vpullup**, not to the target's rail, and are
+not a substitute for the push-pull drive.  `bp xsvf` does not enable them.
 
 ## Supply
 
@@ -44,14 +44,14 @@ The on-board regulator (**VREG**) drives the two target-supply rails.
 
 - **Wire the target's VCC to one rail only, never both.**  The two rails are
   separate outputs; joining them back-drives one supply from the other.
-- **Entry always switches VREG on.**  The firmware player has no way to leave
-  it off, so **disconnect the target's own supply** before the run and never
+- **Entry always switches VREG on.**  The player has no way to leave it off,
+  so **disconnect the target's own supply** before the run and never
   back-drive a powered target.
 - **The player cannot select a rail voltage.**  VREG brings both rails up at
   their fixed levels; there is no 1.8 V or 2.5 V setting.
-- **The rails stay on after the player returns.**  `0x0F` leaves VREG on; a
-  board reset or the terminal reset switches it off.  Do not unplug the
-  target while the rails are on.
+- **The rails stay on after the player returns.**  Leaving the player for
+  `BBIO1` does not switch VREG off; only the terminal reset or a board reset
+  does.  Do not unplug the target while the rails are on.
 - **A faulted rail shows no player error.**  From inside the player the only
   symptom is a target that does not answer.  To see the check, press reset,
   enter a mode (`m`), then `W`; `W` is refused in `HiZ>`.
@@ -71,8 +71,8 @@ The on-board regulator (**VREG**) drives the two target-supply rails.
 
 ## Reset lines and the unused pins
 
-The player does not drive **SRST** or **TRST**; it uses only the five wires
-above.  Two leftovers can still hold a target in reset:
+The player does not drive **SRST** or **TRST**.  Two leftovers can still hold
+a target in reset:
 
 | Leftover | Effect | Fix |
 |---|---|---|

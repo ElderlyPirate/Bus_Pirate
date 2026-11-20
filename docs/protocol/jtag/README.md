@@ -22,9 +22,9 @@ mode: the OpenOCD path is a raw shifter and the XSVF player owns the TAP.
 
 Naming: the **OpenOCD path** is the firmware mode; the host-side setup is
 the **OpenOCD adapter** tool set.  The **XSVF player** is the firmware
-sub-mode; the PC program that streams a file is the **XSVF host player**.
-The player's identifier is `XSV1`.  The XSVF tool set calls these the
-**firmware player** and the **host tools**; they are the same pair.
+sub-mode; the PC program that streams a file is `bp xsvf`, the **XSVF host
+player**.  The player's identifier is `XSV1`.  The XSVF tool set calls these
+the **firmware player** and the **host player**; they are the same pair.
 
 This set is for wiring a target and driving it through one of the two
 paths.  The TAP mechanics — states, shifts, scan, IDCODE, BYPASS and reset

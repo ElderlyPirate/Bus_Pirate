@@ -1,147 +1,101 @@
-# XSVF host players
+# The host player — `bp xsvf`
 
-Part of the XSVF host-tool set.  This page owns the two PC programs that
-stream an XSVF file: what ships, which build to use, the options, the serial
-settings, the chain scan, the output, and the exit status.  The firmware side
-is [player.md](player.md); conversion is [converter.md](converter.md).
+Part of the XSVF set.  This page is the reference for the PC command that
+streams an XSVF file, probes the chain or resets it: installation, options,
+serial settings, output, exit statuses and the opt-in leave.  The firmware
+side is [player.md](player.md); the end-to-end sequence is
+[workflow.md](workflow.md).
 
 ## Scope
 
-Covered: the Windows and cross-platform host players, their files, options,
-port settings, output and exit status.  Not covered: the firmware player's
-protocol ([player.md](player.md)), the SVF→XSVF translation
-([converter.md](converter.md)), and the end-to-end sequence
-([workflow.md](workflow.md)).
+Covered: `bp xsvf` and the `bp` frontend it belongs to.  Not covered: the
+firmware player's byte protocol ([player.md](player.md)), conversion
+([converter.md](converter.md)) and wiring ([wiring.md](wiring.md)).
 
-## What a host player does
+## What the command does
 
-1. Opens the serial port at the requested speed, 8N1, no flow control.
-2. Sends NUL bytes until the board answers `BBIO1`.
-3. Sends `0x18` and waits for the four-byte `XSV1` marker.
-4. Optionally sends `0x01` (`-r`) to reset the chain.
-5. Optionally sends `0x02` (`-x`) and reads the framed reply.
-6. Sends `0x03` and streams the file, one chunk per ready byte.
-7. Stops when the file is used up or the player returns a result.  A result
-   stops either source build; a player error returns `1`, and no further
-   chunk is sent.  `No reply.... Quitting.` occurs only when the player gives
-   no result.
+1. Reads the whole XSVF file and rejects a missing or empty file before the
+   serial port is opened.
+2. Enters binary bitbang (`BBIO1`), then the player (`XSV1`).
+3. Sends the chain reset if `--reset` was given.
+4. Runs the chain probe if `--scan` was given.
+5. Streams the file if `--file` was given.
+6. If `--leave` was given, returns the board to the terminal.
 
-The scan is framed and drained before `0x03`, so `-x` with `-f` is safe in a
-source build ([the chain scan](#the-chain-scan--x)).  The tracked legacy
-prebuilt EXEs still use the old unsized scan; with those, run `-x` alone,
-then reset before the file run.
+The steps always run in that order, whatever order the options are written
+in.  Do not pre-enter binary mode or the player; the command does both.
 
-The chunk handshake and the result byte are in
-[player.md](player.md#playing-a-stream-0x03).  Do not pre-enter the binary
-layer or the player: the host player does both.
+## Install and port
 
-## The two builds
+`bp` is installed from the tool directory; Python 3.12 or newer is required.
 
-| | Windows player | Cross-platform player |
-|---|---|---|
-| Program | `BP4_Full_bitbang_XSVFplayer_Win.exe` | `BPXSVFplayer` (Linux), `BPXSVFplayer.exe` (Windows) |
-| Banner | `BusPirate XSVF Player V.02` | `BusPirate XSVF Player V.01` |
-| Folder | `scripts/BP4_XSVFplayer_Win/` | `scripts/BPXSVFPlayer/` |
-| Ready binary | legacy prebuilt; build source for current behavior | legacy prebuilt; build source for current behavior |
-| Build files | Dev-C++ project, Windows makefile | `Makefile`, Code::Blocks project |
-| `-f` with `-x`/`-r` | not required; `-x`/`-r` run alone and return `0` | not required; `-x`/`-r` run alone and return `0` |
-| Exit status | `0`, `1`, `2`; see below | `0`, `1`, `2`; see below |
-| Entry `ok` text | prints `ok` after each entry step | no `ok` after the two entry lines; run `ok` suffixes still appear |
+```
+cd scripts/bp
+python -m venv .venv
+```
 
-The two programs are the same tool in two builds.  The Windows build adds the
-`ok` words; both source builds accept the same options and return the same
-`0`/`1`/`2` status.  The tracked executables are legacy; see
-[Sources vs prebuilt binaries](#sources-vs-prebuilt-binaries).
+Activate it, then install the package and its dependencies:
 
-## Sources vs prebuilt binaries
+| Shell | Activate |
+|---|---|
+| Windows cmd | `.venv\Scripts\activate.bat` |
+| Windows PowerShell | `.venv\Scripts\Activate.ps1` |
+| Linux/macOS | `source .venv/bin/activate` |
 
-The tracked executables (`BP4_Full_bitbang_XSVFplayer_Win.exe`,
-`package/BPXSVFplayer`, `package/BPXSVFplayer.exe`) are the **legacy**
-builds; they have not been rebuilt for the host fixes.  They do not include
-the current host behavior: the framed and drained chain scan, the
-early-result stop, the `0`/`1`/`2` exit mapping, or the clean bad-file exit.
+```
+python -m pip install -e .
+```
 
-Build the player from `scripts/BP4_XSVFplayer_Win/` with the Dev-C++ project
-or Windows makefile, or from `scripts/BPXSVFPlayer/` with its `Makefile` or
-Code::Blocks project.  A source build is the current player described on
-these pages.
+Then check the port:
 
-## What ships
+```
+$ bp ports
+COM1  ----:----  Communications Port (COM1)
+COM5  04D8:FB00  USB Serial Device (COM5)  [Bus Pirate v4 application]
+```
 
-| Item | Windows player folder | Cross-platform folder |
-|---|---|---|
-| player | `BP4_Full_bitbang_XSVFplayer_Win.exe` (legacy) | `package/BPXSVFplayer`, `package/BPXSVFplayer.exe` (legacy) |
-| sample XSVF | `xc95test.xsvf`, `VHDL-CPLDIntro2Ledbutton.xsvf` | `xc95test.xsvf` (also in `package/`) |
-| converter (Windows) | `SVF2XSVF/` with `svf2xsvf502.exe`, `mergexsvf.exe`, `svf2XSVF.bat` | `SVF2XSVF/nt/` |
-| converter (Unix) | — | `SVF2XSVF/{lin,hp,sol}/` |
-| converter ReadMe | — | `SVF2XSVF/ReadMe.txt` |
-| build files | Dev-C++ project, Windows makefile | `Makefile`, Code::Blocks project |
-| example calls | `run.bat`, `run2.bat` | `package/run.bat` |
+`bp ports` only lists; it does not open a port or choose one.  `bp xsvf`
+requires `--port` or a configured `port`.  `bp version` reads the banner and
+should report `Hardware type: Bus Pirate v4`; the current
+`ElderlyPirate Firmware v9.0` image includes the player.
 
-Both sample files are 53289 bytes; `xc95test.xsvf` is the same file in both
-trees.  They are prebuilt examples; a real run needs a file built for your
-target chain.
+An optional YAML file supplies defaults.  `--config` is a root option and
+must come before `xsvf`:
 
-The bundled batch files hard-code a port: `run.bat` and `run2.bat` use
-`com10`, and the cross-platform `package/run.bat` uses `com18`.  Edit the port
-and the file name before using them.  They combine `-x` with `-f`; that is
-safe in a source build, but with a tracked legacy prebuilt, run `-x` alone,
-then reset before the file, or rebuild
-([the chain scan](#the-chain-scan--x)).  The Windows folder also
-carries `run_log.bat`, which is stale: it calls `BP4_XSVF_Win`, an executable
-that is not shipped, and uses `com13`.  Treat the batch files as syntax
-examples, not as run recipes.
+```
+port: COM6
+speed: 115200
+```
 
-## Choosing a player
+```
+bp --config bp.yaml xsvf --scan
+```
 
-- **Windows:** build either player from source (the tracked `.exe` is the
-  legacy prebuilt).  The Windows build prints the step-by-step `ok` lines and
-  the result byte in hex; the cross-platform build prints the result name
-  only.  Both source builds stop at an early player error and return `1`.
-- **Linux:** build `BPXSVFplayer` from `scripts/BPXSVFPlayer/` with the
-  `Makefile`; the `package/BPXSVFplayer` binary is the legacy prebuilt.
-- **Building:** the Windows folder carries the Dev-C++ project; the
-  cross-platform folder carries a `Makefile` and a Code::Blocks project.  No
-  firmware change is needed for either.
+An explicit option wins over the file.  Unknown keys are rejected.
 
 ## Options
 
-Both host players parse the same options; the order does not matter.  The
-examples assume a source build; the tracked prebuilt executables are legacy
-([above](#sources-vs-prebuilt-binaries)).
-
-```
-BP4_Full_bitbang_XSVFplayer_Win.exe -p COM5 -s 115200 -f design.xsvf -r
-BPXSVFplayer -p /dev/ttyACM0 -s 115200 -f design.xsvf -r
-```
-
 | Option | Argument | Meaning |
 |---|---|---|
-| `-p` | device | serial port, e.g. `COM5` or `/dev/ttyACM0`.  Required. |
-| `-s` | speed | host port speed, default `115200`.  Host-side only. |
-| `-f` | file | XSVF file to stream.  Required only to play a file. |
-| `-x` | — | send `0x02` and print a chain scan; no `-f` needed |
-| `-r` | — | send `0x01` and reset the chain; no `-f` needed |
+| `--port`, `-p` | device | serial port, for example `COM5` or `/dev/ttyACM0` |
+| `--file`, `-f` | file | XSVF image to stream; optional when `--scan` or `--reset` is used |
+| `--speed`, `-s` | integer | host serial speed, default `115200`; host side only |
+| `--scan`, `-x` | — | probe the chain and print its count and IDCODE bytes |
+| `--reset`, `-r` | — | reset the chain before scanning or streaming |
+| `--leave` | — | return to the terminal after a successful run |
+| `--help` | — | print the command help |
 
-- **`-f` is required only to play a file.**  Both source builds run
-  `-x`/`-r` without `-f` and return `0`; the help text calls `-f` optional for
-  both.  `No file specified. Need an input xsvf file` and exit `2` occur only
-  when none of `-f`, `-x` or `-r` is given.  The cross-platform build ends a
-  stand-alone scan/reset with `Thank you for playing!`; the Windows build
-  stops after it.
-- There is no `-h`.  Run the program with no arguments to print the banner and
-  the help; an unknown option prints ` Invalid argument` and the help.
-- `-r` runs before `-x`, and both run before the file.
-- `-x` sends `0x02`, reads the count byte, and then exactly `count` payload
-  bytes; the line is complete.  `-x` with `-f` is safe in a source build.  A
-  failed scan prints `Chain scan: incomplete reply (bounded timeout)` or
-  `Chain scan: failed to send the command` and returns `2` before the file is
-  played.  The tracked legacy prebuilt EXEs use the old unsized scan; with
-  those, run `-x` alone, then reset before the file run.  The first byte is
-  the byte count (`4 × devices`); the IDCODE bytes follow, four per device,
-  nearest-TDO device first.
-- `-s` does not change the Bus Pirate's own rate.  On v4 the USB CDC link is
-  host-controlled; leave the default.
+- **At least one operation is required.**  `--file`, `--scan` or `--reset`
+  must be present; otherwise the command is a usage error and exits `2`.
+- `--reset` and `--scan` run without a file.  `--file` may be combined with
+  either or both.
+- `--reset` is optional before a file: the stream starts from a reset TAP
+  anyway.  It adds an explicit reset and leaves the chain in Run-Test/Idle
+  first.
+- `--speed` does not change the player's TCK rate.  On v4 the USB link rate
+  is host metadata; leave the default.
+- `--leave` is opt-in and runs only after every requested operation
+  succeeds ([below](#leave-the-player)).
 
 ## Serial settings
 
@@ -151,202 +105,147 @@ BPXSVFplayer -p /dev/ttyACM0 -s 115200 -f design.xsvf -r
 | parity | none |
 | stop bits | 1 |
 | flow control | none |
-| speed | `-s`, default 115200 |
+| speed | `--speed`, default 115200 |
 
-The host players configure the port themselves.  Close the terminal program
-before running one: the port must be free, and Windows opens it exclusively.
-On Linux the port is usually `/dev/ttyACM0`; the user must be allowed to open
-it (commonly the `dialout` group).
+The command configures the port itself.  Close any terminal program first;
+Windows opens the port exclusively.  On Linux the port is usually
+`/dev/ttyACM0`, and the user must be allowed to open it (commonly the
+`dialout` group).
 
 The board must be at the terminal prompt (`HiZ>` or another mode prompt) so
-the NUL entry can reach the binary layer.  If it is in a configuration menu,
-or still in the firmware player from a previous run, reset it first.
-
-## The chain scan (`-x`)
-
-The scan is optional and informational; the file is what configures the
-target.  The reply is one count byte equal to four times the number of
-devices, then four IDCODE bytes per device, least-significant byte first,
-nearest-TDO device first.
-
-```
- Chain Scan Result: 04 93 40 60 59
-```
-
-That is one device: count `04`, then four IDCODE bytes.  Read them
-least-significant byte first: `93 40 60 59` is the example IDCODE
-`0x59604093`.  For two devices the count is `08` and eight bytes follow.
-
-The current source builds read the count byte and exactly `count` payload
-bytes.  A fragmented reply is read to the end, and an incomplete reply returns
-`2` before `0x03`.  `-x` with `-f` is therefore safe in a source build.
-
-**Legacy prebuilt.**  The tracked prebuilt EXEs still use the old unsized
-scan.  With one of those, run `-x` alone, then reset before the file run (or
-rebuild); a short line can leave bytes that the run reads as its result.
-
-| Symptom | Cause |
-|---|---|
-| count `00`, no IDCODE bytes | TDO stuck high, or no power on the target |
-| count `FC`, all-zero bytes | TDO stuck low; the probe hit its 63-device cap |
-| count `FC`, plausible IDCODEs | a real chain over 63 devices; only the first 63 are reported |
-| `Chain scan: incomplete reply (bounded timeout)` | the count or payload did not arrive within five attempts; check TDO, power and wiring |
-| `Chain scan: failed to send the command` | the `0x02` write failed; check the port |
-| a short line (legacy prebuilt only) | the old unsized read returned early; run `-x` alone or rebuild |
-
-Both current source builds give up after five attempts.  The tracked legacy
-prebuilt prints ` Got no reply for a Chain scan` instead.
+that the binary entry can reach it.  If it is in a menu or already in the
+player, press reset first.
 
 ## Reading the output
 
 | Line | Meaning |
 |---|---|
-| `Entering binary mode ... ok` | the NUL entry reached `BBIO1` (cross-platform: `Entering binary mode...`, no `ok`) |
-| `Switching to XSVF mode ... ok` | `0x18` was accepted and `XSV1` arrived (cross-platform: no `ok`) |
-| `Performing Reset..` / `Done` | `-r` sent `0x01` |
-| `Performing Chain Scan..` | `-x` sent `0x02` |
-| `Chain Scan Result:` | count byte, then IDCODE bytes, nearest-TDO first |
-| `File is N bytes, Read N bytes` | the host loaded the whole file |
-| `Entering XSVF Player Mode` | `0x03` was sent |
-| `Waiting for first data request...` | waiting for the player's `0xFF` |
-| `Sending N Bytes (total)...` | one chunk; the number in parentheses is the running total after the chunk, hex |
-| `End of operation reply: <name>` | the result byte; an early player error stops either source build and returns `1` |
+| `File is 53289 bytes.` | the file was read; printed only with `--file` |
+| `Opening Bus Pirate on COM5 at 115200 bps.` | the connection settings |
+| `Performing Reset.. Done` | `--reset` ran |
+| `Chain Scan Result: 04 93 40 60 59` | `--scan` reply: count byte, then IDCODE bytes |
+| `Sent 53289 bytes in 14 chunk(s).` | the whole file was streamed in 14 chunks |
+| `End of operation reply: XSVF_ERROR_NONE` | the player's result byte |
 | `Success!` | result `0x00` |
-| `XSVF_READY_FOR_DATA` + `End of file reached without a completion result.` | the file ended before completion; the run returns `2` |
-| `No reply.... Quitting.` | the player gave no result; the player may still be running |
+| `Returned to the Bus Pirate terminal.` | `--leave` succeeded |
+| `Thank you for playing! :-)` | the command finished; always the last line on success |
 
-Windows appends `(0xNN)` to the `End of operation reply` line; the
-cross-platform build prints the name only.
+A clean file run:
 
-A file run has finished when it prints `Thank you for playing!` and returns
-to the shell.  That does **not** mean the firmware player has finished:
-`No reply.... Quitting.` also ends this way.  A long `XRUNTEST` or `XWAIT`
-can outlast the host's patience; the player may still complete the run, so
-the target may already be configured.  A raw-serial host can abort it with
-`0x0F` during the wait.  Wait, check the target, then reset before replaying.
+```
+$ bp xsvf -p COM5 -f design.xsvf -r
+File is 53289 bytes.
+Opening Bus Pirate on COM5 at 115200 bps.
+Performing Reset.. Done
+Sent 53289 bytes in 14 chunk(s).
+End of operation reply: XSVF_ERROR_NONE
+Success!
+Thank you for playing! :-)
+```
 
-## Exit status and the next run
+The chunk count is decimal: 53289 bytes is 13 chunks of 4096 plus 41 bytes,
+so 14 chunks.  The success check is the `XSVF_ERROR_NONE` line followed by
+`Success!`; `Thank you for playing! :-)` alone only says the host stopped.
 
-| Build | Status |
+A player error prints one `Error:` line and no result lines:
+
+```
+Error: End of operation reply: XSVF_ERROR_TDOMISMATCH (0x02); the captured TDO did not match the expected TDO
+```
+
+The result lines are printed after all requested operations return, so a
+failure suppresses the reset, scan and sent lines even when those steps ran.
+
+## Exit status
+
+| Status | Meaning |
 |---|---|
-| both source builds | `0` success; `1` player-result error; `2` host/transport/setup failure |
+| `0` | success: an `XSVF_ERROR_NONE` stream, or a completed scan/reset |
+| `1` | the player returned a non-success result byte |
+| `2` | usage, host, transport or setup failure |
 
-- `0` is an `XSVF_ERROR_NONE` result, or a stand-alone `-x`/`-r` operation
-  that ran and closed cleanly.
-- `1` is a player error result.
-- `2` is a host, transport or setup failure: no reply, incomplete chain scan,
-  bad or empty file, `End of file reached without a completion result.`, or a
-  serial or player-start failure.
+- `0` covers a stand-alone scan or reset as well as a file run.  A script
+  that must prove a file was played should pass `--file` and check for
+  `Success!`, not only the status.
+- `1` is a player result: a malformed or wrong-target stream, a TDO mismatch,
+  a shift overflow, or the host stream stalling.  The board is back in the
+  player loop.
+- `2` is a host or setup failure: no port, no reply, an incomplete scan, a
+  bad or empty file, a wrong banner, a missing result, EOF before completion,
+  or a failed leave.  The board may be in `BBIO1`, in the player, or still
+  busy; see [limits-and-errors.md](limits-and-errors.md).
 
-The mapping is for the current source builds.  The tracked legacy prebuilt
-EXEs use the old behavior; see
-[Sources vs prebuilt binaries](#sources-vs-prebuilt-binaries).
+On v3 the player selection is answered with `0x00`, so `bp xsvf` reports that
+the board did not enter XSVF mode, exits `2`, and leaves the board in
+`BBIO1`.  A v4 that gives the same message is not running an image with the
+player; flash it.  Press reset, or send `0x0F` from a raw serial host,
+afterwards.
 
-The success check is `End of operation reply: XSVF_ERROR_NONE` (Windows adds
-`(0x00)`) followed by `Success!`; do not trust `0` alone.
+## The chain scan
 
-The host players close the port without sending `0x0F`.  After a normal run
-the board stays in the firmware player loop with the regulator (VREG) on:
-**press reset** to leave it.  A raw-serial host can send `0x0F` twice instead,
-but only once the player is back at its command loop — a result was printed,
-or the ~5 s stall expired ([player.md](player.md#exit)).  The host players
-cannot take that step: they have already closed the port.  The exact procedure
-is in [workflow.md](workflow.md#6-leave-the-player).
-
-A second run cannot enter the binary layer until the board is out of the
-player.  If you start one anyway, the host gives up during its entry retries
-and prints ` Unable to activate BP4 Binary mode` (Windows) or
-` Unable to activate the BP binary mode` (cross-platform).
-
-Both source builds require the v4 firmware player.  On v3 the `0x18` byte is
-answered with `0x00`, and the tool then stops with the Windows message
-` Unable to activate XSVF player mode` or the cross-platform message
-` Unable to activate the XSVF player mode`, returning `2`.  The board is
-left in the binary layer: press reset; a raw-serial host can send `0x0F`
-([workflow.md](workflow.md#6-leave-the-player)).
-
-## Worked command — Windows
-
-This is a source-build transcript.  The tracked prebuilt EXE is the legacy
-build and prints the old output.
+`--scan` sends the player's chain-probe command (`0x02`) and prints the
+reply on one line:
 
 ```
-> BP4_Full_bitbang_XSVFplayer_Win.exe -p COM5 -s 115200 -f xc95test.xsvf -r
------------------------------------------------------------------------------
-
- BusPirate XSVF Player V.02
- http://www.dangerousprototypes.com
-
------------------------------------------------------------------------------
- Entering binary mode ... ok
- Switching to XSVF mode ... ok
- Performing Reset..
- Done
-
- File is 53289 bytes,  Read 53289 bytes
- Opening Bus Pirate on COM5 at 115200bps, using XSVF file xc95test.xsvf
- Entering XSVF Player Mode
- Waiting for first data request...ok
- Sending 4096 Bytes (1000)...ok
- Sending 4096 Bytes (2000)...ok
- ...
- Sending 41 Bytes (D029)...ok
- End of operation reply: XSVF_ERROR_NONE (0x00)
- Success!
- Thank you for playing! :-)
+Chain Scan Result: 04 93 40 60 59
 ```
 
-The middle `Sending` lines are omitted.  The chunk counts are hex: `1000` is
-4096 bytes, and the last full chunk totals `D000` (53248).  The final 41
-bytes bring the total to `D029` (53289), the whole file.
+- The first byte is the count, equal to four times the number of devices.
+- Four IDCODE bytes follow per device, least-significant byte first, the
+  device nearest TDO first.  The example is the IDCODE `0x59604093`.
+- The command reads the count byte and exactly that many payload bytes, with
+  a bounded number of retries.  An incomplete reply exits `2` before any
+  file is streamed, so `--scan` with `--file` is safe.
+- `00` with no payload (TDO high, no target power, or an empty chain) and
+  `FC` followed by 252 zero bytes (TDO low, 63-device clamp) are valid
+  replies and exit `0`.  They are wiring observations, not stream errors.
+- The probe reports at most 63 devices.  A longer chain is truncated, not
+  wrapped.
 
-With `-r` the reset block is present.  Without it, the run goes from
-`Switching to XSVF mode ... ok` to the file-size line.  Add `-x` for a chain
-scan in a source build; with a legacy prebuilt, scan separately.
+A count that is not a multiple of four, or larger than 252 bytes, is
+rejected as a host error; the firmware cannot produce it, so it indicates a
+desynchronised or damaged reply.
 
-## Worked command — cross-platform
+## Leave the player
 
-This is a source-build transcript.  The `package/` binaries are the legacy
-prebuilt.
+By default the command leaves the board in the firmware player, with VREG on
+and the target rails powered.  The serial port is closed, but the terminal
+prompt does not return.
 
-```
-$ BPXSVFplayer -p /dev/ttyACM0 -s 115200 -f xc95test.xsvf -r
------------------------------------------------------------------------------
+| Exit | When it works | How |
+|---|---|---|
+| `--leave` | the same successful invocation | add it to the run |
+| reset button | always | press reset; VREG goes off |
+| `0x0F` twice | player command loop only | a raw-serial host writes the pair |
 
- BusPirate XSVF Player V.01
- http://www.dangerousprototypes.com
+`--leave` sends `0x0F` once to leave the player for `BBIO1` (no reply), then
+`0x0F` again for the terminal reset, requires the `0x01` acknowledgement and
+drains the banner.  It adds `Returned to the Bus Pirate terminal.`  It is
+opt-in because a `0x0F` sent while a run is still in progress can be consumed
+as stream data.
 
------------------------------------------------------------------------------
- Entering binary mode...
- Switching to XSVF mode
- Performing Reset..
- Done
+`--leave` is not attempted after a player error (exit `1`) or a host failure
+(exit `2`), because the player may still be busy.  It also cannot rescue a
+board left in the player by an earlier command: a new invocation cannot enter
+binary mode until the board is out.  Use the reset button or the raw pair in
+[workflow.md](workflow.md#6-leave-the-player-and-recover-the-terminal).
 
- File is 53289 bytes,  Read 53289 bytes
- Opening Bus Pirate on /dev/ttyACM0 at 115200bps, using XSVF file xc95test.xsvf
- Entering XSVF Player Mode
- Waiting for first data request...ok
- Sending 4096 Bytes (1000)...ok
- ...
- Sending 41 Bytes (D029)...ok
- End of operation reply: XSVF_ERROR_NONE
- Success!
- Thank you for playing! :-)
-```
+## The removed C players
 
-The middle `Sending` lines are omitted.  The cross-platform build omits the
-`ok` after the two entry lines and prints the result name without the hex
-suffix.  A probe-only run is in
-[workflow.md](workflow.md#a-probe-only-run); both source builds support it.
+Earlier releases shipped two C programs, a Windows build
+(`BP4_Full_bitbang_XSVFplayer_Win.exe`) and a cross-platform build
+(`BPXSVFplayer`).  They were removed after `bp xsvf` replaced them.  A
+reader following older instructions that name those files, a `package/`
+folder, or a bundled converter folder is looking at a tree that no longer
+exists; this set documents `bp xsvf` only.
 
 ## Related docs
 
 | Doc | Why |
 |---|---|
+| [workflow.md](workflow.md) | the end-to-end sequence and worked sessions |
 | [player.md](player.md) | the firmware player, handshake and result bytes |
 | [converter.md](converter.md) | producing the XSVF file |
-| [workflow.md](workflow.md) | the end-to-end sequence and worked sessions |
 | [wiring.md](wiring.md) | wires, rails and levels |
 | [limits-and-errors.md](limits-and-errors.md) | limits, messages, recovery |
 | [protocol/jtag/xsvf.md](../../protocol/jtag/xsvf.md) | the firmware player's byte protocol |
-| [protocol/binary/entering-and-framing.md](../../protocol/binary/entering-and-framing.md) | `BBIO1` entry and framing |

@@ -8,14 +8,15 @@ CPLD/FPGA.  Entry and defaults are in [entry.md](entry.md); the TAP is in
 [wiring.md](wiring.md).
 
 The player is **Bus Pirate v4 only**; the v3 build answers `0x00`.  There is
-no terminal XSVF mode.  The host-side program is the **XSVF host player**, a
-separate tool set: [tools/xsvf](../../tools/xsvf/README.md).  That set calls
-the firmware sub-mode the **firmware player**; it is this page's XSVF
+no terminal XSVF mode.  The host command is **`bp xsvf`**, documented with the
+rest of the host side in [tools/xsvf](../../tools/xsvf/README.md).  That set
+calls the firmware sub-mode the **firmware player**; it is this page's XSVF
 player.  This page owns the in-mode firmware protocol only.
 
 ## Entry and exit
 
-1. Enter `BBIO1` with 20 × `0x00`.
+1. Enter `BBIO1` with one leading `0x00` (to leave any active submode) and
+   twenty more `0x00` bytes; `bp xsvf` sends the 21 bytes as one write.
 2. Send `0x18`.  The board switches on the on-board regulator (it drives the
    `3.3V` and `5.0V` header rails), prints `XSV1`, and enters the player
    command loop.
@@ -125,7 +126,7 @@ A format illustration.  The player requests each chunk with `0xFF`; the host
 answers with a big-endian length and the bytes.
 
 ```
-host -> 0x00 x20          enter binary bitbang
+host -> 0x00 x21          enter binary bitbang (one leading + twenty)
 host <- "BBIO1"
 host -> 0x18              select the XSVF player
 host <- "XSV1"
@@ -149,15 +150,14 @@ aligned.
 
 ## Host workflow
 
-The XSVF host player and the SVF→XSVF converter are documented in
-[tools/xsvf](../../tools/xsvf/README.md) — it owns the players, converter
-options and examples.  Both shipped players enter `BBIO1` and `XSV1`
-themselves; do not pre-enter the player.  The stock host tools close the
-port without sending `0x0F`; they can stop on a result or on an early
-error/EOF without one.  After a normal run the board is in the player loop;
-a raw-serial host can send `0x0F` twice only once that loop is back.  If the
-tool stopped mid-run, reset first.  The exit mapping is in
-[tools/xsvf/players.md](../../tools/xsvf/players.md#exit-status-and-the-next-run).
+The host command is `bp xsvf`; the set
+[tools/xsvf](../../tools/xsvf/README.md) owns it, the converter and the
+wiring.  `bp xsvf` enters `BBIO1` and `XSV1` itself; do not pre-enter the
+player.  It leaves the player active unless `--leave` is given, so a normal
+run ends with the board in the player loop and VREG on.  A raw-serial host
+can send `0x0F` twice only once that loop is back.  If the command stopped
+mid-run, reset first.  The exit mapping is in
+[tools/xsvf/players.md](../../tools/xsvf/players.md#exit-status).
 This page owns the in-mode protocol only.
 
 ## Limits

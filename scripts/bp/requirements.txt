@@ -1,0 +1,4 @@
+click==8.5.1
+pydantic==2.14.4
+pyserial==3.5
+ruamel.yaml==0.19.1

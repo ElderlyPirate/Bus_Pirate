@@ -10,9 +10,10 @@ import pytest
 from click.testing import CliRunner
 
 from bp.cli import cli
-from bp.commands import eeprom as eeprom_module, version as version_module
-from bp.errors import EepromVerifyError, ProtocolError, TransportError
+from bp.commands import eeprom as eeprom_module, version as version_module, xsvf as xsvf_module
+from bp.errors import EepromVerifyError, ProtocolError, TransportError, XsvfHostError, XsvfPlayerError
 from bp.protocol.i2c import EepromSession, EepromWriteReport
+from bp.protocol.xsvf import ChainScan, XsvfPlayReport, XsvfResult, XsvfSession
 from bp.transport import Transport
 from bp.types import ConnectionSettings, EepromLayout
 from conftest import ScriptedTransport
@@ -76,12 +77,59 @@ def _version_factory(transport: ScriptedTransport) -> Callable[[ConnectionSettin
     return factory
 
 
+class FakeXsvfCliSession:
+    """Minimal XSVF session for CLI wiring tests."""
+
+    def __init__(
+        self,
+        *,
+        scan: ChainScan | None = None,
+        play_report: XsvfPlayReport | None = None,
+        play_error: XsvfPlayerError | None = None,
+        scan_error: XsvfHostError | None = None,
+    ) -> None:
+        self.scan = scan or ChainScan(count=0, payload=b"")
+        self.play_report = play_report or XsvfPlayReport(bytes_sent=0, chunks=0, result=XsvfResult.NONE)
+        self.play_error = play_error
+        self.scan_error = scan_error
+        self.calls: list[tuple[str, bytes | None]] = []
+
+    def reset_chain(self) -> None:
+        self.calls.append(("reset", None))
+
+    def scan_chain(self) -> ChainScan:
+        self.calls.append(("scan", None))
+        if self.scan_error is not None:
+            raise self.scan_error
+        return self.scan
+
+    def play(self, data: bytes) -> XsvfPlayReport:
+        self.calls.append(("play", data))
+        if self.play_error is not None:
+            raise self.play_error
+        return self.play_report
+
+
+def _xsvf_factory(
+    session: FakeXsvfCliSession,
+    captured: list[ConnectionSettings] | None = None,
+) -> Callable[[ConnectionSettings], AbstractContextManager[XsvfSession]]:
+    @contextmanager
+    def factory(connection: ConnectionSettings) -> Generator[XsvfSession, None, None]:
+        if captured is not None:
+            captured.append(connection)
+        yield session
+
+    return factory
+
+
 def test_help_lists_frontend_commands() -> None:
     result = CliRunner().invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "version" in result.output
     assert "eeprom" in result.output
     assert "lcd-test" in result.output
+    assert "xsvf" in result.output
 
 
 def test_version_prints_banner_fields(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -386,3 +434,164 @@ def test_missing_config_file_is_usage_error(tmp_path: Path) -> None:
     result = CliRunner().invoke(cli, ["--config", str(tmp_path / "missing.yaml"), "version"])
     assert result.exit_code == 2
     assert "does not exist" in result.output
+
+
+def test_xsvf_file_play_prints_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    source = tmp_path / "design.xsvf"
+    source.write_bytes(b"\x00\x01")
+    session = FakeXsvfCliSession(play_report=XsvfPlayReport(bytes_sent=2, chunks=1, result=XsvfResult.NONE))
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--file", str(source), "--port", "COM9"])
+
+    assert result.exit_code == 0
+    assert "File is 2 bytes." in result.output
+    assert "Sent 2 bytes in 1 chunk(s)." in result.output
+    assert "End of operation reply: XSVF_ERROR_NONE" in result.output
+    assert "Success!" in result.output
+    assert session.calls == [("play", b"\x00\x01")]
+
+
+def test_xsvf_scan_prints_count_and_idcode_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession(scan=ChainScan(count=4, payload=b"\x93\x40\x60\x59"))
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--port", "COM9"])
+
+    assert result.exit_code == 0
+    assert "Chain Scan Result: 04 93 40 60 59" in result.output
+    assert "Thank you for playing! :-)" in result.output
+    assert session.calls == [("scan", None)]
+
+
+def test_xsvf_reset_uses_short_native_option(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession()
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "-r", "-p", "COM9"])
+
+    assert result.exit_code == 0
+    assert "Performing Reset.. Done" in result.output
+    assert session.calls == [("reset", None)]
+
+
+def test_xsvf_reset_scan_file_runs_in_native_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    source = tmp_path / "design.xsvf"
+    source.write_bytes(b"\xaa")
+    session = FakeXsvfCliSession(
+        scan=ChainScan(count=0, payload=b""),
+        play_report=XsvfPlayReport(bytes_sent=1, chunks=1, result=XsvfResult.NONE),
+    )
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(
+        cli,
+        ["xsvf", "-p", "COM9", "-f", str(source), "-r", "-x"],
+    )
+
+    assert result.exit_code == 0
+    assert session.calls == [("reset", None), ("scan", None), ("play", b"\xaa")]
+    assert result.output.index("Performing Reset.. Done") < result.output.index("Chain Scan Result:")
+
+
+def test_xsvf_player_error_exits_one(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    source = tmp_path / "design.xsvf"
+    source.write_bytes(b"\x00")
+    session = FakeXsvfCliSession(
+        play_error=XsvfPlayerError(0x02, "XSVF_ERROR_TDOMISMATCH", "captured TDO did not match expected TDO")
+    )
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--file", str(source), "--port", "COM9"])
+
+    assert result.exit_code == 1
+    assert "XSVF_ERROR_TDOMISMATCH" in result.output
+    assert "Success!" not in result.output
+
+
+def test_xsvf_scan_host_error_exits_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession(scan_error=XsvfHostError("Chain scan: incomplete reply (bounded timeout)"))
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--port", "COM9"])
+
+    assert result.exit_code == 2
+    assert "Chain scan: incomplete reply" in result.output
+
+
+def test_xsvf_transport_failure_exits_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing_factory(connection: ConnectionSettings) -> AbstractContextManager[XsvfSession]:
+        raise TransportError(f"Could not open serial port {connection.port}")
+
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", failing_factory)
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--port", "COM9"])
+
+    assert result.exit_code == 2
+    assert "Could not open serial port COM9" in result.output
+
+
+def test_xsvf_requires_an_operation() -> None:
+    result = CliRunner().invoke(cli, ["xsvf", "--port", "COM9"])
+    assert result.exit_code == 2
+    assert "No file specified; pass --file, --scan, or --reset" in result.output
+
+
+def test_xsvf_requires_port() -> None:
+    result = CliRunner().invoke(cli, ["xsvf", "--scan"])
+    assert result.exit_code == 2
+    assert "No serial port specified" in result.output
+
+
+def test_xsvf_uses_configured_port(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = tmp_path / "bp.yaml"
+    config.write_text("port: COM7\nspeed: 57600\n", encoding="utf-8")
+    session = FakeXsvfCliSession()
+    captured: list[ConnectionSettings] = []
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session, captured))
+
+    result = CliRunner().invoke(cli, ["--config", str(config), "xsvf", "--scan"])
+
+    assert result.exit_code == 0
+    assert captured == [ConnectionSettings(port="COM7", speed=57_600)]
+
+
+def test_xsvf_rejects_missing_file() -> None:
+    result = CliRunner().invoke(cli, ["xsvf", "--file", "missing.xsvf", "--port", "COM9"])
+    assert result.exit_code == 2
+    assert "does not exist" in result.output
+
+
+def test_xsvf_rejects_empty_file_before_opening_session(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "empty.xsvf"
+    source.write_bytes(b"")
+    session = FakeXsvfCliSession()
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--file", str(source), "--port", "COM9"])
+
+    assert result.exit_code == 2
+    assert "is empty" in result.output
+    assert session.calls == []
+
+
+def test_xsvf_rejects_invalid_speed() -> None:
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--port", "COM9", "--speed", "0"])
+    assert result.exit_code == 2
+    assert "not in the range" in result.output
+
+
+def test_xsvf_rejects_unknown_option() -> None:
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--port", "COM9", "--chunk-size", "16"])
+    assert result.exit_code == 2
+    assert "No such option '--chunk-size'" in result.output
+
+
+def test_xsvf_invalid_config_exits_two(tmp_path: Path) -> None:
+    config = tmp_path / "bp.yaml"
+    config.write_text("unknown_key: 1\n", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["--config", str(config), "xsvf", "--scan", "--port", "COM9"])
+    assert result.exit_code == 2
+    assert "Invalid configuration" in result.output

@@ -6,10 +6,16 @@ from pathlib import Path
 
 import click
 
-from bp.commands import eeprom, lcd, version
+from bp.commands import eeprom, lcd, version, xsvf
 from bp.config import AppContext, load_config
-from bp.errors import BpError
+from bp.errors import BpError, ConfigError
 from bp.logging_config import configure_logging
+
+
+class _HostSetupClickException(click.ClickException):
+    """Click exception for host, transport, or setup failures that exit with status 2."""
+
+    exit_code = 2
 
 
 class BusPirateGroup(click.Group):
@@ -20,6 +26,8 @@ class BusPirateGroup(click.Group):
         try:
             return super().invoke(ctx)
         except BpError as exc:
+            if exc.exit_code == 2:
+                raise _HostSetupClickException(str(exc)) from exc
             raise click.ClickException(str(exc)) from exc
 
 
@@ -36,12 +44,19 @@ class BusPirateGroup(click.Group):
 def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
     """Host frontend for Bus Pirate v3/v4 devices."""
     configure_logging(verbose=verbose)
-    ctx.obj = AppContext(config=load_config(config_path))
+    try:
+        config = load_config(config_path)
+    except ConfigError as exc:
+        if ctx.invoked_subcommand == "xsvf":
+            raise _HostSetupClickException(str(exc)) from exc
+        raise
+    ctx.obj = AppContext(config=config)
 
 
 cli.add_command(version.version_command)
 cli.add_command(eeprom.eeprom_group)
 cli.add_command(lcd.lcd_test_command)
+cli.add_command(xsvf.xsvf_command)
 
 
 def main() -> None:

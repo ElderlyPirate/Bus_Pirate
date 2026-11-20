@@ -48,6 +48,12 @@ def test_enter_mode_rejects_wrong_banner() -> None:
         BbioSession(transport).enter_mode(BpBinaryMode.I2C)
 
 
+def test_enter_xsvf_mode_uses_0x18_and_xsv1_banner() -> None:
+    transport = ScriptedTransport([b"XSV1"])
+    BbioSession(transport).enter_mode(BpBinaryMode.XSVF)
+    assert transport.writes == [b"\x18"]
+
+
 def test_configure_peripherals_sets_exact_flags() -> None:
     transport = ScriptedTransport([b"\x01", b"\x01"])
     session = BbioSession(transport)

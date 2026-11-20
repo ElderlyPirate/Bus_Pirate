@@ -16,6 +16,7 @@ class BpBinaryMode(IntEnum):
 
     SPI = 0x01
     I2C = 0x02
+    XSVF = 0x18
 
     @property
     def banner(self) -> bytes:
@@ -25,6 +26,8 @@ class BpBinaryMode(IntEnum):
                 return b"SPI1"
             case BpBinaryMode.I2C:
                 return b"I2C1"
+            case BpBinaryMode.XSVF:
+                return b"XSV1"
 
 
 class AddressWidth(IntEnum):

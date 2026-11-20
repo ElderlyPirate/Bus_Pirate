@@ -6,6 +6,8 @@ from __future__ import annotations
 class BpError(Exception):
     """Base class for expected Bus Pirate frontend failures."""
 
+    exit_code: int = 1
+
 
 class ConfigError(BpError):
     """Raised when an optional YAML configuration cannot be loaded or validated."""
@@ -47,3 +49,19 @@ class EepromVerifyError(BpError):
         self.expected = expected
         self.actual = actual
         super().__init__(f"EEPROM verification failed at offset 0x{offset:04X}: expected 0x{expected:02X}, read 0x{actual:02X}")
+
+
+class XsvfHostError(BpError):
+    """Raised when an XSVF host, transport, or setup operation fails."""
+
+    exit_code = 2
+
+
+class XsvfPlayerError(BpError):
+    """Raised when the XSVF player reports a non-success result byte."""
+
+    def __init__(self, result_code: int, result_name: str, detail: str) -> None:
+        self.result_code = result_code
+        self.result_name = result_name
+        self.detail = detail
+        super().__init__(f"End of operation reply: {result_name} (0x{result_code:02X}); {detail}")

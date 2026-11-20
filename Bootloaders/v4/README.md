@@ -66,7 +66,7 @@ never blocks USB servicing. Full USB suspend-current compliance is not
 claimed: this loader does not implement board-wide low-power sleep.
 
 Build/test via `../Makefile`; see `../README.md` for the manual audit, passing
-historical 4.15 bench legs and the separate 5.0 requalification gate. The 5.0
+5.0 loader-only bench and separately labelled historical 4.15 tests. The 5.0
 hello is `F1 05 00 4B`; the reset GOTO opcode remains `0x04`, not `0x05`.
 The application revision remains v9.0. No application is flashed during the
 5.0 loader-only rebench; wait for the owner's final combined image and hash.

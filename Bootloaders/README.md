@@ -96,13 +96,31 @@ exercise HEX parsing, bounds, checksums, clone handshake, relocated GOTO and
 preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
-**5.0 bench gate:** v3 is build/host-evidence only (no v3 board). V4 5.0 must
-be flashed and requalified after a fresh owner wiring confirmation; the 4.15
-results below do not qualify the new image. Do not run ICSP before confirmation
-or with a PGC/PGD jumper fitted. ICSP installation erases the application.
-Do not restore the earlier application image during this loader-only rebench;
-wait for the owner's final combined v9.0 application image and SHA-256 after
-the 5.0 commit is merged.
+**5.0 bench status:** v3 is build/host-evidence only (no v3 board). The V4
+loader-only checks below pass after fresh owner wiring confirmation; this is
+new 5.0 evidence, not qualification inferred from 4.15. Never run ICSP without
+confirmed wiring or with a PGC/PGD jumper fitted. ICSP installation erases the
+application. The application remains uninstalled: wait for the owner's final
+combined v9.0 application image and SHA-256 after the 5.0 commit is merged.
+
+## V4 5.0 Loader-Only Bench
+
+- Owner reconfirms PA4 -> ICSP 5/PGC, PA5 -> 4/PGD, PA6 -> 1/MCLR,
+  GND -> 3/VSS, 2/VDD and 6 open, no jumper, and separate USB power.
+- Target `0x1019`, revision 4, full erase including config, 31-chunk write
+  and independent verify pass. CONFIG1/2 remain `0x3E7F`/`0x239E`.
+- Installed HEX SHA-256:
+  `DBFE7D0D808B2C6D357EACB69E44F5E6D24EA9A7A94BB5620C2E88C55C5F725C`.
+  COM11 `04D8:FAFF` returns `F1 05 00 4B` (5.0/K).
+- 464 live protocol checks plus four scratch erase/write checks pass. ICSP
+  independently verifies all 56 loader rows, the reset/vector row, scratch
+  pattern and all eight erased scratch-page rows. The stored word at
+  `0x1FF6` reads `0x0500`; the application entry remains blank.
+- Acknowledged restart returns to the loader with no application device.
+  No application HEX is written or restored. Application-dependent and
+  physical entry tests from the 4.15 run below are historical, not rerun as
+  5.0 application qualification. Await the owner's final v9.0 image/hash.
+- Detailed local evidence: ignored `tests/build/bootloader-5.0/bench/`.
 
 ## Historical V4 4.15 Bench, 2026-11-20
 

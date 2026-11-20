@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp raw-wire`` command group for binary raw 2-wire and 3-wire mode."""
 
 from __future__ import annotations

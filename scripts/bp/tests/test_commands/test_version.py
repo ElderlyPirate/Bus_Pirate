@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for the version command service."""
 
 from __future__ import annotations

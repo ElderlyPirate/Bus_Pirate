@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp xsvf`` command for the Bus Pirate v4 XSVF player."""
 
 from __future__ import annotations

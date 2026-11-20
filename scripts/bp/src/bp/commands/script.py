@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp script`` / ``bp raw-script`` ASCII-hex binary command loop."""
 
 from __future__ import annotations

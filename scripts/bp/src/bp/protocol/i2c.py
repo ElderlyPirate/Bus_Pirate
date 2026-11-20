@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Binary I2C operations and external EEPROM transfers."""
 
 from __future__ import annotations

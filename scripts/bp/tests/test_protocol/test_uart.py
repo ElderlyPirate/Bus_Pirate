@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for binary UART configuration, send, receive, and bridge setup."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Whitespace-separated ASCII-hex file parsing and formatting."""
 
 from __future__ import annotations

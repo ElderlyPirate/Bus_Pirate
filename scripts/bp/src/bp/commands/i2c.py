@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp i2c`` command group for binary I2C control and register helpers."""
 
 from __future__ import annotations

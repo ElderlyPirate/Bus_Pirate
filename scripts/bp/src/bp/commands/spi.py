@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp spi`` command group for binary SPI control and flash-style reads."""
 
 from __future__ import annotations

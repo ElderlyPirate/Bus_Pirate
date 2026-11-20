@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for binary I2C, register helpers, scanning, and EEPROM transfers."""
 
 from __future__ import annotations

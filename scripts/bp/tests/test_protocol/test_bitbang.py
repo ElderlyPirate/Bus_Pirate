@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for binary bitbang pin, bit, ADC, PWM, and self-test operations."""
 
 from __future__ import annotations

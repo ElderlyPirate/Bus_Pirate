@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for binary 1-Wire ROM, search, scratchpad, memory, and status operations."""
 
 from __future__ import annotations

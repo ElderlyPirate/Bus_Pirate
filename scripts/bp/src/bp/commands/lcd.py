@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp lcd-test`` command for the LCD adapter v2 production test."""
 
 from __future__ import annotations

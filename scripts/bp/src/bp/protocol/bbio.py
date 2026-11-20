@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Bus Pirate binary bitbang framing, mode operations, and terminal banners."""
 
 from __future__ import annotations

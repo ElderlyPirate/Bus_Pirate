@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """Tests for binary SPI framing, transfers, and the LCD adapter v2 cycle."""
 
 from __future__ import annotations

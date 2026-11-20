@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp eeprom`` commands for external I2C EEPROM images."""
 
 from __future__ import annotations

@@ -881,7 +881,7 @@ Authority and source material used by this package:
   omits `asyncio_mode` and the dev extra does not install `pytest-asyncio`.
 - **Clean-room mode port:** The GPLv3 `scripts/pyBusPirateLite/` library was
   used only to identify behavior and workflows. The new code is an independent
-  CC0 implementation with different types, module boundaries, CLI naming,
+  Apache-2.0 implementation with different types, module boundaries, CLI naming,
   validation, and test doubles. The old tree was deleted in the same change;
   it remains available in Git history for reference.
 - **No BBIO speed command:** The old Qt GUI and `BitBang.py` sent `0x60`/`0x70`
@@ -964,7 +964,7 @@ Authority and source material used by this package:
   summaries, one final `Sent ... bytes in ... chunk(s)` line, the
   `End of operation reply`, and `Success!` instead of one progress line per
   chunk. It keeps the native result names and the scan byte display.
-- **Clean-room implementation:** The package is CC0-1.0. The GPLv3
+- **Clean-room implementation:** The package is Apache-2.0. The GPLv3
   `scripts/pyBusPirateLite/` tree was consulted only for behavioral reference;
   no source, comments, or structure were copied.
 
@@ -1116,6 +1116,11 @@ this package's edit scope.
 
 ## License
 
-The package is released under CC0-1.0, matching the Bus Pirate repository's
-public-domain licensing for this tooling. See the repository `LICENSE` file for
-the repository-wide note that some unrelated files have other licenses.
+The Python package is released under the **Apache License 2.0** (2026,
+Bus Pirate contributors): a software license with an explicit patent grant,
+attribution requirements and GPLv3 compatibility. See [`LICENSE`](LICENSE) and
+[`NOTICE`](NOTICE); every Python file carries the SPDX identifiers.
+
+The repository firmware/hardware remain under their existing CC0/public-domain
+terms. The GPLv3 `pyBusPirateLite` tree was removed; this package is a
+clean-room implementation and does not copy its code.

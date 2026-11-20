@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """CLI wiring and end-to-end command exit-code tests without hardware."""
 
 from __future__ import annotations

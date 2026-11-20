@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bus Pirate contributors
+# SPDX-License-Identifier: Apache-2.0
 """``bp onewire`` command group for binary 1-Wire operations."""
 
 from __future__ import annotations

@@ -17,6 +17,7 @@ Implemented commands:
 | Command | Purpose | Legacy equivalent |
 |---|---|---|
 | `bp version` | Read and print the firmware/hardware reset banner. | `scripts/version.pl` |
+| `bp ports` | List serial ports with VID:PID, description, and likely Bus Pirate markers. | New convenience |
 | `bp bbio` | Binary-bitbang entry, pins, self-test, ADC, PWM, and raw bit clocks. | `pyBusPirateLite.BitBang`, Qt GUI Power tab |
 | `bp raw-wire` | Raw 2-wire/3-wire configuration, bytes, bits, CS, and clocks. | `pyBusPirateLite.RAW_WIRE`, `rawwire` |
 | `bp i2c` | I2C scan, register get/set, commands, and block transfers. | `pyBusPirateLite.I2C`, `I2Chigh`, `i2c-test.py` |
@@ -44,7 +45,8 @@ Not implemented in this package:
 - SVF to XSVF conversion. Use Xilinx iMPACT or the external `svf2xsvf502`
   converter, then pass the resulting XSVF file to `bp xsvf`.
 - GUI or keyboard polling through Windows `conio`.
-- Automatic discovery of Bus Pirate serial ports.
+- Automatic port selection. `bp ports` lists and marks candidate devices, but no
+  command chooses or opens a port from that list.
 - Page writes for EEPROM devices. Writes always use one byte per I2C
   transaction, matching the removed legacy tool, because EEPROM page sizes are
   not standardized.
@@ -98,6 +100,9 @@ bp version
 # Explicit port and 115200 baud
 bp version --port COM6 --speed 115200
 
+# List serial ports and mark likely Bus Pirate devices (no connection)
+bp ports
+
 # Enter binary bitbang, read pins, and reset back to the terminal
 bp bbio enter --port COM6
 bp bbio pins --port COM6
@@ -148,6 +153,9 @@ bp lcd-test --port COM6 --interactive
 bp xsvf --port COM6 --reset
 bp xsvf --port COM6 --scan
 
+# Scan and return the Bus Pirate to its terminal prompt afterwards
+bp xsvf --port COM6 --scan --leave
+
 # Stream an XSVF image after converting SVF to XSVF externally
 bp xsvf --port COM6 --file design.xsvf --reset
 ```
@@ -196,6 +204,37 @@ Click integer options such as `--address`, `--register`, `--value`,
 for `--data`/`--file` byte payloads, 1-Wire `--rom` values, and printed
 protocol data. Convert a desired hex value to decimal in the shell or config
 file (for example `0x50` -> `80`).
+
+### `bp ports`
+
+Lists the serial ports pyserial reports, without opening a port or selecting one
+for another command. The command is useful before `bp version`, `bp eeprom`, or
+`bp xsvf` when the device name is unknown.
+
+```text
+COM1  ----:----  Communications Port (COM1)
+COM6  04D8:FB00  USB Serial Device (COM6)  [Bus Pirate v4 application]
+COM9  1209:0002  USB Serial Device (COM9)
+```
+
+Each line contains the device name, `VID:PID` when pyserial reports USB IDs (or
+`----:----` when it does not), the description, and a bracketed marker for known
+Bus Pirate IDs:
+
+| VID:PID | Marker | Meaning |
+|---|---|---|
+| `04D8:FB00` | `[Bus Pirate v4 application]` | Bus Pirate v4 running its application firmware. |
+| `04D8:FAFF` | `[Bus Pirate v4 bootloader]` | Bus Pirate v4 in bootloader mode. |
+| `0403:6001` | `[FTDI (Bus Pirate v3 possible)]` | FTDI USB-serial bridge; a v3 may use it, but the ID is not unique to Bus Pirate. |
+
+No ports produces `No serial ports found.` and exits 0. Port enumeration happens
+through `serial.tools.list_ports`; the external port objects are validated once
+at that boundary (device and description must be strings, USB IDs must be
+integers in `0..0xFFFF` and must appear as a pair). A malformed entry or an
+enumeration failure reports the problem and exits 1. `bp ports` never connects,
+never resets the device, and never changes which port another command uses.
+
+Options: none.
 
 ### `bp version`
 
@@ -397,7 +436,7 @@ submode; an unconditional `0x0F` would be interpreted by that mode. Add
 
 Streams an XSVF 5.01 image to the Bus Pirate v4 firmware player, probes the
 JTAG chain, or resets the chain. It replaces both C host players and keeps
-their option names, operation order, result names, and `0`/`1`/`2` exit
+their option names, reset/scan/play order, result names, and `0`/`1`/`2` exit
 contract. It does not convert SVF; produce the XSVF first with Xilinx iMPACT
 or the external `svf2xsvf502` tool.
 
@@ -408,8 +447,9 @@ or the external `svf2xsvf502` tool.
 | `--speed` | `-s` | Serial speed. Defaults to 115200. Host-side only; it does not change the firmware player's TCK rate. |
 | `--scan` | `-x` | Probe the JTAG chain and print its count byte and IDCODE bytes. |
 | `--reset` | `-r` | Send the chain-reset command before scanning or streaming. |
+| `--leave` | none | After a successful operation, return the board to the user terminal by sending `0x0F` twice. Off by default. |
 
-Operation order matches the C players:
+Operation order for the reset, scan, and stream steps matches the C players:
 
 1. Read the whole XSVF file and reject unreadable or empty files before the
    serial port is opened.
@@ -417,10 +457,21 @@ Operation order matches the C players:
 3. Send the chain reset if `--reset` was given.
 4. Run the chain scan if `--scan` was given.
 5. Stream the file if `--file` was given.
+6. If `--leave` was given, return the board to the terminal.
 
 `--reset` and `--scan` can run without a file. Giving none of `--file`,
 `--scan`, or `--reset` is a usage error and exits 2. Click validates a missing
 `--file` path before the command runs and exits 2.
+
+`--leave` is opt-in because the default matches the native C host behavior:
+successful runs leave the firmware player active. With `--leave`, the host sends
+`0x0F` once to leave the player for `BBIO1` (no reply), sends `0x0F` again to run
+the terminal reset, requires the `0x01` acknowledgement, then drains the terminal
+banner. The banner text is not parsed or shown and is not an error if it is
+partial or empty. Leaving happens only after every requested reset, scan, and
+stream operation succeeds; a player result error (exit 1) or an earlier host
+failure (exit 2) skips it. If either leave command, the acknowledgement, or the
+banner drain fails, the command exits 2 with `Leaving XSVF player: ...`.
 
 File streaming:
 
@@ -463,9 +514,16 @@ Chain scan reply:
 
 Exit state after a successful operation:
 
-- `bp xsvf` intentionally leaves the Bus Pirate in the firmware player, as
-  the C players did. The regulator stays on, so the target rails remain
-  powered. The serial port is closed, but the terminal prompt does not return.
+- By default, `bp xsvf` intentionally leaves the Bus Pirate in the firmware
+  player, as the C players did. The regulator stays on, so the target rails
+  remain powered. The serial port is closed, but the terminal prompt does not
+  return.
+- With `--leave`, a successful reset/scan/play run sends the `0x0F` pair and
+  returns the terminal prompt; the trailing banner is drained and discarded.
+  The output adds `Returned to the Bus Pirate terminal.`
+- A run that ends with a non-success player result or a host error does not
+  attempt the leave sequence, because the player may still be busy. Recover as
+  described below.
 - Press reset before the next run, or send `0x0F` twice from a raw serial host
   once the player command loop is reachable. The first `0x0F` resets the chain
   and returns to `BBIO1` silently; the second runs the terminal reset and
@@ -614,6 +672,7 @@ scripts/bp/
     py.typed            Inline typing marker
     transport.py        pyserial open/read/write/timeouts; no protocol logic
     hextext.py          Whitespace-separated ASCII-hex parse/format helpers
+    ports.py            pyserial port enumeration, boundary validation, Bus Pirate ID hints
     protocol/
       __init__.py
       bbio.py           Entry/framing, status checks, bitbang pins/ADC/PWM/self-test
@@ -627,6 +686,7 @@ scripts/bp/
       __init__.py       Shared Click-context accessor
       inputs.py         Shared hex/binary file and preview helpers
       version.py        `version` command and transport-factory injection
+      ports.py          `ports` command and likely-device output markers
       bbio.py           `bbio` group and bitbang services
       raw_wire.py       `raw-wire` group and raw-wire services
       i2c.py            `i2c` group and register/scan services
@@ -641,6 +701,7 @@ scripts/bp/
     conftest.py         Scripted fake serial port and byte transport
     test_cli.py         CLI wiring, exit codes, configuration, failures
     test_config.py      YAML validation and connection precedence
+    test_ports.py       Port enumeration, boundary validation, marker classification
     test_transport.py   Serial transport success/failure behavior
     test_types.py       Frozen EEPROM/connection/mode value objects
     test_protocol/      Exact wire sequences and protocol rejections per mode
@@ -651,6 +712,8 @@ Boundary rules:
 
 - `transport.py` knows only bytes, serial timeouts, and pyserial failures. It
   has no Bus Pirate modes, commands, or output.
+- `ports.py` knows only pyserial enumeration and the external port-info
+  boundary. It does not open a port, speak a protocol, or choose a port.
 - `protocol/` knows Bus Pirate framing and wire sequences. It does not print,
   construct Click commands, or touch files.
 - `commands/` owns file formats, user output, Click options, and orchestration.
@@ -664,13 +727,15 @@ Extension contracts:
 | Contract | Location | Operations |
 |---|---|---|
 | `Transport` | `src/bp/transport.py` | `write`, `read_exact`, `read_until_idle`, `reset_input`. Fake implementations must raise `TransportTimeout` when exact reads cannot be satisfied. |
+| `PortLister`, `list_serial_ports` | `src/bp/ports.py` | `PortLister` supplies external port objects (default `serial.tools.list_ports.comports`); `list_serial_ports` returns validated `SerialPortInfo` tuples. |
+| `SerialPortInfo`, `BusPiratePortKind` | `src/bp/ports.py` | Frozen validated port value object with `vid_pid` and `bus_pirate_kind`; likely-device enum for `04D8:FB00`, `04D8:FAFF`, and `0403:6001`. |
 | `BitbangSession`, `BitbangSessionFactory` | `src/bp/protocol/bbio.py` | `configure_directions`, `set_pins`, `read_pins`, power/pull-up/AUX/CS, bit/byte clocks, self-test, ADC, PWM. |
 | `RawWireSession`, `RawWireSessionFactory` | `src/bp/protocol/raw_wire.py` | `configure`, `set_speed`, CS/start/stop/clock/data, bit/byte read/write, bulk clock. |
 | `I2cControlSession`, `I2cDeviceSession`, `EepromSession` | `src/bp/protocol/i2c.py` | `scan`, `configure_speed`, `device`, register byte/word helpers, block transfer, EEPROM read/write/verify. |
 | `SpiSession`, `LcdTestSession` | `src/bp/protocol/spi.py` | `configure_speed`, `configure_spi`, CS, transfer/bulk/read/write, `run_cycle`. |
 | `UartSession`, `UartSessionFactory` | `src/bp/protocol/uart.py` | `configure_speed`, `configure_manual_speed`, `configure`, send, receive, bridge. |
 | `OneWireSession`, `OneWireSessionFactory` | `src/bp/protocol/onewire.py` | Reset, read/write, search/alarm search, ROM read/match/skip, scratchpad, memory, status. |
-| `XsvfSession` | `src/bp/protocol/xsvf.py` | `reset_chain`, `scan_chain`, `play`. The command service accepts an injected session factory. |
+| `XsvfSession` | `src/bp/protocol/xsvf.py` | `reset_chain`, `scan_chain`, `play`, `leave_to_terminal`. The command service accepts an injected session factory. |
 | `open_bitbang_session`, `open_raw_wire_session`, `open_i2c_session`, `open_spi_session`, `open_uart_session`, `open_onewire_session`, `open_eeprom_session`, `open_lcd_session`, `open_xsvf_session` | `src/bp/protocol/` | Production factories that own `SerialTransport` plus the mode controller. |
 | `VersionInfo`, `EepromLayout`, `ConnectionSettings` | `src/bp/types.py` | Frozen value objects validated at construction. |
 | `SelfTestReport`, `RawWireConfig`, `I2cScanHit`, `SpiConfig`, `UartConfig`, `OneWireRom` | `src/bp/protocol/` | Frozen protocol value objects with validated masks, ranges, and CRC helpers. |
@@ -682,14 +747,14 @@ because the transport/protocol/command split is the package's extension point.
 ## Limitations and known issues
 
 - **Hardware verification:** Partial. On the BPv4 at COM6 (v9.0 firmware), the
-  following no-target paths were exercised: `bp version`, `bp bbio
+  following no-target paths were exercised: `bp ports`, `bp version`, `bp bbio
   enter/reset/version/pins`, `bp raw-wire config`, `bp spi config`, `bp uart
   config`, `bp onewire reset/scan`, a full `bp i2c scan`, `bp script --reset`
-  with byte `00`, and `bp xsvf --reset/--scan`. The EEPROM, LCD, UART
-  send/receive/bridge, 1-Wire device, SPI chip-ID/read/write, and I2C
-  register/block operations were verified against firmware sources and fake
-  transports but **not** against a connected target. No XSVF file was played
-  and target programming was not attempted.
+  with byte `00`, `bp xsvf --reset`, and `bp xsvf --scan --leave` followed by
+  `bp version`. The EEPROM, LCD, UART send/receive/bridge, 1-Wire device, SPI
+  chip-ID/read/write, and I2C register/block operations were verified against
+  firmware sources and fake transports but **not** against a connected target.
+  No XSVF file was played and target programming was not attempted.
 - **I2C bus-control replies on the flashed v9.0 firmware:** Start, stop, ACK,
   and NACK return `0x00`, while the protocol reference says `0x01`. The I2C
   controller accepts both values for those four commands and still enforces
@@ -731,15 +796,17 @@ because the transport/protocol/command split is the package's extension point.
   intentionally ignored.
 - **One-shot LCD visibility:** A single cycle is a short 1 ms blink pair; use
   `--repeat` for a longer visible test.
-- **No port discovery:** Ports must be passed explicitly or configured. The
-  legacy `COM1`-style default exists only for `bp version`.
+- **Port listing only:** `bp ports` enumerates and marks candidates, but no
+  command selects or opens a port automatically. Ports must still be passed
+  explicitly or configured. The legacy `COM1`-style default exists only for `bp
+  version`.
 - **No EEPROM page writes:** Each byte uses an individual I2C transaction, so
   large writes are slower than page-programmed writers.
 - **No GUI:** GUI and `conio` keyboard polling are outside this package.
-- **XSVF target may stay powered:** `bp xsvf` intentionally leaves the
-  firmware player running, and the player leaves the regulator on. Press reset
-  before reconnecting to the terminal. See the `bp xsvf` section for the exact
-  exit state.
+- **XSVF target may stay powered:** Without `--leave`, `bp xsvf` intentionally
+  leaves the firmware player running, and the player leaves the regulator on.
+  Press reset before reconnecting to the terminal, or use `--leave` on the next
+  successful run. See the `bp xsvf` section for the exact exit state.
 - **XSVF device limits:** The firmware player supports a longest single shift
   of 400 bits, a 4096-byte chunk, a 63-device scan clamp, 3.3 V push-pull
   signalling, and no host TCK setting. Streams outside those limits fail with
@@ -752,15 +819,18 @@ because the transport/protocol/command split is the package's extension point.
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Command completed successfully, including an XSVF scan/reset, an `XSVF_ERROR_NONE` stream result, an empty I2C/1-Wire scan, or a zero-error self-test. |
-| `1` | Runtime failure for `version`, the mode groups, `script`, `eeprom`, or `lcd-test`; an XSVF player returned any non-success result byte. Data-phase NACKs, self-test errors, invalid hex, ROM parse errors, and read/write timeouts also exit 1. |
-| `2` | Click usage failure, or an XSVF host/transport/setup failure: bad or empty file, bad port, invalid configuration, wrong `BBIO1`/`XSV1` banner, missing reply/result, incomplete scan reply, or missing required port. Bridge mode without `--yes` also exits 2. |
+| `0` | Command completed successfully, including an XSVF scan/reset, an `XSVF_ERROR_NONE` stream result, an empty I2C/1-Wire scan, a zero-error self-test, or `bp ports` with no ports. |
+| `1` | Runtime failure for `version`, `ports`, the mode groups, `script`, `eeprom`, or `lcd-test`; an XSVF player returned any non-success result byte. Port enumeration/entry validation failures, data-phase NACKs, self-test errors, invalid hex, ROM parse errors, and read/write timeouts also exit 1. |
+| `2` | Click usage failure, or an XSVF host/transport/setup failure: bad or empty file, bad port, invalid configuration, wrong `BBIO1`/`XSV1` banner, missing reply/result, incomplete scan reply, failed `--leave` reset/acknowledgement/banner drain, or missing required port. Bridge mode without `--yes` also exits 2. |
 
 Specific behavior:
 
 - Opening a nonexistent or busy port reports `Could not open serial port ...`.
   For `bp xsvf`, transport and setup failures exit 2; for the other commands
   they retain exit 1.
+- `bp ports` does not open a port. An enumeration error or an external entry
+  without a string device/description or valid integer VID/PID pair exits 1 and
+  reports the boundary violation.
 - A serial read that does not deliver the requested bytes reports the requested
   and received counts.
 - Binary command status `0x00` and unexpected status bytes are rejected, except
@@ -787,16 +857,18 @@ Specific behavior:
 - A verification mismatch exits 1 and reports the first differing offset.
 - `bp xsvf` rejects a missing or empty XSVF file before opening the port. It
   exits 2 for a wrong banner, v3/no-player response, scan timeout, missing data
-  request, missing result, or EOF before completion. A non-success player
-  result exits 1 and prints its `XSVF_ERROR_*` name.
+  request, missing result, EOF before completion, or a failed `--leave` sequence.
+  A non-success player result exits 1 and prints its `XSVF_ERROR_*` name; the
+  leave sequence is not attempted after that result.
 - A failed EEPROM/LCD operation does not attempt the normal "leave mode and
   reset" cleanup, so a transport or protocol error is not masked by a second
   failure. The bus, pull-ups, or adapter supply may remain in its current
   state; reset the Bus Pirate before reconnecting.
-- `bp xsvf` intentionally performs no leave-mode cleanup, even on success. The
+- `bp xsvf` performs no leave-mode cleanup by default, even on success. The
   board remains in the firmware player; recovery requires reset or the raw
   `0x0F` pair described in the command section. A new invocation cannot re-enter
-  binary mode until the board is out of the player.
+  binary mode until the board is out of the player. Pass `--leave` to request
+  the return-to-terminal sequence after a successful run.
 - File contents are parsed and span-bounded before any serial session is
   opened. A read writes its output file only after the EEPROM transfer returns.
 
@@ -841,8 +913,9 @@ The binary protocol bytes follow the Bus Pirate v2.3+ binary I/O contract:
   a chunk; the host answers with a 16-bit big-endian length and that many
   bytes. Chunks are at most 4096 bytes. The run ends with one result byte.
 - Leaving the XSVF player uses `0x0F` (chain reset, silent return to `BBIO1`);
-  a second `0x0F` returns to the terminal and replies `0x01`. `bp xsvf` does
-  not send this pair because native host behavior leaves the player.
+  a second `0x0F` returns to the terminal and replies `0x01`. `bp xsvf` sends
+  this pair only with `--leave`, after all requested operations succeed; it
+  then drains and discards the terminal banner.
 - Leave binary mode with `0x00` and require `BBIO1`; reset with `0x0F` and
   require status `0x01`.
 
@@ -857,6 +930,7 @@ Authority and source material used by this package:
 | `git history:scripts/powertools/LCDv2-tester/` | Legacy LCD adapter v2 test sequence; removed. |
 | `git history:scripts/pyBusPirateLite/` | Behavioral reference only for `BitBang`, `RAW_WIRE`, `I2C`, `I2Chigh`, `SPI`, `UART`, and `_1WIRE`; removed after the port. No source, comments, or structure were copied. |
 | `git history:scripts/pyBusPirateLite/spi_test.py` | SPI chip-ID and flash-style read workflow reference. |
+| pyserial 3.5 `serial.tools.list_ports` | Port enumeration and the external `ListPortInfo` objects narrowed by `bp/ports.py`. |
 | `git history:scripts/pyBusPirateLite/i2c-test.py`, `thermometer.py` | I2C register/word helper usage reference. |
 | `git history:scripts/pyBusPirateLite/MicroWire.py`, `shtxx.py` | Raw-wire 3-wire and 2-wire usage reference. |
 | [`tools/qt_gui/GUI/BinMode.cpp`](../../tools/qt_gui/GUI/BinMode.cpp), [`tools/qt_gui/GUI/Interface_rawtext.cpp`](../../tools/qt_gui/GUI/Interface_rawtext.cpp) | BBIO settings and Raw Text ASCII-hex behavior reference. |
@@ -939,6 +1013,13 @@ Authority and source material used by this package:
   byte. The new commands print a final summary; the data itself is written to
   the requested text-hex file. Read output is newline-terminated rather than a
   bare trailing space. The legacy ANSI colors are not reproduced.
+- **Port discovery is list-only:** `bp ports` uses pyserial's
+  `serial.tools.list_ports` and narrows its external port objects into
+  `SerialPortInfo` at the boundary. It prints device, VID:PID, description, and
+  markers for `04D8:FB00`, `04D8:FAFF`, and `0403:6001`, but never connects,
+  scans the bus, or substitutes for an explicit `--port`. The FTDI ID is marked
+  as a possible v3 rather than a confirmed Bus Pirate because other devices use
+  it.
 - **XSVF C tools removed:** `scripts/BPXSVFPlayer/` and
   `scripts/BP4_XSVFplayer_Win/` were deleted after `bp xsvf` passed its tests.
   The bundled Xilinx `SVF2XSVF` binaries lived inside those folders and were
@@ -952,11 +1033,13 @@ Authority and source material used by this package:
   1 for a non-success player result, and 2 for host, transport, or setup
   failures. The other commands keep the original 0/1/2 behavior described in
   their sections.
-- **No XSVF leave-mode cleanup:** The C players closed the port without
-  sending `0x0F`, leaving the board in the player. `bp xsvf` preserves that
-  behavior because the player exit is not available on all v4 firmware and a
-  `0x0F` sent during a run is consumed as data. The README documents the reset
-  and raw `0x0F` recovery paths.
+- **XSVF leave is opt-in:** The C players closed the port without sending
+  `0x0F`, leaving the board in the player. `bp xsvf` preserves that default
+  because a `0x0F` sent during a run is consumed as data. The new `--leave` flag
+  sends the pair only after every requested operation succeeds, requires the
+  `0x01` terminal-reset acknowledgement, and drains the banner without treating
+  its content as a result. A leave failure exits 2. The README documents both
+  the opt-in path and the raw recovery path.
 - **XSVF file validation:** The legacy C player did not fail cleanly on a
   missing or empty file. `bp xsvf` rejects both before opening the serial port
   and exits 2, matching the source-build behavior documented for the C tools.
@@ -983,13 +1066,13 @@ Latest recorded results in this worktree:
 
 ```text
 python -m pytest
-459 passed
+491 passed
 
 ruff check .
 All checks passed!
 
 ruff format --check .
-55 files already formatted
+58 files already formatted
 
 pyright
 0 errors, 0 warnings, 0 informations
@@ -1000,7 +1083,13 @@ chip addresses, invalid address widths, truncated/empty hex, invalid UTF-8 in
 config and hex files, file failures, protocol status/NACK errors, EEPROM retry
 exhaustion, sequential address increments, verification mismatches, CLI exit
 codes, configuration validation, and exact one-shot/repeat LCD command
-sequences.
+sequences. `test_ports.py` additionally covers fake external port objects,
+missing and mistyped fields, VID/PID range and pairing, enumeration failures,
+all three likely-Bus-Pirate IDs, unknown IDs, and the no-port case. The XSVF
+tests cover the exact `0x0F`/`0x0F` leave pair, the required `0x01`
+acknowledgement, failed and unexpected acknowledgements, missing
+acknowledgements, write failures, banner-drain failure, skip-after-failure
+behavior, and CLI wiring for `--leave`.
 
 Mode coverage includes:
 
@@ -1033,10 +1122,16 @@ sequences, scan payload reads and truncation, invalid count bytes, chunk
 boundaries at 3, 4096, 4097, and 8195 bytes, data-request resend, EOF before a
 result, every result byte including unknown values, success, missing
 data/result replies, wrong banners, v3/no-player responses, empty/missing
-files, transport write failures, and CLI exit codes 0, 1, and 2.
+files, transport write failures, the `--leave` `0x0F` pair and `0x01`
+acknowledgement, failed/unexpected/missing acknowledgements, terminal-banner
+drain failure, no-leave-after-failure behavior, and CLI exit codes 0, 1, and 2.
 
 Hardware verification: **Partial.** On the BPv4 at COM6 (firmware v9.0):
 
+- `bp ports` returned `COM1  ----:----  Communications Port (COM1)`,
+  `COM6  04D8:FB00  USB Serial Device (COM6)  [Bus Pirate v4 application]`, and
+  the unrelated `COM9  1209:0002  USB Serial Device (COM9)`. It did not open a
+  port.
 - `bp version --port COM6` returned `Bus Pirate v4`,
   `ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - 14256fd5`,
   `DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)`, and the ElderlyPirate URL.
@@ -1065,6 +1160,10 @@ Hardware verification: **Partial.** On the BPv4 at COM6 (firmware v9.0):
   `Chain Scan Result: FC` followed by 252 zero bytes. That is the documented
   TDO-stuck-low/no-target result, including the 63-device scan clamp; no target
   or CPLD was connected.
+- `bp xsvf --scan --leave --port COM6` exited 0, printed the same scan result
+  and `Returned to the Bus Pirate terminal.`, and restored the user terminal.
+  An immediate `bp version --port COM6` then returned the full banner, proving
+  the `0x0F` pair and acknowledgement path on hardware. No XSVF file was played.
 - After each safe command the board was reset or recovered to the terminal
   prompt. `bp version` was rerun after the mode checks and returned the banner.
 
@@ -1098,14 +1197,16 @@ following updates are required when the branches are combined:
 
 | Document | Required change |
 |---|---|
-| `docs/tools/xsvf/README.md` | Replace the host-player file map and "Get the tools" folder links with `bp xsvf`; state that SVF conversion remains external. |
-| `docs/tools/xsvf/players.md` | Rewrite the Windows/cross-platform build comparison, prebuilt-binary section, options, output, and exit status around `bp xsvf`; remove references to `scripts/BPXSVFPlayer/`, `scripts/BP4_XSVFplayer_Win/`, and `scripts/tests/test_xsvf_players.py`. |
-| `docs/tools/xsvf/workflow.md` | Replace the C command examples and file paths with `bp xsvf`; keep the wiring, firmware-player, and recovery material. |
-| `docs/tools/xsvf/limits-and-errors.md` | Replace C host messages and "legacy prebuilt" notes with the Python messages and exit contract; keep the firmware limits and result actions. |
-| `docs/protocol/jtag/xsvf.md` | Point the host workflow at `bp xsvf`; the in-mode protocol, result codes, and firmware limits are unchanged. |
+| `docs/tools/xsvf/README.md` | Replace the host-player file map and "Get the tools" folder links with `bp xsvf`; state that SVF conversion remains external and document the default player-exit state plus `--leave`. |
+| `docs/tools/xsvf/players.md` | Rewrite the Windows/cross-platform build comparison, prebuilt-binary section, options (including `--leave`), output, and exit status around `bp xsvf`; remove references to `scripts/BPXSVFPlayer/`, `scripts/BP4_XSVFplayer_Win/`, and `scripts/tests/test_xsvf_players.py`. |
+| `docs/tools/xsvf/workflow.md` | Replace the C command examples and file paths with `bp xsvf`; keep the wiring, firmware-player, and recovery material, and show `bp xsvf --scan --leave` as the terminal-return path. |
+| `docs/tools/xsvf/limits-and-errors.md` | Replace C host messages and "legacy prebuilt" notes with the Python messages and exit contract, including failed `--leave` sequences as exit 2; keep the firmware limits and result actions. |
+| `docs/protocol/jtag/xsvf.md` | Point the host workflow at `bp xsvf`; the in-mode protocol, result codes, and firmware limits are unchanged. Note that `--leave` reuses the existing `0x0F` pair and `0x01` reset acknowledgement. |
 | `docs/tools/xsvf/converter.md` | Keep the external Xilinx conversion material, but remove folder paths that pointed inside the deleted C trees. |
 | `docs/tools/xsvf/player.md` | Firmware-side content remains valid; check any host-tool cross-references. |
 | Any `docs/` page that lists `scripts/pyBusPirateLite/` or its examples | Replace the host-library reference with the relevant `bp bbio`, `bp raw-wire`, `bp i2c`, `bp spi`, `bp uart`, `bp onewire`, or `bp script` section; state that the GPLv3 tree was removed. Exact page paths are on the docs branch and were not inspected on this branch; this is `Requires verification`. |
+| Any `docs/` page that documents host port discovery or port selection | Add `bp ports` as the list-only helper; state that it prints device, VID:PID, description, and likely-device markers but never connects or chooses a port. Include the `04D8:FB00`, `04D8:FAFF`, and `0403:6001` meanings. |
+| Any `docs/` command index, installation page, or quick-start page | Add `bp ports` and the `bp xsvf --leave` terminal-return example; keep the default XSVF exit-state warning. |
 | `docs/` protocol pages that document binary host framing | Add the 21-byte binary entry sequence, the new mode command bytes, and the v9 firmware I2C `0x00` bus-control reply variance. |
 | `docs/` tooling pages that mention the old Qt Raw Text tab | Point the ASCII-hex workflow at `bp script` / `bp raw-script`; note the package accepts strict ASCII hex rather than the GUI's base-0 parser. |
 | `docs/` pages describing BBIO speed set/read | Remove or mark unsupported for the v9 firmware; speed is per-mode. |

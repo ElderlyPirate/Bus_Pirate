@@ -28,6 +28,7 @@ class XsvfRunReport:
     reset: bool
     scan: ChainScan | None
     play: XsvfPlayReport | None
+    left_player: bool
 
 
 def read_xsvf_file(path: Path) -> bytes:
@@ -47,6 +48,7 @@ def run_xsvf(
     *,
     reset: bool,
     scan: bool,
+    leave: bool,
     session_factory: XsvfSessionFactory,
 ) -> XsvfRunReport:
     """Enter the player and run the requested reset, scan, and stream operations."""
@@ -60,9 +62,11 @@ def run_xsvf(
                 session.reset_chain()
             scan_result = session.scan_chain() if scan else None
             play_result = session.play(data) if data is not None else None
+            if leave:
+                session.leave_to_terminal()
     except TransportError as exc:
         raise XsvfHostError(str(exc)) from exc
-    return XsvfRunReport(reset=reset, scan=scan_result, play=play_result)
+    return XsvfRunReport(reset=reset, scan=scan_result, play=play_result, left_player=leave)
 
 
 @click.command("xsvf")
@@ -78,6 +82,11 @@ def run_xsvf(
 @click.option("--speed", "-s", type=click.IntRange(min=1), default=None, help="Serial speed; defaults to 115200.")
 @click.option("--scan", "-x", is_flag=True, help="Probe the JTAG chain and print its count and IDCODE bytes.")
 @click.option("--reset", "-r", is_flag=True, help="Reset the JTAG chain before scanning or streaming.")
+@click.option(
+    "--leave",
+    is_flag=True,
+    help="Return to the Bus Pirate terminal after a successful run by sending 0x0F twice.",
+)
 @click.pass_context
 def xsvf_command(
     ctx: click.Context,
@@ -86,6 +95,7 @@ def xsvf_command(
     speed: int | None,
     scan: bool,
     reset: bool,
+    leave: bool,
 ) -> None:
     """Play an XSVF file or run a JTAG chain scan/reset with a Bus Pirate v4."""
     if file_path is None and not scan and not reset:
@@ -105,6 +115,7 @@ def xsvf_command(
         data,
         reset=reset,
         scan=scan,
+        leave=leave,
         session_factory=open_xsvf_session,
     )
 
@@ -117,4 +128,6 @@ def xsvf_command(
         click.echo(f"Sent {report.play.bytes_sent} bytes in {report.play.chunks} chunk(s).")
         click.echo(f"End of operation reply: {result_name(report.play.result)}")
         click.echo("Success!")
+    if report.left_player:
+        click.echo("Returned to the Bus Pirate terminal.")
     click.echo("Thank you for playing! :-)")

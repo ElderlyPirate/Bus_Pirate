@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 XSVF_RESET_COMMAND = 0x01
 XSVF_SCAN_COMMAND = 0x02
 XSVF_PLAY_COMMAND = 0x03
+XSVF_LEAVE_COMMAND = 0x0F
 XSVF_READY_FOR_DATA = 0xFF
 XSVF_CHUNK_SIZE = 4096
 XSVF_MAX_CHAIN_BYTES = 252
+XSVF_TERMINAL_MAX_BYTES = 1000
 XSVF_REPLY_ATTEMPTS = 5
 
 
@@ -111,6 +113,10 @@ class XsvfSession(Protocol):
         """Stream an XSVF image until the player returns a result byte."""
         ...
 
+    def leave_to_terminal(self) -> None:
+        """Leave the player, require the terminal reset acknowledgement, and drain its banner."""
+        ...
+
 
 class XsvfController:
     """Own a binary XSVF player session and its chunk handshake."""
@@ -144,10 +150,11 @@ class XsvfController:
     ) -> None:
         """Leave the firmware player in its command loop.
 
-        The native host players intentionally stop there: leaving requires
-        ``0x0F`` twice, and sending it after a host timeout can be consumed as
-        stream data while the player is still busy. Recovery is documented in
-        the package README.
+        The controller intentionally performs no cleanup on exit: leaving
+        requires ``0x0F`` twice, and sending it after a host timeout can be
+        consumed as stream data while the player is still busy. A command that
+        wants the terminal back calls :meth:`leave_to_terminal` after its last
+        successful operation. Recovery is documented in the package README.
         """
         del exc_type, exc, traceback
 
@@ -207,6 +214,34 @@ class XsvfController:
             if result is XsvfResult.NONE:
                 return XsvfPlayReport(bytes_sent=offset, chunks=chunks, result=result)
             raise XsvfPlayerError(reply, name, _RESULT_DETAILS[result])
+
+    def leave_to_terminal(self) -> None:
+        """Return from the player to the user terminal and drain the trailing banner.
+
+        The first ``0x0F`` leaves the player for binary bitbang without a reply;
+        the second performs the terminal reset and acknowledges with ``0x01``.
+        The terminal banner that follows is consumed so it does not leak into
+        the next command, but it is not interpreted.
+
+        Raises:
+            XsvfHostError: If either command cannot be sent, the reset is not
+                acknowledged with ``0x01``, or the banner cannot be drained.
+        """
+        logger.debug("Leaving XSVF player for the user terminal")
+        self._write(bytes([XSVF_LEAVE_COMMAND]), action="Failed to send the XSVF player leave command")
+        try:
+            self._bbio.reset()
+        except TransportTimeout as exc:
+            raise XsvfHostError("Leaving XSVF player: missing reset acknowledgement; the player may still be active") from exc
+        except ProtocolError as exc:
+            raise XsvfHostError(f"Leaving XSVF player: {exc}") from exc
+        except TransportError as exc:
+            raise XsvfHostError(f"Leaving XSVF player: {exc}") from exc
+        try:
+            banner = self._transport.read_until_idle(max_bytes=XSVF_TERMINAL_MAX_BYTES)
+        except TransportError as exc:
+            raise XsvfHostError(f"Leaving XSVF player: could not read the terminal banner: {exc}") from exc
+        logger.debug("Drained %d byte(s) of the Bus Pirate terminal banner", len(banner))
 
     def _write(self, data: bytes, *, action: str) -> None:
         try:

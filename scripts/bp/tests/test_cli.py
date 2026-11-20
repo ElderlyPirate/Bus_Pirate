@@ -12,8 +12,9 @@ import pytest
 from click.testing import CliRunner
 
 from bp.cli import cli
-from bp.commands import eeprom as eeprom_module, version as version_module, xsvf as xsvf_module
-from bp.errors import EepromVerifyError, ProtocolError, TransportError, XsvfHostError, XsvfPlayerError
+from bp.commands import eeprom as eeprom_module, ports as ports_module, version as version_module, xsvf as xsvf_module
+from bp.errors import CommandError, EepromVerifyError, ProtocolError, TransportError, XsvfHostError, XsvfPlayerError
+from bp.ports import SerialPortInfo
 from bp.protocol.i2c import EepromSession, EepromWriteReport
 from bp.protocol.xsvf import ChainScan, XsvfPlayReport, XsvfResult, XsvfSession
 from bp.transport import Transport
@@ -89,11 +90,13 @@ class FakeXsvfCliSession:
         play_report: XsvfPlayReport | None = None,
         play_error: XsvfPlayerError | None = None,
         scan_error: XsvfHostError | None = None,
+        leave_error: XsvfHostError | None = None,
     ) -> None:
         self.scan = scan or ChainScan(count=0, payload=b"")
         self.play_report = play_report or XsvfPlayReport(bytes_sent=0, chunks=0, result=XsvfResult.NONE)
         self.play_error = play_error
         self.scan_error = scan_error
+        self.leave_error = leave_error
         self.calls: list[tuple[str, bytes | None]] = []
 
     def reset_chain(self) -> None:
@@ -110,6 +113,11 @@ class FakeXsvfCliSession:
         if self.play_error is not None:
             raise self.play_error
         return self.play_report
+
+    def leave_to_terminal(self) -> None:
+        self.calls.append(("leave", None))
+        if self.leave_error is not None:
+            raise self.leave_error
 
 
 def _xsvf_factory(
@@ -130,6 +138,7 @@ def test_help_lists_frontend_commands() -> None:
     assert result.exit_code == 0
     for command in (
         "version",
+        "ports",
         "bbio",
         "raw-wire",
         "i2c",
@@ -185,6 +194,46 @@ def test_version_protocol_failure_exits_one(monkeypatch: pytest.MonkeyPatch) -> 
     result = CliRunner().invoke(cli, ["version", "--port", "COM9"])
     assert result.exit_code == 1
     assert "no version banner" in result.output
+
+
+def test_ports_lists_devices_vid_pid_description_and_markers(monkeypatch: pytest.MonkeyPatch) -> None:
+    ports = (
+        SerialPortInfo(device="COM6", vid=0x04D8, pid=0xFB00, description="Bus Pirate v4"),
+        SerialPortInfo(device="COM7", vid=0x04D8, pid=0xFAFF, description="Bus Pirate v4 bootloader"),
+        SerialPortInfo(device="COM3", vid=0x0403, pid=0x6001, description="USB Serial Port"),
+        SerialPortInfo(device="COM1", vid=None, pid=None, description="Communications Port"),
+    )
+    monkeypatch.setattr(ports_module, "list_serial_ports", lambda: ports)
+
+    result = CliRunner().invoke(cli, ["ports"])
+
+    assert result.exit_code == 0
+    assert "COM6  04D8:FB00  Bus Pirate v4  [Bus Pirate v4 application]" in result.output
+    assert "COM7  04D8:FAFF  Bus Pirate v4 bootloader  [Bus Pirate v4 bootloader]" in result.output
+    assert "COM3  0403:6001  USB Serial Port  [FTDI (Bus Pirate v3 possible)]" in result.output
+    assert "COM1  ----:----  Communications Port" in result.output
+    assert "COM1  ----:----  Communications Port  [" not in result.output
+
+
+def test_ports_reports_no_ports_without_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ports_module, "list_serial_ports", lambda: ())
+
+    result = CliRunner().invoke(cli, ["ports"])
+
+    assert result.exit_code == 0
+    assert result.output == "No serial ports found.\n"
+
+
+def test_ports_enumeration_failure_exits_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing() -> tuple[SerialPortInfo, ...]:
+        raise CommandError("Could not enumerate serial ports: registry unavailable")
+
+    monkeypatch.setattr(ports_module, "list_serial_ports", failing)
+
+    result = CliRunner().invoke(cli, ["ports"])
+
+    assert result.exit_code == 1
+    assert "Could not enumerate serial ports: registry unavailable" in result.output
 
 
 def test_eeprom_read_uses_config_connection_and_writes_file(
@@ -496,6 +545,7 @@ def test_xsvf_scan_prints_count_and_idcode_bytes(monkeypatch: pytest.MonkeyPatch
 
     assert result.exit_code == 0
     assert "Chain Scan Result: 04 93 40 60 59" in result.output
+    assert "Returned to the Bus Pirate terminal." not in result.output
     assert "Thank you for playing! :-)" in result.output
     assert session.calls == [("scan", None)]
 
@@ -528,6 +578,45 @@ def test_xsvf_reset_scan_file_runs_in_native_order(monkeypatch: pytest.MonkeyPat
     assert result.exit_code == 0
     assert session.calls == [("reset", None), ("scan", None), ("play", b"\xaa")]
     assert result.output.index("Performing Reset.. Done") < result.output.index("Chain Scan Result:")
+
+
+def test_xsvf_leave_returns_to_terminal_after_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession(scan=ChainScan(count=4, payload=b"\x93\x40\x60\x59"))
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--leave", "--port", "COM9"])
+
+    assert result.exit_code == 0
+    assert "Chain Scan Result: 04 93 40 60 59" in result.output
+    assert "Returned to the Bus Pirate terminal." in result.output
+    assert session.calls == [("scan", None), ("leave", None)]
+
+
+def test_xsvf_leave_skipped_when_scan_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession(scan_error=XsvfHostError("Chain scan: incomplete reply"))
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--leave", "--port", "COM9"])
+
+    assert result.exit_code == 2
+    assert "Chain scan: incomplete reply" in result.output
+    assert "Returned to the Bus Pirate terminal." not in result.output
+    assert session.calls == [("scan", None)]
+
+
+def test_xsvf_leave_failure_exits_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = FakeXsvfCliSession(
+        scan=ChainScan(count=0, payload=b""),
+        leave_error=XsvfHostError("Leaving XSVF player: missing reset acknowledgement"),
+    )
+    monkeypatch.setattr(xsvf_module, "open_xsvf_session", _xsvf_factory(session))
+
+    result = CliRunner().invoke(cli, ["xsvf", "--scan", "--leave", "--port", "COM9"])
+
+    assert result.exit_code == 2
+    assert "missing reset acknowledgement" in result.output
+    assert "Returned to the Bus Pirate terminal." not in result.output
+    assert session.calls == [("scan", None), ("leave", None)]
 
 
 def test_xsvf_player_error_exits_one(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

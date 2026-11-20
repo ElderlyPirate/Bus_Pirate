@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from bp.commands import bbio, eeprom, i2c, lcd, onewire, raw_wire, script, spi, uart, version, xsvf
+from bp.commands import bbio, eeprom, i2c, lcd, onewire, ports, raw_wire, script, spi, uart, version, xsvf
 from bp.config import AppContext, load_config
 from bp.errors import BpError, ConfigError
 from bp.logging_config import configure_logging
@@ -57,6 +57,7 @@ def cli(ctx: click.Context, config_path: Path | None, verbose: bool) -> None:
 
 
 cli.add_command(version.version_command)
+cli.add_command(ports.ports_command)
 cli.add_command(bbio.bbio_group)
 cli.add_command(raw_wire.raw_wire_group)
 cli.add_command(i2c.i2c_group)

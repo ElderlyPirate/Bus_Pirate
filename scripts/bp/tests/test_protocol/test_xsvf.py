@@ -21,6 +21,7 @@ from conftest import ScriptedTransport
 ENTER = b"\x00" * 21
 BASE_WRITES = [ENTER, b"\x18"]
 BASE_RESPONSES = [b"BBIO1", b"XSV1"]
+TERMINAL_BANNER = b"\r\nRESET\r\nBus Pirate v4\r\nElderlyPirate Firmware v9.0\r\nHiZ>"
 
 
 def _entered(responses: list[bytes]) -> ScriptedTransport:
@@ -272,6 +273,80 @@ def test_play_reports_chunk_write_failure() -> None:
             controller.play(b"abc")
 
 
+def test_leave_sends_reset_pair_and_drains_terminal_banner() -> None:
+    transport = _entered([b"", b"\x01" + TERMINAL_BANNER])
+    with XsvfController(transport) as controller:
+        controller.leave_to_terminal()
+
+    assert transport.writes == [*BASE_WRITES, b"\x0f", b"\x0f"]
+    assert not transport.received
+    transport.assert_consumed()
+
+
+def test_leave_rejects_failed_acknowledgement() -> None:
+    transport = _entered([b"", b"\x00"])
+    with pytest.raises(XsvfHostError, match="Leaving XSVF player: Bus Pirate reported a failed binary command") as raised:
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+    assert raised.value.exit_code == 2
+    assert transport.writes == [*BASE_WRITES, b"\x0f", b"\x0f"]
+
+
+def test_leave_rejects_unexpected_ack_byte() -> None:
+    transport = _entered([b"", b"\x02"])
+    with pytest.raises(
+        XsvfHostError,
+        match="Leaving XSVF player: Expected binary success status 0x01, received 0x02",
+    ) as raised:
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+    assert raised.value.exit_code == 2
+    assert transport.writes == [*BASE_WRITES, b"\x0f", b"\x0f"]
+
+
+def test_leave_reports_missing_acknowledgement() -> None:
+    transport = _entered([b"", b""])
+    with pytest.raises(XsvfHostError, match="Leaving XSVF player: missing reset acknowledgement") as raised:
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+    assert raised.value.exit_code == 2
+
+
+def test_leave_reports_first_command_write_failure() -> None:
+    transport = FaultyTransport(
+        write_error=TransportError("serial write failed"),
+        responses=[b"BBIO1", b"XSV1"],
+    )
+    transport.fail_after_writes = 2
+    with pytest.raises(XsvfHostError, match="Failed to send the XSVF player leave command: serial write failed"):
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+
+def test_leave_reports_reset_write_failure() -> None:
+    transport = FaultyTransport(
+        write_error=TransportError("serial write failed"),
+        responses=[b"BBIO1", b"XSV1"],
+    )
+    transport.fail_after_writes = 3
+    with pytest.raises(XsvfHostError, match="Leaving XSVF player: serial write failed"):
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+
+def test_leave_reports_terminal_banner_drain_failure() -> None:
+    transport = DrainFaultTransport(
+        write_error=TransportError("unused"),
+        responses=[b"BBIO1", b"XSV1", b"", b"\x01"],
+    )
+    with pytest.raises(XsvfHostError, match="Leaving XSVF player: could not read the terminal banner: serial read failed"):
+        with XsvfController(transport) as controller:
+            controller.leave_to_terminal()
+
+
 def test_controller_rejects_invalid_reply_attempts() -> None:
     with pytest.raises(ValueError, match="attempts must be positive"):
         XsvfController(ScriptedTransport(), reply_attempts=0)
@@ -328,3 +403,11 @@ class FaultyTransport:
 
     def reset_input(self) -> None:
         self.received.clear()
+
+
+class DrainFaultTransport(FaultyTransport):
+    """Fake transport whose terminal-banner drain fails."""
+
+    def read_until_idle(self, *, max_bytes: int) -> bytes:
+        del max_bytes
+        raise TransportError("serial read failed")

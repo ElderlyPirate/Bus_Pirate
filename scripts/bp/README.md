@@ -1,4 +1,4 @@
-﻿# `bp` - Bus Pirate host frontend
+# `bp` - Bus Pirate host frontend
 
 `bp` is the console frontend for Bus Pirate v3/v4 host-side workflows. It
 replaces the legacy `version.pl`, `I2CEEPROMWIN.c`, LCD adapter v2 test

@@ -10,10 +10,10 @@ IDCODE reads, BYPASS scans and resets.  Byte framing is in
 ## Scope
 
 - The 16-state TAP and its TMS transitions.
-- How the OpenOCD path and the XSVF player drive the TAP.
-- IR/DR shifts, chain scan/IDCODE, BYPASS and the reset variants.
-- Not the host-tool setup (tools/openocd, tools/xsvf) and not the byte
-  framing of either path.
+- How each path drives the TAP.
+- IR/DR shifts, chain scan and IDCODE, BYPASS, reset variants.
+- Two worked byte-level walks.
+- Not the host-tool setup and not the complete command tables.
 
 ## The TAP in one paragraph
 
@@ -107,17 +107,37 @@ TMS is sampled on every rising TCK edge.  `0` selects the left column and
 - Capture-DR loads the selected register.  Capture-IR loads device status
   bits; their meaning is device-specific.
 
-## How each path drives the TAP
+## Who drives the TAP
 
 | Job | OpenOCD path | XSVF player |
 |---|---|---|
-| TCK, TMS, TDI | host supplies every bit through `0x05` | player supplies them from the file |
+| TCK, TMS, TDI | host supplies every bit | player supplies them from the file |
 | TAP state | host tracks and walks it | player tracks all 16 states |
 | IR data | host target configuration | `XSIR` / `XSIR2` in the file |
 | DR length | host target configuration | `XSDRSIZE` in the file |
-| Reset | host TMS sequence; TRST feature optional | `0x01`, `XSTATE RESET`, or run start |
+| Reset | host TMS sequence; TRST optional | `0x01`, `XSTATE RESET`, or run start |
 | Chain discovery | host scan | `0x02` probe |
 | Clock | `0x08` delay | no setting |
+
+The firmware has no standalone TAP engine.  In the OpenOCD path it shifts
+bytes and nothing else.  In the XSVF player it keeps a small state machine
+for reset, state walks and shifts, driven entirely by the file.
+
+### The player's TAP engine
+
+Within a run the player tracks the current TAP state and moves it on
+demand:
+
+- A target state equal to the current state does nothing, except the two
+  Pause states, which step to Exit2 and back to comply with the SVF
+  convention.
+- A target of Test-Logic-Reset always runs the TMS reset sequence, even if
+  the player thinks it is already there.
+- A state byte outside the 16 states is rejected as an illegal state.
+- A shift enters the requested path, shifts the file's bits, and leaves
+  through Exit1 and Update.
+- `XENDIR` and `XENDDR` set the state left after an IR or DR shift; they do
+  not add a reset at the end of the run.
 
 ## Chain scan and IDCODE
 
@@ -135,9 +155,9 @@ To read IDCODEs:
    IDCODE of the device nearest TDO; the next 32 bits are the next device,
    and so on.
 
-This 32-bits-per-device rule assumes every device in the chain has a
-32-bit IDCODE.  A device without one contributes its bypass bit instead;
-check the chain's data sheets.
+This 32-bits-per-device rule assumes every device in the chain has a 32-bit
+IDCODE.  A device without one contributes its bypass bit instead; check the
+chain's data sheets.
 
 IDCODE is 32 bits, least-significant bit first:
 
@@ -152,11 +172,11 @@ A device without an IDCODE may return zeros or a vendor value.  A chain
 with TDO stuck low returns all zeros; stuck high returns all ones.  Neither
 identifies a real device.
 
-### The XSVF chain probe (`0x02`)
+## The chain probe (`0x02`)
 
 The player's probe is a convenience scan.  It assumes the reset default is
-IDCODE on every device, and that the chain's total IR length is at most
-510 bits.
+IDCODE on every device, and that the chain's total IR length is at most 510
+bits.
 
 1. Reset the TAP, then hold TDI high.
 2. Shift 510 ones into the IR path.  All-ones selects BYPASS on IEEE 1149.1
@@ -168,13 +188,19 @@ IDCODE on every device, and that the chain's total IR length is at most
 5. Reply: one count byte equal to 4 × devices, then 4 bytes per device,
    least-significant byte first, nearest-TDO device first.
 
-The probe leaves the TAP in Run-Test/Idle.  Limits: the count loop stops
-after about 250 devices; the reply is clamped to 63 devices because the
-count is one byte (4 × 63 = 252 = `0xFC`).  A longer chain is truncated,
-not wrapped.  With TDO stuck low the probe reaches the cap and reports 63
-devices of garbage IDCODEs; with TDO stuck high it reports zero devices and
-no IDCODE bytes.  The OpenOCD path has no equivalent command; the host
-performs its own scan.
+The probe leaves the TAP in Run-Test/Idle.
+
+| Limit | Value |
+|---|---|
+| IR fill | 510 clocks; a longer IR chain is not fully loaded with ones |
+| count loop | stops after about 250 devices |
+| reply | clamped to 63 devices (4 × 63 = 252 = `0xFC`) |
+| longer chain | truncated, not wrapped |
+
+With TDO stuck low the probe reaches the cap and reports 63 devices of
+garbage IDCODEs.  With TDO stuck high it reports zero devices and no IDCODE
+bytes, which a host can mistake for an empty chain.  The OpenOCD path has
+no equivalent command; the host performs its own scan.
 
 ## BYPASS
 
@@ -198,40 +224,41 @@ with `XSIR` followed by `XSDR`.
 | Reset | What it resets | How it is applied |
 |---|---|---|
 | TAP reset (TMS) | TAP state machine and IR | TMS high for at least 5 TCK |
-| TRST | test logic | optional pin; OpenOCD feature selector `0x04` (sent as `0x02 0x04 action`); XSVF does not use it |
-| SRST | system/CPU, not the TAP | optional pin; OpenOCD feature `0x08` |
-| Bus Pirate board reset | pins, supplies, pull-ups | `#`, reset button, `0x00` then `0x0F` on the OpenOCD path, `0x0F` twice on the XSVF path |
+| TRST | test logic | optional pin; OpenOCD feature `0x02 0x04` |
+| SRST | system/CPU, not the TAP | optional pin; OpenOCD feature `0x02 0x08` |
+| board reset | pins, supplies, pull-ups | `#`, reset button, or the exit sequence |
 | XSVF `0x01` | TAP reset, then idle | player command |
 | XSVF `0x0F` | TAP reset, then leave | player command |
 
-TRST and SRST are driven to the level in the feature action, not inverted.
-Both are commonly active-low, so write `0` to assert and `1` to release.
-Selecting the OpenOCD pin mode drives both low; release them after the pin
-mode if they are wired.
+TRST and SRST are driven to the low bit of the feature action, not
+inverted.  Both are commonly active-low, so write `0` to assert and `1` to
+release.  Selecting the OpenOCD pin mode drives both low; release them
+after the pin mode if they are wired.
 
 The OpenOCD path does not reset the target just by leaving.  `0x00` returns
-to `BBIO1` and makes the pins inputs, but the target TAP only changes if it
-sees TCK/TMS or TRST.  The XSVF `0x0F` does perform a TMS reset before it
-returns.
+to `BBIO1` and makes the five BBIO pins inputs; TRST keeps its last level.
+The target TAP only changes if it sees TCK/TMS or TRST.  The XSVF `0x0F`
+does perform a TMS reset before it returns.
 
-## Worked TAP walk — one IDCODE read
+## One IDCODE read
 
 A single-device chain on the OpenOCD path.  The sequence is 43 bits in one
-`0x05` block.  Send the header, wait for the 3-byte echo, then send the
-payload as three 4-byte groups.  Each group is TDI low byte, TMS low byte,
-TDI high byte, TMS high byte; every TDI byte is zero:
+`0x05` block: reset, idle, walk to Shift-DR, shift 32 bits, update, idle.
+Send the header, read the 3-byte echo, then send the payload as three
+4-byte groups.  Each group is TDI low byte, TMS low byte, TDI high byte,
+TMS high byte; every TDI byte is zero:
 
 ```
 host -> 0x05 0x00 0x2B    TAP shift, 43 bits
 host <- 0x05 0x00 0x2B    3-byte echo
-host -> 00 5F 00 00       bits 1-16:  TDI low, TMS low, TDI high, TMS high
+host -> 00 5F 00 00       bits 1-16  (TDI low, TMS low, TDI high, TMS high)
 host -> 00 00 00 00       bits 17-32
 host -> 00 00 00 03       bits 33-43
 host <- (6 TDO bytes)     two per group, low byte first
 ```
 
-The TMS bytes, in transmission order, are `5F 00 00 00 00 03` (each byte
-least-significant bit first).
+The TMS bytes, in transmission order, are `5F 00 00 00 00 03`, each byte
+least-significant bit first.
 
 | Bits | TMS | Purpose |
 |---|---|---|
@@ -246,10 +273,42 @@ least-significant bit first).
 
 The 32 TDO bits sampled during bits 10–41 are the IDCODE,
 least-significant bit first.  TDO before the shift is not part of the
-IDCODE.  The `0x05` reply returns TDO in 16-bit groups, low byte first, so
+IDCODE.  The reply returns TDO in 16-bit groups, low byte first, so
 reassemble the stream before extracting the IDCODE.  For a multi-device
 chain, shift 32 bits per device when every device has a 32-bit IDCODE, and
 expect the nearest-TDO device first.
+
+## Loading an instruction
+
+This walk loads BYPASS into a single device with a 4-bit IR.  Take the IR
+length from the data sheet; the sequence length changes with it.
+
+From Run-Test/Idle: Select-DR-Scan, Select-IR-Scan, Capture-IR, Shift-IR,
+four IR bits (all ones), Exit1-IR, Update-IR, Run-Test/Idle.  That is 10
+bits, so it is one 9–16-bit group with four payload bytes:
+
+```
+host -> 0x05 0x00 0x0A    TAP shift, 10 bits
+host <- 0x05 0x00 0x0A    3-byte echo
+host -> F0 83 00 01       TDI low, TMS low, TDI high, TMS high
+host <- (2 TDO bytes)     device-specific
+```
+
+| Bits | TMS | TDI | Purpose |
+|---|---|---|---|
+| 1–2 | 1, 1 | 0, 0 | Select-DR-Scan, Select-IR-Scan |
+| 3–4 | 0, 0 | 0, 0 | Capture-IR, Shift-IR |
+| 5–7 | 0, 0, 0 | 1, 1, 1 | first three IR bits (BYPASS = all ones) |
+| 8 | 1 | 1 | last IR bit; exits to Exit1-IR |
+| 9 | 1 | 0 | Update-IR |
+| 10 | 0 | 0 | Run-Test/Idle |
+
+The TMS byte `0x83` is bits 1–8 (`1,1,0,0,0,0,0,1`), and `0x01` is bits
+9–10 (`1,0`).  The TDI byte `0xF0` is bits 1–8 with the four ones in the
+shift positions.  The two TDO bytes carry whatever the device drove during
+those ten clocks: the capture-IR status and the IR contents being replaced
+are device-specific.  After Update-IR, BYPASS is active; the next DR scan
+is N bits for N devices.
 
 ## Related
 

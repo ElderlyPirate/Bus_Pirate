@@ -46,10 +46,11 @@ This README is a map, not the manual — the details live in the files below.
   on TDI/TMS/TCK to the target rail, or, for a 3.3 V target only, set
   `buspirate mode normal`.  A 1.8 V or 2.5 V target must stay open-drain
   with pull-ups to its own rail.
-- The target's VCC goes to the `3.3V` rail **or** the `5.0V` rail, never
-  both.  The binary entry switches the board supplies off; use
-  `buspirate vreg 1` only when the board powers the target.  The path cannot
-  select a rail voltage.
+- The target's VCC goes to the `3.3V` rail **or** the `5.0V` rail **only
+  when the board powers the target** — never both rails, and never with the
+  target's own supply still connected.  The binary entry switches the board
+  supplies off; use `buspirate vreg 1` only when the board powers the target.
+  The path cannot select a rail voltage.
 - The firmware shifts bits only.  One `0x05` request carries at most **8192
   bits**, including every TAP move in that request.  OpenOCD batches scans
   into one request and does not split a longer scan; keep the whole request

@@ -92,8 +92,8 @@ preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
 **Bench gate:** v3 is build/host-evidence only (no v3 board). V4's
-software-controlled bench legs and normal cold power-up below pass;
-NORMAL-held/jumper power-up cases remain pending owner action. Earlier 4.14
+software-controlled bench legs, normal cold power-up and NORMAL-held power-up
+below pass; jumper power-up remains pending owner action. Earlier 4.14
 bench claims do not qualify 4.15. ICSP
 installation erases the application: retain an approved application image.
 Owner wiring confirmation is required before programming.
@@ -124,7 +124,12 @@ Owner wiring confirmation is required before programming.
   v8.0 `a318d309`, `HiZ>`. Two info queries three seconds apart remain
   responsive; no resident `04D8:FAFF` device or other observed anomaly.
   Observation used only CR/`i`, not reset, ICSP or bootloader-entry commands.
-- Physical NORMAL-held/jumper cases are **not yet run**. Raw
+- Owner-performed NORMAL-held power-up passes without a PGC/PGD jumper:
+  COM11 `04D8:FAFF`, binary hello `F1 04 0F 4B` (loader 4.15, `K`). It
+  remains resident for at least ten seconds after hello, with no application
+  device or observed anomaly. No unsolicited text banner, reset, flash or
+  ICSP command is involved.
+- The physical jumper case is **not yet run**. Raw
   malformed EP0 control requests remain native-test evidence, not a live
   USB-control-transfer claim. No v3 or Windows 11 result is claimed.
 

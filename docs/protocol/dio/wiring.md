@@ -28,8 +28,8 @@ pin has a direction bit and a level bit in a write value:
 are ordinary pins.  A value above `0x1F` does not add pins: only bits 4–0
 exist, and bits 6–5 are ignored in a direction value.
 
-The header order and the `v`-table order agree on v4 but differ on v3; the
-value-bit order is different from both.  This table maps them:
+The header order and the `v`-table order agree on both boards; the value-bit
+order is different from both.  This table maps them:
 
 | Header pin | Value bit | `v` column, v3 | `v` column, v4 |
 |---|---|---|---|
@@ -51,7 +51,7 @@ The physical order differs by board.  The `GND` end comes first:
 
 | Board | Header order, `GND` end first |
 |---|---|
-| v3 | `GND` `3.3V` `5.0V` `ADC` `VPU` `AUX` `CS` `MISO` `CLK` `MOSI` |
+| v3 | `GND` `3.3V` `5.0V` `ADC` `VPU` `AUX` `CLK` `MOSI` `CS` `MISO` |
 | v4 | `GND` `5.0V` `3.3V` `VPU` `ADC` `AUX2` `AUX1` `AUX` `CS` `MISO` `CLK` `MOSI` |
 
 The `ADC` pin is the separate ADC probe input, not one of the five.  The v3

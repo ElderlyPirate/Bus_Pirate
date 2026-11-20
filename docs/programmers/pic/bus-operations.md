@@ -20,7 +20,9 @@ form.  The banner digit is the active opcode width: `CMD6` in 6b/14b,
 `CMD4` in 4b/16b.
 
 Entry and cleanup reset the state to **Data**.  Within a session it persists
-until you send `[` or `]`; the banner is the reliable indicator.
+until you send `[` or `]`.  `w` and `(1)` also return to Data **without
+printing `DTA`**, so send `]` before a payload (or `[` before an opcode) after
+either one; otherwise the banner is the reliable indicator.
 
 ## Writing a value
 
@@ -121,7 +123,7 @@ applies the value it is given.  In `PIC1` the delay is set with `0x04`–`0x07`
 
 The delay is **not** the part's programming time.  Erase and program cycles
 take milliseconds to tens of milliseconds; the mode does not wait for them.
-Pause for the part's specified time, or let the host tool do it.
+Pause for the part's specified time, or let [`picprog`](picprog.md) do it.
 
 ## Line timing
 

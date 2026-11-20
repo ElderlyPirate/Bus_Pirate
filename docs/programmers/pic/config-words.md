@@ -33,7 +33,7 @@ universal map.
 
 | Step | Six-bit opcode | Payload |
 |---|---|---|
-| Load Configuration (configuration address 0) | `0x00` | 14-bit zero |
+| Load Configuration (sets the PC to `0x2000`, the first User ID word) | `0x00` | 14-bit zero |
 | Load Data for Program Memory | `0x02` | 14-bit word |
 | Load Data for Data Memory | `0x03` | 8-bit byte, zero-padded to 14 |
 | Read Data from Program Memory | `0x04` | — (14-bit read) |
@@ -50,19 +50,25 @@ the host's pause.
 
 ## A worked write — one configuration word
 
-The full terminal sequence is in [sessions.md](sessions.md).  For one
-configuration word, use the same shape with two differences: send `0x00` and
-a zero payload first, which moves the address to configuration space, then
-send `0x02` and the 14-bit word.  `0x08` begins the programming cycle; pause
-for the part's programming time, then send `0x04` and read with `r`.  On a
-part that calls `0x08` Begin Programming Only, bulk-erase first; on a part
-that calls it Begin Erase/Programming, the same command does both.
+For the PIC16F627A/628A/648A class the configuration word is at **`0x2007`**.
+The `0x00` load-configuration opcode starts at `0x2000` (the first User ID
+word), so step the address forward before loading the word:
 
-The entry sequence (`0x00` plus the zero payload) is the same one `(1)` uses;
-the macro then steps six addresses to the device ID and reads it.  It never
-writes.  A part can need a different entry, a different write opcode, a
-row-latch sequence, or a different address step.  Confirm it against its
-programming specification.
+1. Send `0x00` and a dummy 14-bit payload.  The PC is now `0x2000`.
+2. Send `0x06` seven times.  The PC is now `0x2007`.
+3. Send `0x02` and the 14-bit configuration word.
+4. Send `0x08` to begin the programming cycle; pause for the part's
+   programming time.
+5. Send `0x04` and read with `r` to check the word.
+
+To read without writing, do steps 1–2, then `0x04` and `r`.  Keep the value
+before changing anything.
+
+The exact opcodes, addresses and timing are part-specific.  Some parts call
+`0x08` Begin Programming Only and need a bulk erase first; others call it
+Begin Erase/Programming.  A part can need a different entry, write opcode,
+row-latch sequence, or address step.  Confirm it against its programming
+specification.
 
 ## 4b/16b (PIC18) and 24-bit parts
 
@@ -86,7 +92,7 @@ part needs a high-voltage programmer, an erased part, or is locked.
 - Do not write configuration words by hand unless you have the value and the
   part's specification.
 - Read the word first and keep a copy.
-- Use the host tool's part entry; it owns the masks and the safe values.
+- Use [`picprog`](picprog.md)'s part entry; it owns the masks and the safe values.
 - A read-protected part may return a plausible word that is not the real
   configuration; the mode cannot detect protection.
 

@@ -21,7 +21,8 @@ about a part, the tool's part entry is the one to change.
 
 1. Enter the binary layer and wait for `BBIO1`.
 2. Send `0x05` for raw wire and wait for `RAW1`.
-3. Use the raw-wire peripheral command (`0x4x`) for power, AUX and CS.
+3. Use the raw-wire peripheral command (`0x4x`) for power, pull-ups, AUX
+   and CS; on v4 select the VPU source with `0x5x`.
 4. Select a PIC engine with `0xA0`: `1` = 416, `2` = 424, `3` = 614.
 5. Use the `0xAx` PIC group, chiefly the `0xA7` write/read script, for the
    programming sequence.
@@ -38,7 +39,7 @@ Other host routes:
 | `PIC1` (`0x07`) | the byte-wise PIC loop | [binary.md](binary.md) |
 | raw wire (`0x05`) + `0xAx` | the script-driven PIC engines | [binary.md](binary.md) |
 | `picprog` | raw wire + the `0xA7` script | this page |
-| minimal host example | raw-wire generic bit/CS/AUX commands | [the Python raw-wire client](../../../scripts/pyBusPirateLite/pyBusPirateLite/RAW_WIRE.py) |
+| custom host (`bp raw-wire` or a script) | raw-wire generic bit/CS/AUX commands; **no PIC `0xAx` engine** | [binary.md](binary.md) |
 
 ## What it is
 
@@ -58,6 +59,14 @@ The tool ships a small part table.  That table is the authority for which
 parts it supports and which need a high-voltage adapter; this set does not
 re-verify it.  A part not in the table is not supported by the tool.  For an
 HVPP part, use the adapter or an external VPP supply.
+
+### `picprog` and the HVPP adapter
+
+The adapter's CS input is the target MCLR and its AUX input is VPP enable;
+`picprog` drives both through raw wire.  The adapter's MISO/VTARGET switch is
+**not** a raw-wire output: tie it to the level the adapter needs, or use
+`PIC1` (which can drive that input) or a custom host.  A raw-wire-only run
+does not control that switch.
 
 ## Command line
 
@@ -101,6 +110,9 @@ Found 18F24J50 (0x4C02, ID: 0x260 REV: 0x2)
 Erasing chip... OK :)
 Writing page 0, 0000...
 Writing page 1, 0100...
+...
+Verifying page 0, 0000... OK :)
+Verifying page 1, 0100... OK :)
 ```
 
 ## What the tool needs

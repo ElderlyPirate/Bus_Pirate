@@ -60,6 +60,11 @@ wrong width makes the entry sequence or the ID read fail.  The family split
 is a convention, not a firmware table; take the width from the part's
 programming specification.
 
+The raw-wire engine numbers are **crossed** relative to the terminal answer:
+6b/14b is raw-wire `3` (614), 4b/16b is `1` (416), and 4b/24b is `2` (424).
+`PIC1` uses `0x02` for 6-bit and `0x03` for 4-bit.  The full mapping is in
+[binary.md](binary.md).
+
 ## The one-line settings form
 
 The mode line accepts the two settings after the mode number: width first,
@@ -88,8 +93,9 @@ The header fields:
 | `dly` | `0`–`3` | post-command delay in milliseconds |
 
 A complete pair is the only form that skips the prompts.  An incomplete pair
-(`m 9 2`, missing delay) or any value outside the ranges is a parse error:
-both prompts run from the top, nothing from the partial line is applied,
+(`m 9 2`, missing delay) or any value outside the ranges is rejected as
+incomplete: both prompts run from the top, nothing from the partial line is
+applied,
 there is no settings header and no `Syntax error` line.  `m 9 2` therefore
 asks `Commandmode?` and `Delay?` and uses your answers.  A complete pair
 (`m 9 2 1`) is unchanged: it is applied and echoed.  See

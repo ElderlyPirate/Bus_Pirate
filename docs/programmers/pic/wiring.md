@@ -114,6 +114,10 @@ MISO or VPU.  The low level is driven to ground.  Target VDD may be 3.3 V or
 
 ## The programming voltage: LVPP and HVPP
 
+**LVPP** is low-voltage programming (MCLR at the target's VDD); **HVPP** is
+high-voltage programming (a VPP pulse on MCLR).  **VPP** is the programming
+voltage itself, never a signal on a Bus Pirate header pin.
+
 | Entry | MCLR / VPP | Bus Pirate role | Typical |
 |---|---|---|---|
 | **LVPP** | held at the target's VDD | clock and data only; no high voltage | parts whose specification allows low-voltage ICSP |
@@ -128,7 +132,7 @@ MISO or VPU.  The low level is driven to ground.  Target VDD may be 3.3 V or
 - Exact VPP levels and timing are part-specific and **unverified** here; take
   them from the programming specification.
 
-### The HVPP switch
+### The HVPP switch (the HVPP adapter)
 
 An HVPP part needs VPP on MCLR.  The Bus Pirate has no VPP generator and no
 VPP-tolerant pin.  The published Dangerous Prototypes adapter is a 2x5 board
@@ -165,8 +169,10 @@ is VPP-tolerant**; VPP must never reach a header pin.
 - The adapter schematic defines the active level of each control input and
   the VPP sequencing.  Do not assume active-high.
 - In the terminal, `c` selects an AUX target and `A`/`a` drive or release it.
-  `CS` is selectable with `C`; `MISO` is not drivable from the terminal, so
-  the complete adapter needs `PIC1` or the host tool.
+  `CS` is selectable with `C`; `MISO` is not drivable from the terminal or
+  raw wire, so the complete adapter needs `PIC1` (or a custom host that sends
+  the `PIC1` control bytes).  `picprog` uses raw wire and cannot drive that
+  switch.
 - `PIC1` `0x18`–`0x1F` sets all three control inputs from the byte (AUX bit 2,
   MISO bit 1, CS bit 0); it is an absolute state, not a per-line toggle.
 
@@ -197,7 +203,7 @@ row layout is owned by [the generic usage page](../../generic/usage.md).
 | PGC / PGD pins | CLK / MOSI | CLK / MOSI |
 | pull-up required | yes | yes |
 | VPU source | external feed only | `e1` external/none, `e2` 3.3 V, `e3` 5.0 V |
-| on-board pull-up value | documented 2 kΩ on v3a and later | shared with other modes; see the I2C page |
+| on-board pull-up value | documented 2 kΩ on v3a and later; external guidance is 2–10 kΩ | shared with other modes; see the I2C page |
 | HVPP adapter | 2x5 board for the v3 header | no v4-header version; use a harness |
 
 The two builds use the same signals and the same open-drain behaviour.  v3

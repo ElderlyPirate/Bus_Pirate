@@ -100,7 +100,7 @@ PIC>
 ```
 
 The `;16` suffix is absent because 16 bits is the default word display in
-4b/16b.  The `(1)` macro is 6b/14b only; use the host tool for this part.
+4b/16b.  The `(1)` macro is 6b/14b only; use [`picprog`](picprog.md) for this part.
 
 ## No target
 

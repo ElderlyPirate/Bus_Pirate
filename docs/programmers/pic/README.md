@@ -1,34 +1,54 @@
 # PIC (ICSP)
 
-**Status:** v4 is documented here; v3 is included in the default build and is
-not verified on hardware in this set.
+**Status:** current · the ICSP bit engine; v4 is the reference build, and the
+v3 build is included but not verified.
 
-PIC mode is the Bus Pirate's **ICSP** bit engine.  It drives the programming
-clock and data lines by hand and clocks out the opcodes and payloads a host
-gives it.  The **terminal mode** carries no PIC part database and no erase,
-program, verify or configuration-word algorithm; a host tool supplies the
-sequence.  The binary paths add fixed command engines, not a part algorithm.
-The mode displays as `PIC`; the binary loop prints `PIC1`.
+PIC mode is the Bus Pirate's **ICSP** (in-circuit serial programming) bit
+engine.  It drives the programming clock and data lines by hand and clocks out
+the opcodes and payloads a host gives it.  The **terminal mode** carries no PIC
+part database and no erase, program, verify or configuration-word algorithm; a
+host tool supplies the sequence.  The binary paths add fixed command engines,
+not a part algorithm.  The mode displays as `PIC`; the binary loop prints
+`PIC1`.
+
+Terms used in this set: **PGC** is the target's program clock, **PGD** its
+program data, **MCLR** its reset pin, **VPP** the programming voltage applied to
+MCLR (6-13 V), **HVPP** high-voltage programming (VPP on MCLR) and **LVPP**
+low-voltage programming (MCLR at the target's VDD).
 
 **Who it is for:** an operator or host program driving a PIC's ICSP sequence.
 The Bus Pirate is the bit engine; it is not a stand-alone programmer.
 
-**Start here:** wire with the power off, enter `m9` (v4) or `m8` (v3), select
-the VPU source on v4 (v3 feeds `Vpu` externally), power the target, enable the
-pull-ups, apply the
-programming-mode condition (VPP for HVPP, MCLR at VDD for LVPP), then run
-`(1)`.  The sequence and the wiring are in [wiring.md](wiring.md); `(1)` is
-in [macros.md](macros.md).
+## Choose your route
+
+| I want to... | Use | Read |
+|---|---|---|
+| read the device ID | terminal `(1)` | [macros.md](macros.md) |
+| clock one opcode or word | terminal `[`/`]` and `r` | [bus-operations.md](bus-operations.md) |
+| script a byte sequence | the `PIC1` loop (`0x07`) | [binary.md](binary.md) |
+| program a whole part | the `picprog` host tool | [picprog.md](picprog.md) |
+| write my own host | raw wire (`0x05`) plus `0xA7` | [binary.md](binary.md) |
+
+## Start here
+
+1. Wire with the power off: PGC/PGD, ground and the pull-up.
+   See [wiring.md](wiring.md).
+2. Enter `m9` (v4) or `m8` (v3); select the VPU source on v4 (v3 feeds `Vpu`
+   externally).
+3. Power the target, connect the pull-ups, then apply the programming-mode
+   condition (VPP for HVPP, MCLR at VDD for LVPP).
+4. Run `(1)` for the first success; the worked bring-up is in
+   [sessions.md](sessions.md).
 
 This README is a map, not the manual; the details live in the files below.
 
 | File | Covers |
 |---|---|
-| [entry-and-setup.md](entry-and-setup.md) | mode number, prompts, defaults, width |
-| [wiring.md](wiring.md) | signals, pull-up, supplies, LVPP/HVPP, adapter |
+| [entry-and-setup.md](entry-and-setup.md) | mode number, prompts, defaults, width, the engine-number map |
+| [wiring.md](wiring.md) | signals, pull-up, supplies, LVPP/HVPP, the HVPP adapter |
 | [bus-operations.md](bus-operations.md) | `[`/`]`, writes, reads, framing, timing |
 | [macros.md](macros.md) | `(0)`, `(1)` devID, no-answer signatures |
-| [config-words.md](config-words.md) | configuration words, host sequence, lock-out |
+| [config-words.md](config-words.md) | configuration words, the host sequence, lock-out |
 | [sessions.md](sessions.md) | worked terminal sessions |
 | [binary.md](binary.md) | `PIC1` and the raw-wire `0xAx` group |
 | [picprog.md](picprog.md) | the external host tool and its route |
@@ -38,18 +58,19 @@ This README is a map, not the manual; the details live in the files below.
 
 | Step | Do | Result |
 |---|---|---|
-| 1. Wire | Power off.  `PGC (CLK)` to PGC, `PGD (MOSI)` to PGD, `GND` to VSS; a pull-up on each line is **required**. | wired |
-| 2. Enter | `m9` on v4 or `m8` on v3; answer the prompts, or press Enter for 6b/14b, 1 ms. | `PIC>` |
-| 3. VPU and power | `e2`/`e3` on v4, then `W` if the target or the pull-up feed uses the rails; v3 feeds VPU externally. | VPU and rails on |
-| 4. Pull-up and programming mode | `P`, then apply VPP for HVPP or tie MCLR to the target's VDD for LVPP; do this before `(1)`. | pull-up on; target in programming mode |
-| 5. Command or data | `[` selects command state; `]` selects data state.  A value is an opcode or a payload. | `CMD6`/`CMD4`, `DTA` |
-| 6. Read or ID | `r` clocks in 14 bits (6b/14b) or 16 bits (4b/16b); `(1)` runs the 6-bit ID read. | `READ: ...`, `DevID = ...` |
+| 1. Wire | Power off.  PGC to CLK, PGD to MOSI, GND to VSS.  A pull-up is **required**. | wired |
+| 2. Enter | `m9` on v4 or `m8` on v3; Enter through the prompts for 6b/14b, 1 ms. | `PIC>` |
+| 3. Pull-up feed | `e2`/`e3`, then `W`, then `P` for the board feed; a self-powered target with external pull-ups skips all three. | VPU and pull-ups on if used |
+| 4. Programming mode | VPP for HVPP, or MCLR at the target's VDD for LVPP. | in programming mode |
+| 5. Read the ID | `(1)`. | `DevID = ... Rev = ...` |
+| 6. Command or data | `[` command, `]` data; send `]` before `r`. | `CMD6`/`CMD4`, `DTA`, `READ: ...` |
 
-The mode drives both lines open drain: **a high is a released line and only
-the pull-up makes it high.**  A self-powered target with external pull-ups
-skips `e`, `W` and `P`; apply VPP/MCLR and run `(1)`.  `(1)` does not drive
-MCLR.  Binary: enter `BBIO1`, send `0x07`, get `PIC1`; the loop has its own
-commands in [binary.md](binary.md).
+The pull-up is 2-10 kΩ on each line; use `P` only for the board pull-ups.  The
+mode drives both lines open drain: **a high is a released line and only the
+pull-up makes it high.**  A self-powered target with external pull-ups skips
+`e`, `W` and `P`; apply VPP/MCLR and run `(1)`.  `(1)` does not drive MCLR.
+Binary: enter `BBIO1`, send `0x07`, get `PIC1`; that loop has its own commands
+in [binary.md](binary.md).
 
 ## Availability (summary)
 
@@ -68,9 +89,9 @@ different enabled-mode set shifts it; the menu is dynamic.
 
 ## Names used in this set
 
-The firmware's own strings are the authority.  Two forms exist for some
-items; the mapping is stated here once and used consistently below.  The
-host tool's banner is the tool's own string, not firmware.
+The firmware's own strings are the authority.  Where two forms exist, the
+mapping is stated here once and used consistently below.  The three width
+numbering schemes are mapped in [entry-and-setup.md](entry-and-setup.md).
 
 | Item | Source form | Used here |
 |---|---|---|
@@ -81,24 +102,24 @@ host tool's banner is the tool's own string, not firmware.
 | pins in the `v` row | `PGC` / `PGD` | `PGC (CLK)` / `PGD (MOSI)` |
 | setup choice | `6b/14b` / `4b/16b` | `6b/14b` / `4b/16b` |
 | setup header | `PIC(mod dly)=(6 1)` | `6` = 6b/14b, `4` = 4b/16b |
-| pull-up reference | `Vpullup pin`; `VPU` in `v` | `VPU` |
-| host tool | `picprog` / PiratePICprog | `picprog` |
-| host tool banner | `(Bus) Pirate Pic Programmer` | `picprog` (the tool's own spelling) |
+| pull-up reference | `Vpu` (board); `Vpullup` (warnings); `VPU` (`v`) | `VPU` |
+| host tool | executable `picprog`; project PiratePICprog | `picprog` |
+| host tool banner | `(Bus) Pirate Pic Programmer` | quoted as the banner |
 
 The one-line header prints the opcode width alone (`6` or `4`); the prompt
-names the same setting with both widths (`6b/14b`, `4b/16b`).  The `e3`
-message says `5V`; the rail is the `5.0V` rail.
+names the same setting with both widths (`6b/14b`, `4b/16b`).  The `e3` message
+says `5V`; the rail is the `5.0V` rail.
 
 ## Limits and out of scope
 
-| Limit | What it means | Where |
-|---|---|---|
-| No PIC algorithm in the terminal mode | no erase, program, verify, configuration-word or part-database logic; the only built-in sequence is `(1)`, 6b/14b only | [bus-operations.md](bus-operations.md), [macros.md](macros.md) |
-| No VPP generator | the Bus Pirate supplies at most 5 V; no pin may see VPP; HVPP needs an external supply and switch | [wiring.md](wiring.md) |
-| No configuration-word decode | a configuration word is a 14/16-bit payload; its value and meaning belong to the part | [config-words.md](config-words.md) |
-| No speed menu | the line rate is fixed at about 100 µs per bit (roughly 10 kHz) | [bus-operations.md](bus-operations.md) |
-| MCLR is not driven by the terminal bus operations | the terminal can drive CS after selecting it with `C` (the command family is called AUX; the pin is CS); `PIC1` has `0x18`–`0x1F` | [wiring.md](wiring.md), [binary.md](binary.md) |
-| 4b/16b has no devID macro | use the host tool | [macros.md](macros.md) |
+| Limit | Effect |
+|---|---|
+| [Terminal mode has no PIC algorithm](bus-operations.md) | no erase, program, verify or configuration-word logic; `(1)` is the only sequence, 6b/14b only |
+| [No VPP generator](wiring.md) | at most 5 V; no pin may see VPP; HVPP needs the adapter or your own switch |
+| [No configuration-word decode](config-words.md) | the word is a payload; its value and meaning belong to the part |
+| [No speed menu](bus-operations.md) | fixed at about 100 µs per bit (roughly 10 kHz) |
+| [MCLR is not driven by the bus operations](wiring.md) | `(1)`, `[`/`]` and `r` touch PGC/PGD only |
+| [4b/16b has no devID macro](picprog.md) | use `picprog` for a 4b/16b part |
 
 Shared prompt grammar (`r`, `W`, `P`, `(n)`, `e`, `v`, `#`, `$`) is owned by
 the generic layer and not repeated here.
@@ -108,6 +129,6 @@ the generic layer and not repeated here.
 - [The generic prompt layer](../../generic/README.md) — shared commands.
 - [Generic values](../../generic/values.md) — `;N`, `l`/`L`, display formats.
 - [The binary layer](../../protocol/binary/README.md) — `BBIO1` and framing.
-- [The AVRISP-MKII personality](../avrisp/README.md) — AVR targets.
-- [SPI](../../protocol/spi/README.md) — the other open-drain mode.
+- [I2C wiring](../../protocol/i2c/wiring.md) — the on-board pull-up values.
+- [The AVRISP-MKII personality](../avrisp/wiring.md) — the v4 header pin numbering.
 - [SPEC](../../SPEC.md) — the capability index.

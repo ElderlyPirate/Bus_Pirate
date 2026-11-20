@@ -7,7 +7,7 @@ binary layer — entering `BBIO1`, framing, leaving — is in
 [the binary layer](../../protocol/binary/README.md); the raw-wire framing is
 owned by [the shared RAW1 page](../../protocol/wire/binary.md).
 
-Neither path is verified on hardware.
+The examples in this page are protocol descriptions; v3 is build-only.
 
 ## `PIC1` — the dedicated loop (`0x07`)
 
@@ -120,9 +120,66 @@ Raw wire carries a separate script-driven PIC engine.  Enter raw wire with
 | `0xA5` | 424 | write and read bits | count only | six bytes per count; **no result byte** |
 | `0xA7` | all | write and read script | write count, read count, then the script | `0x01`, plus any read bytes |
 
+Every count in that table is **one byte** (0–255 records).  The shared binary
+page calls the `0xA4`/`0xA7` payloads "command words"; this page calls the
+`0xA7` sequence a "script" and its entries "records".  They are the same
+bytes.
+
 Engine names follow the widths: **614** = 6-bit command / 14-bit data,
 **416** = 4-bit / 16-bit, **424** = 4-bit / 24-bit.  Match the engine to the
-part; the family mapping is a host convention (**unverified**).
+part.  The numbers are crossed between interfaces:
+
+| Family | Terminal answer | Header digit | `PIC1` command | Raw-wire `0xA0` |
+|---|---|---|---|---|
+| PIC10/12/16 (6b/14b) | `1` | `6` | `0x02` | `3` (614) |
+| PIC18 (4b/16b) | `2` | `4` | `0x03` | `1` (416) |
+| PIC24/dsPIC (4b/24b) | — | — | — | `2` (424) |
+
+A user who selected terminal `1` for a PIC16 must send `0xA0 3`, not
+`0xA0 1`, on the raw-wire route.
+
+### `0xA7` record fields
+
+The record layout is not just a byte count:
+
+- **614 write** (4 bytes: marker, command, data low, data high): bit 7 of the
+  command byte means **no payload**.  When it is set, only the six-bit command
+  is clocked and the two payload bytes are ignored.
+- **416 write** (4 bytes: marker, command, data low, data high): bits 7–6 of
+  the command are a 0–3 ms delay that **replaces the fourth command bit**;
+  the low four bits are the command.  The two payload bytes follow.
+- **424 write** (5 bytes: marker, three payload bytes, NOP count): the NOP
+  count is masked to the low four bits and that many NOPs are inserted after
+  the SIX payload.
+- **Reads:** 614/416 read records are marker + command (2 bytes); 424 is the
+  marker alone (1 byte).  The device returns two bytes for a 614 or 424 read
+  record and one byte for a 416 read record, after the script.
+
+A minimal 614 write script is `0xA7 01 00 01 02 00 00`: one write record,
+zero reads, marker `1`, command `0x02`, payload `0x0000`.
+
+### Worked raw-wire exchange
+
+```
+host -> 0x00 x20        enter the binary layer
+host <- "BBIO1"
+host -> 0x05            enter raw wire
+host <- "RAW1"
+host -> 0xA0 0x03       select the 614 engine (PIC10/12/16)
+host <- 0x01
+host -> 0x4C            power + pull-ups on; AUX and CS low
+host <- 0x01
+host -> 0xA7 0x01 0x00 0x01 0x02 0x00 0x00
+host <- 0x01            one write record: marker, command, payload
+host -> 0x00            leave raw wire
+host <- "BBIO1"
+host -> 0x0F            return to the terminal
+host <- 0x01
+```
+
+On v4, select the VPU source with the raw-wire `0x5x` command before `0x4C`
+when the board is to feed the pull-ups; the shared RAW1 page owns those
+operands.
 
 - `0xA4` and `0xA5` are refused (`0x00`) in the 614 engine; select 416 or 424
   first.
@@ -146,8 +203,8 @@ part; the family mapping is a host convention (**unverified**).
 
 The raw-wire group is present even in a build without the PIC terminal mode;
 it is not conditioned on the PIC support switch.  The `PIC1` entry (`0x07`)
-is: without PIC support it returns the `BBIO1` identifier without entering
-the loop.
+is conditioned: without PIC support it returns the `BBIO1` identifier
+without entering the loop.
 
 ## Limits
 

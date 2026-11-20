@@ -37,10 +37,10 @@ a zero payload), six address increments (`0x06`), then a read (`0x04`).  On
 the PIC16F midrange parts the macro targets, the device ID sits six addresses
 into configuration space, which is why the step count is fixed; other 6-bit
 parts can use a different ID address.  The macro manages the Command/Data
-state itself and suppresses the banners while it runs.  It does not drive
-MCLR: apply VPP for an HVPP part or hold MCLR at VDD for an LVPP part before
-running it.  Whether that sequence alone enters programming mode is
-part-specific (**unverified**).
+state itself and suppresses the banners while it runs.  **It assumes the
+target is already in programming mode:** apply VPP for an HVPP part or hold
+MCLR at VDD for an LVPP part first.  The macro does not drive MCLR and does
+not enter programming mode by itself.
 
 The macro reads and decodes the word itself, so the generic `l`/`L` setting
 does not change its sequence or its output.  It ends in Data state and always
@@ -57,8 +57,8 @@ Not implemented (yet)
 Please exit PIC programming mode
 ```
 
-It does not run the sequence and leaves the state unchanged.  Use the host
-tool for a 4b/16b part.
+It does not run the sequence and leaves the state unchanged.  Use
+[`picprog`](picprog.md) for a 4b/16b part.
 
 ## No answer on the bus
 

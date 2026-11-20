@@ -7,6 +7,16 @@ int main(int argc, char **argv) {
     uint8 data[16] = {0}, pages[PIC_NUM_PAGES] = {0};
     uint8 *image;
     unsigned long i;
+    if (argc == 3 && !strcmp(argv[2], "--cross-bank")) {
+        image = malloc((flashsize / 2) * 3);
+        assert(image);
+        assert(readHEX(argv[1], image, (flashsize / 2) * 3, pages) == 4);
+        assert(image[(0xFFFC / 4) * 3] == 0x56);
+        assert(image[(0x10008 / 4) * 3 + 2] == 0x34);
+        assert(pages[31] && pages[32]);
+        free(image);
+        return 0;
+    }
     if (argc > 1) {
         int count = readHEX(argv[1], data, sizeof(data), pages);
         if (count < 0) return 2;

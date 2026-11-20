@@ -529,7 +529,7 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
         {
             f_addr  = (hex_base_addr | (hex_addr)) / 2; //PCU
 
-            if( hex_len % 4 || hex_addr % 4 || hex_addr + hex_len > 0x10000UL )
+            if( hex_len % 4 || hex_addr % 4 )
             {
                 fprintf(stderr, "Misaligned data, line %d\n", line_no);
                 goto invalid;

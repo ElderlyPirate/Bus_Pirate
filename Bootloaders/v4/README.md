@@ -65,5 +65,5 @@ freeze protocol timeouts. Idle enumeration is intentionally indefinite, but
 never blocks USB servicing. Full USB suspend-current compliance is not
 claimed: this loader does not implement board-wide low-power sleep.
 
-Build/test via `../Makefile`; see `../README.md` for the manual audit and test
-limits. **This rebuilt image awaits owner-wired v4 bench qualification.**
+Build/test via `../Makefile`; see `../README.md` for the manual audit, passing
+software-controlled v4 bench legs and remaining physical power-up cases.

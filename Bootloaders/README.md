@@ -91,8 +91,51 @@ exercise HEX parsing, bounds, checksums, clone handshake, relocated GOTO and
 preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
-**Bench gate:** v3 is build/host-evidence only (no v3 board). The rebuilt v4
-image is NOT bench-qualified until explicitly flashed and tested. Earlier
-4.14 bench claims do not qualify this new 4.15 image. ICSP installation erases
-the application: retain an approved application image for restoration. Owner
-wiring confirmation is required before any programming operation.
+**Bench gate:** v3 is build/host-evidence only (no v3 board). V4's
+software-controlled bench legs below pass; physical power-up cases remain
+pending owner action. Earlier 4.14 bench claims do not qualify 4.15. ICSP
+installation erases the application: retain an approved application image.
+Owner wiring confirmation is required before programming.
+
+## V4 Bench, 2026-11-20
+
+- Owner-confirmed XM64 PA4 -> ICSP 5/PGC, PA5 -> 4/PGD, PA6 -> 1/MCLR,
+  GND -> 3/VSS; 2/VDD and 6 open, separate USB power, Vpu out.
+- Existing XM64 `icsp-usb` programmer on COM9 (`1209:0002`), target ID
+  `0x001019`, revision 4. Full erase/config erase and 31-chunk bootloader write
+  pass independent verify. CONFIG1/2 remain `0x3E7F`/`0x239E`.
+- Qualified image for these legs: SHA-256
+  `B10BF69E7C7B68E3EA36CE249CD6FCB2994912E236122BC8DA46808068304698`.
+  Blank entry enumerates as COM11 (`04D8:FAFF`), hello `F1 04 0F 4B`.
+- 464 live framing/protection/recovery checks plus four scratch erase/write
+  checks pass. ICSP independently confirms the scratch pattern, all eight
+  erased page rows, unchanged reset/vectors and all 56 loader-region rows.
+- Approved application SHA-256
+  `EA4CC34245C7710576D2140F48DBB31FD687481F0BF53F631BBA8C92E349AA44`
+  installs through pirate-loader and restarts without replug to COM6
+  (`04D8:FB00`), firmware `a318d309`, `HiZ>`. All 472 application rows,
+  application vectors, protected reset GOTO, 56 loader rows and CONFIG1/2
+  independently pass ICSP readback on the final installed image.
+- Firmware `$`/`y` -> loader hello -> acknowledged restart -> application
+  passes three consecutive cycles without physical action.
+- Physical cold-power normal/NORMAL/jumper cases are **not yet run**. Raw
+  malformed EP0 control requests remain native-test evidence, not a live
+  USB-control-transfer claim. No v3 or Windows 11 result is claimed.
+
+The opt-in `tests/bench_v4_protocol.py`, `bench_v4_entry.py` and
+`bench_v4_readback.py` reproduce these legs; they are never run by `make test`.
+The protocol probe's scratch option deliberately erases application page
+`0x2400` and must not run on an application that needs preserving. ICSP uses
+the existing XM64 `picprog.py`, not a replacement programming engine.
+
+Two procedure findings matter: the current XM64 `icsp_exit()` does not pulse
+MCLR low to leave programming mode, so its existing `linecheck` command is
+used after read/write batches to release the target. Also, the application's
+entry confirmation needs the CDC reader kept open through detach, as in the
+existing `enter_bootloader.py` helper. An early-close probe stranded that
+application path; corrected-reader tests pass on the original image. The
+temporary startup hypotheses were removed, not shipped as unproven fixes.
+The actual code regression found by this bench is in host HEX validation:
+XC16 records may cross a 64 KiB boundary; the host now accepts those while
+retaining complete destination bounds. Detailed local transcripts are in
+ignored `tests/build/bench-20261120/`.

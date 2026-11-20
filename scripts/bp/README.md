@@ -6,10 +6,9 @@ utility, the C XSVF host players, and the GPLv3 `scripts/pyBusPirateLite/`
 library with one typed, testable Python package. It talks to the Bus Pirate
 binary protocol over a serial port and does not use a GUI.
 
-The old EEPROM/LCD tools remain in the repository. The C XSVF host folders and
-the `scripts/pyBusPirateLite/` tree were removed after their functionality was
-ported. SVF to XSVF conversion is not part of this package; it remains an
-external Xilinx toolchain step.
+All legacy host trees were removed after their functionality was ported; only
+the `bp` package remains under `scripts/`.  SVF to XSVF conversion is not part
+of this package; it remains an external Xilinx toolchain step.
 
 ## Scope
 
@@ -47,8 +46,8 @@ Not implemented in this package:
 - GUI or keyboard polling through Windows `conio`.
 - Automatic discovery of Bus Pirate serial ports.
 - Page writes for EEPROM devices. Writes always use one byte per I2C
-  transaction, matching `I2CEEPROMWIN.c`, because EEPROM page sizes are not
-  standardized.
+  transaction, matching the removed legacy tool, because EEPROM page sizes are
+  not standardized.
 - Binary-bitbang clock-speed set/read (`0x60`/`0x70`). The v9 firmware in this
   tree does not implement either command in binary-bitbang mode; use the
   per-mode `--bus-speed` options instead.
@@ -56,7 +55,6 @@ Not implemented in this package:
   but does not implement a separate configuration-read command.
 - A host-side UART bridge that returns cleanly. `bp uart bridge` enters the
   firmware bridge, which only a hardware reset exits.
-- Changes to or removal of the remaining legacy EEPROM/LCD tools.
 
 ## Requirements and installation
 
@@ -598,6 +596,8 @@ scripts/bp/
   pyproject.toml        Packaging, console script `bp`
   requirements.txt      Runtime dependency pins
   requirements-dev.txt  Test/lint/type-check pins
+  LICENSE               Apache License 2.0
+  NOTICE                Copyright/attribution notice
   README.md             This document
   ruff.toml             Ruff lint/format policy
   pyrightconfig.json    Pyright policy
@@ -852,9 +852,9 @@ Authority and source material used by this package:
 
 | Source | Purpose |
 |---|---|
-| [`scripts/version.pl`](../version.pl) | Legacy reset-banner behavior and platform default ports. |
-| [`scripts/I2CEEPROMWIN.c`](../I2CEEPROMWIN.c) | Legacy EEPROM chip/addressing/file behavior and no-page writes. |
-| [`scripts/powertools/LCDv2-tester/`](../powertools/LCDv2-tester/) | Legacy LCD adapter v2 test sequence. |
+| `git history:scripts/version.pl` | Legacy reset-banner behavior and platform default ports; removed. |
+| `git history:scripts/I2CEEPROMWIN.c` | Legacy EEPROM chip/addressing/file behavior and no-page writes; removed. |
+| `git history:scripts/powertools/LCDv2-tester/` | Legacy LCD adapter v2 test sequence; removed. |
 | `git history:scripts/pyBusPirateLite/` | Behavioral reference only for `BitBang`, `RAW_WIRE`, `I2C`, `I2Chigh`, `SPI`, `UART`, and `_1WIRE`; removed after the port. No source, comments, or structure were copied. |
 | `git history:scripts/pyBusPirateLite/spi_test.py` | SPI chip-ID and flash-style read workflow reference. |
 | `git history:scripts/pyBusPirateLite/i2c-test.py`, `thermometer.py` | I2C register/word helper usage reference. |

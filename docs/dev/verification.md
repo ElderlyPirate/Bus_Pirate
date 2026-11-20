@@ -35,7 +35,7 @@ not a test report.  Native fixtures are named in [tests.md](tests.md).
 | [wire/2wire](../protocol/wire/2wire/README.md) | source + v4 history | smart-card ATR trigger/parse, `m6 2` partial form; binary path source-only |
 | [wire/3wire](../protocol/wire/3wire/README.md) | source + v4 history | CS polarity, bulk-byte reply, clock idle; VPU/wiring values unverified |
 | [spi](../protocol/spi/README.md) | source-only | terminal, sniffer and binary contracts from source |
-| [i2c](../protocol/i2c/README.md) | source + v4 history | terminal legs, sniffer, tester matrix, onboard EEPROM path; scanner, hardware rates and binary source-only |
+| [i2c](../protocol/i2c/README.md) | source + v4 history | terminal legs, sniffer, on-board EEPROM path; scanner, hardware rates, the binary layer and the `bp eeprom` frontend are source-only |
 | [uart](../protocol/uart/README.md) | source + v4 history | HDUART, bridge, loopback, error flags; the receive path is a **127-usable-word ring** (128 slots, one held free) and the terminal output buffer is **4096 bytes** on both builds; binary presets source-only |
 | [jtag](../protocol/jtag/README.md) | source + v4 history | XSVF player history; OpenOCD adapter source-only; host-tool caveats in the XSVF set |
 | [dio](../protocol/dio/README.md) | source + v4 history | read-back (`r` bits 4–0); the safe-park contract covers five pins on v3 and seven on v4 (`AUX1`/`AUX2` included); v3 unverified |

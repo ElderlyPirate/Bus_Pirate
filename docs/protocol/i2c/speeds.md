@@ -88,28 +88,14 @@ speed answer.
 5. A target's datasheet limit is the authority. Many 3.3 V parts specify a
    maximum clock and a maximum rise time; both must hold at once.
 
-## Edge cases
-
-| Trigger | Symptom | Behaviour / recovery |
-|---|---|---|
-| Hardware driver with menu option 4 | the driver and speed prompts restart | the engine has three rates; use 1–3 |
-| `0x64`–`0x6F` is sent in binary | a valid profile is selected, not a failure | the operand is masked to the low two bits |
-| A hardware rate is expected from `0x6x` | the software profile changes instead | binary `I2C1` is software only; use the terminal for the engine |
-| The actual clock is below the label | normal, especially in hardware mode | clock synchronisation and rise time; measure at the target |
-| The scanner stops finding devices after a speed change | the target cannot follow the selected profile | drop one profile and retry |
-| `Maximum speed` is selected on a long bus | data errors, NACKs, or a stretch timeout | lower the profile or improve the pull-ups |
-| The `i` header shows `spd 2` after choosing menu 3 | the header is zero-based | `spd 2` is `~150kHz` (software) or `1MHz` (hardware) |
-
 ## v3 / v4
 
 | Item | v3 | v4 |
 |---|---|---|
 | software profiles 1–4 | yes | yes |
-| hardware rates 1–3 | optional build only | yes |
+| hardware rates 1–3 | not in this tree | yes |
 | binary `0x6x` profiles | yes, software only | yes, software only |
 | `spd` in the header | zero-based | zero-based |
-
-The v3 column is **not verified**.
 
 ## Related docs
 
@@ -119,3 +105,4 @@ The v3 column is **not verified**.
 - [wiring.md](wiring.md) — rise time, pull-ups and the voltage limit.
 - [clock-stretching.md](clock-stretching.md) — what happens when a slave
   cannot follow the clock.
+- [edge-cases.md](edge-cases.md#entry-and-settings) — speed and setup failures.

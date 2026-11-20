@@ -10,7 +10,7 @@ a wiring item; it is covered in [clock-stretching.md](clock-stretching.md).
 | Bus Pirate pin | Direction | I2C signal | Notes |
 |---|---|---|---|
 | MOSI | ↔ | SDA (data) | open drain: only pulls low; the pull-up makes the high |
-| CLK | → | SCL (clock) | open drain, same rule |
+| CLK | ↔ | SCL (clock) | open drain; driven low, released high, read back on every high phase |
 | GND | ⏚ | ground | common ground with the target |
 | Vpullup (`Vpu`) | in | pull-up reference | the voltage the pull-ups tie SDA/SCL to; not a bus wire |
 | MISO | — | not used | leave unconnected |
@@ -27,10 +27,11 @@ two forms for the same two wires:
 
 ## The pull-up is required
 
-**Pull-up resistors on SDA and SCL are mandatory.** I2C is open drain: every
-device, including the Bus Pirate, can only pull a line low; the high level comes
-only from the pull-up. The Bus Pirate never drives either line high, and I2C has
-no output-type prompt that could change that.
+**Pull-up resistors of 2 kΩ–10 kΩ to Vpullup are mandatory on both SDA and
+SCL.** I2C is open drain: every device, including the Bus Pirate, can only pull
+a line low; the high level comes only from the pull-up. The Bus Pirate never
+drives either line high, and I2C has no output-type prompt that could change
+that.
 
 Without a pull-up there is no idle high. The classic symptom is that the
 **address scanner reports a device at every address**, because a floating line
@@ -66,7 +67,7 @@ the actual bus capacitance and the sink-current rating, then check the rise
 and the high time at the target. SDA's 2 kΩ is often sufficient; verify it
 separately rather than fitting the same resistor to both lines.
 
-The v3 on-board pull-up value is not covered here (**unverified**); the v3
+The v3 on-board pull-up value is not covered here; the v3
 Vpullup pin still needs an external feed.
 
 ## Output type
@@ -89,7 +90,7 @@ voltage:
 | `e1` (v4) | External (or None) |
 | `e2` (v4) | on-board **3.3 V** |
 | `e3` (v4) | on-board **5.0 V** |
-| v3 | no `e`; feed the pin from an external 0–5 V supply (**not verified**) |
+| v3 | no `e`; feed the pin from an external 0–5 V supply |
 
 On v4, `e` is accepted only while the pins are open-drain high impedance and no
 voltage is already on VPU.
@@ -106,7 +107,7 @@ Warning: no voltage on Vpullup pin
 **Order:** select the VPU source (`e2`/`e3`) before `P`. `W` and `e` are
 independent; `W` does not feed VPU and `e` does not power the target. The full
 chain is in
-[entry-and-setup.md](entry-and-setup.md#bring-up-supplies-vpu-and-pull-ups).
+[entry-and-setup.md](entry-and-setup.md#bring-up).
 
 ## Supplies and voltage limits
 
@@ -147,11 +148,9 @@ exact absolute-maximum rating of the I/O pins is not documented here
 |---|---|---|
 | SDA / SCL pin | MOSI / CLK | MOSI / CLK |
 | pull-up required | yes | yes |
-| on-board pull-up | switched, value not covered (**unverified**) | SDA 2 kΩ, SCL 10 kΩ, MISO/CS 10 kΩ |
+| on-board pull-up | switched, value not covered | SDA 2 kΩ, SCL 10 kΩ, MISO/CS 10 kΩ |
 | VPU source selection | none; feed externally | `e1` / `e2` / `e3` |
 | on-board EEPROM bus | — | separate internal bus, macros 3/4 |
-
-v3 wiring and the v3 VPU route are **not verified**.
 
 ## Related docs
 
@@ -160,6 +159,6 @@ v3 wiring and the v3 VPU route are **not verified**.
 - [bus-operations.md](bus-operations.md) — the scanner pre-check and the bus
   error.
 - [clock-stretching.md](clock-stretching.md) — stretch wait and recovery.
-- [eeprom.md](eeprom.md) — the separate on-board EEPROM bus.
+- [onboard-eeprom.md](onboard-eeprom.md) — the separate on-board EEPROM bus.
 - [docs/generic/commands.md](../../generic/commands.md#feeding-the-vpullup-pin)
   — the shared `W`, `P` and `e` commands.

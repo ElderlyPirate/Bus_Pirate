@@ -35,26 +35,24 @@ are applied:
 | `m4 <values>` | the settings header, then `Ready` |
 
 All three end at the `I2C>` prompt. The bus is not driven until the first bus
-operation; `W` is what powers the target rails (see §Bring-up).
+operation; `W` is what powers the target rails (see [Bring-up](#bring-up)).
 
 ### The driver prompt
 
-On v4, and on a v3 build that compiles the hardware engine in (not the default
-v3 build), the first prompt chooses the driver:
+On v4, the first prompt chooses the driver:
 
 | Prompt | Option | Text | Driver |
 |---|---|---|---|
 | `I2C mode:` | `1` | `Software` | bit-banged SDA/SCL |
 | | `2` | `Hardware` | the on-chip I2C engine |
 
-The default is `1` (`Software`). A default v3 build has no hardware engine
-compiled in, so it skips this prompt and goes straight to the software speed
-prompt.
+The default is `1` (`Software`). A v3 build has no hardware engine, so it
+skips this prompt and goes straight to the software speed prompt.
 
 **Choosing:** Software works on both boards and is what the binary `I2C1` path
 always uses. Choose Hardware for the engine's clock timing, or for the on-board
 EEPROM macros 3/4 (v4 only), which are refused under Software (see
-[macros.md](macros.md)).
+[onboard-eeprom.md](onboard-eeprom.md)).
 
 ### The speed prompt
 
@@ -129,7 +127,7 @@ Rules:
   `1`–`3` with Hardware.
 - A missing or out-of-range value also falls back to the prompts; nothing is
   reported as an error.
-- On a default v3 build the driver digit does not exist: the first number is
+- On a v3 build the driver digit does not exist: the first number is
   the speed. `m4 3` selects `~150kHz`. A v4-style line (`m4 2 1`) is read as
   speed 2 on v3 and the trailing digit is discarded.
 
@@ -172,7 +170,7 @@ in the binary layer.
 The consequence is unconditional: the high level of both lines must come from a
 pull-up. See [wiring.md](wiring.md).
 
-## Bring-up: supplies, VPU and pull-ups
+## Bring-up
 
 | Step | Command | Effect |
 |---|---|---|
@@ -180,15 +178,17 @@ pull-up. See [wiring.md](wiring.md).
 | power the rails | `W` | `POWER SUPPLIES ON`, then `Clutch engaged!!!` |
 | enable the pull-ups | `P` | `Pull-up resistors ON` |
 | release the pull-ups | `p` | `Pull-up resistors OFF` |
-| park and remove the target rails | `w` | `Clutch disengaged!!!`, then `POWER SUPPLIES OFF` |
+| remove the target rails | `w` | `Clutch disengaged!!!`, then `POWER SUPPLIES OFF` |
 
 Recommended order is `e2`/`e3` first, then `W`, then `P`. `W` and `e` are
 independent and may be issued in either order; only `P` must follow the VPU
 source. A bus with an external pull-up to the target rail needs neither `e` nor
 `P`.
 
-`w` removes the target rails only: it leaves `P` and the VPU source as they
-were. Use `p` and, on v4, `e1` to switch them off before rewiring.
+`w` removes the target rails and runs the mode cleanup. It leaves `P` and the
+VPU source as they were, and it does **not** send a stop: resolve a pending read
+with `]` first. Use `p` and, on v4, `e1` to switch the pull-ups and the source
+off before rewiring.
 
 ```
 I2C>W
@@ -200,6 +200,8 @@ I2C>P
 Pull-up resistors ON
 I2C>
 ```
+
+Either order works; this example powers first.
 
 Doing `P` first, with nothing on Vpullup, is allowed but warns because the
 pull-ups have no reference:
@@ -229,36 +231,18 @@ Notes:
   clears the on-board VPU source to External (or None) on v4, and re-asserts the
   on-board EEPROM write protect. Re-issue `e`/`W`/`P` after re-entering.
 
-## Edge cases
-
-| Trigger | Symptom | Behaviour / recovery |
-|---|---|---|
-| `m4 2 4` is typed | the driver and speed prompts run | the engine has no fourth rate; use `1`–`3` |
-| A value is missing or out of range | the prompts run, nothing is reported | answer the prompts, or type valid menu numbers |
-| The header is typed after `m4` | the prompts run | type menu numbers; at the `I2C>` prompt the header is a syntax error |
-| The printed `mod` is `1` after `2` was typed | the header is zero-based | `0` in the header is Software (typed `1`); `1` is Hardware (typed `2`) |
-| The printed `spd` is one lower than typed | the header is zero-based | type the menu number; read the index |
-| `m4` on a default v3 build | only the speed prompt appears | there is no hardware engine in the default v3 build |
-| A v4 settings line is used on v3 | the first number is the speed; trailing digits are dropped | use `m4 <speed>` on v3 |
-| `e` is issued with a voltage already on Vpullup | `Warning: already a voltage on Vpullup pin` plus a syntax error | remove the external source first |
-| `P` is issued with no VPU voltage | `Pull-up resistors ON` then `Warning: no voltage on Vpullup pin` | select `e2`/`e3` on v4, or feed Vpu externally |
-| `e` is issued on v3 | syntax error | v3 has no `e`; feed Vpullup externally |
-| An output-type prompt is expected | it never appears | I2C is fixed open drain; the pull-up is mandatory |
-
 ## v3 / v4
 
 | Item | v3 | v4 |
 |---|---|---|
 | mode number 4 | yes | yes |
-| driver prompt | not in the default build | always asked |
+| driver prompt | not present | always asked |
 | software speed menu | same four entries | same four entries |
-| hardware speed menu | only in an optional build | same three entries |
+| hardware speed menu | not present | same three entries |
 | one-line settings form | speed only | driver + speed |
 | settings header `mod` field | always `0` | `0`/`1` |
 | output-type prompt | not asked | not asked |
 | on-board VPU source (`e`) | no | yes |
-
-The v3 column is **not verified**.
 
 ## Related docs
 
@@ -267,4 +251,5 @@ The v3 column is **not verified**.
 - [bus-operations.md](bus-operations.md) — start, stop, read and write.
 - [macros.md](macros.md) — the `(0)` list and macros 1–4.
 - [binary.md](binary.md) — the `I2C1` entry and its own defaults.
-- [edge-cases.md](edge-cases.md) — setup and bring-up failures.
+- [edge-cases.md](edge-cases.md#entry-and-settings) — setup and bring-up
+  failures.

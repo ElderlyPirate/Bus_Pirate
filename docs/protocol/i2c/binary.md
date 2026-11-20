@@ -100,6 +100,11 @@ command: the remaining payload is consumed and answered NACK without further bus
 activity. A normal slave NACK is **not** a bus fault. See
 [clock-stretching.md](clock-stretching.md).
 
+The bundled host frontend accepts either `0x00` or `0x01` for the four
+bus-control commands (`0x02`, `0x03`, `0x06`, `0x07`); the firmware in this tree
+returns `0x01` on success. Judge the data phase from the bulk-write status and
+the per-byte ACK bits, not from those four replies alone.
+
 ### Groups not implemented
 
 I2C has no `0x2x`, `0x3x`, `0x8x`, `0x9x`, `0xAx` or `0xFx` group; those request
@@ -177,8 +182,8 @@ host.
 - Both counts are limited by the **4096-byte terminal output buffer**, which is
   the same on v3 and v4. This is not the command line buffer (128 bytes on v3,
   256 on v4).
-- The write count must be at least 1 — the first byte is the address —
-  while the read count may be 0.
+- The write count must be at least 1 — the first byte is the address — while
+  the read count may be 0.
 - A zero write count, or either count over the limit, is answered `0x00` with
   **no payload consumed and no bus traffic**. The two count words have already
   been consumed when the check runs.
@@ -253,7 +258,12 @@ was not recognised. A `0x03` read returns the pin level, so `0x00` there is a
 valid low.
 
 If AUX is jumpered to SDA or SCL, release it (`0x09 0x02`, high-Z) before bus
-traffic.
+traffic. A host that sends `0x4x` first drives AUX to the bit-1 level, so leave
+AUX unjumpered if the host cannot release it.
+
+The terminal `a` / `A` / `@` commands still print `AUX LOW`, `AUX HIGH` and
+`AUX INPUT/HI-Z, READ: ...`; those strings are not part of the binary `0x09`
+reply.
 
 ## Sniffer in binary mode (`0x0F`)
 
@@ -344,6 +354,11 @@ set again inside `0x08` by its repeated start. A one-byte-address part
 On v3 the `0x51` step is answered `0x00`; it is harmless. The final `0x0F`
 returns to the terminal through a reset, so the board comes back in HiZ.
 
+The `bp eeprom` host frontend does **not** use `0x08`: it frames each transfer
+with `0x02`/`0x03`, the `0x1x` bulk write, `0x04` and `0x06`/`0x07`, as the
+worked session in [host-eeprom.md](host-eeprom.md) describes. This exchange is
+the protocol shape, not that tool's sequence.
+
 ## v3 / v4
 
 | Item | v3 | v4 |
@@ -354,13 +369,12 @@ returns to the terminal through a reset, so the board comes back in HiZ.
 | hardware engine from binary | no | no |
 | `0x0F` return to the terminal | full reset | reset to HiZ |
 
-The v3 column is **not verified**.
-
 ## Related docs
 
 - [speeds.md](speeds.md) — the profile table and `0x6x`.
 - [clock-stretching.md](clock-stretching.md) — `0x0A` and failure recovery.
 - [sniffer.md](sniffer.md) — the interactive sniffer's output.
-- [eeprom.md](eeprom.md) — the `I2CEEPROMWIN` client that uses this layer.
+- [host-eeprom.md](host-eeprom.md) — the external EEPROM frontend that uses
+  this layer.
 - [docs/protocol/binary/sub-protocols.md](../binary/sub-protocols.md) — the
   shared group layouts.

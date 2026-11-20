@@ -47,11 +47,10 @@ The scanner and the `READ:` lines do follow `o`.
 
 ## Output buffering and overflow
 
-Sniffer output goes through the terminal output path. **The terminal output
-buffer is 4096 bytes on both builds**, and it is not the command line buffer
-(128 bytes on v3, 256 on v4). On v3 the sniffer appends to that ring; on v4 the
-same calls write straight to the USB CDC queue, so the ring is not on the
-sniffer path.
+Sniffer output goes through the terminal output path. The terminal output buffer
+is 4096 bytes on both builds, but it is not the command line buffer and it is
+not on the v4 sniffer path. On v3 the sniffer appends to that ring; on v4 the
+same calls write straight to the USB CDC queue.
 
 | Build | Path | When it fills |
 |---|---|---|
@@ -91,15 +90,13 @@ grammar is in [binary.md](binary.md#sniffer-in-binary-mode-0x0f).
 |---|---|---|
 | macro `(2)` | yes | yes |
 | text output format | same | same |
-| terminal output buffer | 4096 bytes | 4096 bytes |
-| sniffer queue | 4096-byte ring | USB CDC queue |
+| sniffer output path | 4096-byte ring | USB CDC queue |
 | overflow symptom | silent drop; MODE LED off | stall; missed edges |
-
-The v3 column is **not verified**.
 
 ## Related docs
 
 - [macros.md](macros.md) — the `(0)` list and the other macros.
 - [binary.md](binary.md#sniffer-in-binary-mode-0x0f) — the binary framing.
 - [wiring.md](wiring.md) — what the two sniffed lines need.
-- [edge-cases.md](edge-cases.md) — overflow and stop-key failures.
+- [edge-cases.md](edge-cases.md#scanner-and-sniffer) — overflow and stop-key
+  failures.

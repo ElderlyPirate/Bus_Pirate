@@ -12,7 +12,7 @@ I2C slaves may **hold SCL low** after the master releases it, to pause the
 master while they prepare data. The master must not continue until the slave
 releases SCL. A master that ignores stretching reads garbage from slow devices.
 
-## Software driver — a bounded wait on every clock
+## Software driver: a bounded wait on every clock
 
 The software (bit-banged) driver releases SCL, waits for the wire to read high,
 and only then runs its high-phase delay. This applies to every clock the master
@@ -24,9 +24,10 @@ produces:
 - the master's own ACK/NACK bit after a read;
 - start, repeated start and stop.
 
-The wait is a **fixed poll count**, not an exact wall-clock deadline. On v4 it
-is roughly **25 ms** per clock wait, which covers parts with long stretches
-such as the SHT3x family. It is not a portable SMBus timing guarantee.
+The wait is a **fixed poll count**, not an exact wall-clock deadline. On the v4
+build it is roughly **25 ms** per clock wait, which covers parts with long
+stretches such as the SHT3x family. It is not a portable SMBus timing guarantee;
+the iteration count is the hard bound.
 
 ## Two outcomes
 
@@ -35,8 +36,8 @@ such as the SHT3x family. It is not a portable SMBus timing guarantee.
 | SCL is released within the bound | the bit completes and the transfer continues |
 | SCL is still low at the bound | abort: both pins released, `I2C bus error`, command abandoned |
 
-**After a timeout:** the next operation starts from a fresh error state. It
-does not retry the abandoned command, and it times out again if SCL is still
+**After a timeout:** the next operation starts from a fresh error state. It does
+not retry the abandoned command, and it times out again if SCL is still
 held.
 
 A timed-out acknowledge slot is **not** reported as `NACK`. A read returns the
@@ -79,11 +80,11 @@ has finished its own line, so the text is appended to the unfinished header:
   starts from the current line state; it does not retry the abandoned command.
   Clear the cause (release the slave, remove the short) before retrying.
 - **Hardware driver:** the engine's clock synchronisation handles the per-bit
-  stretch in hardware. The firmware bounds each master sequence with the same
-  polling budget — start and repeated start, stop, ACK, transmit, receive, and
-  the initial idle-line check. A bus-collision, write-collision or
-  receive-overflow status aborts the operation: the selected module is disabled,
-  its pins are released, and the pending ACK state is dropped.
+  stretch in hardware. The firmware bounds each master sequence with a polling
+  budget — start and repeated start, stop, ACK, transmit, receive, and the
+  initial idle-line check. A bus-collision, write-collision or receive-overflow
+  status aborts the operation: the selected module is disabled, its pins are
+  released, and the pending ACK state is dropped.
 - A new hardware **START** after a fault re-initialises the bus. If SDA is still
   held low (a slave stranded mid-read), that START first attempts the
   **nine-clock bus-clear**: nine clocks with SDA released, then a STOP, with a
@@ -106,8 +107,10 @@ until it reaches the bus again.
 - A pending read bit is dropped by a timeout, by `w` (mode cleanup) and by a
   mode change. `v`, `o`, `P`, `e` and `i` leave it pending. `W` re-runs the
   driver setup but leaves the pending bit set; resolve the read with `]` first.
+- `w` drops the pending flag without sending a stop. If a read is pending, the
+  bus can remain physically held until a mode change or a later bus operation.
 
-## Binary status — `0x0A`
+## Binary status: `0x0A`
 
 The binary `I2C1` sub-protocol reports the last bus operation with `0x0A`:
 
@@ -136,15 +139,14 @@ The command set is in [binary.md](binary.md).
 
 | Item | v3 | v4 |
 |---|---|---|
-| software stretch wait | yes, ~25 ms per clock | yes, ~25 ms per clock |
-| hardware sequence bound | optional build only | yes, ~25 ms per sequence |
-| nine-clock bus-clear | only with the optional hardware driver | yes |
-
-The v3 column is **not verified**.
+| software stretch wait | yes, same poll count | yes, roughly 25 ms per clock |
+| hardware sequence bound | not in this tree | yes, a bounded poll count per sequence |
+| nine-clock bus-clear | not in this tree | yes |
 
 ## Related docs
 
 - [bus-operations.md](bus-operations.md) — the operations that can time out.
 - [binary.md](binary.md) — `0x0A`, bulk writes and `0x08` failures.
 - [wiring.md](wiring.md) — pull-ups and line release.
-- [edge-cases.md](edge-cases.md) — the trigger/symptom tables.
+- [edge-cases.md](edge-cases.md#clock-stretching-and-bus-errors) —
+  the trigger/symptom tables.

@@ -38,7 +38,7 @@ Other host routes:
 | `PIC1` (`0x07`) | the byte-wise PIC loop | [binary.md](binary.md) |
 | raw wire (`0x05`) + `0xAx` | the script-driven PIC engines | [binary.md](binary.md) |
 | `picprog` | raw wire + the `0xA7` script | this page |
-| minimal host example | raw-wire generic bit/CS/AUX commands | [the in-repo C# sample](../../../scripts/BusPirateRawCS/) |
+| minimal host example | raw-wire generic bit/CS/AUX commands | [the Python raw-wire client](../../../scripts/pyBusPirateLite/pyBusPirateLite/RAW_WIRE.py) |
 
 ## What it is
 

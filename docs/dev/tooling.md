@@ -26,19 +26,17 @@ OpenOCD, picprog, sigrok) are mentioned in that function's page, not here.
 | `Firmware/Doxyfile` | Doxygen configuration for the firmware sources. |
 | `Bootloaders/pirate-loader/test.sh`, `test.bat` | Smoke scripts that run `pirate-loader --hello` against a default port to check the bootloader handshake. |
 | `scripts/version.pl` | Perl host script that reads the firmware/hardware version banner from the port. |
-| `scripts/BPbinmode.pl`, `scripts/BP_matrix.pl`, `scripts/selftest.pl`, `scripts/SPIeeprom.pl` | Perl host scripts (binary-mode, matrix, self-test, SPI EEPROM). |
-| `scripts/P24qp.py` | Python 2 "Bus Pirate Programmer" host tool for PIC24F devices. |
 | `scripts/I2CEEPROMWIN.c` | Windows host tool for I2C EEPROM work. |
 | `scripts/pyBusPirateLite/` | A Python host library and sample clients for the Bus Pirate modes. |
 | `scripts/BPXSVFPlayer/` | Cross-platform XSVF player (C; Code::Blocks `BPXSVFplayer.cbp` + plain `Makefile`). |
 | `scripts/BP4_XSVFplayer_Win/` | Windows XSVF-player variant (Dev-C++ `.dev` + `Makefile.win`). |
-| `scripts/BusPirateRawCS/` | C# raw-wire client (Visual Studio solution). |
-| `scripts/oscilloscope/` | A scope-style sample client. |
-| `scripts/powertools/` | Sampler/utility clients: `SPISniffer/`, `LCDv2-tester/`, `self-test/`, `BP_MMA_Selftest/` (accelerometer self-test, Code::Blocks project). |
+| `scripts/powertools/` | Sampler/utility clients: `SPISniffer/`, `LCDv2-tester/`, `BP_MMA_Selftest/` (accelerometer self-test, Code::Blocks project). |
 | `scripts/powertools/framework/` | Shared C client framework (`buspirate.c`, `serial.c`) used by the `powertools/` clients. |
-| `scripts/HVPselftest/`, `scripts/TestFT232/` | Legacy hardware self-test programs. |
 
-These are host-side programs; the repository does not package or install them.
+The removed legacy samples (the C# raw-wire client, the oscilloscope example,
+the old Perl examples, `P24qp`, `TestFT232` and the high-voltage self-test)
+remain available in Git history.  These are host-side programs; the repository
+does not package or install them.
 The two XSVF players are plain Makefile/IDE projects — neither has a
 `CMakeLists.txt`.
 

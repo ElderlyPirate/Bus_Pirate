@@ -576,6 +576,11 @@ Authority and source material used by this package:
   `scripts/BP4_XSVFplayer_Win/` were deleted after `bp xsvf` passed its tests.
   The bundled Xilinx `SVF2XSVF` binaries lived inside those folders and were
   not ported; conversion is now documented as an external prerequisite.
+- **Built-in player, not the old alternate firmware:** the removed C host
+  players were written for the standalone XSVF-player firmware and sent `0x03`
+  without a binary-mode entry. `bp xsvf` targets the current built-in v4
+  player: `BBIO1` then `0x18`/`XSV1`. The standalone alternate firmware was
+  already dropped by #233.
 - **XSVF native exit contract:** `bp xsvf` returns 0 for success/scan/reset,
   1 for a non-success player result, and 2 for host, transport, or setup
   failures. The other commands keep the original 0/1/2 behavior described in

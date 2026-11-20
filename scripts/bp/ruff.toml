@@ -1,0 +1,23 @@
+line-length = 130
+indent-width = 4
+target-version = "py312"
+src = ["src", "tests"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "RUF"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[lint.isort]
+combine-as-imports = true
+known-first-party = ["bp"]

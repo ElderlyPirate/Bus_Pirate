@@ -1,7 +1,8 @@
 """Opt-in independent ICSP readback using the existing XM64 host API. CC0.
 
-Does not erase or write flash. ICSP reads reset the target, and the existing
-linecheck operation pulses MCLR to exit programming mode when finished.
+Does not erase or write flash. ICSP reads reset the target. No fixture
+workaround runs by default; --release-with-linecheck explicitly requests
+the existing programmer's reset/release operation when currently needed.
 """
 import argparse
 import hashlib
@@ -73,7 +74,10 @@ def run(args):
         raise
     finally:
         try:
-            result["release_linecheck"] = programmer.linecheck()
+            if args.release_with_linecheck:
+                result["release_linecheck"] = programmer.linecheck()
+            else:
+                result["release_linecheck"] = "not requested"
         finally:
             programmer.close()
             result["elapsed_seconds"] = time.time() - result["started"]
@@ -89,4 +93,6 @@ if __name__ == "__main__":
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--scratch-pattern", action="store_true")
     parser.add_argument("--blank-scratch", action="store_true")
+    parser.add_argument("--release-with-linecheck", action="store_true",
+                        help="explicit fixture reset/release; never automatic")
     run(parser.parse_args())

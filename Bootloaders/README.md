@@ -128,14 +128,27 @@ The protocol probe's scratch option deliberately erases application page
 `0x2400` and must not run on an application that needs preserving. ICSP uses
 the existing XM64 `picprog.py`, not a replacement programming engine.
 
-Two procedure findings matter: the current XM64 `icsp_exit()` does not pulse
-MCLR low to leave programming mode, so its existing `linecheck` command is
-used after read/write batches to release the target. Also, the application's
-entry confirmation needs the CDC reader kept open through detach, as in the
-existing `enter_bootloader.py` helper. An early-close probe stranded that
+Fixture release behavior must be checked against the installed XM64 image,
+not inferred from source or carried forward from an earlier run. The initial
+bench used explicit `linecheck` release; the readback probe no longer applies
+it by default. Also, the application's entry confirmation needs the CDC reader
+kept open through detach, as in the existing `enter_bootloader.py` helper.
+An early-close probe stranded that
 application path; corrected-reader tests pass on the original image. The
 temporary startup hypotheses were removed, not shipped as unproven fixes.
 The actual code regression found by this bench is in host HEX validation:
 XC16 records may cross a 64 KiB boundary; the host now accepts those while
 retaining complete destination bounds. Detailed local transcripts are in
 ignored `tests/build/bench-20261120/`.
+
+On the subsequent fixture recheck, the XM64 USB CDC programmer image
+`icsp-programmer/firmware-usb/icsp-usb.hex` (SHA-256
+`6B6A0DCEB0B0147D79F079151DD037519A65AF89A5C19968FFF0BF4CF64E5742`)
+was reflashed through its own USB bootloader: 16 pages verified, full-image
+CRC `0xBDBB`. A pre-erase backup matched the selected image's program bytes.
+After reflash, ping, PIC ID/revision, CONFIG1/2 and reset/version/application
+entry rows all passed without a release workaround. On that specific run,
+the application COM6 did not return after the reads; no `linecheck` was then
+issued. These are current observations for that image, not a blanket finding
+about other XM64 fixes. Normal cold power-up still awaits the owner; neither
+the reflash nor an ICSP reset substitutes for that physical test.

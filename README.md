@@ -87,3 +87,9 @@ The firmware is built and flashed with the steps in
 [OpenOCD]: http://openocd.org
 [AVRDude]: http://www.nongnu.org/avrdude
 [flashrom]: https://www.flashrom.org/Flashrom
+
+## Hardware design files
+
+Original schematics, Eagle boards and SketchUp models for the v3/v3.5/v3.6/v4
+revisions are in [hardware/](hardware/); the hardware licence is
+[hardware/COPYING.TXT](hardware/COPYING.TXT) (CC BY-SA 3.0).

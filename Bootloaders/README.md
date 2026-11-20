@@ -97,13 +97,15 @@ preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
 **5.0 bench status:** v3 is build/host-evidence only (no v3 board). The V4
-loader-only checks below pass after fresh owner wiring confirmation; this is
-new 5.0 evidence, not qualification inferred from 4.15. Never run ICSP without
-confirmed wiring or with a PGC/PGD jumper fitted. ICSP installation erases the
-application. The application remains uninstalled: wait for the owner's final
-combined v9.0 application image and SHA-256 after the 5.0 commit is merged.
+loader-only checks and subsequent final combined v9.0 application upload below
+pass. These are fresh 5.0 results, not qualification inferred from 4.15.
+NORMAL-held and PGC/PGD-jumper physical entry cases were exercised on 4.15,
+not repeated on 5.0. Never run ICSP without confirmed wiring or with a
+PGC/PGD jumper fitted; ICSP installation erases the application.
 
-## V4 5.0 Loader-Only Bench
+## V4 5.0 Bench
+
+### Loader-Only Verification
 
 - Owner reconfirms PA4 -> ICSP 5/PGC, PA5 -> 4/PGD, PA6 -> 1/MCLR,
   GND -> 3/VSS, 2/VDD and 6 open, no jumper, and separate USB power.
@@ -115,12 +117,32 @@ combined v9.0 application image and SHA-256 after the 5.0 commit is merged.
 - 464 live protocol checks plus four scratch erase/write checks pass. ICSP
   independently verifies all 56 loader rows, the reset/vector row, scratch
   pattern and all eight erased scratch-page rows. The stored word at
-  `0x1FF6` reads `0x0500`; the application entry remains blank.
-- Acknowledged restart returns to the loader with no application device.
-  No application HEX is written or restored. Application-dependent and
-  physical entry tests from the 4.15 run below are historical, not rerun as
-  5.0 application qualification. Await the owner's final v9.0 image/hash.
+  `0x1FF6` reads `0x0500`; the application entry was blank during this phase.
+- Acknowledged restart returned to the loader with no application device.
+  No application HEX was written during the loader-only phase. The subsequent
+  application upload is recorded separately below. Physical entry tests from
+  the 4.15 run remain historical, not rerun 5.0 physical-entry qualification.
 - Detailed local evidence: ignored `tests/build/bootloader-5.0/bench/`.
+
+### Final Combined v9.0 Application Upload
+
+- Owner-supplied final combined `Firmware/bpv4.hex`, built from final head
+  `14256fd5`, SHA-256
+  `F15412B85A9C059E1C2D231C2316CB6FB8B5E4DFA59C0D8B2A1370F530E606D0`,
+  is uploaded over the resident 5.0 USB loader using rebuilt `pirate-loader`.
+  This is the final combined image, not the #214 tree's build-check image.
+- 472 application rows plus eight vector rows are accepted after the loader's
+  internal flash-readback checks. Protected configuration rows are skipped as
+  expected. This is acknowledgment-backed loader verification, not an
+  independent application dump; no ICSP command is used for the upload/checks.
+- Automatic post-flash restart returns to COM6 `04D8:FB00`, with banner
+  `Bus Pirate v4` / `ElderlyPirate Firmware v9.0` / build `14256fd5`, `HiZ>`,
+  and a second responsive info query three seconds later. No resident
+  `04D8:FAFF` loader or other anomaly is observed; no manual reset/replug.
+- This application upload is new 5.0 evidence. NORMAL-held and jumper physical
+  entry cases below remain 4.15 observations and were not repeated on 5.0.
+  Local evidence: ignored `tests/build/final-v9.0-14256fd5/`, especially
+  `04-row-verification.json` and `05-application-return.json`.
 
 ## Historical V4 4.15 Bench, 2026-11-20
 

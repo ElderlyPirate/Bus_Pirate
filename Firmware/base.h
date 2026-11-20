@@ -46,7 +46,7 @@
  */
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
-#define BP_FIRMWARE_STRING "ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - " STRINGIFY(VERSION) " \r\n"
+#define BP_FIRMWARE_STRING "ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - " STRINGIFY(VERSION) " \r\n"
 
 /**
  * @brief Current mode configuration settings structure.

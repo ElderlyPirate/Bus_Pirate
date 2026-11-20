@@ -63,7 +63,7 @@ This README is a map, not the manual — details live in the files below.
 | entry switches the regulator (VREG) on | — | yes |
 | hardware needed | — | Bus Pirate v4, USB cable, JTAG header |
 
-The v3 column is build-only: **not verified on v3**.  A v4 that does not
+v3 has no player: the `0x18` selector is answered with `0x00`.  A v4 that does not
 answer `XSV1` is not running an image with the player; flash a current v4
 image ([flashing](../../dev/flashing.md)).  For a board or device outside
 these limits, use OpenOCD's `svf` command through the `0x06` path

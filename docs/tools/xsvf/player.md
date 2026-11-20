@@ -39,12 +39,14 @@ already contains the states, instructions and shift lengths.
 
 The player is the only part tied to the board.  An older or custom image may
 not include it; `bp xsvf` then reports that the board did not enter XSVF
-mode.  The v3 column is build-only.
+mode.  v3 has no player: the `0x18` selector is answered with `0x00`.
 
 ## Entry
 
-1. The host enters binary bitbang with one leading `0x00` (to leave any active
-   submode) and twenty more; the layer answers `BBIO1`.
+1. Enter binary bitbang with 20 × `0x00`.  `bp xsvf` writes one leading
+   `0x00` plus those twenty; the leading byte leaves most other binary
+   sub-modes, not the player (which ignores `0x00`).  Extra NULs in `BBIO1`
+   re-print the banner; drain it.
 2. The host sends `0x18`.  The board switches on the on-board regulator
    (VREG), which drives both the `3.3V` and `5.0V` header rails, answers
    `XSV1`, and enters the player command loop.

@@ -92,8 +92,9 @@ preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
 **Bench gate:** v3 is build/host-evidence only (no v3 board). V4's
-software-controlled bench legs below pass; physical power-up cases remain
-pending owner action. Earlier 4.14 bench claims do not qualify 4.15. ICSP
+software-controlled bench legs and normal cold power-up below pass;
+NORMAL-held/jumper power-up cases remain pending owner action. Earlier 4.14
+bench claims do not qualify 4.15. ICSP
 installation erases the application: retain an approved application image.
 Owner wiring confirmation is required before programming.
 
@@ -118,7 +119,12 @@ Owner wiring confirmation is required before programming.
   independently pass ICSP readback on the final installed image.
 - Firmware `$`/`y` -> loader hello -> acknowledged restart -> application
   passes three consecutive cycles without physical action.
-- Physical cold-power normal/NORMAL/jumper cases are **not yet run**. Raw
+- Owner-performed normal cold power-up passes with PA4/PA5/PA6 disconnected,
+  ground connected, no jumper and NORMAL released: COM6 `04D8:FB00`, firmware
+  v8.0 `a318d309`, `HiZ>`. Two info queries three seconds apart remain
+  responsive; no resident `04D8:FAFF` device or other observed anomaly.
+  Observation used only CR/`i`, not reset, ICSP or bootloader-entry commands.
+- Physical NORMAL-held/jumper cases are **not yet run**. Raw
   malformed EP0 control requests remain native-test evidence, not a live
   USB-control-transfer claim. No v3 or Windows 11 result is claimed.
 
@@ -150,5 +156,6 @@ After reflash, ping, PIC ID/revision, CONFIG1/2 and reset/version/application
 entry rows all passed without a release workaround. On that specific run,
 the application COM6 did not return after the reads; no `linecheck` was then
 issued. These are current observations for that image, not a blanket finding
-about other XM64 fixes. Normal cold power-up still awaits the owner; neither
-the reflash nor an ICSP reset substitutes for that physical test.
+about other XM64 fixes. The owner subsequently performed the separate normal
+cold-power test recorded above; neither the reflash nor an ICSP reset was
+counted as that physical test.

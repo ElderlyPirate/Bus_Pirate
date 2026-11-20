@@ -81,7 +81,8 @@ only where the terminal selection itself is meant.
 | PWM, ADC, frequency, self-test, wait | present, unverified | present |
 | SMPS group (`0xFx`, raw wire only) | — (`0x00`) | optional build; off in the default image |
 
-The v3 features are in the build but have **not been tested on v3 hardware**.
+The v3 features are in the build; the v3 path is source-derived and not
+verified on hardware.
 
 ## Limits & out of scope
 

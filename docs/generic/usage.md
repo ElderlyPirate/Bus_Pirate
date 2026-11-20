@@ -368,8 +368,8 @@ The firmware sets a persistent flag so the bootloader stays in its loader
 instead of jumping back to the application.  On v4 the board re-enumerates as a
 different USB device, so the port number can change.  On v3 the flag is
 understood by the current 5.0 loader; older 4.1/4.3 loaders ignore it and
-return to the application, so use the PGC/PGD jumper instead.  This is not
-bench-verified on v3 hardware.
+return to the application, so use the PGC/PGD jumper instead.  The v3 path is
+not verified.
 
 Cancel with any other byte:
 

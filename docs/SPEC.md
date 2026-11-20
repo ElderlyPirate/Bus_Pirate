@@ -16,8 +16,9 @@ documented from source, not verified on v3 hardware.
 page where a set splits a topic.
 
 Build/flash tooling is developer documentation ([dev/](dev/README.md)), not
-part of this spec.  Client programs are mentioned with the function they
-serve.  Prompt mechanics (navigation, formatting, value entry, macros,
+part of this spec.  The bundled `bp` host frontend is documented in
+[dev/tooling.md](dev/tooling.md).  Client programs are mentioned with the
+function they serve.  Prompt mechanics (navigation, formatting, value entry, macros,
 wrappers, reads, reset, bootloader) are *usage* documentation — "how to use
 the prompt" ([generic/](generic/README.md)) — not capability rows; only the
 elements/features they control are listed here.

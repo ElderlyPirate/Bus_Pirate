@@ -95,7 +95,7 @@ HiZ>
 | Trigger | Symptom | Behaviour / recovery |
 |---|---|---|
 | `$`, then `no` and Enter | the bootloader prompt is cancelled and the `o` opens the display-format menu | answer with a single `y` or `n`; the prompt reads one byte |
-| `$` on a v3 with an older bootloader | the board resets back to the application | the current 5.0 loader understands the flag; older 4.1/4.3 loaders do not; use the PGC/PGD jumper (not bench-verified on v3) |
+| `$` on a v3 with an older bootloader | the board resets back to the application | the current 5.0 loader understands the flag; older 4.1/4.3 loaders do not; use the PGC/PGD jumper (v3 path not verified) |
 | `$` inside SUMP | returns to the terminal in HiZ | SUMP treats `0x0F`, `#` and `$` as exits; type `$` at the prompt for the bootloader |
 | fewer than 20 NUL bytes | no `BBIO1` reply | send 20 consecutive `0x00` bytes |
 | 20 NUL bytes then `0x02` | enters binary bitbang (`BBIO1`), not SUMP | the 20th NUL already switched layers; the `0x02` then selects the binary I2C sub-mode.  Exit with `0x0F` and retry with 5–19 NULs |

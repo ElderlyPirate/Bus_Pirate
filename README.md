@@ -67,6 +67,10 @@ drives):
 * [sigrok/PulseView] — logic analyzer (SUMP)
 * [`picprog`](docs/programmers/pic/picprog.md) — PIC programming
 
+The repository also ships the `bp` console frontend for host-side workflows:
+version and port discovery, BBIO, raw wire, I2C, SPI, UART, 1-Wire, EEPROM,
+LCD test, XSVF and scripts. See [docs/dev/tooling.md](docs/dev/tooling.md).
+
 ## Purchasing
 
 > If you're looking to purchase an old Bus Pirate v3, or v4.. don't

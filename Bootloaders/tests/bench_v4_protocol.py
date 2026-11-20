@@ -46,7 +46,7 @@ def run(port, output, scratch=False, clear=False):
         def hello(name="hello"):
             connection.write(b"\xc1")
             connection.flush()
-            record(name, connection.read(4), b"\xf1\x04\x0fK")
+            record(name, connection.read(4), b"\xf1\x05\x00K")
 
         def command(name, frame, expected, fragments=False):
             if fragments:

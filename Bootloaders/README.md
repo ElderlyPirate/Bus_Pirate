@@ -4,9 +4,13 @@ Only two board revisions are maintained here:
 
 | Directory | Board / device | Transport | Loader version |
 | --- | --- | --- | --- |
-| `v3/` | Bus Pirate v3, PIC24FJ64GA002 | UART1, 115200 8N1 | 4.6 |
-| `v4/` | Bus Pirate v4, PIC24FJ256GB106 | Full-speed USB CDC | 4.15 |
+| `v3/` | Bus Pirate v3, PIC24FJ64GA002 | UART1, 115200 8N1 | 5.0 |
+| `v4/` | Bus Pirate v4, PIC24FJ256GB106 | Full-speed USB CDC | 5.0 |
 | `pirate-loader/` | Shared host tool, including GA004 v3 clones | Serial port | 1.0.7 |
+
+The application revision is **v9.0 for both V3 and V4**. The independent
+bootloader revision is **5.0 for both boards**, not 9.0. The reset GOTO opcode
+`0x04` is an instruction encoding and is not a revision number.
 
 Historical v4.1/v4.3 ds30 sources, v1/v2 board pin maps, self-upgraders,
 alternate applications, GUI binaries and duplicate host binaries are removed.
@@ -64,7 +68,8 @@ command/length, `V` programming or readback failure. Malformed lengths are
 drained without overflowing the row buffer. No incomplete command starts NVM.
 
 The v3 hello reports ds30 protocol 1.0.2; the separate word at `0xABFA` reports
-loader version 4.6. The v4 hello reports 4.15, also stored at `0x1FF6`.
+loader version 5.0 (`0x0500`). The v4 hello reports 5.0, also stored at `0x1FF6`
+as `0x0500`; its complete hello is `F1 05 00 4B` (5.0/K).
 These protocol device IDs (212/241) are not the silicon DEVID register values.
 The v4 `FF`, size `01`, requests restart; its arbitrary address bytes are
 ignored for compatibility with the existing host tool.
@@ -91,14 +96,15 @@ exercise HEX parsing, bounds, checksums, clone handshake, relocated GOTO and
 preflight. Linked-image tests independently check reset words, layout,
 configuration and version words. These are not a PIC or USB electrical model.
 
-**Bench gate:** v3 is build/host-evidence only (no v3 board). V4's
-software-controlled bench legs, normal cold power-up and NORMAL-held power-up
-below pass; jumper power-up remains pending owner action. Earlier 4.14
-bench claims do not qualify 4.15. ICSP
-installation erases the application: retain an approved application image.
-Owner wiring confirmation is required before programming.
+**5.0 bench gate:** v3 is build/host-evidence only (no v3 board). V4 5.0 must
+be flashed and requalified after a fresh owner wiring confirmation; the 4.15
+results below do not qualify the new image. Do not run ICSP before confirmation
+or with a PGC/PGD jumper fitted. ICSP installation erases the application.
+Do not restore the earlier application image during this loader-only rebench;
+wait for the owner's final combined v9.0 application image and SHA-256 after
+the 5.0 commit is merged.
 
-## V4 Bench, 2026-11-20
+## Historical V4 4.15 Bench, 2026-11-20
 
 - Owner-confirmed XM64 PA4 -> ICSP 5/PGC, PA5 -> 4/PGD, PA6 -> 1/MCLR,
   GND -> 3/VSS; 2/VDD and 6 open, separate USB power, Vpu out.
@@ -129,7 +135,12 @@ Owner wiring confirmation is required before programming.
   remains resident for at least ten seconds after hello, with no application
   device or observed anomaly. No unsolicited text banner, reset, flash or
   ICSP command is involved.
-- The physical jumper case is **not yet run**. Raw
+- Subsequent jumper power-up passes with NORMAL released: COM11 `04D8:FAFF`,
+  4.15/K hello and at least 25.032 seconds of residency. After the owner removes
+  the jumper and power-cycles, COM6 returns with the v8.0 `a318d309` application
+  and `HiZ>`; two info queries remain responsive and no loader is resident.
+  These physical observations use enumeration/hello or CR/`i` only, never ICSP.
+- Raw
   malformed EP0 control requests remain native-test evidence, not a live
   USB-control-transfer claim. No v3 or Windows 11 result is claimed.
 

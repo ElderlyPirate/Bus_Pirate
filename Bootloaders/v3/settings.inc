@@ -9,4 +9,4 @@
         .equ STARTADDR, 0xA800
         .equ BLCHECKST, STARTADDR-ROWSIZE*2
         .equ DEVICEID, 212 ; ds30 ID, not the silicon DEVID.
-        .equ BLVERSION, 0x0406
+        .equ BLVERSION, 0x0500

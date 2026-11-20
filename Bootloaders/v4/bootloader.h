@@ -10,8 +10,8 @@
 #define PAGE_ADDRESSES 1024u
 #define ROW_BYTES 192u
 #define DEVICEID 241u /* ds30 protocol ID, not the silicon DEVID (0x1019). */
-#define VER_H 4u
-#define VER_L 15u
+#define VER_H 5u
+#define VER_L 0u
 void boot_init(void);
 void boot_poll(void);
 extern uint8_t boot_restart;

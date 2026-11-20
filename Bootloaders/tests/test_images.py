@@ -35,7 +35,7 @@ class LinkedImages(unittest.TestCase):
         memory = self.image("v4")
         self.assertEqual(word(memory, 0), 0x040400)
         self.assertEqual(word(memory, 2), 0)
-        self.assertEqual(word(memory, 0x1FF6) & 0xFFFF, 0x040F)
+        self.assertEqual(word(memory, 0x1FF6) & 0xFFFF, 0x0500)
         self.assertEqual(word(memory, 0x2ABFE) & 0xFFFF, 0x3E7F)
         self.assertEqual(word(memory, 0x2ABFC) & 0xFFFF, 0x239E)
         for byte_address in memory:
@@ -48,7 +48,7 @@ class LinkedImages(unittest.TestCase):
         memory = self.image("v3")
         self.assertEqual(word(memory, 0), 0x04A800)
         self.assertEqual(word(memory, 2), 0)
-        self.assertEqual(word(memory, 0xABFA) & 0xFFFF, 0x0406)
+        self.assertEqual(word(memory, 0xABFA) & 0xFFFF, 0x0500)
         self.assertEqual(word(memory, 0xA7FC), 0xFFFFFF)
         self.assertEqual(word(memory, 0xA7FE), 0xFFFFFF)
         self.assertEqual(word(memory, 0xABFE) & 0xFFFF, 0x3F7F)

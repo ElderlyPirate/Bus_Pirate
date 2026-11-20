@@ -2,7 +2,7 @@
 
  Pirate-Loader for Bootloader v4
 
- Version  : 1.0.6
+  Version  : 1.0.7
 
  Changelog:
 
@@ -40,7 +40,7 @@
 
   UNIX family systems:
  
-  cd BPv4-bootloader/pirate-loader
+   cd Bootloaders/pirate-loader
   mkdir build
   cd build
   cmake ..
@@ -48,7 +48,7 @@
  
   WINDOWS:
  
-  cd BPv4-bootloader/pirate-loader
+   cd Bootloaders/pirate-loader
   mkdir build
   cd build
   cmake ..
@@ -61,12 +61,17 @@
 
  */
 
+#ifdef _MSC_VER
+/* Use the ISO C stdio/string API rather than MSVC-only *_s variants. */
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdint.h>
+#include <ctype.h>
 
 /*
  * Type used to hold a serial port handle.  On POSIX systems this is a file
@@ -75,7 +80,7 @@
  */
 typedef intptr_t bp_handle_t;
 
-#define PIRATE_LOADER_VERSION "1.0.6"
+#define PIRATE_LOADER_VERSION "1.0.7"
 
 #define STR_EXPAND(tok) #tok
 #define OS_NAME(tok) STR_EXPAND(tok)
@@ -88,7 +93,7 @@ typedef intptr_t bp_handle_t;
 
 #define O_NOCTTY 0
 #define O_NDELAY 0
-#define B115200 921600
+#define B115200 115200
 
 int serial_write(bp_handle_t fd, const void* buf, int len)
 {
@@ -132,7 +137,11 @@ bp_handle_t serial_open(const char* path, unsigned long flags)
 
     if( path[0] != '\\' )
     {
-        _snprintf(full_path, sizeof(full_path) - 1, "\\\\.\\%s", path);
+        if (snprintf(full_path, sizeof(full_path), "\\\\.\\%s", path) >= (int)sizeof(full_path))
+        {
+            errno = ENAMETOOLONG;
+            return (bp_handle_t)-1;
+        }
         path = full_path;
     }
 
@@ -301,11 +310,7 @@ typedef unsigned long  uint32;
 //#define PIC_NUM_PAGES 512
 
 //unsigned short pic_num_pages;
-unsigned short family = IS_24FJ;
 unsigned long flashsize = 0x2AC00;
-unsigned short eesizeb  = 0;
-unsigned long blstartaddr = 0x400L; // not currently used
-unsigned long blendaddr = 0x23FFL; // not currently used
 
 
 /* global settings, command line arguments */
@@ -357,6 +362,19 @@ int readWithTimeout(bp_handle_t fd, uint8* out, int length, int timeout)
     while( length > 0);
 
     return got;
+}
+
+static int writeAll(bp_handle_t fd, const uint8 *data, int length)
+{
+    int sent = 0;
+    uint32_t start = serial_millis();
+    while (sent < length && (uint32_t)(serial_millis() - start) < 5000u)
+    {
+        int count = serial_write(fd, data + sent, length - sent);
+        if (count <= 0) return -1;
+        sent += count;
+    }
+    return sent == length ? sent : -1;
 }
 
 unsigned char hexdec(const char* pc)
@@ -412,7 +430,7 @@ void dumpHex(uint8* buf, uint32 len)
 int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* pages_used)
 {
     static const uint32 HEX_DATA_OFFSET = 4;
-    uint8  linebin[256] = {0};
+    uint8  linebin[260] = {0};
     uint8* data = (linebin + HEX_DATA_OFFSET);
     uint8  hex_crc, hex_type, hex_len;
     uint32 hex_addr;
@@ -424,7 +442,7 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
 
     uint32 num_words = 0;
 
-    char  line[512] = {0};
+    char  line[524] = {0};
     char  *pc;
     char  *pline = line + 1;
     int   res = 0;
@@ -458,10 +476,10 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
         if( line[0] != ':' )
         {
             fprintf(stderr, "Malformed HEX file, line %d: no record marker\n", line_no);
-            return -1;
+            goto invalid;
         }
 
-        res = strlen(pline);
+        res = (int)strlen(pline);
         pc  = pline + res - 1;
 
         while( pc > pline && *pc <= ' ' )
@@ -470,16 +488,21 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
             res--;
         }
 
-        if( res & 0x01 || res > 512 || res < 10)
+        if( res & 0x01 || res > 520 || res < 10)
         {
             fprintf(stderr, "Incorrect number of characters on line %d:%d\n", line_no, res);
-            return -1;
+            goto invalid;
         }
 
         hex_crc = 0;
 
         for( pc = pline, i = 0; i<res; i+=2, pc+=2 )
         {
+            if (!isxdigit((unsigned char)pc[0]) || !isxdigit((unsigned char)pc[1]))
+            {
+                fprintf(stderr, "Invalid HEX digit, line %d\n", line_no);
+                goto invalid;
+            }
             linebin[i >> 1] = hexdec(pc);
             hex_crc += linebin[i >> 1];
         }
@@ -489,7 +512,7 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
         if( hex_crc != 0 )
         {
             fprintf(stderr, "Checksum does not match, line %d\n", line_no);
-            return -1;
+            goto invalid;
         }
 
         hex_addr = (linebin[1] << 8) | linebin[2];
@@ -499,28 +522,30 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
         if( binlen - (1 + 2 + 1 + hex_len + 1) != 0 )
         {
             fprintf(stderr, "Incorrect number of bytes, line %d\n", line_no);
-            return -1;
+            goto invalid;
         }
 
         if( hex_type == 0x00 )
         {
             f_addr  = (hex_base_addr | (hex_addr)) / 2; //PCU
 
-            if( hex_len % 4 )
+            if( hex_len % 4 || hex_addr % 4 || hex_addr + hex_len > 0x10000UL )
             {
                 fprintf(stderr, "Misaligned data, line %d\n", line_no);
-                return -1;
+                goto invalid;
             }
-            else if( f_addr >= flashsize )
+            else if( f_addr >= flashsize || hex_len / 2UL > flashsize - f_addr ||
+                     ((f_addr / 2) * PIC_WORD_SIZE) > max_length ||
+                     (hex_len / 4UL) * PIC_WORD_SIZE > max_length - ((f_addr / 2) * PIC_WORD_SIZE))
             {
                 fprintf(stderr, "Current record address is higher than maximum allowed, line %d\n", line_no);
-                return -1;
+                goto invalid;
             }
 
             hex_words = hex_len  / 4;
             o_addr  = (f_addr / 2) * PIC_WORD_SIZE; //BYTES
 
-            for( i=0; i<hex_words; i++)
+            for( i=0; (uint32)i<hex_words; i++)
             {
                 bout[o_addr + 0] = data[(i*4) + 2];
                 bout[o_addr + 1] = data[(i*4) + 0];
@@ -533,37 +558,47 @@ int readHEX(const char* file, uint8* bout, unsigned long max_length, uint8* page
             }
 
         }
-        else if ( hex_type == 0x04 && hex_len == 2)
+        else if ( hex_type == 0x04 && hex_len == 2 && hex_addr == 0)
         {
-            hex_base_addr = (linebin[4] << 24) | (linebin[5] << 16);
+            hex_base_addr = ((uint32)linebin[4] << 24) | ((uint32)linebin[5] << 16);
         }
-        else if ( hex_type == 0x01 )
+        else if ( hex_type == 0x01 && hex_len == 0 && hex_addr == 0 )
         {
             seen_eof = 1;
+            while (fgets(line, sizeof(line), fp))
+            {
+                for (pc = line; *pc; ++pc)
+                    if (!isspace((unsigned char)*pc)) goto invalid;
+            }
             break; //EOF
         }
         else
         {
             fprintf(stderr, "Unsupported record type %02x, line %d\n", hex_type, line_no);
-            return -1;
+            goto invalid;
         }
 
     }
 
-    fclose(fp);
+    if (ferror(fp)) goto invalid;
 
     if( !seen_eof )
     {
         fprintf(stderr, "Malformed HEX file: no end-of-file record\n");
-        return -1;
+        goto invalid;
     }
 
+    fclose(fp);
     return num_words;
+invalid:
+    fclose(fp);
+    return -1;
 }
 
 uint8 makeCrc(uint8* buf, uint32 len)
 {
-    uint8 crc = 0, i = 0;
+    uint8 crc = 0;
+    uint32 i;
 
     for(i=0; i<len; i++)
     {
@@ -587,7 +622,7 @@ int sendCommandAndWaitForResponse(bp_handle_t fd, uint8 *command)
     uint8  response[4] = {0};
     int    res = 0;
 
-    res = serial_write(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
+    res = writeAll(fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]);
 
     if( res <= 0 )
     {
@@ -635,6 +670,15 @@ int sendFirmware(bp_handle_t fd, uint8* data, uint8* pages_used)
     uint32 row   = 0;
     uint8  command[256] = {0};
 
+    /* Validate the entire image against the detected part before the first erase. */
+    for (page = 0; page < PIC_NUM_PAGES; page++)
+    {
+        if (pages_used[page] && page * 1024UL >= flashsize)
+        {
+            fprintf(stderr, "Image exceeds detected device flash\n");
+            return -1;
+        }
+    }
     for( page=0; page<PIC_NUM_PAGES; page++)
     {
         u_addr = page * ( PIC_NUM_WORDS_IN_ROW * 2 * PIC_NUM_ROWS_IN_PAGE );
@@ -655,9 +699,9 @@ int sendFirmware(bp_handle_t fd, uint8* data, uint8* pages_used)
         }
 
         //erase page
-        command[0] = (u_addr & 0x00FF0000) >> 16;
-        command[1] = (u_addr & 0x0000FF00) >>  8;
-        command[2] = (u_addr & 0x000000FF) >>  0;
+        command[0] = (uint8)((u_addr & 0x00FF0000) >> 16);
+        command[1] = (uint8)((u_addr & 0x0000FF00) >>  8);
+        command[2] = (uint8)((u_addr & 0x000000FF) >>  0);
         command[COMMAND_OFFSET] = 0x01; //erase command
         command[LENGTH_OFFSET ] = 0x01; //1 byte, CRC
         command[PAYLOAD_OFFSET] = makeCrc(command, 5);
@@ -679,9 +723,9 @@ int sendFirmware(bp_handle_t fd, uint8* data, uint8* pages_used)
         //write 8 rows
         for( row = 0; row < PIC_NUM_ROWS_IN_PAGE; row ++, u_addr += (PIC_NUM_WORDS_IN_ROW * 2))
         {
-            command[0] = (u_addr & 0x00FF0000) >> 16;
-            command[1] = (u_addr & 0x0000FF00) >>  8;
-            command[2] = (u_addr & 0x000000FF) >>  0;
+            command[0] = (uint8)((u_addr & 0x00FF0000) >> 16);
+            command[1] = (uint8)((u_addr & 0x0000FF00) >>  8);
+            command[2] = (uint8)((u_addr & 0x000000FF) >>  0);
             command[COMMAND_OFFSET] = 0x02; //write command
             command[LENGTH_OFFSET ] = PIC_ROW_SIZE + 0x01; //DATA_LENGTH + CRC
 
@@ -730,10 +774,10 @@ void fixJumps(uint8* bin_buff, uint8* pages_used)
     pages_used[ (iGotoUserAppAdressB3 / PIC_PAGE_SIZE) ] = 1;
     
     bin_buff[0] = 0x04;
-    bin_buff[1] = ( (iBLAddress & 0x0000FE) );
-    bin_buff[2] = ( (iBLAddress & 0x00FF00) >> 8 );
+    bin_buff[1] = (uint8)(( (iBLAddress & 0x0000FE) ));
+    bin_buff[2] = (uint8)(( (iBLAddress & 0x00FF00) >> 8 ));
     bin_buff[3] = 0x00;	
-    bin_buff[4] = ( (iBLAddress & 0x7F0000) >> 16 );
+    bin_buff[4] = (uint8)(( (iBLAddress & 0x7F0000) >> 16 ));
     bin_buff[5] = 0x00;
 }
 
@@ -757,6 +801,11 @@ int configurePort(bp_handle_t fd, unsigned long baudrate)
         return -1;
     }
 
+    {
+        COMMTIMEOUTS timeouts = {MAXDWORD, 0, 0, 0, 2000};
+        if (!SetCommTimeouts(hCom, &timeouts)) return -1;
+    }
+
     return 0;
 #else
     struct termios g_new_tio;
@@ -764,8 +813,8 @@ int configurePort(bp_handle_t fd, unsigned long baudrate)
     memset(&g_new_tio, 0x00 , sizeof(g_new_tio));
     cfmakeraw(&g_new_tio);
 
-    g_new_tio.c_cflag |=  (CS8 | CLOCAL | CREAD);
     g_new_tio.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
+    g_new_tio.c_cflag |=  (CS8 | CLOCAL | CREAD);
     g_new_tio.c_oflag = 0;
     g_new_tio.c_lflag = 0;
 
@@ -874,7 +923,7 @@ int main (int argc, const char** argv)
             return -1;
         }
 
-        bin_buff = (uint8*)malloc(0xFFFFFF * sizeof(uint8)); //256kB
+        bin_buff = (uint8*)malloc((flashsize / 2) * PIC_WORD_SIZE);
         if( !bin_buff )
         {
             fprintf(stderr, "Could not allocate 256kB buffer\n");
@@ -882,12 +931,12 @@ int main (int argc, const char** argv)
         }
 
         //fill the buffer with 0xFF
-        memset(bin_buff, 0xFFFFFFFF, (0xFFFFFF * sizeof(uint8)));
+        memset(bin_buff, 0xFF, (flashsize / 2) * PIC_WORD_SIZE);
 
         printf("Parsing HEX file [%s]\n", g_hexfile_path);
 
-        res = readHEX(g_hexfile_path, bin_buff, (0xFFFFFF * sizeof(uint8)), pages_used);
-        if( res <= 0 || res > flashsize )
+        res = readHEX(g_hexfile_path, bin_buff, (flashsize / 2) * PIC_WORD_SIZE, pages_used);
+        if( res <= 0 || (unsigned long)res > flashsize )
         {
             fprintf(stderr, "Could not load HEX file, result=%d\n", res);
             goto Error;
@@ -898,7 +947,7 @@ int main (int argc, const char** argv)
 
     if( g_simulate )
     {
-        sendFirmware(dev_fd, bin_buff, pages_used);
+        if (g_hello_only || sendFirmware(dev_fd, bin_buff, pages_used) < 0) goto Error;
         goto Finished;
     }
 
@@ -964,7 +1013,8 @@ int main (int argc, const char** argv)
     printf("Sending Hello to the Bootloader...");
 
     //send HELLO
-    res = serial_write(dev_fd, BOOTLOADER_HELLO_STR, 1);
+    res = writeAll(dev_fd, (const uint8 *)BOOTLOADER_HELLO_STR, 1);
+    if (res != 1) goto Error;
 
     res = readWithTimeout(dev_fd, buffer, 4, 3);
 
@@ -979,7 +1029,7 @@ int main (int argc, const char** argv)
         {
             fprintf(stderr, "No reply from the bootloader, or invalid reply received: %d\n", res);
         }
-        fprintf(stderr, "Please make sure that PGND and PGC are connected, reconnect\n");
+        fprintf(stderr, "Please make sure that PGD and PGC are connected, reconnect\n");
         fprintf(stderr, "the device and try again\n");
         goto Error;
     }
@@ -990,428 +1040,22 @@ int main (int argc, const char** argv)
     printf("Device ID [0x%02x]:",buffer[0]);
     switch(buffer[0])
     {
-//    case 0xd4:
-//        printf("PIC24FJ64GA002\n");
-//        break;
-    case  9:
-        printf("PIC24FJ128GB206\n");
-        //    __PIC24FJ128GB206__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 17:
-        printf("PIC24FJ128GB210\n");
-//    __PIC24FJ128GB210__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-
-        break;
-    case 18:
-        printf("PIC24FJ256GB206\n");
-        //    __PIC24FJ256GB206__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 19:
-        printf("PIC24FJ256GB210\n");
-        //    __PIC24FJ256GB210__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 191:
-        printf("PIC24FJ256DA206\n");
-        //    __PIC24FJ256DA206__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 192:
-        printf("PIC24FJ256DA210\n");
-        //    __PIC24FJ256DA210__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 217:
-        printf("PIC24FJ64GB106\n");
-        //    __PIC24FJ64GB106__
-        family = IS_24FJ;
-        flashsize = 0xAC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 218:
-        printf("PIC24FJ64GB108\n");
-        //    __PIC24FJ64GB108__
-        family = IS_24FJ;
-        flashsize = 0xAC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 219:
-        printf("PIC24FJ64GB110\n");
-        //    __PIC24FJ64GB110__
-        family = IS_24FJ;
-        flashsize = 0xAC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 229:
-        printf("PIC24FJ128GB106\n");
-        //    __PIC24FJ128GB106__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 230:
-        printf("PIC24FJ128GB108\n");
-        //    __PIC24FJ128GB108__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 231:
-        printf("PIC24FJ128GB110\n");
-        //    __PIC24FJ128GB110__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 235:
-        printf("PIC24FJ192GB106\n");
-        //    __PIC24FJ192GB106__
-        family = IS_24FJ;
-        flashsize = 0x20C00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 236:
-        printf("PIC24FJ192GB108\n");
-        //    __PIC24FJ192GB108__
-        family = IS_24FJ;
-        flashsize = 0x20C00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 237:
-        printf("PIC24FJ192GB110\n");
-        //    __PIC24FJ192GB110__
-        family = IS_24FJ;
-        flashsize = 0x20C00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
     case 241:
         printf("PIC24FJ256GB106\n");
-        //    __PIC24FJ256GB106__
-#define IS_24FJ                 1
         flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
         break;
-    case 242:
-        printf("PIC24FJ256GB108\n");
-        //    __PIC24FJ256GB108__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 243:
-        printf("PIC24FJ256GB110\n");
-        //    __PIC24FJ256GB110__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 244:
-        printf("PIC24FJ32GB002\n");
-        //    __PIC24FJ32GB002__
-        family = IS_24FJ;
-        flashsize = 0x5800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 245:
-        printf("PIC24FJ32GB004\n");
-        //    __PIC24FJ32GB004__
-        family = IS_24FJ;
-        flashsize = 0x5800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 246:
-        printf("PIC24FJ64GB002\n");
-        //    __PIC24FJ64GB002__
-        family = IS_24FJ;
-        flashsize = 0xAC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 247:
-        printf("PIC24FJ64GB004\n");
-        //    __PIC24FJ64GB004__
-        family = IS_24FJ;
-        flashsize = 0xAC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 250:
-        printf("PIC24FJ128DA106\n");//    __PIC24FJ128DA106__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 251:
-        printf("PIC24FJ128DA110\n");
-        //    __PIC24FJ128DA110__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 252:
-        printf("PIC24FJ128DA206\n");
-        //    __PIC24FJ128DA206__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 253:
-        printf("PIC24FJ128DA210\n");
-        //    __PIC24FJ128DA210__
-        family = IS_24FJ;
-        flashsize = 0x15800;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 254:
-        printf("PIC24FJ256DA106\n");
-        //    __PIC24FJ256DA106__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case 255:
-        printf("PIC24FJ256DA110\n");
-        //    __PIC24FJ256DA110__
-        family = IS_24FJ;
-        flashsize = 0x2AC00;
-        eesizeb  = 0;
-        blstartaddr = 0x400L;
-        blendaddr = 0x23FFL;
-        break;
-    case	206:
-        printf("PIC24FJ16GA002\n");
-        flashsize = 	0x2C00;
-
-        break;
-
-    case	207:
-        printf("PIC24FJ16GA004\n");
-        flashsize = 	0x2C00;
-
-        break;
-
-
-    case	208:
-        printf("PIC24FJ32GA002\n");
-        flashsize = 	0x5800;
-
-        break;
-
-    case	209:
-        printf("PIC24FJ32GA004\n");
-        flashsize = 	0x5800;
-
-        break;
-
-    case	210:
-        printf("PIC24FJ48GA002\n");
-        flashsize = 	0x8400;
-
-        break;
-
-    case	211:
-        printf("PIC24FJ48GA004\n");
-        flashsize = 	0x8400;
-
-        break;
-
-
-    case	212:
+    case 212:
         printf("PIC24FJ64GA002\n");
-        flashsize = 	0xAC00;
-
+        flashsize = BPV3_FLASHSIZE;
         break;
-
-    case	213:
-        printf("PIC24FJ64GA004\n");
-        flashsize = 	0xAC00;
-
-        break;
-
-    /* The Sandbox Electric BPv3.b clone carries a PIC24FJ64GA004, but its
-       bootloader reports device ID 0x02 instead of the usual DEVID byte.
-       Without this case the part keeps the BPv4 default flash size (0x2AC00),
-       which also skips the BPv3 jump fix below. */
-    case	0x02:
+    case 213:
+    case 0x02:
         printf("PIC24FJ64GA004 (BPv3 clone)\n");
-        flashsize = 	0xAC00;
-
+        flashsize = BPV3_FLASHSIZE;
         break;
-
-    case	214:
-        printf("PIC24FJ64GA006\n");
-        flashsize = 	0xAC00;
-
-        break;
-
-    case	215:
-        printf("PIC24FJ64GA008\n");
-        flashsize = 	0xAC00;
-        break;
-
-    case	216:
-        printf("PIC24FJ64GA010\n");
-        flashsize = 	0xAC00;
-
-        break;
-
-    case	220:
-        printf("PIC24FJ96GA006\n");
-        flashsize = 	0x10000;
-
-        break;
-
-    case	221:
-        printf("PIC24FJ96GA008\n");
-        flashsize = 	0x10000;
-
-        break;
-
-    case	222:
-        printf("PIC24FJ96GA010\n");
-        flashsize = 	0x10000;
-
-        break;
-
-
-    case	223:
-        printf("PIC24FJ128GA006\n");
-        flashsize = 	0x15800;
-
-        break;
-
-    case	224:
-        printf("PIC24FJ128GA008\n");
-        flashsize = 	0x15800;
-
-        break;
-
-    case	225:
-        printf("PIC24FJ128GA010\n");
-        flashsize = 	0x15800;
-
-        break;
-
-    case	226:
-        printf("PIC24FJ128GA106\n");
-        flashsize = 	0x15800;
-
-        break;
-
-    case	227:
-        printf("PIC24FJ128GA108\n");
-        flashsize = 	0x15800;
-        break;
-
-    case	228:
-        printf("PIC24FJ128GA110\n");
-        flashsize = 	0x15800;
-        break;
-
-    case	232:
-        printf("PIC24FJ192GA106\n");
-        flashsize = 	0x20C00;
-        break;
-
-    case	233:
-        printf("PIC24FJ192GA108\n");
-        flashsize = 	0x20C00;
-        break;
-
-    case	234:
-        printf("PIC24FJ192GA110\n");
-        flashsize = 	0x20C00;
-        break;
-
-    case	238:
-        printf("PIC24FJ256GA106\n");
-        flashsize = 	0x2AC00;
-
-        break;
-
-    case	239:
-        printf("PIC24FJ256GA108\n");
-        flashsize = 	0x2AC00;
-        break;
-
-    case	240:
-        printf("PIC24FJ256GA110\n");
-        flashsize = 	0x2AC00;
-        break;
-
-
     default:
-        printf("UNKNOWN");
-        fprintf(stderr, "Unsupported device (%02x:UNKNOWN)\n", buffer[0]);
+        fprintf(stderr, "Unsupported Bus Pirate device ID 0x%02x\n", buffer[0]);
         goto Error;
-        break;
     }
 
     if( !g_hello_only )
@@ -1437,9 +1081,9 @@ int main (int argc, const char** argv)
     if(flashsize > BPV3_FLASHSIZE) {
         uint8  command[6] = {0};
 
-        command[0] = 1;	// fake data
-        command[1] = 2;
-        command[2] = 3;
+        command[0] = (uint8)(1);	// fake data
+        command[1] = (uint8)(2);
+        command[2] = (uint8)(3);
         command[COMMAND_OFFSET] = 0xff;
         command[LENGTH_OFFSET ] = 0x01; // 1 byte, CRC
         command[PAYLOAD_OFFSET] = makeCrc(command, 5);
@@ -1451,7 +1095,7 @@ int main (int argc, const char** argv)
          * reported "ERROR, timeout" immediately after a successful flash, which
          * reads as if the flash had failed. Say what actually happened instead.
          */
-        if( serial_write(dev_fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]) > 0 )
+        if( writeAll(dev_fd, command, HEADER_LENGTH + command[LENGTH_OFFSET]) > 0 )
         {
             serial_sleep(1);
             printf("Asked the bootloader to restart.\n");

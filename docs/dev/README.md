@@ -81,8 +81,8 @@ This README is a map, not the manual — the details live in the files below.
 |---|---|---|
 | CLI `make` build | yes → `bpv3.hex` | yes → `bpv4.hex` |
 | MPLAB-X project configuration | `BusPirate_v3` | `BusPirate_v4` |
-| bootloader source | `Bootloaders/BPv3-bootloader/firmware-v4.5/` | `Bootloaders/BPv4-bootloader/firmware-v1/` |
-| bootloader entry `$` | requires the v4.5 loader (the `$` flag) | present in the current loader |
+| bootloader source | `Bootloaders/v3/` | `Bootloaders/v4/` |
+| bootloader entry `$` | requires the 5.0 loader (the `$` flag) | present in the 5.0 loader |
 | serial link | FTDI cable (`0403:6001`) | USB CDC (`04d8:fb00`; bootloader `04d8:FAFF`) |
 | all-features custom build | no — the SMPS guard stops the build | yes — LCD and SPI link together |
 

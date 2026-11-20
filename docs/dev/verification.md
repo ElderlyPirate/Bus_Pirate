@@ -60,7 +60,7 @@ not a test report.  Native fixtures are named in [tooling.md](tooling.md)
 |---|---|
 | [building.md](building.md) | Makefile, `configuration.h`, MPLAB-X project, `tools/packstrings/` and `Firmware/tests/`; the v4 all-features link result is recorded as a build result |
 | [flashing.md](flashing.md) | `proc_menu.c` `$` path, the two bootloader sources and `pirate-loader`; the `pk2cmd` switch set is unverified |
-| [bootloaders.md](bootloaders.md) | the ds30 and USB bootloader sources; the upgrader route is source-derived and `unverified` |
+| [bootloaders.md](bootloaders.md) | the v3 ds30 and v4 USB bootloader sources and their tests; the bootloader update route is hardware-programmer only, so no software upgrader is documented |
 | [tooling.md](tooling.md) | directory inventory and the current `Firmware/tests/test_*.py` set |
 | [shared-machinery.md](shared-machinery.md) | the shipped core helpers named in its table |
 | [code-map.md](code-map.md) | file + symbol locations; no line numbers |

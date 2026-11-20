@@ -137,8 +137,8 @@ by hand from clean *production* builds:
 |---|---|
 | v3 firmware | production build of the `BusPirate_v3` MPLAB-X configuration → `Firmware/busPirate.X/dist/BusPirate_v3/production/busPirate.X.production.hex` |
 | v4 firmware | production build of `BusPirate_v4` → `…/dist/BusPirate_v4/production/busPirate.X.production.hex` |
-| v3 bootloader | `Bootloaders/BPv3-bootloader/firmware-v4.5/` (ds30 loader), built with MPLAB-X/XC16 |
-| v4 bootloader | `Bootloaders/BPv4-bootloader/firmware-v1/`, built with MPLAB-X/XC16 |
+| v3 bootloader | `Bootloaders/v3/` (ds30 loader), built with the directory Makefile/XC16 |
+| v4 bootloader | `Bootloaders/v4/`, built with the directory Makefile/XC16 |
 
 - **Unverified:** the `dist/<config>/production/` directory is the MPLAB-X /
   NetBeans convention; the project files do not override it, but the exact
@@ -149,8 +149,9 @@ by hand from clean *production* builds:
   `bpv3-bootloader45.hex`, `bpv4-firmware.hex` and `bpv4-bootloader1.hex`;
   those names came from a manual clean-and-build-and-rename step, not a
   tracked script.
-- Bootloader images are not prebuilt in the tree; the v3 one is built from
-  `firmware-v4.5/` (see [bootloaders.md](bootloaders.md) §v3 update route).
+- Bootloader images are not prebuilt in the tree; the v3 and v4 images are
+  built from `Bootloaders/v3/` and `Bootloaders/v4/` (see
+  [bootloaders.md](bootloaders.md) §Build and test).
 
 ## Verification
 

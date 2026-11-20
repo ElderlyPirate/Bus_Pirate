@@ -15,7 +15,7 @@ Wiring: nothing connected; the board is powered from USB only.
 ```
 HiZ>i
 Bus Pirate v4
-ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> 
+ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - <hash> 
 [HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
 DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)
 http://github.com/ElderlyPirate
@@ -322,7 +322,7 @@ Wiring: none.  On v4 `#` is a full terminal reset:
 HiZ>#
 RESET
 Bus Pirate v4
-ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> 
+ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - <hash> 
 [HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
 DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)
 http://github.com/ElderlyPirate
@@ -366,10 +366,10 @@ BOOTLOADER
 
 The firmware sets a persistent flag so the bootloader stays in its loader
 instead of jumping back to the application.  On v4 the board re-enumerates as a
-different USB device, so the port number can change.  On v3 the flag is only
-understood by the current 4.5 loader; an older loader ignores it and returns to
-the application, so use the PGC/PGD jumper instead.  This is not verified on v3
-hardware.
+different USB device, so the port number can change.  On v3 the flag is
+understood by the current 5.0 loader; older 4.1/4.3 loaders ignore it and
+return to the application, so use the PGC/PGD jumper instead.  This is not
+bench-verified on v3 hardware.
 
 Cancel with any other byte:
 

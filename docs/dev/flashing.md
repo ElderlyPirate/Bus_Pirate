@@ -1,8 +1,8 @@
 # Flashing the firmware
 
 **Status:** maintainer-facing.  Derived from `Firmware/core_system/proc_menu.c`
-(the `$` entry), the `Bootloaders/pirate-loader/` sources, the two bootloader
-sources and the device descriptors.
+(the `$` entry), the `Bootloaders/pirate-loader/` sources, the
+`Bootloaders/v3/` and `Bootloaders/v4/` sources, and the device descriptors.
 
 This page covers getting a built image onto a real Bus Pirate v3 or v4:
 entering the bootloader, finding the right port, running `pirate-loader`, and
@@ -27,9 +27,9 @@ the host program that talks to that bootloader.
 
 | | v3 | v4 |
 |---|---|---|
-| bootloader | ds30 loader (`Bootloaders/BPv3-bootloader/firmware-v4.5/`) | USB bootloader (`Bootloaders/BPv4-bootloader/firmware-v1/`) |
+| bootloader | ds30 loader (`Bootloaders/v3/`) | USB bootloader (`Bootloaders/v4/`) |
 | serial link | FTDI cable, `0403:6001` | USB CDC, firmware `04d8:fb00`; **bootloader** `04d8:FAFF` |
-| `$` request entry | yes, with the v4.5 loader | yes, current loader |
+| `$` request entry | yes, with the 5.0 loader | yes, with the 5.0 loader |
 | jumper entry | PGC/PGD jumper + power-cycle | NORMAL button (or the PGC/PGD jumper as a fallback) |
 | post-flash restart | no restart command; a `$` entry stays in the loader until power-cycled | loader sends `0xff`; the bootloader resets the board |
 
@@ -45,9 +45,9 @@ entry test and stays in the bootloader.
 - **v4:** the flag lives at `0x47FA`; the USB bootloader reads it in `main()`.
   The application signature is at `0x47FC`.
 - **v3:** the flag lives at `0x27FA`; the ds30 loader reads it at reset.  The
-  application signature is at `0x27FC`.  The flag exists only in the current
-  v4.5 loader — older v3 loaders (`old/`) do not have it, so `$` cannot work
-  there (use the jumper).
+  application signature is at `0x27FC`.  The flag exists in the current **5.0**
+  loader; older v3 4.1/4.3 loaders do not have it, so `$` cannot work there
+  (use the jumper).
 
 `$` is also the way out for a tool that holds the port: a SUMP session that
 receives the `$` byte **leaves the analyzer and returns to the terminal in
@@ -66,11 +66,11 @@ and type `$` there.
   the bootloader path, `startpoint()` turns MODE/USB off and VREG on, turns
   VREG off for the USB enumeration wait, then turns it on again before the
   command loop; the command loop runs with VREG lit.
-- **Blank v4 application:** the loader checks only the first word of the
-  application reset vector at `0x2000`.  An erased `0xFFFF` word keeps the
-  board in the bootloader; a corrupt non-erased vector still passes that check
-  and can be jumped into.  Use the NORMAL button or the PGC/PGD jumper on a
-  blank or suspect board.
+- **Blank v4 application:** the loader checks the low 16 bits and high byte of
+  the first application instruction at `0x2000`.  An erased instruction keeps
+  the board in the bootloader; a corrupt non-erased instruction still passes
+  that presence check and can be jumped into.  Use the NORMAL button or the
+  PGC/PGD jumper on a blank or suspect board.
 
 Either way, **the terminal application must be closed before flashing** — the
 bootloader and `pirate-loader` cannot share the port.  With `screen`, for
@@ -98,14 +98,11 @@ generator and open the generated `pirate-loader.sln` to build.  CMake selects
 compiler-appropriate static flags: `-static -static-libgcc` for GCC, `-static`
 for Clang, and `/MT` for MSVC.
 
-Prebuilt binaries from an older bootloader-update bundle are also present under
-`Bootloaders/BPv3-bootloader/v4xtov43-bootloader-update/utilities/`
-(`pirate-loader.exe`, `pirate-loader_lnx`, `pirate-loader_mac`).  They are
-release artifacts from that bundle, not built from the current source; the
-prebuilt Windows binary's port speed is **unverified**.
-
-- There is no `package/` directory in this repository; older instructions that
-  pointed at `package/BPv3-firmware` are stale.
+No prebuilt `pirate-loader` binaries are shipped in the current tree; build it
+from source.  The old bootloader-update bundle, its GUI and its prebuilt
+`utilities/` binaries are removed.  There is also no `package/` directory in
+this repository; older instructions that pointed at `package/BPv3-firmware`
+are stale.
 
 ## Using pirate-loader
 
@@ -125,13 +122,12 @@ pirate-loader --simulate --hex=<image.hex> [ --verbose ]
 | `--help` | usage text |
 
 The loader sets the port speed itself, so a terminal configured differently
-does not matter.  The speed is **not** the same on all hosts: on Unix the port
-is opened at **115200 8N1** (the termios `B115200` constant), but the Windows
-build defines `B115200` as **921600**, so `configurePort()` programs
-`SetCommState` with 921600 8N1.  The v4 CDC link ignores the host-side speed;
-the v3 link runs through an FTDI cable into a loader whose UART divider is a
-build constant, so the Windows speed matters there — see
-[the v3 speed trap](#v3-on-windows-the-speed-mismatch) below.
+does not matter.  `pirate-loader` 1.0.7 opens **115200 8N1** on both Windows
+and POSIX; the older Windows build incorrectly programmed 921600 8N1, and that
+bug is fixed.  The v4 CDC link ignores the host-side line speed; the v3 link
+runs through an FTDI cable into a loader whose UART divider is a build
+constant, so the v3 speed matters there — see [v3 serial
+speed](#v3-serial-speed) below.
 
 ### Find the port after entry
 
@@ -158,7 +154,7 @@ Expected milestones:
 | Step | v4 | v3 |
 |---|---|---|
 | hello | `Sending Hello to the Bootloader...OK` | same |
-| bootloader version | `Bootloader version: 4,14` | `Bootloader version: 1,02` |
+| bootloader version | `Bootloader version: 5,0` | `Bootloader version: 1,02` |
 | device | `Device ID [0x…]:PIC24FJ256GB106` | `Device ID [0x…]:PIC24FJ64GA002` |
 | pages | `Erasing page … OK` / `Writing page … OK` | same |
 | final | `Firmware updated successfully! :)` | same |
@@ -181,21 +177,15 @@ From the source:
 - A port that is "in use, or permission denied" almost always means a terminal
   or another loader still holds it.
 
-### v3 on Windows: the speed mismatch
+### v3 serial speed
 
-The v4.5 ds30 loader fixes its UART divider at build time (about 115200 8N1
-from a 16 MHz instruction clock) and has no autobaud.  The Windows build of
-`pirate-loader` opens the port at 921600, so the handshake fails — the typical
-symptom is `No reply from the bootloader, or invalid reply received` or an
-`unexpected status` byte instead of `OK`.
-
-Workarounds:
-
-- run `pirate-loader` on a Unix host (it opens 115200 there), or
-- rebuild `pirate-loader` for Windows with the `#define B115200 921600` line
-  changed to `115200`.
-
-This only affects v3; the v4 CDC link ignores the host-side line speed.
+The v3 5.0 ds30 loader fixes its UART divider at build time (115200 8N1 from a
+16 MHz instruction clock) and has no autobaud.  `pirate-loader` 1.0.7 opens
+115200 8N1 on both Windows and POSIX, so the handshake works on both.  The old
+Windows build opened 921600 and produced `No reply from the bootloader, or
+invalid reply received` or an `unexpected status` byte; rebuild with 1.0.7 if
+you still have that binary.  This only affects v3; the v4 CDC link ignores the
+host-side line speed.
 
 ### Post-flash restart
 
@@ -238,7 +228,7 @@ pk2cmd -P -M -F <image.hex>
    different number from the bootloader's.
 3. Type `i`: the banner shows the hardware version, firmware version and
    build hash, the mode list, and the device ID/rev.  On v3 it also prints the
-   stored bootloader version (`Bootloader v4.5`); v4 does not print a
+   stored bootloader version (`Bootloader v5.0`); v4 does not print a
    bootloader version in `i`.
 
 A stale or mismatched image shows the wrong firmware version in step 3.  No

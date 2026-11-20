@@ -75,7 +75,7 @@ build time, so it differs per build (`<hash>` below stands for that value):
 ```
 i
 Bus Pirate v4
-ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> 
+ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - <hash> 
 [HiZ 1WIRE UART I2C SPI 2WIRE 3WIRE KEYB PIC DIO]
 DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)
 http://github.com/ElderlyPirate
@@ -85,7 +85,7 @@ HiZ>
 | Line | Meaning |
 |---|---|
 | `Bus Pirate v4` | board name.  On v3 the line is `Bus Pirate v3.<revision>` |
-| `ElderlyPirate Firmware v8.0 - goo.gl/gCzQnW - <hash> ` | firmware string; the trailing space is part of it |
+| `ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - <hash> ` | firmware string; the trailing space is part of it |
 | `[ ... ]` | the modes compiled into this build, in menu order |
 | `DEVID:` / `REVID:` | chip device-type and revision words (chip-specific) |
 | ` (24FJ256GB106 A6)` | chip family and revision string |

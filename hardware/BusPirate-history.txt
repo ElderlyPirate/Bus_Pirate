@@ -1,0 +1,51 @@
+May 1, 2012
+v4d
+*Updated PCB to fit DP6037 standard PCB footprint
+*Updated silk with big logos
+
+v3.6
+*Renamed v3.5e to avoid confusion with cases
+
+v3.5e
+*Updated to fit DP6037 standard PCB footprint
+*Updated silk with big logos
+
+
+****Old history****
+
+v4.1 (lost variant)
+*Small rerouting of v4
+*not yet resized to fit v4a case
+*Lost or abandonded
+
+v4a
+*v4 resized to fit Seeed case. First production version.
+
+v4
+*Original pre-production version 4 sold at Seeed for $50.
+
+
+v3.5c
+*Replaced 4066 control trace
+
+v3.5b
+*Header keyed to match seeed cable
+
+v3.5
+*Two versions, SOIC and SSOP PIC chips
+*Same as v3b with reduced part count
+*Resistors moved to resistor arrays
+*Centered connectors and jacks
+*SSOP size 4066 (instead of SOIC on v3)
+
+v3b
+*Same as v3a 
+*Ceremic instead of tantalum capacitors for the 3.3 and 5volt regulators
+
+v3a
+*First Dangerous Prototypes version
+*Reshaped the original v2go hardware
+*Moved to SOIC PIC chip
+
+v2go
+*Original Seeed Studio preorder Bus Pirate hardware

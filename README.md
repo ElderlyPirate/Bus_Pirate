@@ -71,6 +71,12 @@ The Bus Pirate is used through a simple terminal interface, but these applicatio
 [AVRDude]: http://www.nongnu.org/avrdude
 [flashrom]: https://www.flashrom.org/Flashrom
 
+## Hardware design files
+
+Original schematics, Eagle boards and SketchUp models for the v3/v3.5/v3.6/v4
+revisions are in [hardware/](hardware/); the hardware licence is
+[hardware/COPYING.TXT](hardware/COPYING.TXT) (CC BY-SA 3.0).
+
 ## Firmware Flashing
 
 Refer to [building-and-flashing-firmware](Documentation/building-and-flashing-firmware.md) to see how to build and flash this firmware.

@@ -63,7 +63,7 @@ def run(rounds, output, expected_firmware):
                 connection.flush()
                 hello = connection.read(4)
                 entry["bootloader_hello"] = hello.hex()
-                assert hello == b"\xf1\x04\x0fK", repr(hello)
+                assert hello == b"\xf1\x05\x00K", repr(hello)
                 packet = bytearray([1, 2, 3, 255, 1])
                 packet.append(-sum(packet) & 255)
                 connection.write(packet)
@@ -81,7 +81,7 @@ def run(rounds, output, expected_firmware):
                 entry["application_banner"] = banner.decode("latin1")
                 assert b"HiZ>" in banner and expected_firmware.encode() in banner, repr(banner)
             entry["passed"] = True
-            print(f"PASS round {number}: firmware request -> loader 4.15 -> restart -> application, no replug")
+            print(f"PASS round {number}: firmware request -> loader 5.0 -> restart -> application, no replug")
         except Exception as error:
             entry["error"] = repr(error)
             entry["passed"] = False

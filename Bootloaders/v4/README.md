@@ -1,6 +1,6 @@
 # Bus Pirate v4 USB Bootloader
 
-PIC24FJ256GB106, USB CDC `04D8:FAFF`, loader 4.15. One source set; no
+PIC24FJ256GB106, USB CDC `04D8:FAFF`, loader 5.0. One source set; no
 PIC18 variants, alternate-device implementations or unused buffering modes.
 
 ## Fixed Layout And Flash Safety
@@ -12,7 +12,7 @@ All addresses below are PIC program/table addresses:
 | Hardware reset GOTO | `0x0000` -> `0x0400` |
 | IVT / AIVT | `0x0004` / `0x0104` |
 | Loader allocation | `0x0400` through `0x1FFF` |
-| Version | `0x1FF6` = `0x040F` |
+| Version | `0x1FF6` = `0x0500` (5.0) |
 | Application entry | `0x2000` |
 | Protected configuration erase page | `0x2A800` through `0x2ABFF` |
 | CONFIG3 / CONFIG2 / CONFIG1 | `0x2ABFA` / `0x2ABFC` / `0x2ABFE` |
@@ -66,4 +66,7 @@ never blocks USB servicing. Full USB suspend-current compliance is not
 claimed: this loader does not implement board-wide low-power sleep.
 
 Build/test via `../Makefile`; see `../README.md` for the manual audit, passing
-software-controlled v4 bench legs and remaining physical power-up cases.
+5.0 loader-only bench and separately labelled historical 4.15 tests. The 5.0
+hello is `F1 05 00 4B`; the reset GOTO opcode remains `0x04`, not `0x05`.
+The application revision remains v9.0. No application is flashed during the
+5.0 loader-only rebench; wait for the owner's final combined image and hash.

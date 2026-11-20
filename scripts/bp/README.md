@@ -53,8 +53,14 @@ Not implemented in this package:
 - Binary-bitbang clock-speed set/read (`0x60`/`0x70`). The v9 firmware in this
   tree does not implement either command in binary-bitbang mode; use the
   per-mode `--bus-speed` options instead.
-- SPI configuration read-back. The v9 binary SPI handler accepts `0x80 | cfg`
-  but does not implement a separate configuration-read command.
+- SPI configuration read-back (`0x90`) and the SPI nibble commands
+  (`0x20`/`0x30`). The v9 binary SPI handler accepts `0x80 | cfg` but does not
+  implement those command paths.
+- UART configuration read-back (`0xD0`). The v9 binary UART handler has no
+  read-config command; `bp uart config` reports the values it just applied.
+- A dedicated Microwire EEPROM workflow. The removed `MicroWire.py` example
+  used raw-wire primitives; use `bp raw-wire` or `bp.protocol.raw_wire`
+  directly.
 - A host-side UART bridge that returns cleanly. `bp uart bridge` enters the
   firmware bridge, which only a hardware reset exits.
 

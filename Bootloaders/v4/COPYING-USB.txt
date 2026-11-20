@@ -1,0 +1,10 @@
+The USB device stack, CDC implementation and descriptors derive from the
+Honken/JTR Bus Pirate USB stack, licensed under the Creative Commons
+Attribution 3.0 Unported License: https://creativecommons.org/licenses/by/3.0/
+
+Original attribution: Honken and JTR; influence and inspiration from
+http://pe.ece.olin.edu/ece/projects.html .
+
+The Bus Pirate-specific rewrite retains that license for these derivatives.
+The ds30-compatible loader retains its original GPL license; see
+../v3/COPYING.txt. Board initialization and build/test support are CC0.

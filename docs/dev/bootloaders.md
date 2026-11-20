@@ -22,14 +22,14 @@ application.  Flashing an application is [flashing.md](flashing.md).
 | `Bootloaders/v3/` | v3 ds30 loader for the PIC24FJ64GA002; one source set |
 | `Bootloaders/v4/` | v4 USB CDC loader for the PIC24FJ256GB106; one source set |
 | `Bootloaders/pirate-loader/` | shared host tool, version **1.0.7** |
-| `Bootloaders/tests/` | native, image and opt-in bench probes |
+| `Bootloaders/tests/` | native image/protocol tests and opt-in hardware probes |
 
 The **application revision is v9.0 on both boards**.  The **bootloader revision
 is 5.0 on both boards**; it is independent of the application version.  The v4
-hello replies **`F1 05 00 4B`** (device ID `F1`, version **5.0**, `K`).  The v3
-hello reports ds30 protocol 1.0.2; its separate stored word at `0xABFA` reports
-loader **5.0** (`0x0500`).  Protocol device IDs 212/241 are not the silicon
-DEVID values.
+hello replies **`F1 05 00 4B`** (device ID `F1` = 241, version **5.0**, `K`).
+The v3 hello reports ds30 protocol **1.0.2**; its separate stored word at
+`0xABFA` reports loader **5.0** (`0x0500`).  Protocol device IDs 212/241 are not
+the silicon DEVID values.
 
 The old v3/v4 loader revisions, self-upgraders, alternate applications, GUI
 binaries and duplicate host binaries are removed; they remain available in Git
@@ -63,11 +63,36 @@ drained without overflowing the row buffer.  No incomplete command starts NVM.
 The v4 `FF`, size `01`, requests restart; its arbitrary address bytes are
 ignored for compatibility with the existing host tool.
 
+### Worked hello and erase exchange
+
+v4, at 115200 8N1 over USB CDC:
+
+```
+host -> C1
+host <- F1 05 00 4B        device 241, loader 5.0, K
+host -> 00 20 00 01 01 DE  erase page 0x2000 (sum = 0x100)
+host <- 4B                 K
+```
+
+v3, at 115200 8N1 over UART1:
+
+```
+host -> C1
+host <- D4 01 02 4B        device 212, ds30 protocol 1.0.2, K
+host -> 02 40 00 01 01 BC  erase page 0x2400 (sum = 0x100)
+host <- 4B                 K
+```
+
+A row write is the same header with command `02`, size `C1`, 192 payload bytes
+and a final checksum.  For example, a row at `0x2400` starts
+`02 40 00 02 C1`, followed by the 192 bytes and one checksum byte.  The loader
+stages, programs and reads back the row before it returns `K`.
+
 ## v3 bootloader (ds30 loader)
 
-Source: `Bootloaders/v3/ds30loader.s` plus `settings.inc`, `devices.inc` and the
-device linker script.  It is built by the directory Makefile, not by a
-prebuilt GUI.  The loader occupies one program page at `0xA800`:
+Source: `Bootloaders/v3/ds30loader.s` plus `settings.inc` and the device linker
+script.  It is built by the directory Makefile, not by a prebuilt GUI.  The
+loader occupies one program page at `0xA800`:
 
 | Item | Address |
 |---|---|
@@ -89,17 +114,17 @@ the configuration words.  ICSP, not this loader, installs or updates the loader.
 At reset the loader decides between staying in the bootloader and jumping to
 the application:
 
-1. Compare `firmware_signature` against `0x31415926`.  A mismatch goes to the
-   jumper test.
+1. Compare the application signature at `0x27FC` against `0x31415926`.  A
+   mismatch goes to the jumper test.
 2. If the signature matches, read `skip_pgc_pgd_check` at `0x27FA` (the flag
    the firmware `$` command sets).  If it is set, clear it and enter the loader
    directly.
 3. Otherwise run the jumper test: drive **PGD** low, hold **PGC** as an input
-   with a pull-up, and sample it.  A **PGC/PGD jumper** pulls PGC low and
-   selects the bootloader; with no jumper PGC reads high and the loader selects
-   the application.
+   with an internal pull-up, and sample it.  A **PGC/PGD jumper** pulls PGC low
+   and selects the bootloader; with no jumper PGC reads high and the loader
+   selects the application.  **No external pull-up is required.**
 4. In the bootloader it waits for host commands at **115200 8N1**.  The receive
-   wait is bounded (`BLTIME = 500 ms` per byte).
+   wait is bounded (`BLDELAY = 17`, about 560 ms per byte at 16 MHz).
 
 The current v3 **5.0** loader understands the `$` flag.  Older v3 4.1/4.3
 loaders do not; use the PGC/PGD jumper with those.  The jumper method always
@@ -121,9 +146,9 @@ hardware programmer.
 ### Host framing
 
 The v3 ds30 loader uses the same address/command/length/checksum shape and the
-same `K` / `N` / `P` / `V` status bytes; it has no `U` status.  The hello reply
-is `[DEVICEID][VERMAJ][VERMIN*16+VERREV]` followed by `K`.  `pirate-loader`
-speaks this framing for the v3 part.
+same `K` / `N` / `U` / `P` / `V` status bytes.  The hello reply is
+`[DEVICEID][VERMAJ][VERMIN]` followed by `K`; the stored loader revision is
+separate at `0xABFA`.  `pirate-loader` speaks this framing for the v3 part.
 
 ## v4 bootloader (USB CDC)
 
@@ -156,9 +181,9 @@ flag forces residency.  Otherwise the loader reads the first application
 instruction at **`0x2000`, not `0x4000`**, and remains resident if it is erased.
 Both its low 16 bits and high byte are checked.  This is a presence guard, not
 an image checksum or a guarantee against interrupted application programming.
-The flag is consumed once; application handoff releases jumper/button
-pull-ups, outputs and the loader timer.  RB9 is the target supply enable,
-never an activity LED, and is held off throughout loader execution.
+The flag is consumed once; application handoff releases the button/jumper
+pull-ups, outputs and the loader timer.  RB9 is the target supply enable, never
+an activity LED, and is held off throughout loader execution.
 
 Restart acknowledges the command without overwriting an SIE-owned buffer,
 waits for IN completion (bounded to 250 ms), detaches for 100 ms, then resets.
@@ -201,9 +226,13 @@ bootloader only when:
 
 Both current loaders protect their own page, so **the running loader cannot
 replace itself**.  Use a hardware programmer (ICSP/Pickit2 or equivalent) to
-write the loader image.  Then enter the loader (NORMAL button or PGC/PGD jumper
-on v4; PGC/PGD jumper on v3) and write the application with `pirate-loader`.
-No software self-upgrader, GUI, or prebuilt loader bundle is shipped.
+write the loader image.  The programming header needs MCLR, PGC, PGD and a
+common ground; the programmer may supply target VDD, so disconnect the Bus
+Pirate's USB power while it does.  No external pull-up is needed on PGC/PGD —
+the programmer drives them.  Then enter the loader (NORMAL button or PGC/PGD
+jumper on v4; PGC/PGD jumper on v3) and write the application with
+`pirate-loader`.  No software self-upgrader, GUI, or prebuilt loader bundle is
+shipped.
 
 - **v3:** build `Bootloaders/v3/`; the image includes the loader page and the
   configuration words.  A blank/bricked chip needs the hardware programmer.
@@ -219,9 +248,9 @@ No software self-upgrader, GUI, or prebuilt loader bundle is shipped.
 
 ## Build and test
 
-Requires Microchip XC16 (verified with 2.10), GNU Make and CMake.  Python 3 and
-a native GCC-compatible C compiler run the host tests.  No build/test target
-opens a serial port or flashes a board.
+Requires Microchip XC16 (the tree's defaults name 2.10), GNU Make and CMake.
+Python 3 and a native GCC-compatible C compiler run the host tests.  No
+build/test target opens a serial port or flashes a board.
 
 ```sh
 make -C Bootloaders XC16=/path/to/xc16/bin/xc16-
@@ -239,31 +268,50 @@ mingw32-make -C Bootloaders test
 
 Images and linker maps are `v3/build/bpv3-bootloader.{hex,map}` and
 `v4/build/bpv4-bootloader.{hex,map}`.  The loaders and host tool treat compiler
-warnings as errors.  Retained MPLAB X project metadata lists the same sources;
-the reproducible, qualified build path is the directory Makefile.  IDE builds
-are not independently qualified.
+warnings as errors.  The v3 image checks the reset word, version word,
+configuration words and the `0xA7FC`/`0xA7FE` placeholder; the v4 image checks
+the reset word, version at `0x1FF6`, CONFIG1/2 at `0x2ABFC`/`0x2ABFE`, and that
+no loader bytes fall in the application window.  Retained MPLAB X project
+metadata lists the same sources; the reproducible, qualified build path is the
+directory Makefile.  IDE builds are not independently qualified.
 
 `pirate-loader` 1.0.7 sets **115200 8N1** on Windows and uses `CS8` on POSIX;
 the older Windows 921600 bug is fixed.  There are no tracked prebuilt
 `pirate-loader` binaries in the current tree.
 
-## Bench status and limits
+The test inventory for the bootloader tree is:
 
-- **v4 bootloader 5.0:** loader-only bench PASS after fresh XM64 ICSP wiring:
-  erase/write 31 chunks, CONFIG `0x3E7F`/`0x239E`, hello `F1 05 00 4B`,
-  464 live protocol + 4 scratch checks, all 56 loader rows and stored
-  version `0x0500` at `0x1FF6`.  The final combined **v9.0** application
-  (`Firmware/bpv4.hex`, build `14256fd5`) was then uploaded through the 5.0
-  loader: 472 application rows + 8 vector rows, post-flash restart to COM6,
-  banner **v9.0**, `HiZ>`.  The NORMAL-held and jumper physical entry cases
-  were exercised on 4.15; the 5.0 reflash was loader-only plus the app upload,
-  not a full repeat of those physical cases.
-- **v3 bootloader 5.0:** build and image tests verify `0x0500` at `0xABFA`;
-  there is **no v3 hardware** available, so it is build/host-evidence only.
-  The v3 `$` entry is source-derived and not bench-verified.
+| Test | Covers |
+|---|---|
+| `tests/test_images.py` | linked v3/v4 images: reset/version/config words, loader/application windows, map bounds |
+| `tests/test_native.py` | compile and run `test_v4.c` (polled USB/CDC/EP0 state machines with SFR stand-ins) and `test_loader.c` (HEX parsing and bounds) |
+| `tests/test_v3.py` | limited interpreter over the actual v3 assembly command path |
+| `tests/bench_v4_*.py` | opt-in hardware probes; never run by `make test` |
 
-Raw malformed EP0 control requests remain native-test evidence, not a live
-USB-control-transfer claim.  ICSP uses the existing XM64 `picprog.py`; it is
-not a replacement programming engine.  Detailed local evidence is under the
-ignored `Bootloaders/tests/build/` directories; the opt-in probes are never
-run by `make test`.
+The opt-in probes require a resident loader and, for the scratch step, erase an
+application page.  They are not part of the normal test target and are not a
+substitute for the documented flash procedure.
+
+## Implementation basis and limits
+
+- **v4:** the loader path has a hardware basis; the 5.0 physical NORMAL and
+  PGC/PGD entry cases were not re-run for 5.0.  The source and the native
+  image/protocol tests are the maintained basis.
+- **v3:** no v3 hardware is available.  The image is build/host-evidence only;
+  the `$` entry and physical jumper entry are source-derived and **not
+  verified on v3 hardware**.
+- Raw malformed EP0 control requests are native-test evidence, not a live
+  USB-control-transfer claim.
+- ICSP uses a hardware programmer (for example the XM64 board's ICSP
+  programmer or a Pickit2); it is not a replacement programming engine for
+  this loader.
+- The detailed test build output stays in the ignored `Bootloaders/tests/build/`
+  directories.  It is not part of the maintained tree.
+
+## Related docs
+
+- [flashing.md](flashing.md) — application flash procedure.
+- [building.md](building.md) — build and feature sets.
+- [tooling.md](tooling.md) — host frontend and tooling.
+- [tests.md](tests.md) — the firmware native-test inventory.
+- [hardware/README.md](../../hardware/README.md) — board design files.

@@ -23,8 +23,7 @@ Two standing facts:
   claimed never to have been used — this record simply does not claim it.
 
 This is a documentation-basis record, not an electrical-conformance report and
-not a test report.  Native fixtures are named in [tooling.md](tooling.md)
-§Test suites.
+not a test report.  Native fixtures are named in [tests.md](tests.md).
 
 ## Per-set basis
 
@@ -44,27 +43,40 @@ not a test report.  Native fixtures are named in [tooling.md](tooling.md)
 | [binary](../protocol/binary/README.md) | source-only | byte layer and sub-protocol entry; v3 unverified |
 | [sump](../protocol/sump/README.md) | source-only | entry, exit bytes, tiers and capacities; the v3 sample buffer is **4096 bytes**; v3 large captures unverified |
 | [tools/basic](../tools/basic/README.md) | source-only | interpreter limits from source; `FREQ`/`DUTY` are usable, `DEBUG` is off in the default image and a build option, the EEPROM filesystem is disabled |
-| [tools/xsvf](../tools/xsvf/README.md) | source + v4 history | firmware player history; the 400-bit shift, 4096-byte chunk limits, bounded chain scan and standalone `-x`/`-r` behaviour are source-only; the exit-status difference and host-tool caveats (`-x`/`-f`, player exit) are in that set |
+| [tools/xsvf](../tools/xsvf/README.md) | source + v4 history | firmware player history; the 400-bit shift, 4096-byte chunk limits, bounded chain scan and standalone scan/reset behaviour are source-only; the host side is `bp xsvf` (see [tooling.md](tooling.md)) |
 | [tools/openocd](../tools/openocd/README.md) | source-only | version matrix and shift contract from source; v3 build-only |
 | [capabilities/adc](../capabilities/adc/README.md) | source-only | probe/continuous contracts; SMPS ownership refusal is the gate; v3 build-only |
 | [capabilities/auxiliary](../capabilities/auxiliary/README.md) | source-only | PWM/servo/frequency/edge-wait contracts; external wiring unverified |
 | [capabilities/selftest](../capabilities/selftest/README.md) | source-only | check rows and the `0x10` column from source |
 | [capabilities/smps](../capabilities/smps/README.md) | unverified | board unavailable for an electrical check; connector/pinout and jumper from the legacy schematic/BOM; input/output ratings undocumented; firmware behaviour code-derived |
-| [capabilities/lcd](../capabilities/lcd/README.md) | unverified | no adapter available for an electrical check; board revisions (v2/v2b/v3/v3a, v4/v4b), connector and supply from the legacy design files in `hardware-other`; on-glass glyphs and timing code-derived |
+| [capabilities/lcd](../capabilities/lcd/README.md) | unverified | no adapter available for an electrical check; board revisions and connector/supply are described from the legacy design material; `hardware/lcd-adapter/` tracks only the v3a photo and SketchUp model; on-glass glyphs and timing code-derived |
 | [programmers/avrisp](../programmers/avrisp/README.md) | source + partial history | ISP/PDI had a hardware basis; TPI and the remainder are source-only; see [avrisp-design-notes.md](avrisp-design-notes.md) |
-| [programmers/pic](../programmers/pic/README.md) | source-only | ICSP bit engine pinned by the native ICSP fixture; the CO-8a state reset and CO-8b display-width checks are source/native; v3 unverified |
+| [programmers/pic](../programmers/pic/README.md) | source-only | ICSP bit engine pinned by the native ICSP fixture; the state reset and display-width checks are source/native; v3 unverified |
 
 ## Developer pages
 
 | Page | Basis |
 |---|---|
-| [building.md](building.md) | Makefile, `configuration.h`, MPLAB-X project, `tools/packstrings/` and `Firmware/tests/`; the v4 all-features link result is recorded as a build result |
-| [flashing.md](flashing.md) | `proc_menu.c` `$` path, the two bootloader sources and `pirate-loader`; the `pk2cmd` switch set is unverified |
-| [bootloaders.md](bootloaders.md) | the v3 ds30 and v4 USB bootloader sources and their tests; the bootloader update route is hardware-programmer only, so no software upgrader is documented |
-| [tooling.md](tooling.md) | directory inventory and the current `Firmware/tests/test_*.py` set |
+| [building.md](building.md) | Makefile, `configuration.h`, the MPLAB-X project, `tools/packstrings/` and `Firmware/tests/`; the current v4 default and all-features link results are reproducible build results |
+| [flashing.md](flashing.md) | the firmware `$` path, the two bootloader sources and `pirate-loader`; the `pk2cmd` switch set and per-OS driver installation are unverified |
+| [bootloaders.md](bootloaders.md) | the v3 ds30 and v4 USB bootloader sources, their image/native tests and the directory Makefiles; v3 is build/host-evidence only; the v4 5.0 physical NORMAL/jumper entry cases are not re-confirmed |
+| [tooling.md](tooling.md) | the tracked host tree, `scripts/bp/` package metadata and command source; the removed legacy tools are mapped to their `bp` replacements |
+| [tests.md](tests.md) | the current `Firmware/tests/test_*.py` set and each suite's source/docstring; no aggregate runner exists |
+| [release.md](release.md) | the Makefile, bootloader Makefiles and `scripts/bp/pyproject.toml`; the MPLAB-X `dist/` output directory is IDE-generated and unverified |
 | [shared-machinery.md](shared-machinery.md) | the shipped core helpers named in its table |
 | [code-map.md](code-map.md) | file + symbol locations; no line numbers |
 | [avrisp-design-notes.md](avrisp-design-notes.md) | the AVRISP sources and the user set; AVR053 and the custom-build omission are recorded there |
+
+## Host frontend basis
+
+`scripts/bp/` is hardware-free tested with fake transports and protocol
+sessions.  The no-target hardware paths that its own README records as
+exercised are the port listing, banner read, binary entry/reset/pins, mode
+configuration, 1-Wire reset/scan, I2C scan, a script reset and the XSVF
+reset/scan/leave sequence.  EEPROM, LCD, UART send/receive/bridge, 1-Wire
+device commands and SPI chip-ID/read/write remain fake-transport and
+source-level only.  These are coverage statements, not pass counts; the
+authoritative list is `scripts/bp/README.md` §Limitations and known issues.
 
 ## Limits
 

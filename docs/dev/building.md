@@ -2,11 +2,12 @@
 
 **Status:** maintainer-facing.  Derived from the tracked `Firmware/Makefile`,
 `Firmware/configuration.h`, the MPLAB-X project files, the message tooling and
-the native suites.  The v4 all-features link result is recorded below.
+the native suites.  The current v4 all-features link result is recorded below.
 
 This page covers how to compile the Bus Pirate v3 / v4 community firmware,
 which feature set goes into the image, and which artifacts are produced.
-Flashing the result is [flashing.md](flashing.md).
+Flashing the result is [flashing.md](flashing.md); the test inventory is
+[tests.md](tests.md).
 
 ## Scope
 
@@ -15,15 +16,15 @@ Flashing the result is [flashing.md](flashing.md).
   message-string generation, and the common build errors that follow from
   these files.
 - **Out:** what each function does with its feature switch (the per-function
-  pages), and the test inventory — the authoritative suite table is
-  [tooling.md](tooling.md) §Test suites.
+  pages), the test inventory (see [tests.md](tests.md)), and release assembly
+  (see [release.md](release.md)).
 
 ## Prerequisites
 
 | Requirement | Detail |
 |---|---|
 | Microchip **XC16** | The PIC24 C compiler and linker.  The Makefile auto-detects the installer defaults `/opt/microchip/xc16/v2.10` and `C:/Program Files (x86)/Microchip/MPLABXC16/v2.10`, then falls back to `PATH`.  Set `XC16_DIR` only for a non-default install root. |
-| GNU **make** + POSIX shell utilities | The Makefile is a standard GNU makefile; its recipes call `sh`, `date`, `mkdir` and `rm`.  On Windows, use a native MinGW GNU make (for example the scoop `mingw` package) and put Git for Windows' `usr\bin` first on `PATH`.  A command-line `SHELL=` assignment is not honoured by that make; `sh.exe` on `PATH` is what it uses. |
+| GNU **make** + POSIX shell utilities | The Makefile is a standard GNU makefile; its recipes call `sh`, `date`, `mkdir`, `rm`, `cmp` and `printf`.  On Windows, use a native MinGW GNU make (for example the scoop `mingw` package) and put Git for Windows' `usr\bin` first on `PATH`.  A command-line `SHELL=` assignment is not honoured by that make; `sh.exe` on `PATH` is what it uses. |
 | **Git** | The Makefile bakes `git rev-parse --short HEAD` into the banner as `VERSION`.  A non-git source copy builds with an empty version component. |
 | (optional) **MPLAB-X** | The graphical IDE route; requires MPLAB-X and the XC16 plugin.  Download from Microchip's [MPLAB-X page](http://www.microchip.com/mplab/mplab-x-ide). |
 | (optional) **Python 3 + host GCC** | Only for regenerating message strings and for the hardware-free native tests. |
@@ -40,11 +41,11 @@ Obtaining XC16 is the one step that happens outside this repository:
    Tools, or Add → the XC16 install root) or pass `XC16_DIR` to the make
    command below.
 
-The XC16 version is pinned in two places: the MPLAB-X project
+The tree's defaults name **v2.10** in both the MPLAB-X project
 (`Firmware/busPirate.X/nbproject/configurations.xml`, both configurations) and
-the Makefile's auto-detected installer defaults both name **v2.10**.  The
-release notes (`CHANGELOG.md`) still state the minimum as XC16 **1.35 or
-later** and MPLAB-X **5.00 or later**.
+the Makefile's auto-detected installer defaults.  The release notes
+(`CHANGELOG.md`) still state the minimum as XC16 **1.35 or later** and
+MPLAB-X **5.00 or later**.
 
 ## Command-line build
 
@@ -68,6 +69,18 @@ build with `BP_VERSION must be V3 or V4`.  `clean` removes `build/` entirely
 (so a later build of the other board recompiles everything) and deletes only
 the selected target's `bpvN.elf`, `bpvN.hex` and `bpvN.map`; `distclean` is
 defined as the same recipe.
+
+A default v4 build from this tree links as:
+
+```
+$ make -C Firmware BP_VERSION=V4
+...
+                 Total "program" memory used (bytes):        0x1610d  (90381) 36%
+                 Total "data" memory used (bytes):         0x3152  (12626) 77%
+```
+
+The default v3 image is much closer to the part limit: `0xe91c` (59,676)
+program bytes (93%) and `0x1958` (6,488) data bytes (79%).
 
 ### Selecting the toolchain and options
 
@@ -142,45 +155,45 @@ Per-module switches and their default state:
 Guards that reject a wrong-board combination:
 
 - AVRISP-MKII: `#error` unless the build is v4.
-- SMPS: `#error` on v3.
+- SMPS: `#error` on v3 — two guards exist, one in the module block and one
+  after the feature-set blocks; the first one that is reached stops the build.
 - The XSVF sub-mode is enabled with JTAG on v4 only (memory); the OpenOCD
   adapter is enabled on both builds.
 
-### Worked custom build: SMPS on v4
+### Worked custom build: an all-features v4 image
 
-1. Edit `Firmware/configuration.h` in the `BUSPIRATEV4` default block: change
-   `#undef BP_ENABLE_SMPS_SUPPORT` to `#define BP_ENABLE_SMPS_SUPPORT`.
-2. Build the normal v4 image: `make -C Firmware BP_VERSION=V4`.
-3. Flash `Firmware/bpv4.hex` ([flashing.md](flashing.md)); the SMPS binary
-   commands are then compiled in.
+1. Build with the custom feature set; no header edit is needed because the
+   Makefile appends `EXTRA_CFLAGS` to the compiler flags:
 
-For the all-features list instead of one switch, define `BP_CUSTOM_FEATURE_SET`
-without editing the header — the Makefile appends `EXTRA_CFLAGS` to the
-compiler flags.  The per-target `build/<target>/.build-flags` stamp records
-the effective flag set: a flag-only change (`EXTRA_CFLAGS`, `OPT`,
-`SAVE_TEMPS`) rewrites the stamp and recompiles every object, while a rebuild
-with unchanged flags does not recompile or relink.  No `clean` is needed:
+   ```
+   make -C Firmware BP_VERSION=V4 EXTRA_CFLAGS=-DBP_CUSTOM_FEATURE_SET
+   ```
 
-```
-make -C Firmware BP_VERSION=V4 EXTRA_CFLAGS=-DBP_CUSTOM_FEATURE_SET
-```
+2. The per-target `build/<target>/.build-flags` stamp records the effective
+   flag set: a flag-only change (`EXTRA_CFLAGS`, `OPT`, `SAVE_TEMPS`) rewrites
+   the stamp and recompiles every object, while a rebuild with unchanged flags
+   does not recompile or relink.  No `clean` is needed.
+3. The all-features v4 list enables both the HD44780 adapter and SPI.  That
+   combination links: the LCD driver uses its own bounded byte helper
+   (`hd44780_spi_write_byte()` in `capability_hd44780/hd44780.c`) and the SPI
+   family exports `spi_write_byte()`.
+4. With XC16 2.10 at `-O1` the current tree links at **79,734 bytes program
+   (31%)** and **11,898 bytes data (72%)**, with no warnings.
+5. To confirm the feature set took effect, the compile lines show
+   `-DBP_CUSTOM_FEATURE_SET` and `Firmware/bpv4.map` contains `_LCDsetup` and
+   `_smps_start`; the default v4 map contains neither.
+6. On v3 the custom set still stops at the SMPS `#error`; a v3 LCD image needs
+   the LCD switch added to the v3 default set instead.  See
+   [the LCD set](../capabilities/lcd/README.md).  The adapter revisions and
+   the connector/supply path there come from the tracked hardware design
+   files; the on-glass glyph and timing behaviour is code-derived.
+7. A custom build changes the mode numbering in the `m` menu.  The firmware's
+   own menu is authoritative, not the default table.
 
-- The all-features v4 list enables both the HD44780 adapter and SPI.  That
-  combination links: the LCD driver uses its own bounded byte helper
-  (`hd44780_spi_write_byte()` in `capability_hd44780/hd44780.c`) and the SPI
-  family exports `spi_write_byte()`.
-- The v4 all-features build with XC16 2.10 at `-O1` links at **79,734 bytes
-  program (31%)** and **11,898 bytes data (72%)**, with no warnings.
-- To confirm the feature set took effect, the compile lines show
-  `-DBP_CUSTOM_FEATURE_SET` and `Firmware/bpv4.map` contains `LCDsetup` and
-  `smps_start`; the default v4 map contains neither.
-- On v3 the custom set still stops at the SMPS `#error`; a v3 LCD image needs
-  the LCD switch added to the v3 default set instead.  See
-  [the LCD set](../capabilities/lcd/README.md).  The adapter revisions and
-  the connector/supply path there come from the legacy `hardware-other` design
-  files; the on-glass glyph and timing behaviour is code-derived.
-- A custom build changes the mode numbering in the `m` menu.  The firmware's
-  own menu is authoritative, not the default table.
+For a single optional module instead of the whole list, edit the matching
+`#undef` / `#define` in the `BUSPIRATEV4` default block and rebuild.  For
+example, `BP_ENABLE_SMPS_SUPPORT` turns on the SMPS binary group; flash
+`Firmware/bpv4.hex` afterwards as usual.
 
 ## What the build does
 
@@ -257,22 +270,27 @@ regeneration is only needed after editing a `*_strings.txt`.  The Makefile
 compiles `core_messages/messages_v3.s` or `core_messages/messages_v4.s`
 (one per board) and `core_messages/messages.h` includes the matching header.
 
+From the repository root:
+
 ```
-cd tools/packstrings
-python packstrings.py bus_pirate_v3_strings.txt ../../Firmware/core_messages/messages_v3 v3
-python packstrings.py bus_pirate_v4_strings.txt ../../Firmware/core_messages/messages_v4 v4
+python tools/packstrings/packstrings.py tools/packstrings/bus_pirate_v3_strings.txt Firmware/core_messages/messages_v3 v3
+python tools/packstrings/packstrings.py tools/packstrings/bus_pirate_v4_strings.txt Firmware/core_messages/messages_v4 v4
+python Firmware/tests/test_message_catalog.py
 ```
 
-The third argument is the header include-guard tag
-(`v3` → `BP_MESSAGES_V3_H`).  Run the generator **from `tools/packstrings/`**
-because the output prefixes above are relative to that directory.  The
-`#include bus_pirate_common_strings.txt` line inside the version files is
-resolved relative to the including input file (not the process working
-directory), so the version file itself may be given by any path.
+The third argument is the header include-guard tag (`v3` →
+`BP_MESSAGES_V3_H`).  The `#include bus_pirate_common_strings.txt` line inside
+the version files is resolved relative to the including input file (not the
+process working directory), so the version file itself may be given by any
+path.  The generator writes UTF-8 without a BOM and LF line endings.
 
 - If the output base names the wrong directory, the generator writes copies
   that the Makefile never compiles: the edit appears to succeed and the image
   does not change.  Keep the `core_messages/` prefix.
+- The build consumes the committed `.s`/`.h`; it does not regenerate them.
+  Commit the string input and both regenerated files together.
+- `Firmware/tests/test_message_catalog.py` re-generates both boards and checks
+  ordering, flags and payload bytes.  See [tests.md](tests.md).
 
 ## Native (hardware-free) tests
 
@@ -288,13 +306,14 @@ python Firmware/tests/test_core_system.py
 
 Most suites need Python 3 and `gcc` on `PATH`; the two AVRISP XC16 gates
 (`test_avrisp_board_gate.py`, `test_avrisp_cdc_gate.py`) need `xc16-gcc` (or
-its path as the first argument).  Several fixtures read a revision with
-`git show`, so run them from a git checkout.  Generated test files stay under
+its path as the first argument).  Several suites accept an optional
+`--revision <commit>` to compare against an older source revision; the default
+is the current working tree.  Generated test files stay under
 `Firmware/build/` or a temporary directory and are never linked into the
 image.
 
 The authoritative table, with coverage and runner per suite, is
-[tooling.md](tooling.md) §Test suites.
+[tests.md](tests.md).
 
 ## Common build errors
 
@@ -305,22 +324,24 @@ The authoritative table, with coverage and runner per suite, is
 | `process_begin: CreateProcess(NULL, date ...) failed` or `mkdir ... failed` (Windows) | make cannot find the POSIX utilities the recipes call | put `C:\Program Files\Git\usr\bin` first on `PATH`; keep `SHELL` unset (see §Command-line build) |
 | `The AVRISP-MKII personality requires Bus Pirate v4 hardware.` | AVRISP enabled in a v3 build | remove `BP_ENABLE_AVRISP_MKII_SUPPORT` for v3 |
 | `SMPS support is not available on Bus Pirate v3 boards.` | SMPS enabled in a v3 build (the custom block does this) | use a v4 build for SMPS |
+| `SMPS support is not available on Bus Pirate v3` (without `boards.`) | the second SMPS guard was reached | use a v4 build for SMPS |
 | Empty `<VERSION>` in the `i` banner | built from a non-git copy | build from a git checkout, or accept an empty hash |
 | v3 link fails to fit / region overflow | v3 is a 64 KB part | build v3 at the default `-O1`; the default feature set is chosen to fit |
 
-A v3 custom build trips both SMPS guards in `configuration.h`; the second
-prints `SMPS support is not available on Bus Pirate v3` (without `boards.`).
+A flag-only change no longer relinks an old image: the `.build-flags` stamp
+forces a recompile.  If a build still looks stale, check that the command used
+the same `BP_VERSION` target directory and inspect the stamp.
 
 ## Verification
 
-The v4 all-features link result is recorded above.  The per-set documentation
-basis, including the areas that remain `unverified`, is in
-[verification.md](verification.md).
+The v4 all-features link result is recorded above and is reproducible from
+the Makefile with XC16 2.10.  The per-set documentation basis, including the
+areas that remain `unverified`, is in [verification.md](verification.md).
 
 ## Limits & out of scope
 
 - The build produces no signed or packaged release; see
-  [tooling.md](tooling.md) §Release assembly.
+  [release.md](release.md) §Release assembly.
 - The exact MPLAB-X output directory is IDE-generated (see above); only the
   command-line artifacts are tracked.
 - The v3 part is close to its program-flash limit; adding features may require

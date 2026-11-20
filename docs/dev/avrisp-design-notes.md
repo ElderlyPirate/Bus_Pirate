@@ -11,6 +11,15 @@ exchanges are [sessions.md](../programmers/avrisp/sessions.md), and the host
 identity and driver material are
 [host-tools.md](../programmers/avrisp/host-tools.md).
 
+## Scope
+
+- **In:** the design decisions behind the firmware personality, its resource
+  use, its differences from LUFA, the PDI/TPI physical layer, AVR053 and the
+  build-selection rule.
+- **Out:** the command-level user reference, wiring tables and worked sessions
+  in `docs/programmers/avrisp/`, and the ISP speed ladder detail already owned
+  there.
+
 ## Overall shape
 
 - The personality is one **inlined** programmer image: there is no separate
@@ -145,7 +154,7 @@ of the AVR053 procedure and the target runs the AVR053 calibration firmware.
 - On v3 the guard is
   `#if defined(BP_ENABLE_AVRISP_MKII_SUPPORT) && !defined(BUSPIRATEV4)`.
 
-## Known limits (see the topic pages)
+## Known limits
 
 - v4 only; TPI is not verified on a physical target.
 - The transport buffer is 288 bytes; XPROG target payloads stay at or below
@@ -172,3 +181,4 @@ of the AVR053 procedure and the target runs the AVR053 calibration firmware.
 | [serial-route.md](../programmers/avrisp/serial-route.md) | AVR068 framing over CDC |
 | [edge-cases.md](../programmers/avrisp/edge-cases.md) | failure and recovery entries |
 | [license.md](../programmers/avrisp/license.md) | licensing |
+| [building.md](building.md) | feature selection and build |

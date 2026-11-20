@@ -2,13 +2,14 @@
 
 `bp` is the console frontend for Bus Pirate v3/v4 host-side workflows. It
 replaces the legacy `version.pl`, `I2CEEPROMWIN.c`, LCD adapter v2 test
-utility, and the C XSVF host players with one typed, testable Python package.
-It talks to the Bus Pirate binary protocol over a serial port and does not use
-a GUI.
+utility, the C XSVF host players, and the GPLv3 `scripts/pyBusPirateLite/`
+library with one typed, testable Python package. It talks to the Bus Pirate
+binary protocol over a serial port and does not use a GUI.
 
-The old EEPROM/LCD tools remain in the repository. The C XSVF host folders
-were removed after `bp xsvf` replaced them. SVF to XSVF conversion is not part
-of this package; it remains an external Xilinx toolchain step.
+The old EEPROM/LCD tools remain in the repository. The C XSVF host folders and
+the `scripts/pyBusPirateLite/` tree were removed after their functionality was
+ported. SVF to XSVF conversion is not part of this package; it remains an
+external Xilinx toolchain step.
 
 ## Scope
 
@@ -17,6 +18,13 @@ Implemented commands:
 | Command | Purpose | Legacy equivalent |
 |---|---|---|
 | `bp version` | Read and print the firmware/hardware reset banner. | `scripts/version.pl` |
+| `bp bbio` | Binary-bitbang entry, pins, self-test, ADC, PWM, and raw bit clocks. | `pyBusPirateLite.BitBang`, Qt GUI Power tab |
+| `bp raw-wire` | Raw 2-wire/3-wire configuration, bytes, bits, CS, and clocks. | `pyBusPirateLite.RAW_WIRE`, `rawwire` |
+| `bp i2c` | I2C scan, register get/set, commands, and block transfers. | `pyBusPirateLite.I2C`, `I2Chigh`, `i2c-test.py` |
+| `bp spi` | SPI configuration, JEDEC chip ID, transfers, and flash-style read/write. | `pyBusPirateLite.SPI`, `spi_test.py`, Qt GUI SPI tab |
+| `bp uart` | UART configuration, manual BRG, send, receive, and bridge setup. | `pyBusPirateLite.UART`, `noritake-bitmap-display.py` |
+| `bp onewire` | 1-Wire reset, ROM search/read/match/skip, scratchpad, memory, and status. | `pyBusPirateLite._1WIRE` |
+| `bp script` / `bp raw-script` | Send an ASCII-hex file through the binary command loop. | Qt GUI Raw Text tab, `BinMode::command` |
 | `bp eeprom read` | Read an external I2C EEPROM into a text-hex file. | `scripts/I2CEEPROMWIN.c R/Rs` |
 | `bp eeprom write` | Write a text-hex file to an external I2C EEPROM one byte at a time. | `scripts/I2CEEPROMWIN.c W/Ws` |
 | `bp eeprom verify` | Compare an EEPROM span against a text-hex file. | New convenience |
@@ -27,6 +35,11 @@ Legacy mode mapping: `R`/`W` use two-byte memory addressing
 (`--address-width 2`); `Rs`/`Ws` use one-byte addressing
 (`--address-width 1`).
 
+The new mode groups cover the `pyBusPirateLite` modes and useful example
+workflows. They expose the same wire operations as a library
+(`bp.protocol.*`) and as one-shot CLI commands. No GUI and no OpenOCD wrapper
+are included.
+
 Not implemented in this package:
 
 - SVF to XSVF conversion. Use Xilinx iMPACT or the external `svf2xsvf502`
@@ -36,6 +49,13 @@ Not implemented in this package:
 - Page writes for EEPROM devices. Writes always use one byte per I2C
   transaction, matching `I2CEEPROMWIN.c`, because EEPROM page sizes are not
   standardized.
+- Binary-bitbang clock-speed set/read (`0x60`/`0x70`). The v9 firmware in this
+  tree does not implement either command in binary-bitbang mode; use the
+  per-mode `--bus-speed` options instead.
+- SPI configuration read-back. The v9 binary SPI handler accepts `0x80 | cfg`
+  but does not implement a separate configuration-read command.
+- A host-side UART bridge that returns cleanly. `bp uart bridge` enters the
+  firmware bridge, which only a hardware reset exits.
 - Changes to or removal of the remaining legacy EEPROM/LCD tools.
 
 ## Requirements and installation
@@ -79,6 +99,36 @@ bp version
 
 # Explicit port and 115200 baud
 bp version --port COM6 --speed 115200
+
+# Enter binary bitbang, read pins, and reset back to the terminal
+bp bbio enter --port COM6
+bp bbio pins --port COM6
+bp bbio reset --port COM6
+
+# Raw 3-wire configuration and a byte transfer
+bp raw-wire config --wires 3 --output normal --bus-speed 50k --port COM6
+bp raw-wire write --wires 3 --data "9F 00 00 00" --port COM6
+
+# Scan I2C addresses, then read/write register 0x10 on a device at 0x50
+# (Click integer options are decimal: 80 = 0x50, 16 = 0x10, 165 = 0xA5)
+bp i2c scan --port COM6
+bp i2c get-byte --address 80 --register 16 --port COM6
+bp i2c set-byte --address 80 --register 16 --value 165 --port COM6
+
+# SPI JEDEC ID and a flash-style read (opcode 11 = 0x0B)
+bp spi chip-id --port COM6
+bp spi read --opcode 11 --address 0 --length 256 --file flash.bin --port COM6
+
+# UART configuration and a short send
+bp uart config --baud 115200 --port COM6
+bp uart send --baud 115200 --data "48 49 0A" --port COM6
+
+# 1-Wire discovery and scratchpad read
+bp onewire scan --port COM6
+bp onewire read-scratchpad --length 9 --port COM6
+
+# Run an ASCII-hex file through the binary command loop
+bp script --file script.txt --port COM6
 
 # Read 256 bytes of a 24FC64-class EEPROM (two address bytes)
 bp eeprom read --port COM6 --chip 0 --address-width 2 --memory-address 0 --length 256 --file eeprom.txt
@@ -143,6 +193,12 @@ non-mapping documents fail. There is no automatic config-file search.
 
 ## Command reference
 
+Click integer options such as `--address`, `--register`, `--value`,
+`--direction`, `--state`, `--opcode`, and `--length` are decimal. Hex is used
+for `--data`/`--file` byte payloads, 1-Wire `--rom` values, and printed
+protocol data. Convert a desired hex value to decimal in the shell or config
+file (for example `0x50` -> `80`).
+
 ### `bp version`
 
 Reads the text banner produced by the Bus Pirate reset command, then prints:
@@ -165,6 +221,179 @@ The device must be at its user-terminal prompt. Reset it first if it is in a
 binary mode, and allow the banner to start within the 1 s serial read timeout.
 
 Options: `--port`, `--speed`.
+
+### `bp bbio`
+
+Binary-bitbang entry, pin control, self-test, one-shot ADC, PWM, and raw
+bit-banged bytes. Shared options: `--port`, `--speed` (host serial speed).
+
+| Command | Options | Behavior |
+|---|---|---|
+| `bp bbio enter` | connection | Send the binary entry sequence and leave the Bus Pirate in `BBIO1`. |
+| `bp bbio reset` | connection | Enter bitbang, send `0x0F`, and require the `0x01` acknowledgement. Returns the terminal prompt. |
+| `bp bbio version` | connection | Send `0x00` and require the `BBIO1` mode identifier. |
+| `bp bbio pins` | `--direction 0..31`, `--state 0..127`, `--power`, `--pullups`, `--aux`, `--cs` | Optionally apply a direction mask (set bits are inputs) and state mask (set bits are high; power `0x40`, pull-ups `0x20`, AUX `0x10`, CS `0x01`), then read and print the pin state. |
+| `bp bbio selftest` | `--long`, connection | Run the short or full firmware self-test, send `0xFF` to leave its loop, and print the error count. A non-zero count exits 1. |
+| `bp bbio adc` | connection | Run one ADC sample (`0x14`) and print the raw 12-bit value. |
+| `bp bbio pwm` | `--prescaler 0..3`, `--duty 0..65535`, `--period 0..65535`; or `--clear` | Configure or release the AUX PWM output. All three setup parameters are required. |
+| `bp bbio write` | `--data HEX...` or `--file TEXT-HEX`, `--lsb-first`, `--power`, `--pullups` | Clock bytes out on MOSI with CLK pulses. |
+| `bp bbio read` | `--count N`, `--lsb-first`, `--power`, `--pullups` | Clock bytes in from MISO and print them as hex. |
+
+All commands except `enter` reset to the user terminal after success. `pins`,
+`write`, and `read` drive only the Bus Pirate pins; no target is required.
+Binary-bitbang speed set/read is not available in the v9 firmware. Use the
+per-mode bus-speed options.
+
+### `bp raw-wire`
+
+Binary raw 2-wire and 3-wire mode. Shared options: `--output
+normal|open-drain`, `--wires 2|3`, `--lsb-first`, `--bus-speed
+5k|50k|100k|400k`, `--power`, `--pullups`, `--port`, `--speed`.
+
+| Command | Additional options | Behavior |
+|---|---|---|
+| `bp raw-wire config` | shared | Enter raw-wire, apply output type, wire count, bit order, speed, and power/pull-ups, then reset. |
+| `bp raw-wire write` | `--data`/`--file`, `--cs/--no-cs`, `--start`, `--stop` | Write bytes; default CS assertion is on for 3-wire and off for 2-wire. `--start`/`--stop` add 2-wire conditions. |
+| `bp raw-wire read` | `--count N`, `--cs/--no-cs`, `--start`, `--stop` | Read bytes and print hex. |
+| `bp raw-wire bit` | shared | Read one bit with clock (`0x07`). |
+| `bp raw-wire peek` | shared | Read the input pin without clocking (`0x08`). |
+| `bp raw-wire clock` | `--ticks 1..16` | Emit one through sixteen clock ticks. |
+
+Two-wire writes use the firmware bulk byte command and require its per-byte
+success status. Three-wire writes clock each bit explicitly with data/clock
+commands because the firmware's three-wire bulk path returns no per-byte
+status and re-clocks the received value; this is slower but deterministic.
+
+### `bp i2c`
+
+Binary I2C scan, register helpers, commands, and block transfers. Shared
+options: `--bus-speed 5k|50k|100k|400k` (default `100k`), `--power/--no-power`
+(default off), `--pullups/--no-pullups` (default on), `--port`, `--speed`.
+
+| Command | Options | Behavior |
+|---|---|---|
+| `bp i2c scan` | `--start 0..127`, `--end 0..127` | Probe each 7-bit address for write and read acknowledgement and print every hit with its 8-bit write/read addresses. |
+| `bp i2c get-byte` | `--address 0..127`, `--register 0..255` | Repeated-start register read; prints one byte. |
+| `bp i2c set-byte` | `--address`, `--register`, `--value 0..255` | Start/address/register/data/stop write. |
+| `bp i2c get-word` | `--address`, `--register` | Read a big-endian 16-bit register value. |
+| `bp i2c set-word` | `--address`, `--register`, `--value 0..65535` | Write a big-endian 16-bit register value. |
+| `bp i2c command` | `--address`, `--command 0..255` | Write one command byte to the device. |
+| `bp i2c read` | `--address`, optional `--register`, `--length`, optional `--file` | Read sequential bytes; writes a text-hex file or prints hex. |
+| `bp i2c write` | `--address`, optional `--register`, `--data`/`--file` | Write sequential bytes, splitting at the 16-byte bulk limit. |
+
+A NACK on a register/read address or on any data byte raises
+`I2cNackError` and exits 1 with the 7-bit address and operation. The flashed
+BPv4 v9.0 firmware answers binary I2C start, stop, ACK, and NACK with `0x00`
+where the protocol reference specifies `0x01`; the controller accepts either
+reply for those four bus-control commands. Data-phase write status and
+per-byte ACK bits remain strict.
+
+### `bp spi`
+
+Binary SPI configuration, JEDEC chip ID, raw transfers, and flash-style
+read/write. Shared options: `--bus-speed` (default `1m`), `--clock-polarity
+idle-low|idle-high`, `--clock-edge idle-to-active|active-to-idle` (default
+active-to-idle), `--sample middle|end`, `--output normal|open-drain`,
+`--power/--no-power` (default off), `--pullups/--no-pullups` (default off),
+`--port`, `--speed`.
+
+SPI speed codes in firmware order: `30k`, `125k`, `250k`, `1m`, `2m`, `2.6m`,
+`4m`, `8m`, `50k`, `1.3m`, `3.2m`, `5.3m`.
+
+| Command | Options | Behavior |
+|---|---|---|
+| `bp spi config` | shared | Enter SPI, apply speed/mode/power, then reset. |
+| `bp spi chip-id` | shared | Assert CS, transfer `9F FF FF FF`, release CS, and print the four response bytes plus the three-byte JEDEC ID. |
+| `bp spi transfer` | `--data`/`--file`, shared | Assert CS, transfer bytes, release CS, and print the received bytes. |
+| `bp spi read` | `--opcode 0..255`, `--address 0..0xFFFFFFFF`, `--address-width 0..4` (default 3), `--dummy-bytes 0..16`, `--length`, `--file BINARY`, shared | Send opcode + big-endian address + dummy zero bytes, read `--length` bytes with `0xFF`, and write a binary file. |
+| `bp spi write` | `--opcode` (optional), `--address`, `--address-width`, `--file BINARY`, shared | Send an optional opcode/address prefix followed by the file contents. |
+
+The read workflow matches the old `spi_test.py` `-r`/`-i` shape: CS asserted
+for the whole opcode/address/data sequence, one instruction prefix, then
+dummy-byte reads. `--address-width 0` sends no address; `--dummy-bytes` covers
+fast-read commands that need one or more post-address dummy clocks. The old
+`-w` write example was a stub and `-e` erase was a `pass`; `bp spi write`
+therefore implements the useful generic write path rather than replicating
+those stubs.
+
+### `bp uart`
+
+Binary UART configuration, send, receive, and firmware bridge setup. Shared
+options: `--baud` (default `9600`), `--data-bits-parity 8n|8e|8o|9n`,
+`--stop-bits 1|2`, `--polarity normal|inverted`, `--output
+normal|open-drain`, `--power/--no-power` (default off),
+`--pullups/--no-pullups` (default off), `--port`, `--speed`.
+
+Firmware baud codes: `300`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`,
+`57600`, `115200`, `31250`.
+
+| Command | Options | Behavior |
+|---|---|---|
+| `bp uart config` | shared | Enter UART, apply baud/frame/output, then reset. |
+| `bp uart manual-speed` | `--brg 0..65535`, frame/output options | Enter UART and program a raw 16-bit BRG, then reset. The old helper formula was `BRG = (FOSC / (4 * baud)) - 1` with `FOSC = 16 MHz`. |
+| `bp uart send` | `--data`/`--file`, shared | Send hex bytes in 16-byte chunks; each byte is acknowledged by the firmware. |
+| `bp uart receive` | `--length N`, optional `--file TEXT-HEX`, `--timeout SECONDS` | Enable the firmware receive echo, read `N` bytes, disable echo, and print/write them. The default serial read timeout is 5 s. |
+| `bp uart bridge` | `--yes`, shared | Enter the firmware transparent bridge. It only exits on a hardware reset; `--yes` is required. The command prints a warning and leaves the bridge running. |
+
+Receive echo is the firmware `0x02`/`0x03` mode. If a read times out, the
+controller does not attempt the disable-echo command, so the session reports
+the timeout directly; reset the Bus Pirate before the next attempt.
+
+### `bp onewire`
+
+Binary 1-Wire reset, ROM search/read/match/skip, scratchpad, memory, and status
+operations. Shared options: `--bus-speed standard|overdrive` (default
+standard), `--power/--no-power` (default off), `--pullups/--no-pullups`
+(default on), `--port`, `--speed`.
+
+ROM arguments accept eight bytes as 16 hex digits, with optional `:`, `-`, or
+space separators. Omit `--rom` to use SKIP ROM for single-device buses.
+
+| Command | Options | Behavior |
+|---|---|---|
+| `bp onewire reset` | shared | 1-Wire bus reset. |
+| `bp onewire scan` | shared | ROM search; prints each ROM, family code, and CRC status. |
+| `bp onewire alarm-scan` | shared | Alarm-search macro. |
+| `bp onewire read-rom` | shared | Read ROM from a single device. |
+| `bp onewire read-scratchpad` | `--rom`, `--length` (default 9), optional `--file` | Reset, match/skip, send `0xBE`, read the scratchpad. |
+| `bp onewire write-scratchpad` | `--rom`, `--data`/`--file` | Reset, match/skip, send `0x4E` plus data. |
+| `bp onewire copy-scratchpad` | `--rom` | Reset, match/skip, send `0x48`. |
+| `bp onewire read-memory` | `--rom`, `--address 0..65535`, `--length`, optional `--file` | Reset, match/skip, send `0xF0` plus a big-endian address, read bytes (DS2431-style). |
+| `bp onewire read-status` | `--rom`, `--address` | Reset, match/skip, send `0xAA` plus address, read one status byte. |
+| `bp onewire send` | `--rom` or `--skip-rom`, `--data`/`--file` | Reset, select a device, and send arbitrary command bytes. |
+
+The search parser reads eight-byte ROM groups until the firmware sends eight
+`0xFF` bytes. Search is limited to 64 devices per call; a missing terminator
+raises a protocol error. ROM objects expose family, serial, CRC, and a
+Dallas/Maxim CRC-8 validity result.
+
+### `bp script` / `bp raw-script`
+
+Send a whitespace-separated ASCII-hex file through the binary command loop,
+matching the Qt GUI Raw Text tab. Each token is one or two hex digits with an
+optional `0x` prefix. The command enters binary bitbang first, then sends each
+byte as one command and prints the reply bytes before the per-byte serial
+timeout elapses.
+
+| Option | Meaning |
+|---|---|
+| `--file` | ASCII-hex file. Required. |
+| `--reply-timeout` | Per-command reply wait in seconds. Default 0.1. |
+| `--max-reply-bytes` | Maximum reply bytes printed for one command. Default 256. |
+| `--reset` | Send the terminal reset after the script. Use only when the script left the Bus Pirate in binary bitbang. |
+| `--port`, `--speed` | Serial connection. |
+
+Example output:
+
+```text
+001 | raw bytes text: 00 tx:   0 rx: 42 42 49 4F 31
+002 | raw bytes text: 0A tx:  10 rx: (none)
+Exec: ASCII Script...Success! (2 bytes)
+```
+
+The command does not reset by default because script bytes can enter any binary
+submode; an unconditional `0x0F` would be interpreted by that mode. Add
+`--reset` only when the script stays in BBIO.
 
 ### `bp xsvf`
 
@@ -384,15 +613,27 @@ scripts/bp/
     types.py            Frozen EEPROM/version/connection/mode value objects
     py.typed            Inline typing marker
     transport.py        pyserial open/read/write/timeouts; no protocol logic
+    hextext.py          Whitespace-separated ASCII-hex parse/format helpers
     protocol/
       __init__.py
-      bbio.py           Binary-mode entry/framing, status checks, version banner
-      i2c.py            Binary I2C primitives, EEPROM read/write/verify
-      spi.py            Binary SPI primitives and LCD adapter v2 cycle
+      bbio.py           Entry/framing, status checks, bitbang pins/ADC/PWM/self-test
+      raw_wire.py       Raw 2-wire/3-wire configuration, bits, bytes, clocks
+      i2c.py            Binary I2C, scanning, register helpers, EEPROM transfer
+      spi.py            Binary SPI, chip-ID/bulk transfer, LCD adapter v2 cycle
+      uart.py           Binary UART configuration, send, receive, bridge
+      onewire.py        Binary 1-Wire ROM/search/scratchpad/memory/status
       xsvf.py           XSVF entry, chain reset/scan, chunk handshake, result mapping
     commands/
       __init__.py       Shared Click-context accessor
+      inputs.py         Shared hex/binary file and preview helpers
       version.py        `version` command and transport-factory injection
+      bbio.py           `bbio` group and bitbang services
+      raw_wire.py       `raw-wire` group and raw-wire services
+      i2c.py            `i2c` group and register/scan services
+      spi.py            `spi` group and chip-ID/read/write services
+      uart.py           `uart` group and send/receive/bridge services
+      onewire.py        `onewire` group and ROM/scratchpad/memory services
+      script.py         `script`/`raw-script` binary command loop
       eeprom.py         `eeprom` group, text-hex files, EEPROM services
       lcd.py            `lcd-test` command and repeat/interactive loops
       xsvf.py           `xsvf` command, file reads, orchestration, output
@@ -402,8 +643,8 @@ scripts/bp/
     test_config.py      YAML validation and connection precedence
     test_transport.py   Serial transport success/failure behavior
     test_types.py       Frozen EEPROM/connection/mode value objects
-    test_protocol/      Exact wire sequences, XSVF chunks/results, protocol rejections
-    test_commands/      Text-hex services, version service, LCD/XSVF behavior
+    test_protocol/      Exact wire sequences and protocol rejections per mode
+    test_commands/      Command services, file formats, CLI exits, script loop
 ```
 
 Boundary rules:
@@ -423,11 +664,16 @@ Extension contracts:
 | Contract | Location | Operations |
 |---|---|---|
 | `Transport` | `src/bp/transport.py` | `write`, `read_exact`, `read_until_idle`, `reset_input`. Fake implementations must raise `TransportTimeout` when exact reads cannot be satisfied. |
-| `EepromSession` | `src/bp/protocol/i2c.py` | `read_eeprom`, `write_eeprom`, `verify_eeprom`. The command services accept an injected session factory. |
-| `LcdTestSession` | `src/bp/protocol/spi.py` | `run_cycle`. Tests replace the module-level `open_lcd_session` factory. |
+| `BitbangSession`, `BitbangSessionFactory` | `src/bp/protocol/bbio.py` | `configure_directions`, `set_pins`, `read_pins`, power/pull-up/AUX/CS, bit/byte clocks, self-test, ADC, PWM. |
+| `RawWireSession`, `RawWireSessionFactory` | `src/bp/protocol/raw_wire.py` | `configure`, `set_speed`, CS/start/stop/clock/data, bit/byte read/write, bulk clock. |
+| `I2cControlSession`, `I2cDeviceSession`, `EepromSession` | `src/bp/protocol/i2c.py` | `scan`, `configure_speed`, `device`, register byte/word helpers, block transfer, EEPROM read/write/verify. |
+| `SpiSession`, `LcdTestSession` | `src/bp/protocol/spi.py` | `configure_speed`, `configure_spi`, CS, transfer/bulk/read/write, `run_cycle`. |
+| `UartSession`, `UartSessionFactory` | `src/bp/protocol/uart.py` | `configure_speed`, `configure_manual_speed`, `configure`, send, receive, bridge. |
+| `OneWireSession`, `OneWireSessionFactory` | `src/bp/protocol/onewire.py` | Reset, read/write, search/alarm search, ROM read/match/skip, scratchpad, memory, status. |
 | `XsvfSession` | `src/bp/protocol/xsvf.py` | `reset_chain`, `scan_chain`, `play`. The command service accepts an injected session factory. |
-| `open_eeprom_session`, `open_lcd_session`, `open_xsvf_session` | `src/bp/protocol/` | Production factories that own `SerialTransport` plus the mode controller. |
+| `open_bitbang_session`, `open_raw_wire_session`, `open_i2c_session`, `open_spi_session`, `open_uart_session`, `open_onewire_session`, `open_eeprom_session`, `open_lcd_session`, `open_xsvf_session` | `src/bp/protocol/` | Production factories that own `SerialTransport` plus the mode controller. |
 | `VersionInfo`, `EepromLayout`, `ConnectionSettings` | `src/bp/types.py` | Frozen value objects validated at construction. |
+| `SelfTestReport`, `RawWireConfig`, `I2cScanHit`, `SpiConfig`, `UartConfig`, `OneWireRom` | `src/bp/protocol/` | Frozen protocol value objects with validated masks, ranges, and CRC helpers. |
 | `ChainScan`, `XsvfPlayReport` | `src/bp/protocol/xsvf.py` | Frozen XSVF scan/result reports, including raw count+IDCODE bytes and decoded IDCODEs. |
 
 These contracts exist because the commands are tested without hardware and
@@ -435,12 +681,49 @@ because the transport/protocol/command split is the package's extension point.
 
 ## Limitations and known issues
 
-- **Hardware verification:** Partial. `bp version`, `bp xsvf --reset`, and
-  `bp xsvf --scan` were run against the BPv4 on COM6. The EEPROM and LCD wire
-  sequences were verified against the firmware sources, the legacy tools, and
-  scripted fake transports, but no external EEPROM or LCD adapter was
-  connected. No XSVF target/CPLD was connected, so no XSVF file was played and
-  target programming was not attempted.
+- **Hardware verification:** Partial. On the BPv4 at COM6 (v9.0 firmware), the
+  following no-target paths were exercised: `bp version`, `bp bbio
+  enter/reset/version/pins`, `bp raw-wire config`, `bp spi config`, `bp uart
+  config`, `bp onewire reset/scan`, a full `bp i2c scan`, `bp script --reset`
+  with byte `00`, and `bp xsvf --reset/--scan`. The EEPROM, LCD, UART
+  send/receive/bridge, 1-Wire device, SPI chip-ID/read/write, and I2C
+  register/block operations were verified against firmware sources and fake
+  transports but **not** against a connected target. No XSVF file was played
+  and target programming was not attempted.
+- **I2C bus-control replies on the flashed v9.0 firmware:** Start, stop, ACK,
+  and NACK return `0x00`, while the protocol reference says `0x01`. The I2C
+  controller accepts both values for those four commands and still enforces
+  bulk-write success and per-byte ACK bits. The full scan path was exercised on
+  hardware; register/block reads and writes were not target-tested.
+- **Binary-bitbang speed is not available:** The v9 firmware implements no
+  `0x60`/`0x70` speed command in BBIO mode. `bp bbio speed` was not shipped.
+  Use `--bus-speed` on `bp raw-wire`, `bp i2c`, `bp spi`, and `bp uart`.
+- **SPI configuration read-back is unavailable:** The firmware accepts
+  `0x80 | cfg` but has no configuration-read command. The CLI reports the
+  settings it applied rather than reading them back.
+- **UART configuration read-back is unavailable:** The old `UART.read_cfg`
+  sent `0xD0`; the v9 binary UART handler does not implement it. Only write
+  configuration is ported.
+- **Three-wire raw bulk writes:** The firmware's three-wire bulk-byte path
+  does not return per-byte status and re-clocks the received value. The
+  raw-wire controller clocks three-wire bytes bit by bit instead. Two-wire
+  writes use the bulk command.
+- **UART receive requires echo:** Binary UART has no read command. `bp uart
+  receive` enables firmware receive echo, reads the requested byte count, then
+  disables echo. A timeout leaves echo enabled until the next reset.
+- **UART bridge never returns:** `bp uart bridge` enters the firmware bridge
+  and exits after printing the warning. Only a hardware reset leaves bridge
+  mode; Ctrl-C at the host cannot recover the firmware.
+- **1-Wire search limit:** Search collects at most 64 devices per call and
+  requires the firmware's eight-`0xFF` terminator. A real ROM equal to
+  `FF FF FF FF FF FF FF FF` would be ambiguous with the terminator.
+- **1-Wire device helpers are generic:** Scratchpad and memory commands are
+  raw Dallas/Maxim command helpers (`0xBE`, `0x4E`, `0x48`, `0xF0`, `0xAA`).
+  Device-specific lengths, EEPROM write timing, and strong pull-up
+  requirements are the caller's responsibility.
+- **Raw script side effects:** `bp script` executes arbitrary binary commands.
+  It does not reset by default because the script may enter any submode. Use
+  `--reset` only when the script leaves the device in BBIO.
 - **Version banner labels:** `bp version` matches the banner by labels and was
   hardware-verified on a BPv4 (`Bus Pirate v4`, v9.0 firmware, `DEVID:0x1019`).
   A firmware release that renames those labels or changes the URL scheme would
@@ -469,9 +752,9 @@ because the transport/protocol/command split is the package's extension point.
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Command completed successfully, including an XSVF scan/reset or an `XSVF_ERROR_NONE` stream result. |
-| `1` | Runtime failure for `version`/`eeprom`/`lcd-test`, or the XSVF player returned any non-success result byte. |
-| `2` | Click usage failure, or an XSVF host/transport/setup failure: bad or empty file, bad port, invalid configuration, wrong `BBIO1`/`XSV1` banner, missing reply/result, incomplete scan reply, or missing required port. |
+| `0` | Command completed successfully, including an XSVF scan/reset, an `XSVF_ERROR_NONE` stream result, an empty I2C/1-Wire scan, or a zero-error self-test. |
+| `1` | Runtime failure for `version`, the mode groups, `script`, `eeprom`, or `lcd-test`; an XSVF player returned any non-success result byte. Data-phase NACKs, self-test errors, invalid hex, ROM parse errors, and read/write timeouts also exit 1. |
+| `2` | Click usage failure, or an XSVF host/transport/setup failure: bad or empty file, bad port, invalid configuration, wrong `BBIO1`/`XSV1` banner, missing reply/result, incomplete scan reply, or missing required port. Bridge mode without `--yes` also exits 2. |
 
 Specific behavior:
 
@@ -480,9 +763,27 @@ Specific behavior:
   they retain exit 1.
 - A serial read that does not deliver the requested bytes reports the requested
   and received counts.
-- Binary command status `0x00` and unexpected status bytes are rejected.
+- Binary command status `0x00` and unexpected status bytes are rejected, except
+  for the four I2C bus-control replies documented above.
+- I2C register/read-address NACKs and data-byte NACKs raise `I2cNackError` with
+  the 7-bit address and operation.
 - EEPROM memory/read-address NACKs and write-attempt exhaustion are rejected
   with chip/memory-address context; writes also report the byte value.
+- A self-test with a non-zero error count exits 1 after leaving the self-test
+  loop and resetting.
+- `bp script` rejects empty, undecodable, and malformed text-hex files before
+  opening the port. A per-byte reply timeout is not an error; it prints
+  `(none)`.
+- `bp onewire` rejects non-16-digit or non-hex ROM arguments before opening the
+  port.
+- `bp uart receive` reports a serial timeout directly; it does not send the
+  disable-echo command after a failed read.
+- `bp uart bridge` requires `--yes`; without it Click reports a usage error and
+  exits 2.
+- `bp spi read`/`write` reject addresses that do not fit the selected
+  `--address-width` before opening the port.
+- A failed mode-group operation does not attempt the normal "leave mode and
+  reset" cleanup, so a transport or protocol error is not masked.
 - A verification mismatch exits 1 and reports the first differing offset.
 - `bp xsvf` rejects a missing or empty XSVF file before opening the port. It
   exits 2 for a wrong banner, v3/no-player response, scan timeout, missing data
@@ -503,13 +804,36 @@ Specific behavior:
 
 The binary protocol bytes follow the Bus Pirate v2.3+ binary I/O contract:
 
-- Enter binary bitbang with twenty `0x00` bytes and require `BBIO1`.
+- Enter binary bitbang with a leading `0x00` (exit any active submode) plus
+  the documented twenty `0x00` bytes, then require `BBIO1`. The package sends
+  them as one 21-byte write.
+- Binary-bitbang directions use `0x40 | mask` (set bits are inputs; five bits
+  used) and pin/power/pull-up state uses `0x80 | mask`; both return one pin
+  state byte. Short/full self-test use `0x10`/`0x11`, report an error byte,
+  and leave with `0xFF`; ADC uses `0x14` and returns two big-endian bytes; PWM
+  setup/clear use `0x12`/`0x13`.
+- Enter raw-wire with `0x05` and require `RAW1`; configuration uses
+  `0x80 | cfg` (bit 3 high-impedance, bit 2 three-wire, bit 1 LSB-first),
+  speed `0x60 | code`, CS `0x04`/`0x05`, start/stop `0x02`/`0x03`, read
+  byte/bit/peek `0x06`/`0x07`/`0x08`, clock tick/low/high `0x09`/`0x0A`/`0x0B`,
+  data low/high `0x0C`/`0x0D`, bulk bytes `0x10 | (count - 1)`, and bulk clock
+  `0x20 | (count - 1)`.
 - Enter I2C with `0x02` and require `I2C1`; configure power and pull-ups with
-  `0x4C`.
+  `0x40 | flags` (`0x4C` for EEPROM sessions, `0x44` for the generic CLI
+  default); speed uses `0x60 | code` (0-3).
 - Enter SPI with `0x01` and require `SPI1`; CS low/high use `0x02`/`0x03`;
-  single-byte transfer uses `0x10 <byte>`; SPI configuration uses `0x80 | cfg`.
+  single-byte transfer uses `0x10 <byte>`; configuration uses `0x80 | cfg`;
+  speed uses `0x60 | code`; bulk read/write uses `0x10 | (count - 1)` plus
+  that many bytes and returns that many received bytes after a success status.
+- Enter UART with `0x03` and require `ART1`; speed `0x60 | code`, manual BRG
+  `0x07` plus high/low bytes, frame config `0x80 | cfg`, echo on/off
+  `0x02`/`0x03`, bridge `0x0F`, bulk send `0x10 | (count - 1)`.
+- Enter 1-Wire with `0x04` and require `1W01`; reset/read/search/alarm
+  `0x02`/`0x04`/`0x08`/`0x09`, speed `0x20 | code`, bulk write
+  `0x10 | (count - 1)` with one status per byte.
 - I2C start/stop/read/ACK/NACK use `0x02`/`0x03`/`0x04`/`0x06`/`0x07`; bulk
-  writes use `0x10 | (count - 1)` followed by the bytes.
+  writes use `0x10 | (count - 1)` followed by the bytes and return one ACK bit
+  per byte.
 - Enter XSVF with `0x18` and require `XSV1`; v4 firmware only.
 - XSVF chain reset uses `0x01` and has no reply. Chain scan uses `0x02` and
   returns a one-byte count followed by that many IDCODE bytes.
@@ -531,10 +855,15 @@ Authority and source material used by this package:
 | [`scripts/version.pl`](../version.pl) | Legacy reset-banner behavior and platform default ports. |
 | [`scripts/I2CEEPROMWIN.c`](../I2CEEPROMWIN.c) | Legacy EEPROM chip/addressing/file behavior and no-page writes. |
 | [`scripts/powertools/LCDv2-tester/`](../powertools/LCDv2-tester/) | Legacy LCD adapter v2 test sequence. |
-| [`Documentation/bitbang.md`](../../Documentation/bitbang.md) | Binary bitbang entry, identifiers, and reset. |
-| [`Documentation/i2c.md`](../../Documentation/i2c.md) | I2C command semantics and ACK behavior. |
-| [`Documentation/spi.md`](../../Documentation/spi.md) | SPI command semantics. |
-| [`Firmware/binary_io.c`](../../Firmware/binary_io.c), [`Firmware/i2c.c`](../../Firmware/i2c.c), [`Firmware/spi.c`](../../Firmware/spi.c) | Exact status bytes, framing, and mode behavior used by the tests. |
+| `git history:scripts/pyBusPirateLite/` | Behavioral reference only for `BitBang`, `RAW_WIRE`, `I2C`, `I2Chigh`, `SPI`, `UART`, and `_1WIRE`; removed after the port. No source, comments, or structure were copied. |
+| `git history:scripts/pyBusPirateLite/spi_test.py` | SPI chip-ID and flash-style read workflow reference. |
+| `git history:scripts/pyBusPirateLite/i2c-test.py`, `thermometer.py` | I2C register/word helper usage reference. |
+| `git history:scripts/pyBusPirateLite/MicroWire.py`, `shtxx.py` | Raw-wire 3-wire and 2-wire usage reference. |
+| [`tools/qt_gui/GUI/BinMode.cpp`](../../tools/qt_gui/GUI/BinMode.cpp), [`tools/qt_gui/GUI/Interface_rawtext.cpp`](../../tools/qt_gui/GUI/Interface_rawtext.cpp) | BBIO settings and Raw Text ASCII-hex behavior reference. |
+| [`Documentation/bitbang.md`](../../Documentation/bitbang.md) | Binary bitbang terminal behavior and reset. |
+| [`Documentation/i2c.md`](../../Documentation/i2c.md), [`Documentation/raw_2-wire.md`](../../Documentation/raw_2-wire.md), [`Documentation/raw_3-wire.md`](../../Documentation/raw_3-wire.md) | I2C and raw-wire terminal semantics and ACK behavior. |
+| [`Documentation/spi.md`](../../Documentation/spi.md), [`Documentation/uart.md`](../../Documentation/uart.md), [`Documentation/1-wire.md`](../../Documentation/1-wire.md) | SPI, UART, and 1-Wire terminal semantics. |
+| [`Firmware/binary_io.c`](../../Firmware/binary_io.c), [`Firmware/bitbang.c`](../../Firmware/bitbang.c), [`Firmware/i2c.c`](../../Firmware/i2c.c), [`Firmware/spi.c`](../../Firmware/spi.c), [`Firmware/uart.c`](../../Firmware/uart.c), [`Firmware/1wire.c`](../../Firmware/1wire.c) | Exact binary status bytes, framing, command maps, limits, and mode behavior used by the tests. |
 | [`Firmware/jtag.c`](../../Firmware/jtag.c), [`Firmware/jtag/ports.c`](../../Firmware/jtag/ports.c), [`Firmware/jtag/micro.c`](../../Firmware/jtag/micro.c) | XSVF player commands, chunk buffer, XSVF 5.01 command set, and result bytes. |
 | `docs/combined-sweep:docs/protocol/jtag/xsvf.md`, `docs/combined-sweep:docs/tools/xsvf/*` | Authoritative XSVF protocol, host options, native output, limits, and exit semantics used to build the replacement. These pages live on the docs branch, are not present here, and were not edited by this change. |
 | [`tests/`](tests/) | Executable contract for files, protocol sequences, XSVF chunk/result handling, and CLI exits. |
@@ -550,6 +879,44 @@ Authority and source material used by this package:
   `[tool.setuptools.dynamic]`. No lockfile is added.
 - **No pytest-asyncio:** The package has no asynchronous code, so `pytest.ini`
   omits `asyncio_mode` and the dev extra does not install `pytest-asyncio`.
+- **Clean-room mode port:** The GPLv3 `scripts/pyBusPirateLite/` library was
+  used only to identify behavior and workflows. The new code is an independent
+  CC0 implementation with different types, module boundaries, CLI naming,
+  validation, and test doubles. The old tree was deleted in the same change;
+  it remains available in Git history for reference.
+- **No BBIO speed command:** The old Qt GUI and `BitBang.py` sent `0x60`/`0x70`
+  in binary-bitbang mode. The v9 firmware does not implement them in BBIO. The
+  package omits the command rather than shipping a failing path; bus speed is
+  set by each mode's own handler.
+- **I2C bus-control reply variance:** The flashed v9.0 firmware returns `0x00`
+  for start/stop/ACK/NACK. The new controller accepts `0x00` or `0x01` for
+  those four commands, based on hardware evidence, while retaining strict
+  data-phase checks. This differs from the protocol reference and is
+  documented as a firmware quirk.
+- **Leading NUL on binary entry:** One leading `0x00` exits any active binary
+  submode before the twenty-NUL BBIO entry sequence. This prevents stale
+  submode bytes from shifting the `BBIO1` banner when a previous command
+  failed before cleanup. The bytes are sent in one 21-byte write.
+- **Three-wire writes clock bits explicitly:** The firmware's three-wire bulk
+  path is not used because it returns no per-byte status and re-clocks the
+  received value. This is slower than the old example's bulk call but avoids
+  corrupting the bus stream.
+- **UART receive uses echo:** The old library exposed `begin_input`/`end_input`
+  but no receive helper. `bp uart receive` composes those commands with a
+  bounded serial read and a selectable timeout.
+- **UART bridge is setup-only:** The old library only entered bridge mode.
+  `bp uart bridge` does the same and requires `--yes`; it cannot bridge host
+  stdin/stdout because firmware bridge mode never returns to the command loop.
+- **SPI workflow:** The old `spi_test.py` read/id paths are ported as `bp spi
+  read`/`bp spi chip-id`. Its write path was a stub and erase was `pass`, so
+  `bp spi write` provides a real generic write instead of reproducing them.
+- **1-Wire helpers are explicit device commands:** The old `_1WIRE` module
+  exposed reset, read, and search only. The new module adds ROM read/match/skip,
+  scratchpad, memory, and status helpers because the task requires the useful
+  scratchpad/memory/status operations, while keeping them device-generic.
+- **Raw script is hex-only:** The Qt Raw Text tab parsed tokens with
+  `toUShort(base 0)`, which also accepts decimal and octal. `bp script` accepts
+  the documented ASCII-hex forms only, reusing the package's strict hex parser.
 - **Bounded EEPROM write retries:** The old tool retried forever. The new tool
   uses a fixed 100 attempts/5 ms policy for predictable failure, as described
   above. This is the intentional change to EEPROM write timing and retry
@@ -616,13 +983,13 @@ Latest recorded results in this worktree:
 
 ```text
 python -m pytest
-208 passed
+459 passed
 
 ruff check .
 All checks passed!
 
 ruff format --check .
-32 files already formatted
+55 files already formatted
 
 pyright
 0 errors, 0 warnings, 0 informations
@@ -634,6 +1001,32 @@ config and hex files, file failures, protocol status/NACK errors, EEPROM retry
 exhaustion, sequential address increments, verification mismatches, CLI exit
 codes, configuration validation, and exact one-shot/repeat LCD command
 sequences.
+
+Mode coverage includes:
+
+- BBIO: exact direction/state masks, power/pull-up/AUX/CS accumulation, 5-bit
+  direction and 7-bit state validation, MSB/LSB bit clocks, ADC range checks,
+  PWM frames/ranges, self-test entry/exit and non-zero error handling, banner
+  rejection, and reset-on-exit behavior.
+- Raw wire: configuration-byte encoding, 2-wire bulk writes with per-byte
+  status, 3-wire bit-by-bit writes, CS/start/stop framing, bit/peek validation,
+  clock bounds, and mode cleanup.
+- I2C: exact repeated-start register sequences, byte/word helpers, block
+  read/write splitting at 16 bytes, address scan with write/read ACK
+  combinations, NACK paths for every operation, bus-control reply variance,
+  invalid ranges, and EEPROM sequencing.
+- SPI: configuration bits, all speed codes, bulk transfer lengths, CS framing,
+  chunked read/write, chip-ID response, address-width/address-fit rejection,
+  dummy-byte rejection, and binary file handling.
+- UART: frame configuration bits, table and manual BRG programming, 16-byte
+  send chunking, echo receive, timeout behavior without `end_input`, bridge
+  cleanup suppression, and invalid ranges.
+- 1-Wire: CRC-8 reference vector, ROM field/CRC validation, search/alarm
+  terminator parsing and 64-device limit, read/match/skip, scratchpad,
+  memory/status command frames, address/length rejection, and mode cleanup.
+- Script: binary entry, per-byte reply collection, reset option, timeout
+  propagation, both command aliases, invalid/empty/missing hex files, and
+  reply-limit validation.
 
 XSVF coverage includes exact `BBIO1`/`XSV1` entry, reset and scan command
 sequences, scan payload reads and truncation, invalid count bytes, chunk
@@ -647,20 +1040,41 @@ Hardware verification: **Partial.** On the BPv4 at COM6 (firmware v9.0):
 - `bp version --port COM6` returned `Bus Pirate v4`,
   `ElderlyPirate Firmware v9.0 - goo.gl/gCzQnW - 14256fd5`,
   `DEVID:0x1019 REVID:0x0004 (24FJ256GB106 A6)`, and the ElderlyPirate URL.
+- `bp bbio enter`, `bp bbio version`, and `bp bbio pins` succeeded; `bp bbio
+  reset` restored the terminal prompt. `bp bbio version` returned `BBIO1` and
+  `bp bbio pins` returned `0x00` with no target connected.
+- `bp raw-wire config --wires 3 --output normal --bus-speed 50k`, `bp spi
+  config`, and `bp uart config --baud 9600` entered their modes, applied the
+  requested settings, and reset successfully.
+- `bp raw-wire write --wires 3 --data 00` exercised the three-wire bit-clock
+  write path. `bp bbio write --data 00` and `bp bbio read --count 1` exercised
+  the MOSI/CLK bit-bang paths and returned `00` from the floating bus. No
+  target was connected.
+- `bp onewire reset` succeeded and `bp onewire scan` returned
+  `No 1-Wire devices found.` with no target, exercising the search terminator
+  path.
+- `bp i2c scan --start 0 --end 127` completed and returned
+  `No I2C devices acknowledged addresses 0x00 through 0x7F.` No target was
+  connected. This run exposed the firmware's `0x00` bus-control replies; after
+  the documented adaptation the full scan path completed.
+- `bp script --file ... --reset` with the single byte `00` printed
+  `rx: 42 42 49 4F 31` (`BBIO1`), reset the board, and restored the terminal.
 - `bp xsvf --reset --port COM6` exited 0 and printed
   `Performing Reset.. Done`.
 - `bp xsvf --scan --port COM6` exited 0 and returned
   `Chain Scan Result: FC` followed by 252 zero bytes. That is the documented
   TDO-stuck-low/no-target result, including the 63-device scan clamp; no target
   or CPLD was connected.
-- After each safe command the board remained in the firmware player, as
-  documented. A raw `0x0F`, `0x0F` pair returned `0x01` and the terminal
-  banner, restoring the prompt.
+- After each safe command the board was reset or recovered to the terminal
+  prompt. `bp version` was rerun after the mode checks and returned the banner.
 
 No XSVF file was played: that would attempt to program an absent target. No
-target programming was claimed or attempted. The EEPROM and LCD paths use
-scripted fake serial and transport implementations only; no external EEPROM or
-LCD adapter was connected.
+target programming was claimed or attempted. No I2C device, EEPROM, SPI flash,
+UART peer, or 1-Wire device was connected. Register/block I2C operations, SPI
+chip-ID/flash read/write, UART send/receive/bridge, and 1-Wire device commands
+therefore have fake-transport and source-level verification only. The EEPROM
+and LCD paths also use scripted fake serial and transport implementations; no
+external EEPROM or LCD adapter was connected.
 
 Environment used for the recorded run:
 
@@ -691,6 +1105,10 @@ following updates are required when the branches are combined:
 | `docs/protocol/jtag/xsvf.md` | Point the host workflow at `bp xsvf`; the in-mode protocol, result codes, and firmware limits are unchanged. |
 | `docs/tools/xsvf/converter.md` | Keep the external Xilinx conversion material, but remove folder paths that pointed inside the deleted C trees. |
 | `docs/tools/xsvf/player.md` | Firmware-side content remains valid; check any host-tool cross-references. |
+| Any `docs/` page that lists `scripts/pyBusPirateLite/` or its examples | Replace the host-library reference with the relevant `bp bbio`, `bp raw-wire`, `bp i2c`, `bp spi`, `bp uart`, `bp onewire`, or `bp script` section; state that the GPLv3 tree was removed. Exact page paths are on the docs branch and were not inspected on this branch; this is `Requires verification`. |
+| `docs/` protocol pages that document binary host framing | Add the 21-byte binary entry sequence, the new mode command bytes, and the v9 firmware I2C `0x00` bus-control reply variance. |
+| `docs/` tooling pages that mention the old Qt Raw Text tab | Point the ASCII-hex workflow at `bp script` / `bp raw-script`; note the package accepts strict ASCII hex rather than the GUI's base-0 parser. |
+| `docs/` pages describing BBIO speed set/read | Remove or mark unsupported for the v9 firmware; speed is per-mode. |
 
 The current-branch `Documentation/jtag.md` also marks the XSVF player as a
 deprecated TODO. That note is stale for the v4 firmware player and is outside

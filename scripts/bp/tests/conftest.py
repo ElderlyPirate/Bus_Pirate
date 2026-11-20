@@ -67,6 +67,7 @@ class ScriptedTransport:
 
     def __init__(self, responses: Iterable[bytes] = ()) -> None:
         self.responses: deque[bytes] = deque(responses)
+        self.forced_reads: deque[bytes] = deque()
         self.received: bytearray = bytearray()
         self.writes: list[bytes] = []
         self.reset_count = 0
@@ -74,12 +75,20 @@ class ScriptedTransport:
     def feed(self, data: bytes) -> None:
         self.received.extend(data)
 
+    def queue_read(self, data: bytes) -> None:
+        self.forced_reads.append(bytes(data))
+
     def write(self, data: bytes) -> None:
         self.writes.append(bytes(data))
         if self.responses:
             self.received.extend(self.responses.popleft())
 
     def read_exact(self, size: int) -> bytes:
+        if self.forced_reads:
+            chunk = self.forced_reads.popleft()
+            if len(chunk) != size:
+                raise TransportTimeout(f"forced read has {len(chunk)} of {size} bytes")
+            return chunk
         if len(self.received) < size:
             raise TransportTimeout(f"fake transport has {len(self.received)} of {size} bytes")
         chunk = bytes(self.received[:size])

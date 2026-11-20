@@ -126,10 +126,44 @@ def _xsvf_factory(
 def test_help_lists_frontend_commands() -> None:
     result = CliRunner().invoke(cli, ["--help"])
     assert result.exit_code == 0
-    assert "version" in result.output
-    assert "eeprom" in result.output
-    assert "lcd-test" in result.output
-    assert "xsvf" in result.output
+    for command in (
+        "version",
+        "bbio",
+        "raw-wire",
+        "i2c",
+        "spi",
+        "uart",
+        "onewire",
+        "eeprom",
+        "lcd-test",
+        "xsvf",
+        "script",
+        "raw-script",
+    ):
+        assert command in result.output
+
+
+def test_new_mode_groups_require_a_port() -> None:
+    runner = CliRunner()
+    for args in (
+        ["bbio", "pins"],
+        ["raw-wire", "config"],
+        ["i2c", "scan"],
+        ["spi", "config"],
+        ["uart", "config"],
+        ["onewire", "reset"],
+    ):
+        result = runner.invoke(cli, args)
+        assert result.exit_code == 1, args
+        assert "No serial port specified" in result.output
+
+
+def test_new_mode_groups_reject_invalid_config(tmp_path: Path) -> None:
+    config = tmp_path / "bp.yaml"
+    config.write_text("unknown_key: 1\n", encoding="utf-8")
+    result = CliRunner().invoke(cli, ["--config", str(config), "i2c", "scan"])
+    assert result.exit_code == 1
+    assert "Invalid configuration" in result.output
 
 
 def test_version_prints_banner_fields(monkeypatch: pytest.MonkeyPatch) -> None:

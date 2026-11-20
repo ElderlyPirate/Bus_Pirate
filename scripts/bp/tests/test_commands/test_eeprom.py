@@ -9,15 +9,12 @@ from pathlib import Path
 import pytest
 
 from bp.commands.eeprom import (
-    format_hex_text,
-    parse_hex_text,
     read_eeprom_to_file,
-    read_hex_file,
     verify_eeprom_from_file,
     write_eeprom_from_file,
-    write_hex_file,
 )
 from bp.errors import CommandError, EepromVerifyError
+from bp.hextext import format_hex_text, parse_hex_text, read_hex_file, write_hex_file
 from bp.protocol.i2c import EepromSession, EepromWriteReport
 from bp.types import AddressWidth, ChipAddress, ConnectionSettings, EepromLayout
 

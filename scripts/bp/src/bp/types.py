@@ -16,6 +16,9 @@ class BpBinaryMode(IntEnum):
 
     SPI = 0x01
     I2C = 0x02
+    UART = 0x03
+    ONEWIRE = 0x04
+    RAW_WIRE = 0x05
     XSVF = 0x18
 
     @property
@@ -26,6 +29,12 @@ class BpBinaryMode(IntEnum):
                 return b"SPI1"
             case BpBinaryMode.I2C:
                 return b"I2C1"
+            case BpBinaryMode.UART:
+                return b"ART1"
+            case BpBinaryMode.ONEWIRE:
+                return b"1W01"
+            case BpBinaryMode.RAW_WIRE:
+                return b"RAW1"
             case BpBinaryMode.XSVF:
                 return b"XSV1"
 

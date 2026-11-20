@@ -29,6 +29,15 @@ class ProtocolError(BpError):
     """Raised when the Bus Pirate rejects or misanswers a protocol command."""
 
 
+class I2cNackError(ProtocolError):
+    """Raised when an I2C device does not acknowledge an address or data byte."""
+
+    def __init__(self, address: int, operation: str) -> None:
+        self.address = address
+        self.operation = operation
+        super().__init__(f"I2C address 0x{address:02X} did not acknowledge {operation}")
+
+
 class EepromWriteError(ProtocolError):
     """Raised when an EEPROM byte cannot be acknowledged within the retry limit."""
 

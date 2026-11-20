@@ -16,7 +16,7 @@ from bp.protocol.xsvf import (
 )
 from conftest import ScriptedTransport
 
-ENTER = b"\x00" * 20
+ENTER = b"\x00" * 21
 BASE_WRITES = [ENTER, b"\x18"]
 BASE_RESPONSES = [b"BBIO1", b"XSV1"]
 

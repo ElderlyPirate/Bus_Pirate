@@ -66,7 +66,19 @@ never blocks USB servicing. Full USB suspend-current compliance is not
 claimed: this loader does not implement board-wide low-power sleep.
 
 Build/test via `../Makefile`; see `../README.md` for the manual audit, passing
-5.0 loader-only bench and separately labelled historical 4.15 tests. The 5.0
+5.0 loader-only bench and subsequent final combined application upload. The 5.0
 hello is `F1 05 00 4B`; the reset GOTO opcode remains `0x04`, not `0x05`.
-The application revision remains v9.0. No application is flashed during the
-5.0 loader-only rebench; wait for the owner's final combined image and hash.
+
+The owner's final combined `Firmware/bpv4.hex`, built from final head
+`14256fd5`, SHA-256
+`F15412B85A9C059E1C2D231C2316CB6FB8B5E4DFA59C0D8B2A1370F530E606D0`,
+is now uploaded through bootloader 5.0. All 472 application rows plus eight
+vector rows are accepted after loader-side flash readback, not an independent
+application dump. Automatic post-flash restart returns to COM6 `04D8:FB00`,
+banner `Bus Pirate v4` / `ElderlyPirate Firmware v9.0` / build `14256fd5`,
+`HiZ>`, and a second responsive info query; no resident `04D8:FAFF` loader.
+No ICSP command or manual reset/replug is used for that upload/check.
+
+The 5.0 loader-only bench and this application upload are fresh evidence.
+NORMAL-held and PGC/PGD-jumper physical entry cases were exercised on 4.15 and
+were not repeated on 5.0. See `../README.md` for the separate evidence paths.

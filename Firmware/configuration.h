@@ -253,8 +253,26 @@
  * @note BPv3 default firmware status: INCLUDED
  * @note BPv4 default firmware status: INCLUDED
  *
- * OpenOCD support is not yet available on v4 boards, however plans are
- * underway to get this working.
+ * The OpenOCD host adapter (BP_JTAG_OPENOCD_SUPPORT) is enabled on both
+ * BPv3 and BPv4; the XSVF player sub-mode (BP_JTAG_XSVF_SUPPORT) is
+ * enabled on BPv4 only (memory), see the module configuration block
+ * below.
+ */
+
+/**
+ * #define BP_ENABLE_AVRISP_MKII_SUPPORT
+ *
+ * Enables the AVRISP-MKII compatible programmer personality: ISP, PDI and
+ * TPI programming of AVR targets, using the Bus Pirate as a programmer.
+ *
+ * @note BPv3 firmware status: NOT AVAILABLE
+ * @note BPv4 default firmware status: INCLUDED
+ *
+ * On BPv4 the personality can re-enumerate the device as an AVRISP mkII
+ * (VID/PID 03EB:2104) for use with avrdude-compatible hosts. BPv4 also
+ * provides a framed STK500v2 fallback over USB CDC. The protocol
+ * engine is ported from LUFA's AVRISP-MKII project; see
+ * Documentation/avrisp_mkii.md.
  */
 
 /**
@@ -311,6 +329,7 @@
 #define BP_ENABLE_SPI_SUPPORT
 #define BP_ENABLE_SUMP_SUPPORT
 #define BP_ENABLE_UART_SUPPORT
+#define BP_ENABLE_AVRISP_MKII_SUPPORT
 #endif /* BUSPIRATEV4 */
 
 #ifdef BUSPIRATEV3
@@ -348,6 +367,10 @@
 #define BP_ENABLE_SUMP_SUPPORT
 #define BP_ENABLE_UART_SUPPORT
 #endif /* BP_CUSTOM_FEATURE_SET */
+
+#if defined(BP_ENABLE_AVRISP_MKII_SUPPORT) && !defined(BUSPIRATEV4)
+#error "The AVRISP-MKII personality requires Bus Pirate v4 hardware."
+#endif
 
 /* 1-Wire module configuration definitions. */
 

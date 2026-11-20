@@ -6,71 +6,96 @@
 > If you own a Bus Pirate 5 or later, please see https://buspirate.com
 >
 
-The Bus Pirate is an open source hacker multi-tool that talks to electronic stuff.
-It's got a bunch of features an intrepid hacker might need to prototype their next project.
+The Bus Pirate is an open source hacker multi-tool that talks to electronic
+stuff.  It's got a bunch of features an intrepid hacker might need to
+prototype their next project.
 
-This community firmware was forked from the official Dangerous Prototypes firmware for these devices.
-This repository represents the hard work of community members to sustain and continue the legacy of the Bus Pirate v3 and v4 devices.
+![Operation overview: PC to Bus Pirate over USB, Bus Pirate to the target IC over the serial bus](docs/assets/images/overview450.png)
 
-## Protocols
-    
-* 1-Wire
-* I2C
-* SPI
-* JTAG
-* Asynchronous serial
-* MIDI
-* PC keyboard
-* HD44780 LCD
-* 2- and 3-wire libraries with bitwise pin control
-* Scriptable binary bitbang, 1-Wire, I2C, SPI, and UART modes.
+This community firmware was forked from the official Dangerous Prototypes
+firmware for these devices.  This repository represents the hard work of
+community members to sustain and continue the legacy of the Bus Pirate v3 and
+v4 devices.
 
-## Features
+Public domain (Creative Commons Zero) source: prototype with the Bus Pirate,
+then use the code in your project however you want — see [LICENSE](LICENSE).
 
-* 0 - 5.5v tolerant pins
-* 0 - 6v measurement probe
-* 1Hz - 40MHz frequency measurement
-* 1kHz - 4MHz pulse-width modulator, frequency generator
-* On-board multi-voltage pull-up resistors
-* On-board 3.3v and 5v power supplies with software reset
-* Macros for common operations
-* Bus traffic sniffers (SPI, I2C)
-* A bootloader for easy firmware updates
-* Transparent USB&rarr;serial mode
-* 10Hz - 1MHz low-speed logic analyzer
-* Servo driver
-* Can program many AVR microcontrollers
-  * Supported by AVRdude
-  * Can emulate the AVR STK500 v2 with alternate ST500 Clone firmware 
-  * Programs FPGAs and CPLDs with alternate XSVF firmware
-* Scriptable from Perl, Python, etc.
-* Public domain (Creative Commons Zero) source. Prototype with the Bus Pirate, then use the code in your project however you want. 
+## What works
 
-## Application Support
+The firmware covers the classic Bus Pirate tool set: 1-Wire, UART (including
+half-duplex single-wire), I2C, SPI, the raw 2-Wire and 3-Wire buses, PC
+keyboard, PIC, direct I/O, the SUMP logic analyzer, the BASIC script engine,
+the v4 AVRISP-MKII programmer and the JTAG host paths (OpenOCD, and the v4
+XSVF player).  The shared prompt adds the ADC, AUX/PWM/frequency and
+self-test controls.  An LCD adapter and the v4 SMPS add-on are optional
+builds.  Both the v3 and v4 boards are supported; [docs/SPEC.md](docs/SPEC.md)
+shows each function's availability and v3/v4 differences.
 
-The Bus Pirate is used through a simple terminal interface, but these applications also support the Bus Pirate as a programming device, etc.
+## Documentation
 
-* [AVRDude] AVR programmer (AVRDude v5.8+, firmware v4 (any) or v5.9+)
-* [OpenOCD] JTAG debugger
-* [flashrom] bios/flash programmer 
+The documentation lives under **[docs/](docs/)**.  The specification owns the
+full capability matrix and links every set:
 
-# Purchasing
+* **[docs/SPEC.md](docs/SPEC.md)** — the specification: every mode, function
+  and sub-function (for example UART *and* HDUART) with its v3/v4 status.
+  Planned items are marked `tbi`.
+* **[docs/generic/](docs/generic/)** — how to use the prompt: navigation,
+  formatting, values, macros, wrappers, reads and reset.
+* **[docs/TEMPLATE.md](docs/TEMPLATE.md)** — the page template and presentation
+  rules used by the documentation sets.
 
-> 2025 - If you're looking to purchase an old Bus Pirate v3, or v4.. don't
+Sets are grouped by cluster:
+
+| Cluster | Covers |
+|---|---|
+| [docs/protocol/](docs/protocol/) | bus and host protocols |
+| [docs/tools/](docs/tools/) | self-contained tools that ride a protocol |
+| [docs/capabilities/](docs/capabilities/) | hardware capabilities |
+| [docs/programmers/](docs/programmers/) | programmer personalities |
+| [docs/core/](docs/core/) | firmware internals (maintainer-facing) |
+| [docs/dev/](docs/dev/) | build, flash, bootloaders and tooling (maintainer-facing) |
+
+## Application support
+
+The Bus Pirate is used through a simple terminal interface; these programs can
+drive it for specific jobs (each covered in the set for the function it
+drives):
+
+* [AVRDude] — AVR programming via the built-in AVRISP-MKII personality (BPv4)
+* [OpenOCD] — JTAG debugging (binary JTAG mode)
+* [flashrom] — BIOS/flash programming
+* [sigrok/PulseView] — logic analyzer (SUMP)
+* [`picprog`](docs/programmers/pic/picprog.md) — PIC programming
+
+The repository also ships the `bp` console frontend for host-side workflows:
+version and port discovery, BBIO, raw wire, I2C, SPI, UART, 1-Wire, EEPROM,
+LCD test, XSVF and scripts. See [docs/dev/tooling.md](docs/dev/tooling.md).
+
+## Purchasing
+
+> If you're looking to purchase an old Bus Pirate v3, or v4.. don't
 > spend over $30-40 USD. Spend your hard-earned cash on a Bus Pirate 5+ https://buspirate.com
 
 * Bus Pirate v4.0 - *Newer, more space for bigger firmwares*
   * Worldwide: amazon.com has some overpriced old stock boards.
 
-* Bus Pirate v3.6 - *Proven, more well tested*
+* Bus Pirate v3.6 - *Long-standing design*
   * Worldwide: amazon.com has some overpriced old stock boards.
   * Europe: <https://www.robotshop.com/uk/bus-pirate-v36a.html>
   * USA: <https://anibit.com/product/ptt07001>
+
+## Firmware
+
+The firmware is built and flashed with the steps in
+[docs/dev/](docs/dev/README.md) — see [building](docs/dev/building.md) and
+[flashing](docs/dev/flashing.md).
 
 [OpenOCD]: http://openocd.org
 [AVRDude]: http://www.nongnu.org/avrdude
 [flashrom]: https://www.flashrom.org/Flashrom
 
-## Firmware Flashing
+## Hardware design files
 
-Refer to [building-and-flashing-firmware](Documentation/building-and-flashing-firmware.md) to see how to build and flash this firmware.
+Original schematics, Eagle boards and SketchUp models for the v3/v3.5/v3.6/v4
+revisions are in [hardware/](hardware/); the hardware licence is
+[hardware/COPYING.TXT](hardware/COPYING.TXT) (CC BY-SA 3.0).

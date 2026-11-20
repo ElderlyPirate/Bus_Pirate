@@ -13,9 +13,28 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project(pirate-loader)
+cmake_minimum_required(VERSION 3.15)
+project(pirate-loader C)
 set (SOURCE_FILES pirate-loader.c)
 set_property (SOURCE ${SOURCE_FILES} PROPERTY COMPILE_DEFINITIONS OS=${CMAKE_SYSTEM_NAME})
-set (CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc")
+
+# A stand-alone flasher is nicer to carry around statically linked, but the
+# flags are toolchain-specific: GCC/Clang take -static[-libgcc], MSVC takes
+# /MT.  Do not hand GCC flags to MSVC (and vice versa).
+option (PIRATE_LOADER_STATIC "Link against static runtimes where supported" ON)
+if (PIRATE_LOADER_STATIC)
+  if (MSVC)
+    set (CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  elseif (NOT APPLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc")
+  elseif (NOT APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  endif ()
+endif ()
+
 add_executable (pirate-loader ${SOURCE_FILES})
+if (MSVC)
+  target_compile_options (pirate-loader PRIVATE /W4 /WX)
+else ()
+  target_compile_options (pirate-loader PRIVATE -Wall -Wextra -Werror)
+endif ()

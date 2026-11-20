@@ -1,0 +1,12 @@
+#ifndef BOOT_CONFIG_H
+#define BOOT_CONFIG_H
+#define USB_VID 0x04D8u
+#define USB_PID 0xFAFFu
+#define USB_DEV 0x0002u
+#define USB_NUM_CONFIGURATIONS 1u
+#define USB_NUM_INTERFACES 2u
+#define USB_NUM_STRINGS 4u
+#define USB_EP0_BUFFER_SIZE 8u
+#define CDC_BUFFER_SIZE 64u
+#define CDC_NOTICE_BUFFER_SIZE 10u
+#endif

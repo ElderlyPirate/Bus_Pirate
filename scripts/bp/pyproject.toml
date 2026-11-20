@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bus-pirate-host"
+version = "0.1.0"
+description = "Console host frontend for Bus Pirate v3/v4 devices."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "CC0-1.0"
+authors = [
+    { name = "Bus Pirate project" },
+]
+keywords = ["bus-pirate", "i2c", "spi", "eeprom", "serial"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dynamic = ["dependencies"]
+
+[project.optional-dependencies]
+dev = [
+    "pyright==1.1.414",
+    "pytest==9.2.0",
+    "ruff==0.17.6",
+]
+
+[project.scripts]
+bp = "bp.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["bp*"]
+
+[tool.setuptools.package-data]
+bp = ["py.typed"]

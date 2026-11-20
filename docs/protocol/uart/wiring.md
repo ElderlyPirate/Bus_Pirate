@@ -14,6 +14,8 @@ names, and the voltage limit.  Entry and bring-up are in
 | One-wire device, or a second Bus Pirate | **MOSI (shared data) + GND**; MISO unused | **required**, 1 kΩ–10 kΩ to the target's logic voltage (3.3 V typical) |
 | Hardware handshaking (v3 only) | add **CS** and **CLK** | see §Flow-control signals |
 
+![Bus Pirate UART connection: MOSI to the target RX, MISO to the target TX, common GND](../../assets/images/connections/UART.png)
+
 A **non-self-powered target** also needs its supply: connect the target's
 **VCC** to the Bus Pirate's **3.3 V** or **5.0 V** header pin and share
 **GND**; `W` switches that rail on.  Vpullup is a separate reference and does

@@ -34,7 +34,7 @@ breakout with no shift register and is not the adapter this mode drives.
 
 *The v3a board: Contrast and Backlight pots, and the backlight jumpers.*
 
-The v3a 3D model is in [Bus Pirate Lcd Adapter v3a.zip][lcd-v3a-zip].  The
+The v3a 3D model is in [Bus Pirate Lcd Adapter v3a.skp][lcd-v3a-model].  The
 published v2 and v4 adapter pages are
 [v2](http://dangerousprototypes.com/docs/Bus_Pirate_LCD_adapter_v2) and
 [v4](http://dangerousprototypes.com/docs/Bus_Pirate_v4_LCD_adapter).
@@ -208,6 +208,6 @@ Both boards use the same three SPI signals and the same firmware path; only
 the header order and the build's menu number differ.  The v3 hardware path is
 **unverified on v3**.
 
-[lcd-v2]: ../../assets/images/BP-LCDv2-250px.jpg
-[lcd-v3a]: ../../assets/art/BP-LCD-v3a-600.jpg
-[lcd-v3a-zip]: <../../assets/art/Bus Pirate Lcd Adapter v3a.zip>
+[lcd-v2]: ../../assets/images/lcd/BP-LCDv2-250px.jpg
+[lcd-v3a]: ../../assets/images/lcd/BP-LCD-v3a-600.jpg
+[lcd-v3a-model]: <../../../hardware/lcd-adapter/v3a/Bus Pirate Lcd Adapter v3a.skp>

@@ -971,7 +971,7 @@ void handle_set_speed(const uint8_t command) {
 }
 
 void handle_configuration(const uint8_t command) {
-  mode_configuration.high_impedance = (command & 0b00001000) ? YES : NO;
+  mode_configuration.high_impedance = (command & 0b00001000) ? NO : YES;
   io_state.wires =
       (command & 0b00000100) ? BINARY_IO_3_WIRES : BINARY_IO_2_WIRES;
   mode_configuration.little_endian = (command & 0b00000010) ? YES : NO;
